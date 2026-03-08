@@ -1,0 +1,1 @@
+export { createCorsOptions } from "./cors";

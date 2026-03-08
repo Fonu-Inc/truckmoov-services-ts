@@ -1,0 +1,9 @@
+export { VEHICLE_REPOSITORY } from "./domain/repositories/vehicle.repository";
+export { VehicleNotFoundError } from "./domain/errors/vehicle-not-found.error";
+export { InMemoryVehicleRepository } from "./infrastructure/repositories/in-memory-vehicle.repository";
+export { MikroVehicleRepository } from "./infrastructure/repositories/mikro-vehicle.repository";
+export { CreateVehicleUseCase } from "./application/use-cases/create-vehicle.use-case";
+export { ListVehiclesUseCase } from "./application/use-cases/list-vehicles.use-case";
+export { GetVehicleUseCase } from "./application/use-cases/get-vehicle.use-case";
+export { UpdateVehicleUseCase } from "./application/use-cases/update-vehicle.use-case";
+export { DeleteVehicleUseCase } from "./application/use-cases/delete-vehicle.use-case";
