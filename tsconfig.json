@@ -20,7 +20,8 @@
       "@shared/rbac": ["libs/shared/rbac/src"],
       "@shared/http": ["libs/shared/http/src"],
       "@shared/openapi": ["libs/shared/openapi/src"],
-      "@shared/eventbus": ["libs/shared/eventbus/src"]
+      "@shared/eventbus": ["libs/shared/eventbus/src"],
+      "@shared/mailer": ["libs/shared/mailer/src"]
     }
   },
   "include": ["apps/**/*.ts", "libs/**/*.ts"],
