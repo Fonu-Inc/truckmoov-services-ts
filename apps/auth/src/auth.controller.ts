@@ -16,11 +16,11 @@ import {
 } from "./contexts/auth/session";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
+import { AuthResponse, HealthResponse, MeResponse } from "./dto/auth.schema";
 
 @Controller("auth")
 export class AuthController {
   constructor(
-    // Explicit injections avoid hidden runtime coupling on decorator metadata emission.
     @Inject(LoginUseCase)
     private readonly loginUseCase: LoginUseCase,
     @Inject(RefreshUseCase)
@@ -29,33 +29,36 @@ export class AuthController {
     private readonly getMeUseCase: GetMeUseCase,
   ) {}
 
+  /** Health check */
   @Get("health")
-  health() {
-    return { status: "ok", service: "auth" };
+  health(): HealthResponse {
+    return { status: true, message: "success", data: { service: "auth" } };
   }
 
+  /** Authenticate with email and password; returns JWT access + refresh tokens */
   @Post("login")
-  async login(@Body() payload: LoginDto) {
-    return this.runAuthUseCase(() => this.loginUseCase.execute(payload));
+  async login(@Body() payload: LoginDto): Promise<AuthResponse> {
+    return this.runAuthUseCase(() => this.loginUseCase.execute(payload)) as unknown as Promise<AuthResponse>;
   }
 
+  /** Exchange a refresh token for a new token pair */
   @Post("refresh")
-  async refresh(@Body() payload: RefreshDto) {
+  async refresh(@Body() payload: RefreshDto): Promise<AuthResponse> {
     return this.runAuthUseCase(() =>
       this.refreshUseCase.execute(payload.refreshToken),
-    );
+    ) as unknown as Promise<AuthResponse>;
   }
 
+  /** Decode the bearer token and return the authenticated user's claims */
   @Get("me")
-  me(@Headers("authorization") authorization?: string) {
-    return this.getMeUseCase.execute(authorization);
+  async me(@Headers("authorization") authorization?: string): Promise<MeResponse> {
+    return this.getMeUseCase.execute(authorization) as unknown as Promise<MeResponse>;
   }
 
   private async runAuthUseCase<T>(fn: () => Promise<T>) {
     try {
       return await fn();
     } catch (error) {
-      // Interface layer translates domain auth errors into HTTP semantics.
       if (
         error instanceof InvalidCredentialsError ||
         error instanceof InvalidRefreshTokenError

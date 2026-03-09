@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EventBus, EventEnvelope } from "../../../libs/shared/eventbus/src";
+import type { EventBus, EventEnvelope } from "@shared/eventbus";
 import { EventBusJobStatusEventPublisher } from "../../../apps/fleet/src/contexts/fleet/jobs/infrastructure/eventbus-job-status-event.publisher";
 import { createJobStatusChangedEvent } from "../../../apps/fleet/src/contexts/fleet/jobs/domain/events/job-status-changed.event";
 

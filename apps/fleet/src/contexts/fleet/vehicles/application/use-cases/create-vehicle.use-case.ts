@@ -1,9 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import {
-  VEHICLE_REPOSITORY,
-  type VehicleRepository,
-} from "../../domain/repositories/vehicle.repository";
+import { AppConfigService } from "@shared/config";
+import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../domain/repositories/vehicle.repository";
 import { Vehicle } from "../../domain/entities/vehicle.entity";
 
 export type CreateVehicleCommand = {
@@ -17,6 +15,7 @@ export class CreateVehicleUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY)
     private readonly vehicleRepository: VehicleRepository,
+    private readonly config: AppConfigService,
   ) {}
 
   async execute(command: CreateVehicleCommand) {
@@ -24,7 +23,7 @@ export class CreateVehicleUseCase {
       id: randomUUID(),
       plateNumber: command.plateNumber,
       model: command.model,
-      tenantId: command.tenantId ?? process.env.DEFAULT_TENANT ?? "default",
+      tenantId: command.tenantId ?? this.config.fleet.defaultTenant,
     });
 
     await this.vehicleRepository.save(vehicle);

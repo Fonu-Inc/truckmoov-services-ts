@@ -1,14 +1,17 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
-import { createCorsOptions } from "../../../libs/shared/http/src";
-import { setupSwagger } from "../../../libs/shared/openapi/src";
+import { AppConfigService } from "@shared/config";
+import { createCorsOptions } from "@shared/http";
+import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
+import { AuthResponse, HealthResponse, MeResponse, SessionSchema } from "./dto/auth.schema";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Keep CORS explicit at the edge of the service for browser clients via Kong/web app.
-  app.enableCors(createCorsOptions());
+  const cfg = app.get(AppConfigService);
+
+  app.enableCors(createCorsOptions(cfg.server.corsAllowedOrigins));
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -18,10 +21,17 @@ async function bootstrap() {
     }),
   );
 
-  setupSwagger(app, "Auth Service", "auth");
+  app.useGlobalInterceptors(new TransformResponseInterceptor());
 
-  const port = Number(process.env.AUTH_PORT ?? 3001);
-  await app.listen(port);
+  setupSwagger(app, "Auth Service", "auth", [
+    StandardApiResponse,
+    SessionSchema,
+    AuthResponse,
+    MeResponse,
+    HealthResponse,
+  ]);
+
+  await app.listen(cfg.server.authPort);
 }
 
 void bootstrap();

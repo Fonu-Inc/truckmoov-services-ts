@@ -1,6 +1,14 @@
 import { EntitySchema } from "@mikro-orm/core";
 import { MikroORM } from "@mikro-orm/postgresql";
 
+export type DbConfig = {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  dbName: string;
+};
+
 export class AuthSessionRecord {
   refreshToken!: string;
   userId!: string;
@@ -27,20 +35,19 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
 
 let ormPromise: Promise<MikroORM> | null = null;
 
-export async function getAuthOrm() {
+export async function getAuthOrm(cfg: DbConfig) {
   if (ormPromise) {
     return ormPromise;
   }
 
   ormPromise = MikroORM.init({
     entities: [AuthSessionRecordSchema],
-    host: process.env.POSTGRES_HOST ?? "localhost",
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
-    user: process.env.POSTGRES_USER ?? "truckmoov",
-    password: process.env.POSTGRES_PASSWORD ?? "truckmoov",
-    dbName: process.env.POSTGRES_DB ?? "truckmoov",
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    dbName: cfg.dbName,
   }).then(async (orm) => {
-    // Keep bootstrap behavior aligned with previous auto-sync semantics.
     await orm.schema.updateSchema();
     return orm;
   });

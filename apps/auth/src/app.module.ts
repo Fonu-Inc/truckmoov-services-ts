@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "../../../libs/shared/config/src";
-import { LoggerModule } from "../../../libs/shared/logger/src";
+import { ConfigModule, AppConfigService } from "@shared/config";
+import { LoggerModule } from "@shared/logger";
 import {
   DevIdentityProvider,
   DevTokenService,
@@ -21,7 +21,6 @@ import { AuthController } from "./auth.controller";
   providers: [
     DevIdentityProvider,
     {
-      // Bind auth domain port to current identity adapter.
       provide: IDENTITY_PROVIDER,
       useExisting: DevIdentityProvider,
     },
@@ -34,16 +33,12 @@ import { AuthController } from "./auth.controller";
     MikroSessionStore,
     {
       provide: SESSION_STORE,
-      inject: [InMemorySessionStore, MikroSessionStore],
+      inject: [InMemorySessionStore, MikroSessionStore, AppConfigService],
       useFactory: (
         inMemoryStore: InMemorySessionStore,
         mikroStore: MikroSessionStore,
-      ) => {
-        // Use durable store by default; tests/dev can set in-memory explicitly.
-        return (process.env.PERSISTENCE_BACKEND ?? "mikro-orm") === "in-memory"
-          ? inMemoryStore
-          : mikroStore;
-      },
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryStore : mikroStore,
     },
     LoginUseCase,
     RefreshUseCase,

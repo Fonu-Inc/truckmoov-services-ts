@@ -3,7 +3,7 @@ import {
   EVENT_BUS,
   type EventBus,
   type EventEnvelope,
-} from "../../../../../../../libs/shared/eventbus/src";
+} from "@shared/eventbus";
 import type { JobStatusChangedEvent } from "../domain/events/job-status-changed.event";
 import type { JobStatusEventPublisher } from "../domain/ports/job-status-event.publisher";
 

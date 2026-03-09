@@ -18,6 +18,7 @@
       "@shared/logger": ["libs/shared/logger/src"],
       "@shared/db": ["libs/shared/db/src"],
       "@shared/rbac": ["libs/shared/rbac/src"],
+      "@shared/http": ["libs/shared/http/src"],
       "@shared/openapi": ["libs/shared/openapi/src"],
       "@shared/eventbus": ["libs/shared/eventbus/src"]
     }

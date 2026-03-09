@@ -5,7 +5,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../../../apps/fleet/src/app.module";
-import { createCorsOptions } from "../../../libs/shared/http/src";
+import { createCorsOptions } from "@shared/http";
 
 describe("Fleet HTTP contract", () => {
   let app: INestApplication;

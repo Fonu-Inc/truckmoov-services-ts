@@ -7,7 +7,7 @@ const DEFAULT_CORS_ORIGINS = [
   "http://127.0.0.1:8000",
 ];
 
-export function createCorsOptions(originsEnv = process.env.CORS_ALLOWED_ORIGINS): CorsOptions {
+export function createCorsOptions(originsEnv?: string): CorsOptions {
   const allowedOrigins = resolveAllowedOrigins(originsEnv);
 
   return {

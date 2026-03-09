@@ -4,7 +4,7 @@ import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { describe, afterAll, beforeAll, expect, it } from "vitest";
 import { AppModule } from "../../../apps/auth/src/app.module";
-import { createCorsOptions } from "../../../libs/shared/http/src";
+import { createCorsOptions } from "@shared/http";
 
 describe("Auth HTTP contract", () => {
   let app: INestApplication;

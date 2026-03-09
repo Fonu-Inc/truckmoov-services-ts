@@ -1,10 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { AppConfigService } from "@shared/config";
 import { Driver } from "../../domain/entities/driver.entity";
-import {
-  DRIVER_REPOSITORY,
-  type DriverRepository,
-} from "../../domain/repositories/driver.repository";
+import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositories/driver.repository";
 
 export type CreateDriverCommand = {
   name: string;
@@ -17,6 +15,7 @@ export class CreateDriverUseCase {
   constructor(
     @Inject(DRIVER_REPOSITORY)
     private readonly driverRepository: DriverRepository,
+    private readonly config: AppConfigService,
   ) {}
 
   async execute(command: CreateDriverCommand) {
@@ -24,7 +23,7 @@ export class CreateDriverUseCase {
       id: randomUUID(),
       name: command.name,
       licenseNumber: command.licenseNumber,
-      tenantId: command.tenantId ?? process.env.DEFAULT_TENANT ?? "default",
+      tenantId: command.tenantId ?? this.config.fleet.defaultTenant,
     });
 
     await this.driverRepository.save(driver);
