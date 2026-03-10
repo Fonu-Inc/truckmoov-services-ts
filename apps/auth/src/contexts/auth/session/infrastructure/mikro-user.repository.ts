@@ -1,11 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import type { StoredUser, UserRepository } from "../domain/ports/user-repository.port";
 import { AuthUserRecord, getAuthOrm } from "./persistence/auth-orm";
 
 @Injectable()
 export class MikroUserRepository implements UserRepository {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async findByUsername(username: string): Promise<StoredUser | null> {
     const orm = await getAuthOrm(this.config.db);

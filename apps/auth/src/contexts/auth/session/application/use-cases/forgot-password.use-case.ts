@@ -25,8 +25,11 @@ export class ForgotPasswordUseCase {
     private readonly userRepo: UserRepository,
     @Inject(PASSWORD_RESET_STORE)
     private readonly resetStore: PasswordResetStore,
+    @Inject(MailerService)
     private readonly mailer: MailerService,
+    @Inject(SmsService)
     private readonly sms: SmsService,
+    @Inject(AppConfigService)
     private readonly config: AppConfigService,
   ) {}
 

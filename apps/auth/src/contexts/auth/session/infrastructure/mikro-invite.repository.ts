@@ -1,11 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import type { InviteRepository, StoredInvite } from "../domain/ports/invite-repository.port";
 import { InviteRecord, getAuthOrm } from "./persistence/auth-orm";
 
 @Injectable()
 export class MikroInviteRepository implements InviteRepository {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async save(invite: StoredInvite): Promise<void> {
     const orm = await getAuthOrm(this.config.db);

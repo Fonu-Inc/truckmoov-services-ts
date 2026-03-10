@@ -21,7 +21,9 @@ export class InviteUserUseCase {
     private readonly inviteRepo: InviteRepository,
     @Inject(TOKEN_SERVICE)
     private readonly tokenService: TokenService,
+    @Inject(MailerService)
     private readonly mailer: MailerService,
+    @Inject(AppConfigService)
     private readonly config: AppConfigService,
   ) {}
 

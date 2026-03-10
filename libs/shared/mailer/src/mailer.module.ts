@@ -9,15 +9,11 @@ import { SesMailAdapter } from "./ses-mail.adapter";
   imports: [ConfigModule],
   providers: [
     NullMailAdapter,
-    SesMailAdapter,
     {
       provide: MAIL_TRANSPORT,
-      inject: [NullMailAdapter, SesMailAdapter, AppConfigService],
-      useFactory: (
-        nullAdapter: NullMailAdapter,
-        sesAdapter: SesMailAdapter,
-        config: AppConfigService,
-      ) => (config.mail.transport === "ses" ? sesAdapter : nullAdapter),
+      inject: [NullMailAdapter, AppConfigService],
+      useFactory: (nullAdapter: NullMailAdapter, config: AppConfigService) =>
+        config.mail.transport === "ses" ? new SesMailAdapter(config) : nullAdapter,
     },
     MailerService,
   ],

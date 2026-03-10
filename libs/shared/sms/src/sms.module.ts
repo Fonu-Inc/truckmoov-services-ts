@@ -9,15 +9,11 @@ import { DotgoSmsAdapter } from "./dotgo-sms.adapter";
   imports: [ConfigModule],
   providers: [
     NullSmsAdapter,
-    DotgoSmsAdapter,
     {
       provide: SMS_TRANSPORT,
-      inject: [NullSmsAdapter, DotgoSmsAdapter, AppConfigService],
-      useFactory: (
-        nullAdapter: NullSmsAdapter,
-        dotgoAdapter: DotgoSmsAdapter,
-        config: AppConfigService,
-      ) => (config.sms.transport === "dotgo" ? dotgoAdapter : nullAdapter),
+      inject: [NullSmsAdapter, AppConfigService],
+      useFactory: (nullAdapter: NullSmsAdapter, config: AppConfigService) =>
+        config.sms.transport === "dotgo" ? new DotgoSmsAdapter(config) : nullAdapter,
     },
     SmsService,
   ],

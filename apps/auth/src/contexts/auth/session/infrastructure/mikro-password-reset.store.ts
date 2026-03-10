@@ -1,11 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import type { PasswordResetStore, StoredPasswordReset } from "../domain/ports/password-reset-store.port";
 import { PasswordResetRecord, getAuthOrm } from "./persistence/auth-orm";
 
 @Injectable()
 export class MikroPasswordResetStore implements PasswordResetStore {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async save(reset: StoredPasswordReset): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
