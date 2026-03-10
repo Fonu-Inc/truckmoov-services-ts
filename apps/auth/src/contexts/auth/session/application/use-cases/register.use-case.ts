@@ -29,12 +29,13 @@ export class RegisterUseCase {
     if (existing) throw new UsernameTakenError();
 
     const id = randomUUID();
+    const tenantId = randomUUID();
     const passwordHash = await hashPassword(command.password);
     const roles = [Role.ENTERPRISE_ADMIN];
 
-    await this.userRepo.save({ id, username: command.username, passwordHash, roles });
+    await this.userRepo.save({ id, username: command.username, passwordHash, roles, tenantId });
 
-    const user = AuthUser.create({ id, username: command.username, roles });
+    const user = AuthUser.create({ id, username: command.username, roles, tenantId });
     const accessToken = this.tokenService.issueAccessToken(user);
     const refreshToken = this.tokenService.issueRefreshToken(user);
 

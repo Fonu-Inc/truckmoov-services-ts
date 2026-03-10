@@ -16,13 +16,13 @@ export class GetMeUseCase {
     const token = this.extractBearerToken(authorizationHeader);
     const user = token ? this.tokenService.resolveAccessToken(token) : null;
 
-    // Keep bootstrap behavior developer-friendly when auth backend is not fully implemented yet.
     const resolvedUser =
       user ??
       AuthUser.create({
         id: "dev-user",
         username: "dev-admin",
         roles: ["admin"],
+        tenantId: "dev-tenant",
       });
 
     return {

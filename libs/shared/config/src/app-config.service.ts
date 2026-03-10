@@ -42,4 +42,19 @@ export class AppConfigService {
       from: this.config.get<string>("MAIL_FROM", "noreply@truckmoov.com"),
     };
   }
+
+  get sms() {
+    return {
+      transport: this.config.get<string>("SMS_TRANSPORT", "null"),
+      dotgoApiUrl: this.config.get<string>("DOTGO_API_URL", ""),
+      dotgoApiKey: this.config.get<string>("DOTGO_API_KEY", ""),
+      dotgoSenderId: this.config.get<string>("DOTGO_SENDER_ID", "TruckMoov"),
+    };
+  }
+
+  get app() {
+    return {
+      frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+    };
+  }
 }

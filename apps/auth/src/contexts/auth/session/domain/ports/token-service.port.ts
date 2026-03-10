@@ -4,6 +4,7 @@ export interface TokenService {
   issueAccessToken(user: AuthUser): string;
   issueRefreshToken(user: AuthUser): string;
   resolveAccessToken(token: string): AuthUser | null;
+  revokeAccessToken?(token: string): void;
 }
 
 export const TOKEN_SERVICE = Symbol("TOKEN_SERVICE");

@@ -2,6 +2,7 @@ export type AuthUserProps = {
   id: string;
   username: string;
   roles: string[];
+  tenantId: string;
 };
 
 export class AuthUser {
@@ -14,11 +15,15 @@ export class AuthUser {
     if (!props.roles.length) {
       throw new Error("roles are required");
     }
+    if (!props.tenantId.trim()) {
+      throw new Error("tenantId is required");
+    }
 
     return new AuthUser({
       id: props.id,
       username: props.username.trim(),
       roles: [...props.roles],
+      tenantId: props.tenantId.trim(),
     });
   }
 
@@ -34,11 +39,16 @@ export class AuthUser {
     return [...this.props.roles];
   }
 
+  get tenantId() {
+    return this.props.tenantId;
+  }
+
   toPrimitives(): AuthUserProps {
     return {
       id: this.id,
       username: this.username,
       roles: this.roles,
+      tenantId: this.tenantId,
     };
   }
 }

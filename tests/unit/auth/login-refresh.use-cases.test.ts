@@ -6,7 +6,7 @@ import { RefreshUseCase } from "../../../apps/auth/src/contexts/auth/session/app
 
 class FakeIdentityProvider {
   async verifyCredentials(username: string, _password: string) {
-    return AuthUser.create({ id: "user-1", username, roles: ["admin"] });
+    return AuthUser.create({ id: "user-1", username, roles: ["admin"], tenantId: "tenant-1" });
   }
 }
 

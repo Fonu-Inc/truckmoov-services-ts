@@ -19,6 +19,11 @@ export class DbIdentityProvider implements IdentityProvider {
     const valid = await verifyPassword(password, stored.passwordHash);
     if (!valid) throw new InvalidCredentialsError();
 
-    return AuthUser.create({ id: stored.id, username: stored.username, roles: stored.roles });
+    return AuthUser.create({
+      id: stored.id,
+      username: stored.username,
+      roles: stored.roles,
+      tenantId: stored.tenantId,
+    });
   }
 }

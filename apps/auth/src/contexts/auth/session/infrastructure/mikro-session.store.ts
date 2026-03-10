@@ -17,6 +17,7 @@ export class MikroSessionStore implements SessionStore {
       userId: user.id,
       username: user.username,
       roles: user.roles,
+      tenantId: user.tenantId,
       updatedAt: new Date(),
     });
   }
@@ -28,11 +29,24 @@ export class MikroSessionStore implements SessionStore {
     return record ? this.toDomain(record) : null;
   }
 
+  async deleteByRefreshToken(refreshToken: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeDelete(AuthSessionRecord, { refreshToken });
+  }
+
+  async deleteAllForUser(userId: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeDelete(AuthSessionRecord, { userId });
+  }
+
   private toDomain(record: AuthSessionRecord) {
     return AuthUser.create({
       id: record.userId,
       username: record.username,
       roles: record.roles,
+      tenantId: record.tenantId,
     });
   }
 }

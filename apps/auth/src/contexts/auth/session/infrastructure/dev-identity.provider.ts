@@ -15,6 +15,7 @@ export class DevIdentityProvider implements IdentityProvider {
       id: randomUUID(),
       username,
       roles: ["admin"],
+      tenantId: "dev-tenant",
     });
   }
 }

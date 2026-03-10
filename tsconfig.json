@@ -21,7 +21,9 @@
       "@shared/http": ["libs/shared/http/src"],
       "@shared/openapi": ["libs/shared/openapi/src"],
       "@shared/eventbus": ["libs/shared/eventbus/src"],
-      "@shared/mailer": ["libs/shared/mailer/src"]
+      "@shared/mailer": ["libs/shared/mailer/src"],
+      "@shared/sms": ["libs/shared/sms/src"],
+      "@auth/templates/*": ["apps/auth/src/templates/*"]
     }
   },
   "include": ["apps/**/*.ts", "libs/**/*.ts"],

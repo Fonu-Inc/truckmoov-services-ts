@@ -20,4 +20,8 @@ export class DevTokenService implements TokenService {
   resolveAccessToken(token: string): AuthUser | null {
     return this.accessTokenToUser.get(token) ?? null;
   }
+
+  revokeAccessToken(token: string): void {
+    this.accessTokenToUser.delete(token);
+  }
 }
