@@ -1,0 +1,156 @@
+name: Auth CI/CD
+
+on:
+  pull_request:
+    paths:
+      - "apps/auth/**"
+      - "libs/shared/**"
+      - "tests/**"
+      - "Dockerfile.auth"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - "nest-cli.json"
+      - ".github/workflows/auth-cicd.yml"
+      - "deploy/k8s/auth/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/auth/**"
+      - "libs/shared/**"
+      - "tests/**"
+      - "Dockerfile.auth"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - "nest-cli.json"
+      - ".github/workflows/auth-cicd.yml"
+      - "deploy/k8s/auth/**"
+  workflow_dispatch:
+
+concurrency:
+  group: auth-cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/truckmoov-auth
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  publish-auth-image:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - id: image_tag
+        name: Capture immutable auth image tag
+        run: echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push auth image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.auth
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy-auth-dev:
+    runs-on: ubuntu-latest
+    needs: publish-auth-image
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: dev
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render auth kustomize bundle
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ needs.publish-auth-image.outputs.image_tag }}
+        run: |
+          rm -rf deploy/.rendered/auth
+          mkdir -p deploy/.rendered
+          cp -R deploy/k8s/auth deploy/.rendered/auth
+          sed -i "s|newName: .*|newName: ${IMAGE_NAME}|" deploy/.rendered/auth/kustomization.yaml
+          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/auth/kustomization.yaml
+
+      - name: Copy auth manifests to deploy host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          source: "deploy/.rendered/auth/*"
+          target: "~/truckmoov-deploy/auth"
+          strip_components: 3
+
+      - name: Apply auth deployment over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -eu
+            kubectl get namespace truckmoov >/dev/null 2>&1 || kubectl create namespace truckmoov
+            kubectl apply -k "$HOME/truckmoov-deploy/auth"
+            kubectl rollout status deployment/auth-service -n truckmoov --timeout=180s

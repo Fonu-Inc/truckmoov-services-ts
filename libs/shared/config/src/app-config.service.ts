@@ -55,6 +55,14 @@ export class AppConfigService {
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+      env: this.config.get<string>("NODE_ENV", "development"),
+    };
+  }
+
+  get sentry() {
+    return {
+      dsn: this.config.get<string>("SENTRY_DSN", ""),
+      environment: this.config.get<string>("SENTRY_ENVIRONMENT", this.app.env),
     };
   }
 }

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: truckmoov-auth-config
+data:
+  NODE_ENV: production
+  AUTH_PORT: "3001"
+  PERSISTENCE_BACKEND: mikro-orm
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: truckmoov
+  POSTGRES_DB: truckmoov
+  NATS_URL: nats://nats:4222
+  NATS_STREAM: truckmoov.events
+  DEFAULT_TENANT: default
+  FRONTEND_URL: http://localhost:3000
+  MAIL_TRANSPORT: "null"
+  SMS_TRANSPORT: "null"
+  SENTRY_ENVIRONMENT: production
