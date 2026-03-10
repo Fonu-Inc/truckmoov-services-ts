@@ -34,4 +34,12 @@ export class AppConfigService {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),
     };
   }
+
+  get mail() {
+    return {
+      transport: this.config.get<string>("MAIL_TRANSPORT", "null"),
+      region: this.config.get<string>("AWS_REGION", "us-east-1"),
+      from: this.config.get<string>("MAIL_FROM", "noreply@truckmoov.com"),
+    };
+  }
 }

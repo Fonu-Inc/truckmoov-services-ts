@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   Headers,
@@ -13,9 +14,12 @@ import {
   InvalidRefreshTokenError,
   LoginUseCase,
   RefreshUseCase,
+  RegisterUseCase,
+  UsernameTakenError,
 } from "./contexts/auth/session";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
+import { RegisterDto } from "./dto/register.dto";
 import { AuthResponse, HealthResponse, MeResponse } from "./dto/auth.schema";
 
 @Controller("auth")
@@ -27,12 +31,24 @@ export class AuthController {
     private readonly refreshUseCase: RefreshUseCase,
     @Inject(GetMeUseCase)
     private readonly getMeUseCase: GetMeUseCase,
+    @Inject(RegisterUseCase)
+    private readonly registerUseCase: RegisterUseCase,
   ) {}
 
   /** Health check */
   @Get("health")
   health(): HealthResponse {
     return { status: true, message: "success", data: { service: "auth" } };
+  }
+
+  @Post("register")
+  async register(@Body() payload: RegisterDto): Promise<AuthResponse> {
+    try {
+      return await this.registerUseCase.execute(payload) as unknown as AuthResponse;
+    } catch (error) {
+      if (error instanceof UsernameTakenError) throw new ConflictException(error.message);
+      throw error;
+    }
   }
 
   /** Authenticate with email and password; returns JWT access + refresh tokens */

@@ -2,16 +2,20 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { LoggerModule } from "@shared/logger";
 import {
-  DevIdentityProvider,
+  DbIdentityProvider,
   DevTokenService,
   GetMeUseCase,
   IDENTITY_PROVIDER,
   InMemorySessionStore,
+  InMemoryUserRepository,
   LoginUseCase,
   MikroSessionStore,
+  MikroUserRepository,
   RefreshUseCase,
+  RegisterUseCase,
   SESSION_STORE,
   TOKEN_SERVICE,
+  USER_REPOSITORY,
 } from "./contexts/auth/session";
 import { AuthController } from "./auth.controller";
 
@@ -19,10 +23,21 @@ import { AuthController } from "./auth.controller";
   imports: [ConfigModule, LoggerModule],
   controllers: [AuthController],
   providers: [
-    DevIdentityProvider,
+    InMemoryUserRepository,
+    MikroUserRepository,
+    {
+      provide: USER_REPOSITORY,
+      inject: [InMemoryUserRepository, MikroUserRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryUserRepository,
+        mikro: MikroUserRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemory : mikro,
+    },
+    DbIdentityProvider,
     {
       provide: IDENTITY_PROVIDER,
-      useExisting: DevIdentityProvider,
+      useExisting: DbIdentityProvider,
     },
     DevTokenService,
     {
@@ -43,6 +58,7 @@ import { AuthController } from "./auth.controller";
     LoginUseCase,
     RefreshUseCase,
     GetMeUseCase,
+    RegisterUseCase,
   ],
 })
 export class AppModule {}

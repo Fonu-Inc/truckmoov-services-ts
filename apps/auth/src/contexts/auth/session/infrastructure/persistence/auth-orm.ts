@@ -33,6 +33,26 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
   },
 });
 
+export class AuthUserRecord {
+  id!: string;
+  username!: string;
+  passwordHash!: string;
+  roles!: string[];
+  createdAt!: Date;
+}
+
+export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
+  class: AuthUserRecord,
+  tableName: "auth_users",
+  properties: {
+    id: { type: "string", primary: true },
+    username: { type: "string", length: 128, unique: true },
+    passwordHash: { type: "string" },
+    roles: { type: "json" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+  },
+});
+
 let ormPromise: Promise<MikroORM> | null = null;
 
 export async function getAuthOrm(cfg: DbConfig) {
@@ -41,7 +61,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   }
 
   ormPromise = MikroORM.init({
-    entities: [AuthSessionRecordSchema],
+    entities: [AuthSessionRecordSchema, AuthUserRecordSchema],
     host: cfg.host,
     port: cfg.port,
     user: cfg.user,
