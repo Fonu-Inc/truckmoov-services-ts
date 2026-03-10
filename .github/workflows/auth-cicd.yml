@@ -60,13 +60,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm lint:auth
 
-      - name: Test
-        run: pnpm test
+      - name: Test auth
+        run: pnpm test:auth
 
-      - name: Build
-        run: pnpm build
+      - name: Build auth
+        run: pnpm build:auth
 
   publish-auth-image:
     runs-on: ubuntu-latest
