@@ -136,14 +136,27 @@ jobs:
         run: find deploy/.rendered/auth -maxdepth 2 -type f | sort
 
       - name: Copy auth manifests to deploy host
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          source: "deploy/.rendered/auth"
-          target: "~/truckmoov-deploy/auth"
-          strip_components: 3
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
+        run: |
+          set -eu
+          SSH_KEY_PATH="$RUNNER_TEMP/dev_deploy_key"
+          KNOWN_HOSTS_PATH="$RUNNER_TEMP/dev_known_hosts"
+          trap 'rm -f "$SSH_KEY_PATH" "$KNOWN_HOSTS_PATH"' EXIT
+
+          printf '%s\n' "$DEV_SSH_KEY" > "$SSH_KEY_PATH"
+          chmod 600 "$SSH_KEY_PATH"
+          ssh-keyscan -H "$DEV_SSH_HOST" > "$KNOWN_HOSTS_PATH"
+          chmod 644 "$KNOWN_HOSTS_PATH"
+
+          ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
+            'rm -rf "$HOME/truckmoov-deploy/auth" && mkdir -p "$HOME/truckmoov-deploy/auth"'
+
+          tar -C deploy/.rendered/auth -czf - . | \
+            ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
+              'tar -xzf - -C "$HOME/truckmoov-deploy/auth"'
 
       - name: Apply auth deployment over SSH
         uses: appleboy/ssh-action@v1.2.0
