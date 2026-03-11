@@ -12,8 +12,9 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig*.json"
       - "nest-cli.json"
+      - ".env.example"
       - ".github/workflows/auth-cicd.yml"
-      - "deploy/k8s/auth/**"
+      - "deploy/**"
   push:
     branches:
       - main
@@ -27,17 +28,14 @@ on:
       - "pnpm-workspace.yaml"
       - "tsconfig*.json"
       - "nest-cli.json"
+      - ".env.example"
       - ".github/workflows/auth-cicd.yml"
-      - "deploy/k8s/auth/**"
+      - "deploy/**"
   workflow_dispatch:
 
 concurrency:
   group: auth-cicd-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/truckmoov-auth
 
 jobs:
   validate:
@@ -68,51 +66,9 @@ jobs:
       - name: Build auth
         run: pnpm build:auth
 
-  publish-auth-image:
-    runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image_tag: ${{ steps.image_tag.outputs.value }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - id: image_tag
-        name: Capture immutable auth image tag
-        run: echo "value=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push auth image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.auth
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
   deploy-auth-dev:
     runs-on: ubuntu-latest
-    needs: publish-auth-image
+    needs: validate
     if: github.ref == 'refs/heads/main'
     environment:
       name: dev
@@ -123,8 +79,8 @@ jobs:
 
       - name: Render auth kustomize bundle
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_TAG: ${{ needs.publish-auth-image.outputs.image_tag }}
+          IMAGE_NAME: truckmoov-auth
+          IMAGE_TAG: sha-${{ github.sha }}
         run: |
           rm -rf deploy/.rendered/auth
           mkdir -p deploy/.rendered
@@ -132,25 +88,103 @@ jobs:
           sed -i "s|newName: .*|newName: ${IMAGE_NAME}|" deploy/.rendered/auth/kustomization.yaml
           sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/auth/kustomization.yaml
 
-      - name: Copy auth manifests to deploy host
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          source: "deploy/.rendered/auth/*"
-          target: "~/truckmoov-deploy/auth"
-          strip_components: 3
+      - name: Show rendered auth bundle
+        run: find deploy/.rendered/auth -maxdepth 2 -type f | sort
 
-      - name: Apply auth deployment over SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script_stop: true
-          script: |
+      - name: Prepare SSH access
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEV_SSH_KEY" >"$RUNNER_TEMP/dev_ssh_key"
+          chmod 600 "$RUNNER_TEMP/dev_ssh_key"
+          ssh-keyscan -H "$DEV_SSH_HOST" >>"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Sync auth source to deploy host
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts
+          AUTH_SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_DEPLOY_PATH\" ] || mkdir -p \"$AUTH_DEPLOY_PATH\""
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_SOURCE_PATH\" ] || mkdir -p \"$AUTH_SOURCE_PATH\""
+          git archive --format=tar HEAD | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xf - -C \"$AUTH_SOURCE_PATH\""
+
+      - name: Copy auth manifests to deploy host
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts
+          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_DEPLOY_PATH\" ] || mkdir -p \"$AUTH_DEPLOY_PATH\""
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_MANIFEST_PATH\" ] || mkdir -p \"$AUTH_MANIFEST_PATH\""
+          tar -C deploy/.rendered/auth -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$AUTH_MANIFEST_PATH\""
+
+      - name: Build auth image and deploy over SSH
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
+          AUTH_SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
             set -eu
-            kubectl get namespace truckmoov >/dev/null 2>&1 || kubectl create namespace truckmoov
-            kubectl apply -k "$HOME/truckmoov-deploy/auth"
-            kubectl rollout status deployment/auth-service -n truckmoov --timeout=180s
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "docker is required on the deploy host." >&2
+              exit 1
+            fi
+            kubectl version --client=true
+            if ! kubectl config current-context >/tmp/truckmoov-kube-context 2>/tmp/truckmoov-kube-context.err; then
+              echo "kubectl has no current-context for user $(whoami)." >&2
+              echo "Configure ~/.kube/config on the deploy host before running this workflow." >&2
+              echo "KUBECONFIG=${KUBECONFIG:-<unset>}" >&2
+              if [ -f "$HOME/.kube/config" ]; then
+                echo "Found $HOME/.kube/config" >&2
+              else
+                echo "Missing $HOME/.kube/config" >&2
+              fi
+              cat /tmp/truckmoov-kube-context.err >&2
+              exit 1
+            fi
+            cat /tmp/truckmoov-kube-context
+            docker build -f "'"$AUTH_SOURCE_PATH"'/Dockerfile.auth" -t "'"$AUTH_IMAGE"'" "'"$AUTH_SOURCE_PATH"'"
+            if ! docker save "'"$AUTH_IMAGE"'" | sudo -n /usr/local/bin/k3s ctr images import -; then
+              echo "Failed to import the auth image into k3s." >&2
+              echo "Ensure the SSH user has passwordless sudo for /usr/local/bin/k3s ctr images import -." >&2
+              exit 1
+            fi
+            kubectl apply --validate=false -k "'"$AUTH_MANIFEST_PATH"'"
+            if ! kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s; then
+              kubectl get deployment auth-service -n truckmoov -o wide || true
+              kubectl get pods -n truckmoov -l app.kubernetes.io/name=auth-service -o wide || true
+              kubectl describe deployment auth-service -n truckmoov || true
+              kubectl describe pods -n truckmoov -l app.kubernetes.io/name=auth-service || true
+              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200 || true
+              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50 || true
+              exit 1
+            fi
+          '

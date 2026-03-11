@@ -19,7 +19,7 @@ spec:
       containers:
         - name: auth-service
           image: auth-image
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 3001
               name: http
