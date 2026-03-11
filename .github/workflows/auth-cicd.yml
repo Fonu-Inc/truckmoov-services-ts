@@ -37,7 +37,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/truckmoov-auth
 
 jobs:
   validate:
@@ -76,6 +75,7 @@ jobs:
       contents: read
       packages: write
     outputs:
+      image_name: ${{ steps.image_name.outputs.value }}
       image_tag: ${{ steps.image_tag.outputs.value }}
     steps:
       - uses: actions/checkout@v4
@@ -89,10 +89,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - id: image_name
+        name: Compute lowercase auth image name
+        run: |
+          owner_lc="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "value=${REGISTRY}/${owner_lc}/truckmoov-auth" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ steps.image_name.outputs.value }}
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
@@ -123,7 +129,7 @@ jobs:
 
       - name: Render auth kustomize bundle
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_NAME: ${{ needs.publish-auth-image.outputs.image_name }}
           IMAGE_TAG: ${{ needs.publish-auth-image.outputs.image_tag }}
         run: |
           rm -rf deploy/.rendered/auth
@@ -173,7 +179,19 @@ jobs:
           script: |
             set -eu
             kubectl apply --validate=false -k "$AUTH_DEPLOY_PATH"
+            (
+              while true; do
+                echo "--- auth-service rollout snapshot ---"
+                kubectl get deployment auth-service -n truckmoov -o wide || true
+                kubectl get pods -n truckmoov -l app.kubernetes.io/name=auth-service -o wide || true
+                sleep 15
+              done
+            ) &
+            MONITOR_PID=$!
+            trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT
+
             if ! kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s; then
+              kill "$MONITOR_PID" 2>/dev/null || true
               kubectl get deployment auth-service -n truckmoov -o wide || true
               kubectl get pods -n truckmoov -l app.kubernetes.io/name=auth-service -o wide || true
               kubectl describe deployment auth-service -n truckmoov || true
@@ -182,3 +200,5 @@ jobs:
               kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50 || true
               exit 1
             fi
+
+            kill "$MONITOR_PID" 2>/dev/null || true

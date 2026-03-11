@@ -47,6 +47,8 @@ The workflow publishes to:
 - `ghcr.io/<github-owner>/truckmoov-auth:sha-<commit>`
 - `ghcr.io/<github-owner>/truckmoov-auth:latest` on `main`
 
+The GHCR owner segment must be lowercase in the final image reference.
+
 If the package is private, add an `imagePullSecrets` entry to the deployment and create the matching registry secret in the cluster. If the package is public, no extra registry secret is required.
 
 ## Auth secrets
