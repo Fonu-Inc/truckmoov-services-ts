@@ -49,7 +49,20 @@ The workflow publishes to:
 
 The GHCR owner segment must be lowercase in the final image reference.
 
-If the package is private, add an `imagePullSecrets` entry to the deployment and create the matching registry secret in the cluster. If the package is public, no extra registry secret is required.
+The auth deployment references an image pull secret named `ghcr-pull-secret`.
+
+Create it in the `truckmoov` namespace before the first deploy if the package is private:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --namespace truckmoov \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username> \
+  --docker-password=<github-token-with-read-packages> \
+  --docker-email=<email>
+```
+
+If the package is public, Kubernetes can usually pull it without credentials, but leaving the secret reference in place is harmless as long as the secret exists.
 
 ## Auth secrets
 
