@@ -153,7 +153,8 @@ jobs:
           chmod 644 "$KNOWN_HOSTS_PATH"
 
           ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
-            "test -d \"$AUTH_DEPLOY_PATH\" && test -w \"$AUTH_DEPLOY_PATH\""
+            "if [ ! -d \"$AUTH_DEPLOY_PATH\" ]; then echo \"Missing deploy directory: $AUTH_DEPLOY_PATH\"; exit 1; fi; \
+             if [ ! -w \"$AUTH_DEPLOY_PATH\" ]; then echo \"Deploy directory is not writable: $AUTH_DEPLOY_PATH\"; id; ls -ld \"$AUTH_DEPLOY_PATH\"; exit 1; fi"
 
           tar -C deploy/.rendered/auth -czf - . | \
             ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
