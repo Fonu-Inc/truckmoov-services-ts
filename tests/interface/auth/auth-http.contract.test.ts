@@ -309,6 +309,184 @@ describe("Auth HTTP contract", () => {
     expect(logoutRes.body.message).toContain("Logged out");
   });
 
+  // ── User profile + preferences (Epic B) ──────────────
+
+  it("GET/PATCH /auth/profile supports viewing and editing own profile", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "profile@contract.com", password: "Str0ngPass!" });
+    const accessToken = regRes.body.accessToken as string;
+
+    const getProfileRes = await request(app.getHttpServer())
+      .get("/auth/profile")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(getProfileRes.status).toBe(200);
+    expect(getProfileRes.body.profile.fullName).toBeNull();
+    expect(getProfileRes.body.profile.phoneNumber).toBeNull();
+
+    const patchProfileRes = await request(app.getHttpServer())
+      .patch("/auth/profile")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        fullName: "Adebayo Adekunle",
+        phoneNumber: "+2348011112222",
+      });
+
+    expect(patchProfileRes.status).toBe(200);
+    expect(patchProfileRes.body.profile.fullName).toBe("Adebayo Adekunle");
+    expect(patchProfileRes.body.profile.phoneNumber).toBe("+2348011112222");
+  });
+
+  it("GET/PATCH /auth/preferences/notifications supports notification settings", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "notify@contract.com", password: "Str0ngPass!" });
+    const accessToken = regRes.body.accessToken as string;
+
+    const patchRes = await request(app.getHttpServer())
+      .patch("/auth/preferences/notifications")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        emailAlerts: true,
+        smsAlerts: true,
+        pushAlerts: false,
+        incidentAlerts: true,
+        jobUpdates: false,
+        marketingAnnouncements: true,
+      });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.notificationPreferences.smsAlerts).toBe(true);
+    expect(patchRes.body.notificationPreferences.pushAlerts).toBe(false);
+
+    const getRes = await request(app.getHttpServer())
+      .get("/auth/preferences/notifications")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.notificationPreferences.marketingAnnouncements).toBe(true);
+    expect(getRes.body.notificationPreferences.jobUpdates).toBe(false);
+  });
+
+  it("PATCH /auth/preferences/dispatch allows dispatcher to set working hours/timezone", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "dispatch-pref@contract.com", password: "Str0ngPass!" });
+    expect(regRes.status).toBe(201);
+
+    const initialToken = regRes.body.accessToken as string;
+    const targetUserId = regRes.body.user.id as string;
+
+    const roleRes = await request(app.getHttpServer())
+      .post("/auth/change-role")
+      .set("Authorization", `Bearer ${initialToken}`)
+      .send({ targetUserId, newRole: "DISPATCHER" });
+    expect(roleRes.status).toBe(201);
+
+    const loginRes = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({
+        username: "dispatch-pref@contract.com",
+        password: "Str0ngPass!",
+      });
+    expect(loginRes.status).toBe(201);
+    const dispatcherToken = loginRes.body.accessToken as string;
+
+    const patchRes = await request(app.getHttpServer())
+      .patch("/auth/preferences/dispatch")
+      .set("Authorization", `Bearer ${dispatcherToken}`)
+      .send({
+        timezone: "Africa/Lagos",
+        shiftStart: "08:00",
+        shiftEnd: "16:00",
+        workDays: [1, 2, 3, 4, 5, 6],
+      });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.dispatcherPreferences.timezone).toBe("Africa/Lagos");
+    expect(patchRes.body.dispatcherPreferences.shiftStart).toBe("08:00");
+    expect(patchRes.body.dispatcherPreferences.shiftEnd).toBe("16:00");
+    expect(patchRes.body.dispatcherPreferences.workDays).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("GET /auth/preferences/dispatch rejects non-dispatcher", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "not-dispatch@contract.com", password: "Str0ngPass!" });
+    const accessToken = regRes.body.accessToken as string;
+
+    const res = await request(app.getHttpServer())
+      .get("/auth/preferences/dispatch")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("GET/PATCH /auth/organization/settings allows enterprise admin to configure branding/defaults", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "org-admin@contract.com", password: "Str0ngPass!" });
+    const accessToken = regRes.body.accessToken as string;
+
+    const patchRes = await request(app.getHttpServer())
+      .patch("/auth/organization/settings")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        branding: {
+          organizationName: "Lagos Express Logistics",
+          primaryColor: "#0D9488",
+          secondaryColor: "#0EA5E9",
+        },
+        defaults: {
+          timezone: "Africa/Lagos",
+          currency: "NGN",
+          dateFormat: "DD/MM/YYYY",
+          weekStartsOn: "monday",
+        },
+      });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.branding.organizationName).toBe("Lagos Express Logistics");
+    expect(patchRes.body.defaults.currency).toBe("NGN");
+
+    const getRes = await request(app.getHttpServer())
+      .get("/auth/organization/settings")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.branding.primaryColor).toBe("#0D9488");
+    expect(getRes.body.defaults.timezone).toBe("Africa/Lagos");
+  });
+
+  it("GET /auth/organization/settings rejects non-enterprise-admin user", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({ username: "org-denied@contract.com", password: "Str0ngPass!" });
+    const initialToken = regRes.body.accessToken as string;
+    const userId = regRes.body.user.id as string;
+
+    const roleRes = await request(app.getHttpServer())
+      .post("/auth/change-role")
+      .set("Authorization", `Bearer ${initialToken}`)
+      .send({ targetUserId: userId, newRole: "DISPATCHER" });
+    expect(roleRes.status).toBe(201);
+
+    const loginRes = await request(app.getHttpServer())
+      .post("/auth/login")
+      .send({
+        username: "org-denied@contract.com",
+        password: "Str0ngPass!",
+      });
+    const dispatcherToken = loginRes.body.accessToken as string;
+
+    const res = await request(app.getHttpServer())
+      .get("/auth/organization/settings")
+      .set("Authorization", `Bearer ${dispatcherToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
   // ── CORS ──────────────────────────────────────────────
 
   it("OPTIONS /auth/login exposes CORS preflight headers", async () => {

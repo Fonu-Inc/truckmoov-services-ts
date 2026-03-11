@@ -15,7 +15,13 @@ import { InviteNotFoundError } from "../../../apps/auth/src/contexts/auth/sessio
 import { UsernameTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/username-taken.error";
 import { UserNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/user-not-found.error";
 import { InvalidResetTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-reset-token.error";
-import type { StoredUser } from "../../../apps/auth/src/contexts/auth/session/domain/ports/user-repository.port";
+import {
+  type DispatcherPreferences,
+  type NotificationPreferences,
+  type StoredUser,
+  type UserProfile,
+  normalizeStoredUser,
+} from "../../../apps/auth/src/contexts/auth/session/domain/ports/user-repository.port";
 import type { StoredInvite } from "../../../apps/auth/src/contexts/auth/session/domain/ports/invite-repository.port";
 import type { StoredPasswordReset } from "../../../apps/auth/src/contexts/auth/session/domain/ports/password-reset-store.port";
 
@@ -75,16 +81,19 @@ class FakeUserRepository {
   private readonly byId = new Map<string, StoredUser>();
 
   async findByUsername(username: string) {
-    return this.byUsername.get(username) ?? null;
+    const user = this.byUsername.get(username);
+    return user ? normalizeStoredUser(user) : null;
   }
 
   async findById(id: string) {
-    return this.byId.get(id) ?? null;
+    const user = this.byId.get(id);
+    return user ? normalizeStoredUser(user) : null;
   }
 
   async save(user: StoredUser) {
-    this.byUsername.set(user.username, user);
-    this.byId.set(user.id, user);
+    const normalized = normalizeStoredUser(user);
+    this.byUsername.set(normalized.username, normalized);
+    this.byId.set(normalized.id, normalized);
   }
 
   async updateRoles(userId: string, roles: string[]) {
@@ -100,6 +109,39 @@ class FakeUserRepository {
     const user = this.byId.get(userId);
     if (user) {
       const updated = { ...user, passwordHash };
+      this.byId.set(userId, updated);
+      this.byUsername.set(user.username, updated);
+    }
+  }
+
+  async updateProfile(userId: string, profile: UserProfile) {
+    const user = this.byId.get(userId);
+    if (user) {
+      const updated = { ...user, profile };
+      this.byId.set(userId, updated);
+      this.byUsername.set(user.username, updated);
+    }
+  }
+
+  async updateNotificationPreferences(
+    userId: string,
+    preferences: NotificationPreferences,
+  ) {
+    const user = this.byId.get(userId);
+    if (user) {
+      const updated = { ...user, notificationPreferences: preferences };
+      this.byId.set(userId, updated);
+      this.byUsername.set(user.username, updated);
+    }
+  }
+
+  async updateDispatcherPreferences(
+    userId: string,
+    preferences: DispatcherPreferences,
+  ) {
+    const user = this.byId.get(userId);
+    if (user) {
+      const updated = { ...user, dispatcherPreferences: preferences };
       this.byId.set(userId, updated);
       this.byUsername.set(user.username, updated);
     }

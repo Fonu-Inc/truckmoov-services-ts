@@ -33,6 +33,42 @@ pnpm test
 - `GET http://localhost:3001/auth/health`
 - `GET http://localhost:3002/fleet/health`
 
+## Auth profile/preferences endpoints
+- `GET /auth/profile`
+- `PATCH /auth/profile`
+- `GET /auth/preferences/notifications`
+- `PATCH /auth/preferences/notifications`
+- `GET /auth/preferences/dispatch` (dispatcher role)
+- `PATCH /auth/preferences/dispatch` (dispatcher role)
+- `GET /auth/organization/settings` (enterprise admin role)
+- `PATCH /auth/organization/settings` (enterprise admin role)
+
+## Fleet master data endpoints (Epic C)
+- Vehicles
+  - `GET /fleet/vehicles?query=&status=&assigned=&tenantId=`
+  - `POST /fleet/vehicles`
+  - `POST /fleet/vehicles/import`
+  - `GET /fleet/vehicles/:id`
+  - `PATCH /fleet/vehicles/:id`
+  - `PATCH /fleet/vehicles/:id/status`
+  - `PATCH /fleet/vehicles/:id/assignment`
+  - `DELETE /fleet/vehicles/:id/assignment`
+  - `PATCH /fleet/vehicles/:id/gps-device`
+  - `DELETE /fleet/vehicles/:id`
+- Drivers
+  - `GET /fleet/drivers?query=&status=&assigned=&tenantId=`
+  - `POST /fleet/drivers`
+  - `POST /fleet/drivers/import`
+  - `GET /fleet/drivers/:id`
+  - `PATCH /fleet/drivers/:id`
+  - `PATCH /fleet/drivers/:id/status`
+  - `PATCH /fleet/drivers/:id/contact-channels`
+  - `DELETE /fleet/drivers/:id`
+- Jobs / Dispatch
+  - `GET /fleet/jobs?query=&status=&tenantId=`
+  - `GET /fleet/dispatch/search?query=&vehicleStatus=&driverStatus=&jobStatus=&assignedOnly=&tenantId=`
+  - `POST /fleet/events/job-status?jobId=&status=&tenant=`
+
 ## Through Kong
 With `truckmoov-platform` running:
 - `GET http://localhost:8000/auth/health`
@@ -46,9 +82,11 @@ MikroORM is the chosen migration strategy for this bootstrap.
 - DDD architecture guide: `docs/ddd-architecture.md`
 - Implemented layered slices:
   - `apps/auth/src/contexts/auth/session`
+    - includes profile, notification preferences, dispatcher schedule/timezone, and tenant organization settings use-cases
   - `apps/fleet/src/contexts/fleet/vehicles`
   - `apps/fleet/src/contexts/fleet/drivers`
   - `apps/fleet/src/contexts/fleet/jobs`
+  - includes assignment management, activation/deactivation, bulk import, contact channels, GPS mapping, and dispatcher search filters
 - Durable adapters implemented behind ports:
   - `apps/auth/src/contexts/auth/session/infrastructure/mikro-session.store.ts`
   - `apps/fleet/src/contexts/fleet/*/infrastructure/repositories/mikro-*.repository.ts`

@@ -4,12 +4,14 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "../../domain/repositories/driver.repository";
+import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type UpdateDriverCommand = {
   id: string;
   name?: string;
   licenseNumber?: string;
   tenantId?: string;
+  status?: FleetAssetStatus;
 };
 
 @Injectable()
@@ -29,6 +31,7 @@ export class UpdateDriverUseCase {
       name: command.name,
       licenseNumber: command.licenseNumber,
       tenantId: command.tenantId,
+      status: command.status,
     });
 
     await this.driverRepository.save(updatedDriver);

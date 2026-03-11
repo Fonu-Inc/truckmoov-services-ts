@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   VEHICLE_REPOSITORY,
+  type VehicleFilters,
   type VehicleRepository,
 } from "../../domain/repositories/vehicle.repository";
 
@@ -11,8 +12,8 @@ export class ListVehiclesUseCase {
     private readonly vehicleRepository: VehicleRepository,
   ) {}
 
-  async execute() {
-    const vehicles = await this.vehicleRepository.findAll();
+  async execute(filters?: VehicleFilters) {
+    const vehicles = await this.vehicleRepository.findAll(filters);
     return vehicles.map((vehicle) => vehicle.toPrimitives());
   }
 }

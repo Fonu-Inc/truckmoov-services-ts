@@ -4,12 +4,14 @@ import {
   type VehicleRepository,
 } from "../../domain/repositories/vehicle.repository";
 import { VehicleNotFoundError } from "../../domain/errors/vehicle-not-found.error";
+import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type UpdateVehicleCommand = {
   id: string;
   plateNumber?: string;
   model?: string;
   tenantId?: string;
+  status?: FleetAssetStatus;
 };
 
 @Injectable()
@@ -29,6 +31,7 @@ export class UpdateVehicleUseCase {
       plateNumber: command.plateNumber,
       model: command.model,
       tenantId: command.tenantId,
+      status: command.status,
     });
 
     await this.vehicleRepository.save(updatedVehicle);

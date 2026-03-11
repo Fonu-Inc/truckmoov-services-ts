@@ -8,6 +8,7 @@ import {
   Headers,
   Inject,
   NotFoundException,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -16,7 +17,12 @@ import {
   ChangeRoleUseCase,
   ForgotPasswordUseCase,
   GetMeUseCase,
+  GetNotificationPreferencesUseCase,
+  GetDispatcherPreferencesUseCase,
+  GetOrganizationSettingsUseCase,
+  GetProfileUseCase,
   InviteUserUseCase,
+  InvalidSettingsError,
   InvalidCredentialsError,
   InvalidRefreshTokenError,
   InvalidResetTokenError,
@@ -27,6 +33,10 @@ import {
   RegisterInvitedUseCase,
   RegisterUseCase,
   ResetPasswordUseCase,
+  UpdateDispatcherPreferencesUseCase,
+  UpdateNotificationPreferencesUseCase,
+  UpdateOrganizationSettingsUseCase,
+  UpdateProfileUseCase,
   UsernameTakenError,
   UserNotFoundError,
   ValidateInviteUseCase,
@@ -45,6 +55,10 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { ChangeRoleDto } from "./dto/change-role.dto";
 import { LogoutDto } from "./dto/logout.dto";
 import { AuthResponse, HealthResponse, MeResponse } from "./dto/auth.schema";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
+import { UpdateNotificationPreferencesDto } from "./dto/update-notification-preferences.dto";
+import { UpdateDispatcherPreferencesDto } from "./dto/update-dispatcher-preferences.dto";
+import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 
 @Controller("auth")
 export class AuthController {
@@ -73,6 +87,22 @@ export class AuthController {
     private readonly changeRoleUseCase: ChangeRoleUseCase,
     @Inject(LogoutUseCase)
     private readonly logoutUseCase: LogoutUseCase,
+    @Inject(GetProfileUseCase)
+    private readonly getProfileUseCase: GetProfileUseCase,
+    @Inject(UpdateProfileUseCase)
+    private readonly updateProfileUseCase: UpdateProfileUseCase,
+    @Inject(GetNotificationPreferencesUseCase)
+    private readonly getNotificationPreferencesUseCase: GetNotificationPreferencesUseCase,
+    @Inject(UpdateNotificationPreferencesUseCase)
+    private readonly updateNotificationPreferencesUseCase: UpdateNotificationPreferencesUseCase,
+    @Inject(GetDispatcherPreferencesUseCase)
+    private readonly getDispatcherPreferencesUseCase: GetDispatcherPreferencesUseCase,
+    @Inject(UpdateDispatcherPreferencesUseCase)
+    private readonly updateDispatcherPreferencesUseCase: UpdateDispatcherPreferencesUseCase,
+    @Inject(GetOrganizationSettingsUseCase)
+    private readonly getOrganizationSettingsUseCase: GetOrganizationSettingsUseCase,
+    @Inject(UpdateOrganizationSettingsUseCase)
+    private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
   ) {}
 
   @Get("health")
@@ -251,6 +281,186 @@ export class AuthController {
       refreshToken: payload.refreshToken,
       accessToken: accessToken ?? undefined,
     });
+  }
+
+  /** Returns current authenticated user's editable profile details */
+  @Get("profile")
+  async getProfile(@Headers("authorization") authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.getProfileUseCase.execute(accessToken);
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Updates current authenticated user's name/contact details */
+  @Patch("profile")
+  async updateProfile(
+    @Body() payload: UpdateProfileDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.updateProfileUseCase.execute({
+        accessToken,
+        fullName: payload.fullName,
+        phoneNumber: payload.phoneNumber,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Gets current notification preferences */
+  @Get("preferences/notifications")
+  async getNotificationPreferences(
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.getNotificationPreferencesUseCase.execute(accessToken);
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Updates current notification preferences */
+  @Patch("preferences/notifications")
+  async updateNotificationPreferences(
+    @Body() payload: UpdateNotificationPreferencesDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.updateNotificationPreferencesUseCase.execute({
+        accessToken,
+        emailAlerts: payload.emailAlerts,
+        smsAlerts: payload.smsAlerts,
+        pushAlerts: payload.pushAlerts,
+        incidentAlerts: payload.incidentAlerts,
+        jobUpdates: payload.jobUpdates,
+        marketingAnnouncements: payload.marketingAnnouncements,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Gets dispatcher working-hours and timezone preferences */
+  @Get("preferences/dispatch")
+  async getDispatcherPreferences(
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.getDispatcherPreferencesUseCase.execute(accessToken);
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Updates dispatcher working-hours and timezone preferences */
+  @Patch("preferences/dispatch")
+  async updateDispatcherPreferences(
+    @Body() payload: UpdateDispatcherPreferencesDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.updateDispatcherPreferencesUseCase.execute({
+        accessToken,
+        timezone: payload.timezone,
+        shiftStart: payload.shiftStart,
+        shiftEnd: payload.shiftEnd,
+        workDays: payload.workDays,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof InvalidSettingsError)
+        throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  /** Gets organization-level settings for current tenant (enterprise admin only) */
+  @Get("organization/settings")
+  async getOrganizationSettings(
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.getOrganizationSettingsUseCase.execute(accessToken);
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Updates organization-level settings for current tenant (enterprise admin only) */
+  @Patch("organization/settings")
+  async updateOrganizationSettings(
+    @Body() payload: UpdateOrganizationSettingsDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.updateOrganizationSettingsUseCase.execute({
+        accessToken,
+        branding: payload.branding,
+        defaults: payload.defaults,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof InvalidSettingsError)
+        throw new BadRequestException(error.message);
+      throw error;
+    }
   }
 
   private async runAuthUseCase<T>(fn: () => Promise<T>) {

@@ -45,6 +45,21 @@ export class AuthUserRecord {
   passwordHash!: string;
   roles!: string[];
   tenantId!: string;
+  profile?: { fullName: string | null; phoneNumber: string | null };
+  notificationPreferences?: {
+    emailAlerts: boolean;
+    smsAlerts: boolean;
+    pushAlerts: boolean;
+    incidentAlerts: boolean;
+    jobUpdates: boolean;
+    marketingAnnouncements: boolean;
+  };
+  dispatcherPreferences?: {
+    timezone: string;
+    shiftStart: string;
+    shiftEnd: string;
+    workDays: number[];
+  };
   createdAt!: Date;
 }
 
@@ -57,9 +72,47 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     passwordHash: { type: "string" },
     roles: { type: "json" },
     tenantId: { type: "string", length: 64, default: "default" },
+    profile: { type: "json", nullable: true },
+    notificationPreferences: { type: "json", nullable: true },
+    dispatcherPreferences: { type: "json", nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
   },
 });
+
+/* ── Organization Settings ───────────────────────────── */
+
+export class OrganizationSettingsRecord {
+  tenantId!: string;
+  branding!: {
+    organizationName: string;
+    logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
+  };
+  defaults!: {
+    timezone: string;
+    currency: string;
+    dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
+    weekStartsOn: "monday" | "sunday";
+  };
+  updatedAt!: Date;
+}
+
+export const OrganizationSettingsRecordSchema =
+  new EntitySchema<OrganizationSettingsRecord>({
+    class: OrganizationSettingsRecord,
+    tableName: "auth_organization_settings",
+    properties: {
+      tenantId: { type: "string", primary: true },
+      branding: { type: "json" },
+      defaults: { type: "json" },
+      updatedAt: {
+        type: "datetime",
+        onUpdate: () => new Date(),
+        defaultRaw: "now()",
+      },
+    },
+  });
 
 /* ── Invite ──────────────────────────────────────────── */
 
@@ -134,6 +187,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       AuthUserRecordSchema,
       InviteRecordSchema,
       PasswordResetRecordSchema,
+      OrganizationSettingsRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

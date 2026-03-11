@@ -6,6 +6,7 @@ export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
 export { UserNotFoundError } from "./domain/errors/user-not-found.error";
 export { ForbiddenError } from "./domain/errors/forbidden.error";
+export { InvalidSettingsError } from "./domain/errors/invalid-settings.error";
 
 // Domain ports
 export { IDENTITY_PROVIDER } from "./domain/ports/identity-provider.port";
@@ -14,6 +15,7 @@ export { SESSION_STORE } from "./domain/ports/session-store.port";
 export { USER_REPOSITORY } from "./domain/ports/user-repository.port";
 export { INVITE_REPOSITORY } from "./domain/ports/invite-repository.port";
 export { PASSWORD_RESET_STORE } from "./domain/ports/password-reset-store.port";
+export { ORGANIZATION_SETTINGS_REPOSITORY } from "./domain/ports/organization-settings.repository.port";
 
 // Infrastructure
 export { DbIdentityProvider } from "./infrastructure/db-identity.provider";
@@ -26,6 +28,8 @@ export { InMemoryInviteRepository } from "./infrastructure/in-memory-invite.repo
 export { MikroInviteRepository } from "./infrastructure/mikro-invite.repository";
 export { InMemoryPasswordResetStore } from "./infrastructure/in-memory-password-reset.store";
 export { MikroPasswordResetStore } from "./infrastructure/mikro-password-reset.store";
+export { InMemoryOrganizationSettingsRepository } from "./infrastructure/in-memory-organization-settings.repository";
+export { MikroOrganizationSettingsRepository } from "./infrastructure/mikro-organization-settings.repository";
 
 // Use cases
 export { LoginUseCase } from "./application/use-cases/login.use-case";
@@ -40,3 +44,11 @@ export { VerifyResetUseCase } from "./application/use-cases/verify-reset.use-cas
 export { ResetPasswordUseCase } from "./application/use-cases/reset-password.use-case";
 export { ChangeRoleUseCase } from "./application/use-cases/change-role.use-case";
 export { LogoutUseCase } from "./application/use-cases/logout.use-case";
+export { GetProfileUseCase } from "./application/use-cases/get-profile.use-case";
+export { UpdateProfileUseCase } from "./application/use-cases/update-profile.use-case";
+export { GetNotificationPreferencesUseCase } from "./application/use-cases/get-notification-preferences.use-case";
+export { UpdateNotificationPreferencesUseCase } from "./application/use-cases/update-notification-preferences.use-case";
+export { GetDispatcherPreferencesUseCase } from "./application/use-cases/get-dispatcher-preferences.use-case";
+export { UpdateDispatcherPreferencesUseCase } from "./application/use-cases/update-dispatcher-preferences.use-case";
+export { GetOrganizationSettingsUseCase } from "./application/use-cases/get-organization-settings.use-case";
+export { UpdateOrganizationSettingsUseCase } from "./application/use-cases/update-organization-settings.use-case";

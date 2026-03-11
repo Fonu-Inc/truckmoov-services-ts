@@ -7,3 +7,6 @@ export { ListDriversUseCase } from "./application/use-cases/list-drivers.use-cas
 export { GetDriverUseCase } from "./application/use-cases/get-driver.use-case";
 export { UpdateDriverUseCase } from "./application/use-cases/update-driver.use-case";
 export { DeleteDriverUseCase } from "./application/use-cases/delete-driver.use-case";
+export { SetDriverStatusUseCase } from "./application/use-cases/set-driver-status.use-case";
+export { UpdateDriverContactChannelsUseCase } from "./application/use-cases/update-driver-contact-channels.use-case";
+export { BulkImportDriversUseCase } from "./application/use-cases/bulk-import-drivers.use-case";

@@ -7,3 +7,8 @@ export { ListVehiclesUseCase } from "./application/use-cases/list-vehicles.use-c
 export { GetVehicleUseCase } from "./application/use-cases/get-vehicle.use-case";
 export { UpdateVehicleUseCase } from "./application/use-cases/update-vehicle.use-case";
 export { DeleteVehicleUseCase } from "./application/use-cases/delete-vehicle.use-case";
+export { AssignDriverToVehicleUseCase } from "./application/use-cases/assign-driver-to-vehicle.use-case";
+export { UnassignDriverFromVehicleUseCase } from "./application/use-cases/unassign-driver-from-vehicle.use-case";
+export { SetVehicleStatusUseCase } from "./application/use-cases/set-vehicle-status.use-case";
+export { RegisterVehicleGpsDeviceUseCase } from "./application/use-cases/register-vehicle-gps-device.use-case";
+export { BulkImportVehiclesUseCase } from "./application/use-cases/bulk-import-vehicles.use-case";

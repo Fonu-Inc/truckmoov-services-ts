@@ -5,6 +5,10 @@ import { MailerModule } from "@shared/mailer";
 import { SmsModule } from "@shared/sms";
 import {
   ChangeRoleUseCase,
+  GetDispatcherPreferencesUseCase,
+  GetNotificationPreferencesUseCase,
+  GetOrganizationSettingsUseCase,
+  GetProfileUseCase,
   DbIdentityProvider,
   DevTokenService,
   ForgotPasswordUseCase,
@@ -18,10 +22,13 @@ import {
   InviteUserUseCase,
   LoginUseCase,
   LogoutUseCase,
+  InMemoryOrganizationSettingsRepository,
   MikroInviteRepository,
+  MikroOrganizationSettingsRepository,
   MikroPasswordResetStore,
   MikroSessionStore,
   MikroUserRepository,
+  ORGANIZATION_SETTINGS_REPOSITORY,
   PASSWORD_RESET_STORE,
   RefreshUseCase,
   RegisterInvitedUseCase,
@@ -32,6 +39,10 @@ import {
   USER_REPOSITORY,
   ValidateInviteUseCase,
   VerifyResetUseCase,
+  UpdateDispatcherPreferencesUseCase,
+  UpdateNotificationPreferencesUseCase,
+  UpdateOrganizationSettingsUseCase,
+  UpdateProfileUseCase,
 } from "./contexts/auth/session";
 import { AuthController } from "./auth.controller";
 
@@ -105,6 +116,23 @@ import { AuthController } from "./auth.controller";
       ) => config.persistence.backend === "in-memory" ? inMemory : mikro,
     },
 
+    // Organization settings repository
+    InMemoryOrganizationSettingsRepository,
+    MikroOrganizationSettingsRepository,
+    {
+      provide: ORGANIZATION_SETTINGS_REPOSITORY,
+      inject: [
+        InMemoryOrganizationSettingsRepository,
+        MikroOrganizationSettingsRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryOrganizationSettingsRepository,
+        mikro: MikroOrganizationSettingsRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemory : mikro,
+    },
+
     // Use cases
     LoginUseCase,
     RefreshUseCase,
@@ -118,6 +146,14 @@ import { AuthController } from "./auth.controller";
     ResetPasswordUseCase,
     ChangeRoleUseCase,
     LogoutUseCase,
+    GetProfileUseCase,
+    UpdateProfileUseCase,
+    GetNotificationPreferencesUseCase,
+    UpdateNotificationPreferencesUseCase,
+    GetDispatcherPreferencesUseCase,
+    UpdateDispatcherPreferencesUseCase,
+    GetOrganizationSettingsUseCase,
+    UpdateOrganizationSettingsUseCase,
   ],
 })
 export class AppModule {}

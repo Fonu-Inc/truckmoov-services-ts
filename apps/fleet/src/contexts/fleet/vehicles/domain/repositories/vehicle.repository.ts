@@ -1,9 +1,19 @@
 import type { Vehicle } from "../entities/vehicle.entity";
+import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+
+export type VehicleFilters = {
+  tenantId?: string;
+  query?: string;
+  status?: FleetAssetStatus;
+  assigned?: boolean;
+};
 
 export interface VehicleRepository {
   save(vehicle: Vehicle): Promise<void>;
-  findAll(): Promise<Vehicle[]>;
+  findAll(filters?: VehicleFilters): Promise<Vehicle[]>;
   findById(id: string): Promise<Vehicle | null>;
+  findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null>;
+  findByAssignedDriverId(driverId: string): Promise<Vehicle | null>;
   deleteById(id: string): Promise<void>;
 }
 

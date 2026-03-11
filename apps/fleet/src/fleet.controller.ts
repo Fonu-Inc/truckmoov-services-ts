@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,30 +13,61 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { IdempotencyGuard, RequireIdempotency, Roles, RolesGuard } from "@shared/rbac";
-import { CreateDriverDto, UpdateDriverDto } from "./dto/driver.dto";
-import { CreateVehicleDto, UpdateVehicleDto } from "./dto/vehicle.dto";
 import {
+  BulkImportDriversDto,
+  CreateDriverDto,
+  DriverListQueryDto,
+  JobListQueryDto,
+  SetDriverStatusDto,
+  UpdateDriverContactChannelsDto,
+  UpdateDriverDto,
+} from "./dto/driver.dto";
+import {
+  AssignDriverToVehicleDto,
+  BulkImportVehiclesDto,
+  CreateVehicleDto,
+  DispatchSearchQueryDto,
+  RegisterGpsDeviceDto,
+  SetVehicleStatusDto,
+  UpdateVehicleDto,
+  VehicleListQueryDto,
+} from "./dto/vehicle.dto";
+import {
+  BulkDriverImportResponse,
+  BulkVehicleImportResponse,
+  DispatchSearchResponse,
   DriverListResponse,
   DriverResponse,
   FleetHealthResponse,
+  JobListResponse,
   JobStatusResponse,
+  VehicleDriverAssignmentResponse,
   VehicleListResponse,
   VehicleResponse,
 } from "./dto/fleet.schema";
 import {
+  BulkImportDriversUseCase,
   CreateDriverUseCase,
   DeleteDriverUseCase,
   DriverNotFoundError,
   GetDriverUseCase,
   ListDriversUseCase,
+  SetDriverStatusUseCase,
+  UpdateDriverContactChannelsUseCase,
   UpdateDriverUseCase,
 } from "./contexts/fleet/drivers";
-import { PublishJobStatusChangedUseCase } from "./contexts/fleet/jobs";
+import { ListJobsUseCase, PublishJobStatusChangedUseCase } from "./contexts/fleet/jobs";
+import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import {
+  AssignDriverToVehicleUseCase,
+  BulkImportVehiclesUseCase,
   CreateVehicleUseCase,
   DeleteVehicleUseCase,
   GetVehicleUseCase,
   ListVehiclesUseCase,
+  RegisterVehicleGpsDeviceUseCase,
+  SetVehicleStatusUseCase,
+  UnassignDriverFromVehicleUseCase,
   UpdateVehicleUseCase,
   VehicleNotFoundError,
 } from "./contexts/fleet/vehicles";
@@ -54,6 +86,16 @@ export class FleetController {
     private readonly updateVehicleUseCase: UpdateVehicleUseCase,
     @Inject(DeleteVehicleUseCase)
     private readonly deleteVehicleUseCase: DeleteVehicleUseCase,
+    @Inject(AssignDriverToVehicleUseCase)
+    private readonly assignDriverToVehicleUseCase: AssignDriverToVehicleUseCase,
+    @Inject(UnassignDriverFromVehicleUseCase)
+    private readonly unassignDriverFromVehicleUseCase: UnassignDriverFromVehicleUseCase,
+    @Inject(SetVehicleStatusUseCase)
+    private readonly setVehicleStatusUseCase: SetVehicleStatusUseCase,
+    @Inject(RegisterVehicleGpsDeviceUseCase)
+    private readonly registerVehicleGpsDeviceUseCase: RegisterVehicleGpsDeviceUseCase,
+    @Inject(BulkImportVehiclesUseCase)
+    private readonly bulkImportVehiclesUseCase: BulkImportVehiclesUseCase,
     @Inject(ListDriversUseCase)
     private readonly listDriversUseCase: ListDriversUseCase,
     @Inject(CreateDriverUseCase)
@@ -64,6 +106,14 @@ export class FleetController {
     private readonly updateDriverUseCase: UpdateDriverUseCase,
     @Inject(DeleteDriverUseCase)
     private readonly deleteDriverUseCase: DeleteDriverUseCase,
+    @Inject(SetDriverStatusUseCase)
+    private readonly setDriverStatusUseCase: SetDriverStatusUseCase,
+    @Inject(UpdateDriverContactChannelsUseCase)
+    private readonly updateDriverContactChannelsUseCase: UpdateDriverContactChannelsUseCase,
+    @Inject(BulkImportDriversUseCase)
+    private readonly bulkImportDriversUseCase: BulkImportDriversUseCase,
+    @Inject(ListJobsUseCase)
+    private readonly listJobsUseCase: ListJobsUseCase,
     @Inject(PublishJobStatusChangedUseCase)
     private readonly publishJobStatusChangedUseCase: PublishJobStatusChangedUseCase,
   ) {}
@@ -74,11 +124,16 @@ export class FleetController {
     return { status: true, message: "success", data: { service: "fleet" } };
   }
 
-  /** Retrieve all vehicles for the current tenant */
+  /** Retrieve vehicles with optional dispatch-centric filters */
   @Get("vehicles")
-  @Roles("admin", "fleet_manager", "operator")
-  async listVehicles(): Promise<VehicleListResponse> {
-    return this.listVehiclesUseCase.execute() as unknown as Promise<VehicleListResponse>;
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  async listVehicles(@Query() query: VehicleListQueryDto): Promise<VehicleListResponse> {
+    return this.listVehiclesUseCase.execute({
+      query: query.query,
+      status: query.status,
+      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      tenantId: query.tenantId,
+    }) as unknown as Promise<VehicleListResponse>;
   }
 
   /** Register a new vehicle in the fleet */
@@ -90,11 +145,20 @@ export class FleetController {
     return this.createVehicleUseCase.execute(payload) as unknown as Promise<VehicleResponse>;
   }
 
+  /** Bulk onboarding for fleet inventory imports */
+  @Post("vehicles/import")
+  @Roles("admin", "fleet_manager")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async bulkImportVehicles(@Body() payload: BulkImportVehiclesDto): Promise<BulkVehicleImportResponse> {
+    return this.bulkImportVehiclesUseCase.execute(payload) as unknown as Promise<BulkVehicleImportResponse>;
+  }
+
   /** Retrieve a vehicle by ID */
   @Get("vehicles/:id")
-  @Roles("admin", "fleet_manager", "operator")
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
   async getVehicle(@Param("id") id: string): Promise<VehicleResponse> {
-    return this.runVehicleUseCase(() => this.getVehicleUseCase.execute(id)) as unknown as Promise<VehicleResponse>;
+    return this.runFleetUseCase(() => this.getVehicleUseCase.execute(id)) as unknown as Promise<VehicleResponse>;
   }
 
   /** Partially update a vehicle's details */
@@ -103,8 +167,58 @@ export class FleetController {
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   async updateVehicle(@Param("id") id: string, @Body() payload: UpdateVehicleDto): Promise<VehicleResponse> {
-    return this.runVehicleUseCase(() =>
+    return this.runFleetUseCase(() =>
       this.updateVehicleUseCase.execute({ id, ...payload }),
+    ) as unknown as Promise<VehicleResponse>;
+  }
+
+  /** Activate/deactivate vehicle availability for dispatch */
+  @Patch("vehicles/:id/status")
+  @Roles("admin", "fleet_manager")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async setVehicleStatus(@Param("id") id: string, @Body() payload: SetVehicleStatusDto): Promise<VehicleResponse> {
+    return this.runFleetUseCase(() =>
+      this.setVehicleStatusUseCase.execute({ id, status: payload.status }),
+    ) as unknown as Promise<VehicleResponse>;
+  }
+
+  /** Assign a driver to a vehicle (US-C03) */
+  @Patch("vehicles/:id/assignment")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async assignDriverToVehicle(
+    @Param("id") vehicleId: string,
+    @Body() payload: AssignDriverToVehicleDto,
+  ): Promise<VehicleDriverAssignmentResponse> {
+    return this.runFleetUseCase(() =>
+      this.assignDriverToVehicleUseCase.execute({ vehicleId, driverId: payload.driverId }),
+    ) as unknown as Promise<VehicleDriverAssignmentResponse>;
+  }
+
+  /** Remove current driver assignment from a vehicle */
+  @Delete("vehicles/:id/assignment")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async unassignDriverFromVehicle(@Param("id") vehicleId: string): Promise<VehicleResponse> {
+    return this.runFleetUseCase(() =>
+      this.unassignDriverFromVehicleUseCase.execute(vehicleId),
+    ) as unknown as Promise<VehicleResponse>;
+  }
+
+  /** Register or replace GPS hardware mapped to a vehicle */
+  @Patch("vehicles/:id/gps-device")
+  @Roles("admin", "fleet_manager")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async registerGpsDevice(
+    @Param("id") vehicleId: string,
+    @Body() payload: RegisterGpsDeviceDto,
+  ): Promise<VehicleResponse> {
+    return this.runFleetUseCase(() =>
+      this.registerVehicleGpsDeviceUseCase.execute({ vehicleId, ...payload }),
     ) as unknown as Promise<VehicleResponse>;
   }
 
@@ -114,16 +228,21 @@ export class FleetController {
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   async deleteVehicle(@Param("id") id: string): Promise<VehicleResponse> {
-    return this.runVehicleUseCase(() =>
+    return this.runFleetUseCase(() =>
       this.deleteVehicleUseCase.execute(id),
     ) as unknown as Promise<VehicleResponse>;
   }
 
-  /** Retrieve all drivers for the current tenant */
+  /** Retrieve drivers with optional dispatch-centric filters */
   @Get("drivers")
-  @Roles("admin", "fleet_manager", "operator")
-  async listDrivers(): Promise<DriverListResponse> {
-    return this.listDriversUseCase.execute() as unknown as Promise<DriverListResponse>;
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  async listDrivers(@Query() query: DriverListQueryDto): Promise<DriverListResponse> {
+    return this.listDriversUseCase.execute({
+      query: query.query,
+      status: query.status,
+      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      tenantId: query.tenantId,
+    }) as unknown as Promise<DriverListResponse>;
   }
 
   /** Register a new driver */
@@ -135,11 +254,20 @@ export class FleetController {
     return this.createDriverUseCase.execute(payload) as unknown as Promise<DriverResponse>;
   }
 
+  /** Bulk onboarding for driver records */
+  @Post("drivers/import")
+  @Roles("admin", "fleet_manager")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async bulkImportDrivers(@Body() payload: BulkImportDriversDto): Promise<BulkDriverImportResponse> {
+    return this.bulkImportDriversUseCase.execute(payload) as unknown as Promise<BulkDriverImportResponse>;
+  }
+
   /** Retrieve a driver by ID */
   @Get("drivers/:id")
-  @Roles("admin", "fleet_manager", "operator")
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
   async getDriver(@Param("id") id: string): Promise<DriverResponse> {
-    return this.runDriverUseCase(() => this.getDriverUseCase.execute(id)) as unknown as Promise<DriverResponse>;
+    return this.runFleetUseCase(() => this.getDriverUseCase.execute(id)) as unknown as Promise<DriverResponse>;
   }
 
   /** Partially update a driver's details */
@@ -148,8 +276,33 @@ export class FleetController {
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   async updateDriver(@Param("id") id: string, @Body() payload: UpdateDriverDto): Promise<DriverResponse> {
-    return this.runDriverUseCase(() =>
+    return this.runFleetUseCase(() =>
       this.updateDriverUseCase.execute({ id, ...payload }),
+    ) as unknown as Promise<DriverResponse>;
+  }
+
+  /** Activate/deactivate driver availability for dispatch */
+  @Patch("drivers/:id/status")
+  @Roles("admin", "fleet_manager")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async setDriverStatus(@Param("id") id: string, @Body() payload: SetDriverStatusDto): Promise<DriverResponse> {
+    return this.runFleetUseCase(() =>
+      this.setDriverStatusUseCase.execute({ id, status: payload.status }),
+    ) as unknown as Promise<DriverResponse>;
+  }
+
+  /** Manage WhatsApp/SMS/voice contact channels used for dispatch communication */
+  @Patch("drivers/:id/contact-channels")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  async updateDriverContactChannels(
+    @Param("id") id: string,
+    @Body() payload: UpdateDriverContactChannelsDto,
+  ): Promise<DriverResponse> {
+    return this.runFleetUseCase(() =>
+      this.updateDriverContactChannelsUseCase.execute({ id, channels: payload }),
     ) as unknown as Promise<DriverResponse>;
   }
 
@@ -159,14 +312,55 @@ export class FleetController {
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   async deleteDriver(@Param("id") id: string): Promise<DriverResponse> {
-    return this.runDriverUseCase(() =>
+    return this.runFleetUseCase(() =>
       this.deleteDriverUseCase.execute(id),
     ) as unknown as Promise<DriverResponse>;
   }
 
+  /** List jobs for dispatch search/filter use-cases */
+  @Get("jobs")
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  async listJobs(@Query() query: JobListQueryDto): Promise<JobListResponse> {
+    return this.listJobsUseCase.execute({
+      query: query.query,
+      status: query.status,
+      tenantId: query.tenantId,
+    }) as unknown as Promise<JobListResponse>;
+  }
+
+  /** Combined dispatcher search over vehicles, drivers, and jobs */
+  @Get("dispatch/search")
+  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  async searchDispatch(@Query() query: DispatchSearchQueryDto): Promise<DispatchSearchResponse> {
+    const assignedOnly = this.parseOptionalBoolean(query.assignedOnly, "assignedOnly");
+
+    // Run in parallel because this endpoint is read-only aggregation across three repositories.
+    const [vehicles, drivers, jobs] = await Promise.all([
+      this.listVehiclesUseCase.execute({
+        query: query.query,
+        status: query.vehicleStatus,
+        assigned: assignedOnly,
+        tenantId: query.tenantId,
+      }),
+      this.listDriversUseCase.execute({
+        query: query.query,
+        status: query.driverStatus,
+        assigned: assignedOnly,
+        tenantId: query.tenantId,
+      }),
+      this.listJobsUseCase.execute({
+        query: query.query,
+        status: query.jobStatus,
+        tenantId: query.tenantId,
+      }),
+    ]);
+
+    return { vehicles, drivers, jobs } as unknown as DispatchSearchResponse;
+  }
+
   /** Emit a job-status-changed domain event to the event bus */
   @Post("events/job-status")
-  @Roles("admin", "fleet_manager")
+  @Roles("admin", "fleet_manager", "dispatcher")
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   async publishSampleEvent(
@@ -181,23 +375,31 @@ export class FleetController {
     }) as unknown as Promise<JobStatusResponse>;
   }
 
-  private async runVehicleUseCase<T>(fn: () => Promise<T>) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error instanceof VehicleNotFoundError) {
-        throw new NotFoundException(error.message);
-      }
-      throw error;
+  private parseOptionalBoolean(
+    value: string | undefined,
+    field: string,
+  ): boolean | undefined {
+    if (value === undefined) {
+      return undefined;
     }
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+    throw new BadRequestException(`${field} must be either "true" or "false"`);
   }
 
-  private async runDriverUseCase<T>(fn: () => Promise<T>) {
+  private async runFleetUseCase<T>(fn: () => Promise<T>) {
     try {
       return await fn();
     } catch (error) {
-      if (error instanceof DriverNotFoundError) {
+      if (error instanceof VehicleNotFoundError || error instanceof DriverNotFoundError) {
         throw new NotFoundException(error.message);
+      }
+      if (error instanceof FleetRuleError) {
+        throw new BadRequestException(error.message);
       }
       throw error;
     }

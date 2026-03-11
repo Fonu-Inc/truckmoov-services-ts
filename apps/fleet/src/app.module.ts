@@ -4,6 +4,7 @@ import { EventBusModule } from "@shared/eventbus";
 import { LoggerModule } from "@shared/logger";
 import { IdempotencyGuard, RolesGuard } from "@shared/rbac";
 import {
+  BulkImportDriversUseCase,
   CreateDriverUseCase,
   DeleteDriverUseCase,
   DRIVER_REPOSITORY,
@@ -11,20 +12,31 @@ import {
   InMemoryDriverRepository,
   ListDriversUseCase,
   MikroDriverRepository,
+  SetDriverStatusUseCase,
   UpdateDriverUseCase,
+  UpdateDriverContactChannelsUseCase,
 } from "./contexts/fleet/drivers";
 import {
   EventBusJobStatusEventPublisher,
+  InMemoryJobRepository,
+  JOB_REPOSITORY,
   JOB_STATUS_EVENT_PUBLISHER,
+  ListJobsUseCase,
+  MikroJobRepository,
   PublishJobStatusChangedUseCase,
 } from "./contexts/fleet/jobs";
 import {
+  AssignDriverToVehicleUseCase,
+  BulkImportVehiclesUseCase,
   CreateVehicleUseCase,
   DeleteVehicleUseCase,
   GetVehicleUseCase,
   InMemoryVehicleRepository,
   ListVehiclesUseCase,
   MikroVehicleRepository,
+  RegisterVehicleGpsDeviceUseCase,
+  SetVehicleStatusUseCase,
+  UnassignDriverFromVehicleUseCase,
   UpdateVehicleUseCase,
   VEHICLE_REPOSITORY,
 } from "./contexts/fleet/vehicles";
@@ -50,6 +62,11 @@ import { FleetController } from "./fleet.controller";
     GetVehicleUseCase,
     UpdateVehicleUseCase,
     DeleteVehicleUseCase,
+    AssignDriverToVehicleUseCase,
+    UnassignDriverFromVehicleUseCase,
+    SetVehicleStatusUseCase,
+    RegisterVehicleGpsDeviceUseCase,
+    BulkImportVehiclesUseCase,
     InMemoryDriverRepository,
     MikroDriverRepository,
     {
@@ -66,6 +83,21 @@ import { FleetController } from "./fleet.controller";
     GetDriverUseCase,
     UpdateDriverUseCase,
     DeleteDriverUseCase,
+    SetDriverStatusUseCase,
+    UpdateDriverContactChannelsUseCase,
+    BulkImportDriversUseCase,
+    InMemoryJobRepository,
+    MikroJobRepository,
+    {
+      provide: JOB_REPOSITORY,
+      inject: [InMemoryJobRepository, MikroJobRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryJobRepository,
+        mikroRepository: MikroJobRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    ListJobsUseCase,
     EventBusJobStatusEventPublisher,
     {
       provide: JOB_STATUS_EVENT_PUBLISHER,
