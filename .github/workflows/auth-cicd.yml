@@ -140,7 +140,7 @@ jobs:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
-          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts/auth
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts
         run: |
           set -eu
           SSH_KEY_PATH="$RUNNER_TEMP/dev_deploy_key"
@@ -153,7 +153,7 @@ jobs:
           chmod 644 "$KNOWN_HOSTS_PATH"
 
           ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
-            "rm -rf \"$AUTH_DEPLOY_PATH\" && mkdir -p \"$AUTH_DEPLOY_PATH\""
+            "test -d \"$AUTH_DEPLOY_PATH\" && test -w \"$AUTH_DEPLOY_PATH\""
 
           tar -C deploy/.rendered/auth -czf - . | \
             ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
@@ -162,7 +162,7 @@ jobs:
       - name: Apply auth deployment over SSH
         uses: appleboy/ssh-action@v1.2.0
         env:
-          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts/auth
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
