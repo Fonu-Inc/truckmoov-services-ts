@@ -132,13 +132,16 @@ jobs:
           sed -i "s|newName: .*|newName: ${IMAGE_NAME}|" deploy/.rendered/auth/kustomization.yaml
           sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/auth/kustomization.yaml
 
+      - name: Show rendered auth bundle
+        run: find deploy/.rendered/auth -maxdepth 2 -type f | sort
+
       - name: Copy auth manifests to deploy host
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          source: "deploy/.rendered/auth/*"
+          source: "deploy/.rendered/auth"
           target: "~/truckmoov-deploy/auth"
           strip_components: 3
 
