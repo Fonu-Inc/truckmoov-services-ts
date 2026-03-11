@@ -20,6 +20,7 @@ The SSH target must already have:
 
 - `kubectl` installed
 - kubeconfig/context pointed at the target cluster
+- the `truckmoov` namespace already created on the cluster
 - permission to deploy into the `truckmoov` namespace
 
 ## Kubernetes manifests
