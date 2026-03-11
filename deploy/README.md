@@ -24,7 +24,7 @@ The SSH target must already have:
 - the `truckmoov` namespace already created on the cluster
 - permission to deploy into the `truckmoov` namespace
 - write access to `/var/www/truckmoov-services-ts`
-- passwordless `sudo` for `/usr/local/bin/k3s ctr images import -`
+- permission to run `/usr/local/bin/k3s ctr images import -`
 
 ## Server layout
 
