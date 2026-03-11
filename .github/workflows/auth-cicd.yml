@@ -140,6 +140,7 @@ jobs:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts/auth
         run: |
           set -eu
           SSH_KEY_PATH="$RUNNER_TEMP/dev_deploy_key"
@@ -152,20 +153,31 @@ jobs:
           chmod 644 "$KNOWN_HOSTS_PATH"
 
           ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
-            'rm -rf "$HOME/truckmoov-deploy/auth" && mkdir -p "$HOME/truckmoov-deploy/auth"'
+            "rm -rf \"$AUTH_DEPLOY_PATH\" && mkdir -p \"$AUTH_DEPLOY_PATH\""
 
           tar -C deploy/.rendered/auth -czf - . | \
             ssh -i "$SSH_KEY_PATH" -o UserKnownHostsFile="$KNOWN_HOSTS_PATH" -o StrictHostKeyChecking=yes "$DEV_SSH_USER@$DEV_SSH_HOST" \
-              'tar -xzf - -C "$HOME/truckmoov-deploy/auth"'
+              "tar -xzf - -C \"$AUTH_DEPLOY_PATH\""
 
       - name: Apply auth deployment over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          AUTH_DEPLOY_PATH: /var/www/truckmoov-services-ts/auth
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script_stop: true
+          envs: AUTH_DEPLOY_PATH
           script: |
             set -eu
-            kubectl apply --validate=false -k "$HOME/truckmoov-deploy/auth"
-            kubectl rollout status deployment/auth-service -n truckmoov --timeout=180s
+            kubectl apply --validate=false -k "$AUTH_DEPLOY_PATH"
+            if ! kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s; then
+              kubectl get deployment auth-service -n truckmoov -o wide || true
+              kubectl get pods -n truckmoov -l app.kubernetes.io/name=auth-service -o wide || true
+              kubectl describe deployment auth-service -n truckmoov || true
+              kubectl describe pods -n truckmoov -l app.kubernetes.io/name=auth-service || true
+              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200 || true
+              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50 || true
+              exit 1
+            fi

@@ -22,6 +22,11 @@ The SSH target must already have:
 - kubeconfig/context pointed at the target cluster
 - the `truckmoov` namespace already created on the cluster
 - permission to deploy into the `truckmoov` namespace
+- write access to `/var/www/truckmoov-services-ts`
+
+The workflow copies the rendered auth kustomize bundle to:
+
+- `/var/www/truckmoov-services-ts/auth`
 
 ## Kubernetes manifests
 
