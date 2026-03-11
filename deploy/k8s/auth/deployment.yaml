@@ -16,12 +16,10 @@ spec:
         app.kubernetes.io/name: auth-service
         app.kubernetes.io/component: backend
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: auth-service
           image: auth-image
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 3001
               name: http

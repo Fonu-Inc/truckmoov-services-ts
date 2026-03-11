@@ -1,11 +1,11 @@
 # Auth deployment
 
-This repo now contains CI/CD for the TypeScript auth service only.
+This repo deploys the TypeScript auth service to the existing Kubernetes cluster on the deploy host by building the Docker image on that host and loading it into the local `k3s` runtime.
 
 ## GitHub Actions flow
 
 - `pull_request`: runs lint, tests, and build for auth-related changes.
-- `push` to `main`: runs validation, builds `Dockerfile.auth`, pushes the image to GHCR, then deploys over SSH.
+- `push` to `main`: runs validation, copies the tracked source tree and rendered auth kustomize bundle to the deploy host, builds the auth Docker image on that host, imports it into `k3s`, and applies it with `kubectl`.
 - `workflow_dispatch`: lets you trigger the same pipeline manually.
 
 The workflow uses these repository secrets:
@@ -18,16 +18,20 @@ The workflow uses these repository secrets:
 
 The SSH target must already have:
 
+- Docker installed and usable by the SSH user
 - `kubectl` installed
 - kubeconfig/context pointed at the target cluster
 - the `truckmoov` namespace already created on the cluster
 - permission to deploy into the `truckmoov` namespace
-- the `/var/www/truckmoov-services-ts` directory already created on the host
 - write access to `/var/www/truckmoov-services-ts`
+- passwordless `sudo` for `/usr/local/bin/k3s ctr images import -`
 
-The workflow copies the rendered auth kustomize bundle to:
+## Server layout
 
-- `/var/www/truckmoov-services-ts`
+The deploy workflow manages these paths on the remote host:
+
+- tracked source tree: `/var/www/truckmoov-services-ts/source/<git-sha>`
+- rendered auth bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>`
 
 ## Kubernetes manifests
 
@@ -38,31 +42,15 @@ The workflow copies the rendered auth kustomize bundle to:
 - `ConfigMap` named `truckmoov-auth-config`
 - optional secret contract via `secret.example.yaml`
 
-Kong can already route to `http://auth-service:3001`, so once this workload is applied, the gateway can reach it without changing the Kong config.
+Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, so once this workload is healthy the gateway can reach it inside the cluster.
 
 ## Image pulls
 
-The workflow publishes to:
+The workflow builds a local image on the deploy host:
 
-- `ghcr.io/<github-owner>/truckmoov-auth:sha-<commit>`
-- `ghcr.io/<github-owner>/truckmoov-auth:latest` on `main`
+- `truckmoov-auth:sha-<commit>`
 
-The GHCR owner segment must be lowercase in the final image reference.
-
-The auth deployment references an image pull secret named `ghcr-pull-secret`.
-
-Create it in the `truckmoov` namespace before the first deploy if the package is private:
-
-```bash
-kubectl create secret docker-registry ghcr-pull-secret \
-  --namespace truckmoov \
-  --docker-server=ghcr.io \
-  --docker-username=<github-username> \
-  --docker-password=<github-token-with-read-packages> \
-  --docker-email=<email>
-```
-
-If the package is public, Kubernetes can usually pull it without credentials, but leaving the secret reference in place is harmless as long as the secret exists.
+The deployment uses `imagePullPolicy: Never`, so the image must be built and imported into the local `k3s` runtime before `kubectl apply`.
 
 ## Auth secrets
 
