@@ -172,9 +172,9 @@ jobs:
             fi
             cat /tmp/truckmoov-kube-context
             docker build -f "'"$AUTH_SOURCE_PATH"'/Dockerfile.auth" -t "'"$AUTH_IMAGE"'" "'"$AUTH_SOURCE_PATH"'"
-            if ! docker save "'"$AUTH_IMAGE"'" | /usr/local/bin/k3s ctr images import -; then
+            if ! docker save "'"$AUTH_IMAGE"'" | sudo -n /usr/local/bin/k3s ctr images import -; then
               echo "Failed to import the auth image into k3s." >&2
-              echo "Ensure the SSH user can run /usr/local/bin/k3s ctr images import -." >&2
+              echo "Ensure the SSH user has passwordless sudo for /usr/local/bin/k3s ctr images import -." >&2
               exit 1
             fi
             kubectl apply --validate=false -k "'"$AUTH_MANIFEST_PATH"'"
