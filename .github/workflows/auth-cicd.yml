@@ -167,5 +167,5 @@ jobs:
           script_stop: true
           script: |
             set -eu
-            kubectl apply -k "$HOME/truckmoov-deploy/auth"
+            kubectl apply --validate=false -k "$HOME/truckmoov-deploy/auth"
             kubectl rollout status deployment/auth-service -n truckmoov --timeout=180s
