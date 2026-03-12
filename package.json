@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nest build auth && nest build fleet",
     "build:auth": "nest build auth",
+    "build:fleet": "nest build fleet",
     "start:auth": "nest start auth --watch",
     "start:fleet": "nest start fleet --watch",
     "dev": "concurrently -k \"pnpm start:auth\" \"pnpm start:fleet\"",
