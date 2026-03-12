@@ -1,7 +1,7 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.build.json nest-cli.json ./
-COPY apps ./apps
+COPY apps/fleet ./apps/fleet
 COPY libs ./libs
 RUN corepack enable && pnpm install --frozen-lockfile
 RUN NODE_OPTIONS=--max-old-space-size=512 pnpm build:fleet
