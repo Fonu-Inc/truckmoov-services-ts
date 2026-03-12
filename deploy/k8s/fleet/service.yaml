@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-service
+  labels:
+    app.kubernetes.io/name: fleet-service
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app.kubernetes.io/name: fleet-service
+  ports:
+    - name: http
+      port: 3002
+      targetPort: http

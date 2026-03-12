@@ -1,11 +1,11 @@
-# Auth deployment
+# Service deployment
 
-This repo deploys the TypeScript auth service to the existing Kubernetes cluster on the deploy host by building the Docker image on that host and loading it into the local `k3s` runtime.
+This repo deploys the TypeScript auth and fleet services to the existing Kubernetes cluster on the deploy host by building the Docker images on that host and loading them into the local `k3s` runtime.
 
 ## GitHub Actions flow
 
-- `pull_request`: runs lint, tests, and build for auth-related changes.
-- `push` to `main`: runs validation, copies the tracked source tree and rendered auth kustomize bundle to the deploy host, builds the auth Docker image on that host, imports it into `k3s`, and applies it with `kubectl`.
+- `pull_request`: runs lint, tests, and build for service-related changes.
+- `push` to `main`: runs validation, copies the tracked source tree and rendered kustomize bundles to the deploy host, builds the auth and fleet Docker images on that host, imports them into `k3s`, and applies them with `kubectl`.
 - `workflow_dispatch`: lets you trigger the same pipeline manually.
 
 The workflow uses these repository secrets:
@@ -31,7 +31,8 @@ The SSH target must already have:
 The deploy workflow manages these paths on the remote host:
 
 - tracked source tree: `/var/www/truckmoov-services-ts/source/<git-sha>`
-- rendered auth bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>`
+- rendered auth bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>/auth`
+- rendered fleet bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>/fleet`
 
 ## Kubernetes manifests
 
@@ -44,11 +45,20 @@ The deploy workflow manages these paths on the remote host:
 
 Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, so once this workload is healthy the gateway can reach it inside the cluster.
 
+`deploy/k8s/fleet` defines:
+
+- `Service` named `fleet-service`
+- `Deployment` named `fleet-service`
+- `ConfigMap` named `truckmoov-fleet-config`
+
+Expose `/fleet` to `http://fleet-service:3002` from the platform gateway once this workload is healthy.
+
 ## Image pulls
 
 The workflow builds a local image on the deploy host:
 
 - `truckmoov-auth:sha-<commit>`
+- `truckmoov-fleet:sha-<commit>`
 
 The deployment uses `imagePullPolicy: Never`, so the image must be built and imported into the local `k3s` runtime before `kubectl apply`.
 
