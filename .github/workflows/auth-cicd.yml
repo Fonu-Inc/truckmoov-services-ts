@@ -251,8 +251,12 @@ jobs:
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
             nohup sh -c '
-              docker save \"$AUTH_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
-              docker save \"$FLEET_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+              docker save \"$AUTH_IMAGE\" -o /tmp/auth-image.tar &&
+              sudo -n /usr/local/bin/k3s ctr images import /tmp/auth-image.tar &&
+              rm -f /tmp/auth-image.tar &&
+              docker save \"$FLEET_IMAGE\" -o /tmp/fleet-image.tar &&
+              sudo -n /usr/local/bin/k3s ctr images import /tmp/fleet-image.tar &&
+              rm -f /tmp/fleet-image.tar
               echo \$? >\"$BUILD_LOG.exit\"
             ' >\"$BUILD_LOG\" 2>&1 &
           "
