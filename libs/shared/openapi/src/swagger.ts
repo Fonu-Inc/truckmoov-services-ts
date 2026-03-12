@@ -13,9 +13,13 @@ export function setupSwagger(
     .setVersion("0.1.0")
     .addBearerAuth()
     .addExtension("x-service-name", serviceName)
-    .addExtension("x-response-envelope", { status: "boolean", message: "string", data: "any" })
+    .addExtension("x-response-envelope", {
+      status: "boolean",
+      message: "string",
+      data: "any",
+    })
     .build();
 
   const document = SwaggerModule.createDocument(app, config, { extraModels });
-  SwaggerModule.setup(`docs/${tag}`, app, document);
+  SwaggerModule.setup(`${tag}/docs`, app, document);
 }
