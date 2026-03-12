@@ -6,7 +6,25 @@ import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
-import { AuthResponse, HealthResponse, MeResponse, SessionSchema } from "./dto/auth.schema";
+import {
+  AuthResponse,
+  DispatcherPreferencesDataSchema,
+  DispatcherPreferencesResponse,
+  DispatcherPreferencesSchema,
+  HealthResponse,
+  MeResponse,
+  NotificationPreferencesDataSchema,
+  NotificationPreferencesResponse,
+  NotificationPreferencesSchema,
+  OrganizationBrandingSchema,
+  OrganizationDefaultsSchema,
+  OrganizationSettingsResponse,
+  OrganizationSettingsSchema,
+  ProfileDataSchema,
+  ProfileResponse,
+  SessionSchema,
+  UserProfileSchema,
+} from "./dto/auth.schema";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -37,6 +55,19 @@ async function bootstrap() {
     SessionSchema,
     AuthResponse,
     MeResponse,
+    UserProfileSchema,
+    ProfileDataSchema,
+    ProfileResponse,
+    NotificationPreferencesSchema,
+    NotificationPreferencesDataSchema,
+    NotificationPreferencesResponse,
+    DispatcherPreferencesSchema,
+    DispatcherPreferencesDataSchema,
+    DispatcherPreferencesResponse,
+    OrganizationBrandingSchema,
+    OrganizationDefaultsSchema,
+    OrganizationSettingsSchema,
+    OrganizationSettingsResponse,
     HealthResponse,
   ]);
 

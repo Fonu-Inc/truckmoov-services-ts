@@ -14,6 +14,17 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
+import {
   ChangeRoleUseCase,
   ForgotPasswordUseCase,
   GetMeUseCase,
@@ -54,12 +65,21 @@ import { VerifyResetDto } from "./dto/verify-reset.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { ChangeRoleDto } from "./dto/change-role.dto";
 import { LogoutDto } from "./dto/logout.dto";
-import { AuthResponse, HealthResponse, MeResponse } from "./dto/auth.schema";
+import {
+  AuthResponse,
+  DispatcherPreferencesResponse,
+  HealthResponse,
+  MeResponse,
+  NotificationPreferencesResponse,
+  OrganizationSettingsResponse,
+  ProfileResponse,
+} from "./dto/auth.schema";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateNotificationPreferencesDto } from "./dto/update-notification-preferences.dto";
 import { UpdateDispatcherPreferencesDto } from "./dto/update-dispatcher-preferences.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 
+@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -285,6 +305,15 @@ export class AuthController {
 
   /** Returns current authenticated user's editable profile details */
   @Get("profile")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Get current user profile",
+    description: "Epic B (US-B01): view authenticated user name/contact details.",
+  })
+  @ApiOkResponse({ type: ProfileResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async getProfile(@Headers("authorization") authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException("Missing authorization");
@@ -302,6 +331,15 @@ export class AuthController {
 
   /** Updates current authenticated user's name/contact details */
   @Patch("profile")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Update current user profile",
+    description: "Epic B (US-B01): edit authenticated user name/contact details.",
+  })
+  @ApiOkResponse({ type: ProfileResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async updateProfile(
     @Body() payload: UpdateProfileDto,
     @Headers("authorization") authorization?: string,
@@ -326,6 +364,15 @@ export class AuthController {
 
   /** Gets current notification preferences */
   @Get("preferences/notifications")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Get notification preferences",
+    description: "Epic B (US-B02): retrieve current notification preference settings.",
+  })
+  @ApiOkResponse({ type: NotificationPreferencesResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async getNotificationPreferences(
     @Headers("authorization") authorization?: string,
   ) {
@@ -345,6 +392,15 @@ export class AuthController {
 
   /** Updates current notification preferences */
   @Patch("preferences/notifications")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Update notification preferences",
+    description: "Epic B (US-B02): update alert channel preferences.",
+  })
+  @ApiOkResponse({ type: NotificationPreferencesResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async updateNotificationPreferences(
     @Body() payload: UpdateNotificationPreferencesDto,
     @Headers("authorization") authorization?: string,
@@ -373,6 +429,15 @@ export class AuthController {
 
   /** Gets dispatcher working-hours and timezone preferences */
   @Get("preferences/dispatch")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Get dispatcher schedule and timezone preferences",
+    description: "Epic B (US-B03): retrieve dispatcher working-hours/timezone settings.",
+  })
+  @ApiOkResponse({ type: DispatcherPreferencesResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not a dispatcher" })
   async getDispatcherPreferences(
     @Headers("authorization") authorization?: string,
   ) {
@@ -392,6 +457,16 @@ export class AuthController {
 
   /** Updates dispatcher working-hours and timezone preferences */
   @Patch("preferences/dispatch")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Update dispatcher schedule and timezone preferences",
+    description: "Epic B (US-B03): update dispatcher working-hours/timezone settings.",
+  })
+  @ApiOkResponse({ type: DispatcherPreferencesResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not a dispatcher" })
+  @ApiBadRequestResponse({ description: "Invalid timezone/workday/shift format" })
   async updateDispatcherPreferences(
     @Body() payload: UpdateDispatcherPreferencesDto,
     @Headers("authorization") authorization?: string,
@@ -420,6 +495,15 @@ export class AuthController {
 
   /** Gets organization-level settings for current tenant (enterprise admin only) */
   @Get("organization/settings")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Get organization settings",
+    description: "Epic B (US-B04): retrieve tenant-level branding/default settings.",
+  })
+  @ApiOkResponse({ type: OrganizationSettingsResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not an enterprise admin" })
   async getOrganizationSettings(
     @Headers("authorization") authorization?: string,
   ) {
@@ -439,6 +523,16 @@ export class AuthController {
 
   /** Updates organization-level settings for current tenant (enterprise admin only) */
   @Patch("organization/settings")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Update organization settings",
+    description: "Epic B (US-B04): update tenant-level branding/default settings.",
+  })
+  @ApiOkResponse({ type: OrganizationSettingsResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not an enterprise admin" })
+  @ApiBadRequestResponse({ description: "Invalid settings payload" })
   async updateOrganizationSettings(
     @Body() payload: UpdateOrganizationSettingsDto,
     @Headers("authorization") authorization?: string,
