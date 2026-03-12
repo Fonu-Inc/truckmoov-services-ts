@@ -177,42 +177,7 @@ jobs:
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
           SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" \
-            "DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\""
-
-      - name: Build fleet image
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
-          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" \
-            "DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\""
-
-      - name: Import images into k3s
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
-          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
+          BUILD_LOG: /tmp/build-auth-${{ github.sha }}.log
         run: |
           set -euo pipefail
           ssh_opts=(
@@ -223,9 +188,85 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            docker save \"$AUTH_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
-            docker save \"$FLEET_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+            nohup sh -c 'DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
           "
+          while true; do
+            if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
+              break
+            fi
+            echo "Auth build running..."
+            sleep 15
+          done
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG\""
+          EXIT_CODE=$(ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG.exit\"")
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "rm -f \"$BUILD_LOG\" \"$BUILD_LOG.exit\""
+          exit "$EXIT_CODE"
+
+      - name: Build fleet image
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
+          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+          BUILD_LOG: /tmp/build-fleet-${{ github.sha }}.log
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
+            nohup sh -c 'DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
+          "
+          while true; do
+            if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
+              break
+            fi
+            echo "Fleet build running..."
+            sleep 15
+          done
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG\""
+          EXIT_CODE=$(ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG.exit\"")
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "rm -f \"$BUILD_LOG\" \"$BUILD_LOG.exit\""
+          exit "$EXIT_CODE"
+
+      - name: Import images into k3s
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
+          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
+          BUILD_LOG: /tmp/import-images-${{ github.sha }}.log
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
+            nohup sh -c '
+              docker save \"$AUTH_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+              docker save \"$FLEET_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+              echo \$? >\"$BUILD_LOG.exit\"
+            ' >\"$BUILD_LOG\" 2>&1 &
+          "
+          while true; do
+            if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
+              break
+            fi
+            echo "Importing images..."
+            sleep 10
+          done
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG\""
+          EXIT_CODE=$(ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat \"$BUILD_LOG.exit\"")
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "rm -f \"$BUILD_LOG\" \"$BUILD_LOG.exit\""
+          exit "$EXIT_CODE"
 
       - name: Deploy services
         env:
