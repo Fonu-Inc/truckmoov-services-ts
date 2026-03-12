@@ -23,6 +23,7 @@ import {
   normalizeStoredUser,
 } from "../../../apps/auth/src/contexts/auth/session/domain/ports/user-repository.port";
 import type { StoredInvite } from "../../../apps/auth/src/contexts/auth/session/domain/ports/invite-repository.port";
+import type { OrganizationSettings } from "../../../apps/auth/src/contexts/auth/session/domain/ports/organization-settings.repository.port";
 import type { StoredPasswordReset } from "../../../apps/auth/src/contexts/auth/session/domain/ports/password-reset-store.port";
 
 // ── Fakes ───────────────────────────────────────────────
@@ -180,6 +181,22 @@ class FakeInviteRepository {
   }
 }
 
+class FakeOrganizationSettingsRepository {
+  private readonly store = new Map<string, OrganizationSettings>();
+
+  async findByTenantId(tenantId: string) {
+    return this.store.get(tenantId) ?? null;
+  }
+
+  async save(settings: OrganizationSettings) {
+    this.store.set(settings.tenantId, settings);
+  }
+
+  getByTenantId(tenantId: string) {
+    return this.store.get(tenantId) ?? null;
+  }
+}
+
 class FakePasswordResetStore {
   private readonly store = new Map<string, StoredPasswordReset>();
 
@@ -260,25 +277,49 @@ describe("RegisterUseCase", () => {
     const userRepo = new FakeUserRepository();
     const tokenService = new FakeTokenService();
     const sessionStore = new FakeSessionStore();
-    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore);
+    const organizationRepo = new FakeOrganizationSettingsRepository();
+    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore, organizationRepo as any);
 
-    const result = await uc.execute({ username: "boss@co.com", password: "Str0ngPass!" });
+    const result = await uc.execute({
+      username: "boss@co.com",
+      password: "Str0ngPass!",
+      firstName: "Boss",
+      lastName: "Lady",
+      organizationName: "Boss Transport",
+    });
 
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
     expect(result.user.username).toBe("boss@co.com");
     expect(result.user.roles).toContain(Role.ENTERPRISE_ADMIN);
     expect(result.user.tenantId).toBeTruthy();
+    expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
+    expect(
+      organizationRepo.getByTenantId(result.user.tenantId)?.branding.organizationName,
+    ).toBe("Boss Transport");
   });
 
   it("rejects duplicate username", async () => {
     const userRepo = new FakeUserRepository();
     const tokenService = new FakeTokenService();
     const sessionStore = new FakeSessionStore();
-    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore);
+    const organizationRepo = new FakeOrganizationSettingsRepository();
+    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore, organizationRepo as any);
 
-    await uc.execute({ username: "boss@co.com", password: "Str0ngPass!" });
-    await expect(uc.execute({ username: "boss@co.com", password: "AnotherPass1" }))
+    await uc.execute({
+      username: "boss@co.com",
+      password: "Str0ngPass!",
+      firstName: "Boss",
+      lastName: "Lady",
+      organizationName: "Boss Transport",
+    });
+    await expect(uc.execute({
+      username: "boss@co.com",
+      password: "AnotherPass1",
+      firstName: "Boss",
+      lastName: "Lady",
+      organizationName: "Boss Transport",
+    }))
       .rejects.toBeInstanceOf(UsernameTakenError);
   });
 });

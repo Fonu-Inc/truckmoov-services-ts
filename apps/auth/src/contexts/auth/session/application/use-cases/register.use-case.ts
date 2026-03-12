@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 import { Role } from "@shared/rbac";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
 import { UsernameTakenError } from "../../domain/errors/username-taken.error";
+import {
+  ORGANIZATION_SETTINGS_REPOSITORY,
+  buildDefaultOrganizationSettings,
+  type OrganizationSettingsRepository,
+} from "../../domain/ports/organization-settings.repository.port";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
@@ -11,6 +16,9 @@ import { hashPassword } from "../../infrastructure/password";
 export type RegisterCommand = {
   username: string;
   password: string;
+  firstName: string;
+  lastName: string;
+  organizationName: string;
 };
 
 @Injectable()
@@ -22,6 +30,8 @@ export class RegisterUseCase {
     private readonly tokenService: TokenService,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    @Inject(ORGANIZATION_SETTINGS_REPOSITORY)
+    private readonly organizationRepo: OrganizationSettingsRepository,
   ) {}
 
   async execute(command: RegisterCommand) {
@@ -32,8 +42,22 @@ export class RegisterUseCase {
     const tenantId = randomUUID();
     const passwordHash = await hashPassword(command.password);
     const roles = [Role.ENTERPRISE_ADMIN];
+    const profile = {
+      fullName: `${command.firstName.trim()} ${command.lastName.trim()}`,
+      phoneNumber: null,
+    };
+    const organizationSettings = buildDefaultOrganizationSettings(tenantId);
+    organizationSettings.branding.organizationName = command.organizationName.trim();
 
-    await this.userRepo.save({ id, username: command.username, passwordHash, roles, tenantId });
+    await this.userRepo.save({
+      id,
+      username: command.username,
+      passwordHash,
+      roles,
+      tenantId,
+      profile,
+    });
+    await this.organizationRepo.save(organizationSettings);
 
     const user = AuthUser.create({ id, username: command.username, roles, tenantId });
     const accessToken = this.tokenService.issueAccessToken(user);

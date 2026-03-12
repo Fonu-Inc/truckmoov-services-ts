@@ -6,6 +6,24 @@ import { describe, afterAll, beforeAll, expect, it } from "vitest";
 import { AppModule } from "../../../apps/auth/src/app.module";
 import { createCorsOptions } from "@shared/http";
 
+function makeRegisterPayload(
+  username: string,
+  overrides?: Partial<{
+    password: string;
+    firstName: string;
+    lastName: string;
+    organizationName: string;
+  }>,
+) {
+  return {
+    username,
+    password: overrides?.password ?? "Str0ngPass!",
+    firstName: overrides?.firstName ?? "Test",
+    lastName: overrides?.lastName ?? "User",
+    organizationName: overrides?.organizationName ?? "Truckmoov Test Org",
+  };
+}
+
 describe("Auth HTTP contract", () => {
   let app: INestApplication;
   const previousBackend = process.env.PERSISTENCE_BACKEND;
@@ -48,7 +66,13 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/register creates an enterprise admin", async () => {
     const res = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "admin@contract.com", password: "Str0ngPass!" });
+      .send(
+        makeRegisterPayload("admin@contract.com", {
+          firstName: "Ada",
+          lastName: "Okafor",
+          organizationName: "Truckmoov Logistics",
+        }),
+      );
 
     expect(res.status).toBe(201);
     expect(res.body.accessToken).toBeTypeOf("string");
@@ -61,11 +85,19 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/register rejects duplicate username", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "dupe@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("dupe@contract.com", {
+        firstName: "Dupe",
+        lastName: "Admin",
+        organizationName: "Dupe Transport",
+      }));
 
     const res = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "dupe@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("dupe@contract.com", {
+        firstName: "Dupe",
+        lastName: "Admin",
+        organizationName: "Dupe Transport",
+      }));
 
     expect(res.status).toBe(409);
   });
@@ -75,7 +107,11 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/login then GET /auth/me returns authenticated principal", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "logintest@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("logintest@contract.com", {
+        firstName: "Login",
+        lastName: "Tester",
+        organizationName: "Login Fleet",
+      }));
 
     const loginRes = await request(app.getHttpServer())
       .post("/auth/login")
@@ -124,7 +160,11 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/invite succeeds for enterprise admin", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "inviter@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("inviter@contract.com", {
+        firstName: "Invite",
+        lastName: "Owner",
+        organizationName: "Inviter Fleet",
+      }));
     expect(regRes.status).toBe(201);
     const adminToken = regRes.body.accessToken;
 
@@ -141,7 +181,11 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/invite rejects non-admin caller", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "nonadmin-inviter@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("nonadmin-inviter@contract.com", {
+        firstName: "Nonadmin",
+        lastName: "Inviter",
+        organizationName: "Nonadmin Fleet",
+      }));
     const adminToken = regRes.body.accessToken;
 
     // First invite someone as a DISPATCHER
@@ -195,7 +239,7 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/forgot-password succeeds for registered user (email)", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "forgetter@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("forgetter@contract.com"));
 
     const res = await request(app.getHttpServer())
       .post("/auth/forgot-password")
@@ -208,7 +252,7 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/forgot-password succeeds for registered user (sms)", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "smsforgetter@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("smsforgetter@contract.com"));
 
     const res = await request(app.getHttpServer())
       .post("/auth/forgot-password")
@@ -260,7 +304,7 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/change-role returns 404 for nonexistent target user", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "roleadmin@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("roleadmin@contract.com"));
     const adminToken = regRes.body.accessToken;
 
     const res = await request(app.getHttpServer())
@@ -276,7 +320,7 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/logout invalidates the refresh token", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "logmeout@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("logmeout@contract.com"));
     expect(regRes.status).toBe(201);
 
     const { accessToken, refreshToken } = regRes.body;
@@ -299,7 +343,7 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/logout works without authorization header", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "logmeout2@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("logmeout2@contract.com"));
 
     const logoutRes = await request(app.getHttpServer())
       .post("/auth/logout")
@@ -314,7 +358,13 @@ describe("Auth HTTP contract", () => {
   it("GET/PATCH /auth/profile supports viewing and editing own profile", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "profile@contract.com", password: "Str0ngPass!" });
+      .send(
+        makeRegisterPayload("profile@contract.com", {
+          firstName: "Profile",
+          lastName: "Owner",
+          organizationName: "Profile Fleet",
+        }),
+      );
     const accessToken = regRes.body.accessToken as string;
 
     const getProfileRes = await request(app.getHttpServer())
@@ -322,7 +372,7 @@ describe("Auth HTTP contract", () => {
       .set("Authorization", `Bearer ${accessToken}`);
 
     expect(getProfileRes.status).toBe(200);
-    expect(getProfileRes.body.profile.fullName).toBeNull();
+    expect(getProfileRes.body.profile.fullName).toBe("Profile Owner");
     expect(getProfileRes.body.profile.phoneNumber).toBeNull();
 
     const patchProfileRes = await request(app.getHttpServer())
@@ -341,7 +391,7 @@ describe("Auth HTTP contract", () => {
   it("GET/PATCH /auth/preferences/notifications supports notification settings", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "notify@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("notify@contract.com"));
     const accessToken = regRes.body.accessToken as string;
 
     const patchRes = await request(app.getHttpServer())
@@ -372,7 +422,7 @@ describe("Auth HTTP contract", () => {
   it("PATCH /auth/preferences/dispatch allows dispatcher to set working hours/timezone", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "dispatch-pref@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("dispatch-pref@contract.com"));
     expect(regRes.status).toBe(201);
 
     const initialToken = regRes.body.accessToken as string;
@@ -413,7 +463,7 @@ describe("Auth HTTP contract", () => {
   it("GET /auth/preferences/dispatch rejects non-dispatcher", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "not-dispatch@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("not-dispatch@contract.com"));
     const accessToken = regRes.body.accessToken as string;
 
     const res = await request(app.getHttpServer())
@@ -426,8 +476,19 @@ describe("Auth HTTP contract", () => {
   it("GET/PATCH /auth/organization/settings allows enterprise admin to configure branding/defaults", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "org-admin@contract.com", password: "Str0ngPass!" });
+      .send(
+        makeRegisterPayload("org-admin@contract.com", {
+          organizationName: "Initial Fleet Org",
+        }),
+      );
     const accessToken = regRes.body.accessToken as string;
+
+    const initialGetRes = await request(app.getHttpServer())
+      .get("/auth/organization/settings")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(initialGetRes.status).toBe(200);
+    expect(initialGetRes.body.branding.organizationName).toBe("Initial Fleet Org");
 
     const patchRes = await request(app.getHttpServer())
       .patch("/auth/organization/settings")
@@ -462,7 +523,7 @@ describe("Auth HTTP contract", () => {
   it("GET /auth/organization/settings rejects non-enterprise-admin user", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
-      .send({ username: "org-denied@contract.com", password: "Str0ngPass!" });
+      .send(makeRegisterPayload("org-denied@contract.com"));
     const initialToken = regRes.body.accessToken as string;
     const userId = regRes.body.user.id as string;
 
