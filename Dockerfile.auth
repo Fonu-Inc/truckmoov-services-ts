@@ -1,12 +1,11 @@
 FROM node:20-alpine AS base
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.build.json tsconfig.docker.json nest-cli.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY apps/auth ./apps/auth
 COPY libs ./libs
-RUN corepack enable && NODE_OPTIONS=--max-old-space-size=256 pnpm install --frozen-lockfile
-RUN sed -i 's/"tsConfigPath": "tsconfig.json"/"tsConfigPath": "tsconfig.docker.json"/g' nest-cli.json \
-    && NODE_OPTIONS=--max-old-space-size=256 pnpm build:auth
-RUN NODE_OPTIONS=--max-old-space-size=256 pnpm prune --prod
+RUN corepack enable && pnpm install --frozen-lockfile
+RUN pnpm build:auth
+RUN pnpm prune --prod
 
 FROM node:20-alpine
 WORKDIR /app

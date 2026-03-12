@@ -123,6 +123,8 @@ jobs:
             -i "$RUNNER_TEMP/dev_ssh_key"
             -o BatchMode=yes
             -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$SOURCE_PATH\" ] || mkdir -p \"$SOURCE_PATH\""
@@ -141,6 +143,8 @@ jobs:
             -i "$RUNNER_TEMP/dev_ssh_key"
             -o BatchMode=yes
             -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_MANIFEST_PATH\" ] || mkdir -p \"$AUTH_MANIFEST_PATH\""
@@ -148,13 +152,85 @@ jobs:
           tar -C deploy/.rendered/auth -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$AUTH_MANIFEST_PATH\""
           tar -C deploy/.rendered/fleet -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$FLEET_MANIFEST_PATH\""
 
-      - name: Build images and deploy services over SSH
+      - name: Verify deploy host
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
+            set -eu
+            command -v docker >/dev/null 2>&1
+            kubectl config current-context
+          '
+
+      - name: Build auth image
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
+          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" \
+            "DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\""
+
+      - name: Build fleet image
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
+          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" \
+            "DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\""
+
+      - name: Import images into k3s
         env:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
           FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
-          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh_opts=(
+            -i "$RUNNER_TEMP/dev_ssh_key"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+          )
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
+            docker save \"$AUTH_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+            docker save \"$FLEET_IMAGE\" | sudo -n /usr/local/bin/k3s ctr images import -
+          "
+
+      - name: Deploy services
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
           FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
         run: |
@@ -163,57 +239,23 @@ jobs:
             -i "$RUNNER_TEMP/dev_ssh_key"
             -o BatchMode=yes
             -o IdentitiesOnly=yes
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
           )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
             set -eu
-            if ! command -v docker >/dev/null 2>&1; then
-              echo "docker is required on the deploy host." >&2
+            kubectl apply --validate=false -k \"$AUTH_MANIFEST_PATH\"
+            kubectl apply --validate=false -k \"$FLEET_MANIFEST_PATH\"
+            kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s || {
+              kubectl describe deployment auth-service -n truckmoov
+              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200
+              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
               exit 1
-            fi
-            kubectl version --client=true
-            if ! kubectl config current-context >/tmp/truckmoov-kube-context 2>/tmp/truckmoov-kube-context.err; then
-              echo "kubectl has no current-context for user $(whoami)." >&2
-              echo "Configure ~/.kube/config on the deploy host before running this workflow." >&2
-              echo "KUBECONFIG=${KUBECONFIG:-<unset>}" >&2
-              if [ -f "$HOME/.kube/config" ]; then
-                echo "Found $HOME/.kube/config" >&2
-              else
-                echo "Missing $HOME/.kube/config" >&2
-              fi
-              cat /tmp/truckmoov-kube-context.err >&2
+            }
+            kubectl rollout status deployment/fleet-service -n truckmoov --timeout=300s || {
+              kubectl describe deployment fleet-service -n truckmoov
+              kubectl logs -n truckmoov -l app.kubernetes.io/name=fleet-service --all-containers --tail=200
+              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
               exit 1
-            fi
-            cat /tmp/truckmoov-kube-context
-            DOCKER_BUILDKIT=0 docker build -f "'"$SOURCE_PATH"'/Dockerfile.auth" -t "'"$AUTH_IMAGE"'" "'"$SOURCE_PATH"'"
-            DOCKER_BUILDKIT=0 docker build -f "'"$SOURCE_PATH"'/Dockerfile.fleet" -t "'"$FLEET_IMAGE"'" "'"$SOURCE_PATH"'"
-            if ! docker save "'"$AUTH_IMAGE"'" | sudo -n /usr/local/bin/k3s ctr images import -; then
-              echo "Failed to import the auth image into k3s." >&2
-              echo "Ensure the SSH user has passwordless sudo for /usr/local/bin/k3s ctr images import -." >&2
-              exit 1
-            fi
-            if ! docker save "'"$FLEET_IMAGE"'" | sudo -n /usr/local/bin/k3s ctr images import -; then
-              echo "Failed to import the fleet image into k3s." >&2
-              echo "Ensure the SSH user has passwordless sudo for /usr/local/bin/k3s ctr images import -." >&2
-              exit 1
-            fi
-            kubectl apply --validate=false -k "'"$AUTH_MANIFEST_PATH"'"
-            kubectl apply --validate=false -k "'"$FLEET_MANIFEST_PATH"'"
-            if ! kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s; then
-              kubectl get deployment auth-service -n truckmoov -o wide || true
-              kubectl get pods -n truckmoov -l app.kubernetes.io/name=auth-service -o wide || true
-              kubectl describe deployment auth-service -n truckmoov || true
-              kubectl describe pods -n truckmoov -l app.kubernetes.io/name=auth-service || true
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200 || true
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50 || true
-              exit 1
-            fi
-            if ! kubectl rollout status deployment/fleet-service -n truckmoov --timeout=300s; then
-              kubectl get deployment fleet-service -n truckmoov -o wide || true
-              kubectl get pods -n truckmoov -l app.kubernetes.io/name=fleet-service -o wide || true
-              kubectl describe deployment fleet-service -n truckmoov || true
-              kubectl describe pods -n truckmoov -l app.kubernetes.io/name=fleet-service || true
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=fleet-service --all-containers --tail=200 || true
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50 || true
-              exit 1
-            fi
-          '
+            }
+          "
