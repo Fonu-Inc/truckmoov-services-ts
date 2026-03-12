@@ -82,6 +82,22 @@ describe("Auth HTTP contract", () => {
     expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
   });
 
+  it("POST /auth/register accepts a wrapped data payload", async () => {
+    const res = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send({
+        data: makeRegisterPayload("wrapped@contract.com", {
+          firstName: "Wrapped",
+          lastName: "Payload",
+          organizationName: "Wrapped Transport",
+        }),
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.username).toBe("wrapped@contract.com");
+    expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
+  });
+
   it("POST /auth/register rejects duplicate username", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")

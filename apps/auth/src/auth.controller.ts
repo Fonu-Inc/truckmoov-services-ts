@@ -78,6 +78,7 @@ import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateNotificationPreferencesDto } from "./dto/update-notification-preferences.dto";
 import { UpdateDispatcherPreferencesDto } from "./dto/update-dispatcher-preferences.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
+import { BodyOrData } from "./body-or-data.decorator";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -132,7 +133,7 @@ export class AuthController {
 
   /** Register an enterprise admin (creates new tenant) */
   @Post("register")
-  async register(@Body() payload: RegisterDto): Promise<AuthResponse> {
+  async register(@BodyOrData() payload: RegisterDto): Promise<AuthResponse> {
     try {
       return (await this.registerUseCase.execute(payload)) as unknown as AuthResponse;
     } catch (error) {
@@ -144,7 +145,7 @@ export class AuthController {
 
   /** Authenticate with email and password */
   @Post("login")
-  async login(@Body() payload: LoginDto): Promise<AuthResponse> {
+  async login(@BodyOrData() payload: LoginDto): Promise<AuthResponse> {
     return this.runAuthUseCase(() =>
       this.loginUseCase.execute(payload),
     ) as unknown as Promise<AuthResponse>;
@@ -152,7 +153,7 @@ export class AuthController {
 
   /** Exchange a refresh token for a new token pair */
   @Post("refresh")
-  async refresh(@Body() payload: RefreshDto): Promise<AuthResponse> {
+  async refresh(@BodyOrData() payload: RefreshDto): Promise<AuthResponse> {
     return this.runAuthUseCase(() =>
       this.refreshUseCase.execute(payload.refreshToken),
     ) as unknown as Promise<AuthResponse>;
@@ -171,7 +172,7 @@ export class AuthController {
   /** Enterprise admin invites a user via email */
   @Post("invite")
   async inviteUser(
-    @Body() payload: InviteUserDto,
+    @BodyOrData() payload: InviteUserDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -204,7 +205,7 @@ export class AuthController {
 
   /** Register from an invitation link */
   @Post("register/invited")
-  async registerInvited(@Body() payload: RegisterInvitedDto): Promise<AuthResponse> {
+  async registerInvited(@BodyOrData() payload: RegisterInvitedDto): Promise<AuthResponse> {
     try {
       return (await this.registerInvitedUseCase.execute(payload)) as unknown as AuthResponse;
     } catch (error) {
@@ -220,7 +221,7 @@ export class AuthController {
 
   /** Request a password reset via email or SMS */
   @Post("forgot-password")
-  async forgotPassword(@Body() payload: ForgotPasswordDto) {
+  async forgotPassword(@BodyOrData() payload: ForgotPasswordDto) {
     try {
       return await this.forgotPasswordUseCase.execute(payload);
     } catch (error) {
@@ -232,7 +233,7 @@ export class AuthController {
 
   /** Verify a password reset token or SMS code */
   @Post("verify-reset")
-  async verifyReset(@Body() payload: VerifyResetDto) {
+  async verifyReset(@BodyOrData() payload: VerifyResetDto) {
     try {
       if (payload.method === "email") {
         return await this.verifyResetUseCase.execute({
@@ -256,7 +257,7 @@ export class AuthController {
 
   /** Reset password using a verified token */
   @Post("reset-password")
-  async resetPassword(@Body() payload: ResetPasswordDto) {
+  async resetPassword(@BodyOrData() payload: ResetPasswordDto) {
     try {
       return await this.resetPasswordUseCase.execute(payload);
     } catch (error) {
@@ -269,7 +270,7 @@ export class AuthController {
   /** Change a user's role (enterprise admin only) */
   @Post("change-role")
   async changeRole(
-    @Body() payload: ChangeRoleDto,
+    @BodyOrData() payload: ChangeRoleDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -293,7 +294,7 @@ export class AuthController {
   /** Logout – invalidate the refresh token (and access token if possible) */
   @Post("logout")
   async logout(
-    @Body() payload: LogoutDto,
+    @BodyOrData() payload: LogoutDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -341,7 +342,7 @@ export class AuthController {
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async updateProfile(
-    @Body() payload: UpdateProfileDto,
+    @BodyOrData() payload: UpdateProfileDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -402,7 +403,7 @@ export class AuthController {
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Caller is not permitted" })
   async updateNotificationPreferences(
-    @Body() payload: UpdateNotificationPreferencesDto,
+    @BodyOrData() payload: UpdateNotificationPreferencesDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -468,7 +469,7 @@ export class AuthController {
   @ApiForbiddenResponse({ description: "Caller is not a dispatcher" })
   @ApiBadRequestResponse({ description: "Invalid timezone/workday/shift format" })
   async updateDispatcherPreferences(
-    @Body() payload: UpdateDispatcherPreferencesDto,
+    @BodyOrData() payload: UpdateDispatcherPreferencesDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
@@ -534,7 +535,7 @@ export class AuthController {
   @ApiForbiddenResponse({ description: "Caller is not an enterprise admin" })
   @ApiBadRequestResponse({ description: "Invalid settings payload" })
   async updateOrganizationSettings(
-    @Body() payload: UpdateOrganizationSettingsDto,
+    @BodyOrData() payload: UpdateOrganizationSettingsDto,
     @Headers("authorization") authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
