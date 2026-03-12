@@ -184,8 +184,8 @@ jobs:
               exit 1
             fi
             cat /tmp/truckmoov-kube-context
-            docker build -f "'"$SOURCE_PATH"'/Dockerfile.auth" -t "'"$AUTH_IMAGE"'" "'"$SOURCE_PATH"'"
-            docker build -f "'"$SOURCE_PATH"'/Dockerfile.fleet" -t "'"$FLEET_IMAGE"'" "'"$SOURCE_PATH"'"
+            DOCKER_BUILDKIT=0 docker build -f "'"$SOURCE_PATH"'/Dockerfile.auth" -t "'"$AUTH_IMAGE"'" "'"$SOURCE_PATH"'"
+            DOCKER_BUILDKIT=0 docker build -f "'"$SOURCE_PATH"'/Dockerfile.fleet" -t "'"$FLEET_IMAGE"'" "'"$SOURCE_PATH"'"
             if ! docker save "'"$AUTH_IMAGE"'" | sudo -n /usr/local/bin/k3s ctr images import -; then
               echo "Failed to import the auth image into k3s." >&2
               echo "Ensure the SSH user has passwordless sudo for /usr/local/bin/k3s ctr images import -." >&2
