@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky || true",
     "build": "nest build auth && nest build fleet",
     "build:auth": "nest build auth",
     "build:fleet": "nest build fleet",
