@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fleet-service
+  annotations:
+    secrets.doppler.com/reload: "true"
   labels:
     app.kubernetes.io/name: fleet-service
     app.kubernetes.io/component: backend
@@ -15,8 +17,6 @@ spec:
       labels:
         app.kubernetes.io/name: fleet-service
         app.kubernetes.io/component: backend
-      annotations:
-        secrets.doppler.com/reload: "true"
     spec:
       containers:
         - name: fleet-service

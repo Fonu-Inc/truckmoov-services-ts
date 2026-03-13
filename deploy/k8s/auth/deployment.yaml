@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth-service
+  annotations:
+    secrets.doppler.com/reload: "true"
   labels:
     app.kubernetes.io/name: auth-service
     app.kubernetes.io/component: backend
@@ -15,8 +17,6 @@ spec:
       labels:
         app.kubernetes.io/name: auth-service
         app.kubernetes.io/component: backend
-      annotations:
-        secrets.doppler.com/reload: "true"
     spec:
       containers:
         - name: auth-service
