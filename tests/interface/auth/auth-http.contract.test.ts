@@ -7,7 +7,7 @@ import { AppModule } from "../../../apps/auth/src/app.module";
 import { createCorsOptions } from "@shared/http";
 
 function makeRegisterPayload(
-  username: string,
+  email: string,
   overrides?: Partial<{
     password: string;
     firstName: string;
@@ -16,7 +16,7 @@ function makeRegisterPayload(
   }>,
 ) {
   return {
-    username,
+    email,
     password: overrides?.password ?? "Str0ngPass!",
     firstName: overrides?.firstName ?? "Test",
     lastName: overrides?.lastName ?? "User",
@@ -100,7 +100,7 @@ describe("Auth HTTP contract", () => {
     expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
   });
 
-  it("POST /auth/register rejects duplicate username", async () => {
+  it("POST /auth/register rejects duplicate email", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
       .send(makeRegisterPayload("dupe@contract.com", {

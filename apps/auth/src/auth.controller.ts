@@ -159,7 +159,13 @@ export class AuthController {
   @Post("register")
   async register(@Body(BodyOrDataPipe) payload: RegisterDto): Promise<AuthResponse> {
     try {
-      return (await this.registerUseCase.execute(payload)) as unknown as AuthResponse;
+      return (await this.registerUseCase.execute({
+        username: payload.email,
+        password: payload.password,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        organizationName: payload.organizationName,
+      })) as unknown as AuthResponse;
     } catch (error) {
       if (error instanceof UsernameTakenError)
         throw new ConflictException(error.message);
