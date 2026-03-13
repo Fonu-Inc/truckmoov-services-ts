@@ -255,26 +255,14 @@ export class AuthController {
     }
   }
 
-  /** Verify a password reset token or SMS code */
+  /** Verify a password reset token */
   @Post("verify-reset")
   async verifyReset(@Body(BodyOrDataPipe) payload: VerifyResetDto) {
     try {
-      if (payload.method === "email") {
-        return await this.verifyResetUseCase.execute({
-          method: "email",
-          token: payload.token!,
-        });
-      }
-      return await this.verifyResetUseCase.execute({
-        method: "sms",
-        identifier: payload.identifier!,
-        code: payload.code!,
-      });
+      return await this.verifyResetUseCase.execute({ token: payload.token });
     } catch (error) {
       if (error instanceof InvalidResetTokenError)
         throw new BadRequestException(error.message);
-      if (error instanceof UserNotFoundError)
-        throw new NotFoundException(error.message);
       throw error;
     }
   }
