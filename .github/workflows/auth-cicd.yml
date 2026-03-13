@@ -276,8 +276,10 @@ jobs:
         env:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
           AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
           FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
+          DOPPLER_OVERLAY: dev
         run: |
           set -euo pipefail
           ssh_opts=(
@@ -289,8 +291,22 @@ jobs:
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
             set -eu
-            kubectl apply --validate=false -k \"$AUTH_MANIFEST_PATH\"
-            kubectl apply --validate=false -k \"$FLEET_MANIFEST_PATH\"
+            kubectl apply --validate=false -k $SOURCE_PATH/deploy/k8s/doppler/overlays/$DOPPLER_OVERLAY
+            for secret_name in truckmoov-auth-secrets truckmoov-fleet-secrets; do
+              for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                if kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 3
+              done
+              kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1 || {
+                kubectl get dopplersecrets -A
+                kubectl describe dopplersecret \"\$secret_name\" -n doppler-operator-system || true
+                exit 1
+              }
+            done
+            kubectl apply --validate=false -k $AUTH_MANIFEST_PATH
+            kubectl apply --validate=false -k $FLEET_MANIFEST_PATH
             kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s || {
               kubectl describe deployment auth-service -n truckmoov
               kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200
