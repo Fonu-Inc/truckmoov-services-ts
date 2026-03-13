@@ -279,7 +279,7 @@ jobs:
           SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
           AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
           FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
-          DOPPLER_OVERLAY: dev
+          DOPPLER_OVERLAY: stg
         run: |
           set -euo pipefail
           ssh_opts=(
