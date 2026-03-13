@@ -1,12 +1,12 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/common";
 import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
-import type { AppConfigService } from "@shared/config";
+import { NodeEnv, type AppConfigService } from "@shared/config";
 import * as Sentry from "@sentry/node";
 
 let processHandlersRegistered = false;
 
 function isSentryEnabled(config: AppConfigService) {
-  return config.app.env === "production" && config.sentry.dsn.length > 0;
+  return config.app.env === NodeEnv.Production && config.sentry.dsn.length > 0;
 }
 
 export function initializeSentry(config: AppConfigService) {

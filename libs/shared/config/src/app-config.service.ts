@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { NodeEnv } from "./node-env";
 
 @Injectable()
 export class AppConfigService {
@@ -55,7 +56,7 @@ export class AppConfigService {
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
-      env: this.config.get<string>("NODE_ENV", "development"),
+      env: this.config.get<NodeEnv>("NODE_ENV", NodeEnv.Development),
     };
   }
 
