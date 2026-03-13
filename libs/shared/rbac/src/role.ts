@@ -12,6 +12,38 @@ export enum Role {
   FINANCE_VIEWER     = "FINANCE_VIEWER",
 }
 
+export const ROLE_IDS: Record<Role, number> = {
+  [Role.ENTERPRISE_ADMIN]: 1,
+  [Role.AGGREGATOR_ADMIN]: 2,
+  [Role.OWNER_OPERATOR]: 3,
+  [Role.PLATFORM_ADMIN]: 4,
+  [Role.FLEET_ADMIN]: 5,
+  [Role.OPERATIONS_MANAGER]: 6,
+  [Role.DISPATCHER]: 7,
+  [Role.FINANCE_VIEWER]: 8,
+};
+
+export const ROLE_SEED_ROWS = Object.entries(ROLE_IDS).map(([name, id]) => ({
+  id,
+  name: name as Role,
+}));
+
+export function roleToId(role: string): number {
+  const id = ROLE_IDS[role as Role];
+  if (!id) {
+    throw new Error(`Unknown role: ${role}`);
+  }
+  return id;
+}
+
+export function roleFromId(id: number): Role {
+  const match = ROLE_SEED_ROWS.find((role) => role.id === id)?.name;
+  if (!match) {
+    throw new Error(`Unknown role id: ${id}`);
+  }
+  return match;
+}
+
 export const MULTI_STAKEHOLDER_ROLES = [
   Role.ENTERPRISE_ADMIN,
   Role.AGGREGATOR_ADMIN,

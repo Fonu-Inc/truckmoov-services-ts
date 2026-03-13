@@ -12,7 +12,7 @@ import { ChangeRoleUseCase } from "../../../apps/auth/src/contexts/auth/session/
 import { LogoutUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/logout.use-case";
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
 import { InviteNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invite-not-found.error";
-import { UsernameTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/username-taken.error";
+import { EmailTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/email-taken.error";
 import { UserNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/user-not-found.error";
 import { InvalidResetTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-reset-token.error";
 import {
@@ -51,6 +51,34 @@ class FakeTokenService {
   }
 }
 
+class FakeIdGenerator {
+  private counter = 0;
+
+  generate() {
+    this.counter += 1;
+    return `id-${this.counter}`;
+  }
+}
+
+class FakePasswordHasher {
+  async hash(password: string) {
+    return `hashed:${password}`;
+  }
+}
+
+class FakeAuthNotifier {
+  public invites: Array<{ email: string; role: string; inviteToken: string }> = [];
+  public resets: Array<{ email: string; resetToken: string }> = [];
+
+  async sendInviteEmail(input: { email: string; role: string; inviteToken: string }) {
+    this.invites.push(input);
+  }
+
+  async sendPasswordResetEmail(input: { email: string; resetToken: string }) {
+    this.resets.push(input);
+  }
+}
+
 class FakeSessionStore {
   private readonly data = new Map<string, AuthUser>();
 
@@ -78,11 +106,11 @@ class FakeSessionStore {
 }
 
 class FakeUserRepository {
-  private readonly byUsername = new Map<string, StoredUser>();
+  private readonly byEmail = new Map<string, StoredUser>();
   private readonly byId = new Map<string, StoredUser>();
 
-  async findByUsername(username: string) {
-    const user = this.byUsername.get(username);
+  async findByEmail(email: string) {
+    const user = this.byEmail.get(email);
     return user ? normalizeStoredUser(user) : null;
   }
 
@@ -93,7 +121,7 @@ class FakeUserRepository {
 
   async save(user: StoredUser) {
     const normalized = normalizeStoredUser(user);
-    this.byUsername.set(normalized.username, normalized);
+    this.byEmail.set(normalized.email, normalized);
     this.byId.set(normalized.id, normalized);
   }
 
@@ -102,7 +130,7 @@ class FakeUserRepository {
     if (user) {
       const updated = { ...user, roles };
       this.byId.set(userId, updated);
-      this.byUsername.set(user.username, updated);
+      this.byEmail.set(user.email, updated);
     }
   }
 
@@ -111,7 +139,7 @@ class FakeUserRepository {
     if (user) {
       const updated = { ...user, passwordHash };
       this.byId.set(userId, updated);
-      this.byUsername.set(user.username, updated);
+      this.byEmail.set(user.email, updated);
     }
   }
 
@@ -120,7 +148,7 @@ class FakeUserRepository {
     if (user) {
       const updated = { ...user, profile };
       this.byId.set(userId, updated);
-      this.byUsername.set(user.username, updated);
+      this.byEmail.set(user.email, updated);
     }
   }
 
@@ -132,7 +160,7 @@ class FakeUserRepository {
     if (user) {
       const updated = { ...user, notificationPreferences: preferences };
       this.byId.set(userId, updated);
-      this.byUsername.set(user.username, updated);
+      this.byEmail.set(user.email, updated);
     }
   }
 
@@ -144,7 +172,7 @@ class FakeUserRepository {
     if (user) {
       const updated = { ...user, dispatcherPreferences: preferences };
       this.byId.set(userId, updated);
-      this.byUsername.set(user.username, updated);
+      this.byEmail.set(user.email, updated);
     }
   }
 
@@ -230,30 +258,12 @@ class FakePasswordResetStore {
   }
 }
 
-class FakeMailerService {
-  public sent: Array<{ to: string; subject: string }> = [];
-  async send(opts: { to: string; subject: string }) {
-    this.sent.push({ to: opts.to, subject: opts.subject });
-  }
-}
-
-class FakeSmsService {
-  public sent: Array<{ to: string }> = [];
-  async send(opts: { to: string }) {
-    this.sent.push({ to: opts.to });
-  }
-}
-
-class FakeConfig {
-  app = { frontendUrl: "http://localhost:3000" };
-}
-
 // ── Helpers ─────────────────────────────────────────────
 
 function makeAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): string {
   const user = AuthUser.create({
     id: "admin-1",
-    username: "admin@test.com",
+    email: "admin@test.com",
     roles: [Role.ENTERPRISE_ADMIN],
     tenantId,
   });
@@ -263,7 +273,7 @@ function makeAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): strin
 function makeNonAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): string {
   const user = AuthUser.create({
     id: "viewer-1",
-    username: "viewer@test.com",
+    email: "viewer@test.com",
     roles: [Role.FINANCE_VIEWER],
     tenantId,
   });
@@ -278,10 +288,17 @@ describe("RegisterUseCase", () => {
     const tokenService = new FakeTokenService();
     const sessionStore = new FakeSessionStore();
     const organizationRepo = new FakeOrganizationSettingsRepository();
-    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore, organizationRepo as any);
+    const uc = new RegisterUseCase(
+      userRepo,
+      tokenService,
+      sessionStore,
+      organizationRepo as any,
+      new FakePasswordHasher() as any,
+      new FakeIdGenerator() as any,
+    );
 
     const result = await uc.execute({
-      username: "boss@co.com",
+      email: "boss@co.com",
       password: "Str0ngPass!",
       firstName: "Boss",
       lastName: "Lady",
@@ -290,7 +307,7 @@ describe("RegisterUseCase", () => {
 
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
-    expect(result.user.username).toBe("boss@co.com");
+    expect(result.user.email).toBe("boss@co.com");
     expect(result.user.roles).toContain(Role.ENTERPRISE_ADMIN);
     expect(result.user.tenantId).toBeTruthy();
     expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
@@ -299,42 +316,54 @@ describe("RegisterUseCase", () => {
     ).toBe("Boss Transport");
   });
 
-  it("rejects duplicate username", async () => {
+  it("rejects duplicate email", async () => {
     const userRepo = new FakeUserRepository();
     const tokenService = new FakeTokenService();
     const sessionStore = new FakeSessionStore();
     const organizationRepo = new FakeOrganizationSettingsRepository();
-    const uc = new RegisterUseCase(userRepo, tokenService, sessionStore, organizationRepo as any);
+    const uc = new RegisterUseCase(
+      userRepo,
+      tokenService,
+      sessionStore,
+      organizationRepo as any,
+      new FakePasswordHasher() as any,
+      new FakeIdGenerator() as any,
+    );
 
     await uc.execute({
-      username: "boss@co.com",
+      email: "boss@co.com",
       password: "Str0ngPass!",
       firstName: "Boss",
       lastName: "Lady",
       organizationName: "Boss Transport",
     });
     await expect(uc.execute({
-      username: "boss@co.com",
+      email: "boss@co.com",
       password: "AnotherPass1",
       firstName: "Boss",
       lastName: "Lady",
       organizationName: "Boss Transport",
     }))
-      .rejects.toBeInstanceOf(UsernameTakenError);
+      .rejects.toBeInstanceOf(EmailTakenError);
   });
 });
 
 describe("InviteUserUseCase", () => {
   let tokenService: FakeTokenService;
   let inviteRepo: FakeInviteRepository;
-  let mailer: FakeMailerService;
+  let notifier: FakeAuthNotifier;
   let uc: InviteUserUseCase;
 
   beforeEach(() => {
     tokenService = new FakeTokenService();
     inviteRepo = new FakeInviteRepository();
-    mailer = new FakeMailerService();
-    uc = new InviteUserUseCase(inviteRepo, tokenService, mailer as any, new FakeConfig() as any);
+    notifier = new FakeAuthNotifier();
+    uc = new InviteUserUseCase(
+      inviteRepo,
+      tokenService,
+      notifier as any,
+      new FakeIdGenerator() as any,
+    );
   });
 
   it("enterprise admin can invite a user", async () => {
@@ -348,8 +377,8 @@ describe("InviteUserUseCase", () => {
 
     expect(result.message).toBe("Invitation sent");
     expect(result.email).toBe("new@user.com");
-    expect(mailer.sent).toHaveLength(1);
-    expect(mailer.sent[0].to).toBe("new@user.com");
+    expect(notifier.invites).toHaveLength(1);
+    expect(notifier.invites[0].email).toBe("new@user.com");
   });
 
   it("rejects invite from non-admin role", async () => {
@@ -423,7 +452,14 @@ describe("RegisterInvitedUseCase", () => {
     sessionStore = new FakeSessionStore();
     userRepo = new FakeUserRepository();
     inviteRepo = new FakeInviteRepository();
-    uc = new RegisterInvitedUseCase(userRepo, inviteRepo, tokenService, sessionStore);
+    uc = new RegisterInvitedUseCase(
+      userRepo,
+      inviteRepo,
+      tokenService,
+      sessionStore,
+      new FakePasswordHasher() as any,
+      new FakeIdGenerator() as any,
+    );
 
     await inviteRepo.save({
       id: "inv-1", email: "invited@co.com", role: Role.FLEET_ADMIN,
@@ -435,7 +471,7 @@ describe("RegisterInvitedUseCase", () => {
   it("registers a user from a valid invite", async () => {
     const result = await uc.execute({
       inviteToken: "good-token",
-      username: "invited@co.com",
+      email: "invited@co.com",
       password: "Str0ngPass!",
     });
 
@@ -455,19 +491,19 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     await expect(
-      uc.execute({ inviteToken: "expired-invite", username: "late@co.com", password: "Pass1234!" }),
+      uc.execute({ inviteToken: "expired-invite", email: "late@co.com", password: "Pass1234!" }),
     ).rejects.toBeInstanceOf(InviteNotFoundError);
   });
 
-  it("rejects registration if username is already taken", async () => {
+  it("rejects registration if email is already taken", async () => {
     await userRepo.save({
-      id: "existing", username: "invited@co.com", passwordHash: "x",
+      id: "existing", email: "invited@co.com", passwordHash: "x",
       roles: [Role.DISPATCHER], tenantId: "t-1",
     });
 
     await expect(
-      uc.execute({ inviteToken: "good-token", username: "invited@co.com", password: "Pass1234!" }),
-    ).rejects.toBeInstanceOf(UsernameTakenError);
+      uc.execute({ inviteToken: "good-token", email: "invited@co.com", password: "Pass1234!" }),
+    ).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it("rejects invite if role is ENTERPRISE_ADMIN", async () => {
@@ -478,7 +514,7 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     await expect(
-      uc.execute({ inviteToken: "admin-invite", username: "sneaky@co.com", password: "Pass1234!" }),
+      uc.execute({ inviteToken: "admin-invite", email: "sneaky@co.com", password: "Pass1234!" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -486,19 +522,22 @@ describe("RegisterInvitedUseCase", () => {
 describe("ForgotPasswordUseCase", () => {
   let userRepo: FakeUserRepository;
   let resetStore: FakePasswordResetStore;
-  let mailer: FakeMailerService;
+  let notifier: FakeAuthNotifier;
   let uc: ForgotPasswordUseCase;
 
   beforeEach(async () => {
     userRepo = new FakeUserRepository();
     resetStore = new FakePasswordResetStore();
-    mailer = new FakeMailerService();
+    notifier = new FakeAuthNotifier();
     uc = new ForgotPasswordUseCase(
-      userRepo, resetStore, mailer as any, new FakeConfig() as any,
+      userRepo,
+      resetStore,
+      notifier as any,
+      new FakeIdGenerator() as any,
     );
 
     await userRepo.save({
-      id: "u-1", username: "user@test.com", passwordHash: "hash",
+      id: "u-1", email: "user@test.com", passwordHash: "hash",
       roles: [Role.FLEET_ADMIN], tenantId: "t-1",
     });
   });
@@ -507,7 +546,7 @@ describe("ForgotPasswordUseCase", () => {
     const result = await uc.execute({ identifier: "user@test.com" });
 
     expect(result.message).toContain("email");
-    expect(mailer.sent).toHaveLength(1);
+    expect(notifier.resets).toHaveLength(1);
     expect(resetStore.size).toBe(1);
   });
 
@@ -561,15 +600,20 @@ describe("ResetPasswordUseCase", () => {
     const userRepo = new FakeUserRepository();
     const resetStore = new FakePasswordResetStore();
     const sessionStore = new FakeSessionStore();
-    const uc = new ResetPasswordUseCase(resetStore, userRepo, sessionStore);
+    const uc = new ResetPasswordUseCase(
+      resetStore,
+      userRepo,
+      sessionStore,
+      new FakePasswordHasher() as any,
+    );
 
     await userRepo.save({
-      id: "u-1", username: "user@test.com", passwordHash: "old-hash",
+      id: "u-1", email: "user@test.com", passwordHash: "old-hash",
       roles: [Role.FLEET_ADMIN], tenantId: "t-1",
     });
 
     const user = AuthUser.create({
-      id: "u-1", username: "user@test.com", roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      id: "u-1", email: "user@test.com", roles: [Role.FLEET_ADMIN], tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
     await sessionStore.save("rt-2", user);
@@ -592,7 +636,10 @@ describe("ResetPasswordUseCase", () => {
   it("rejects expired reset token", async () => {
     const resetStore = new FakePasswordResetStore();
     const uc = new ResetPasswordUseCase(
-      resetStore, new FakeUserRepository(), new FakeSessionStore(),
+      resetStore,
+      new FakeUserRepository(),
+      new FakeSessionStore(),
+      new FakePasswordHasher() as any,
     );
 
     await resetStore.save({
@@ -619,7 +666,7 @@ describe("ChangeRoleUseCase", () => {
     uc = new ChangeRoleUseCase(userRepo, tokenService, sessionStore);
 
     await userRepo.save({
-      id: "target-1", username: "target@co.com", passwordHash: "hash",
+      id: "target-1", email: "target@co.com", passwordHash: "hash",
       roles: [Role.DISPATCHER], tenantId: "tenant-1",
     });
   });
@@ -641,7 +688,7 @@ describe("ChangeRoleUseCase", () => {
   it("invalidates target user sessions after role change", async () => {
     const accessToken = makeAdmin(tokenService, "tenant-1");
     const target = AuthUser.create({
-      id: "target-1", username: "target@co.com",
+      id: "target-1", email: "target@co.com",
       roles: [Role.DISPATCHER], tenantId: "tenant-1",
     });
     await sessionStore.save("target-rt", target);
@@ -688,7 +735,7 @@ describe("LogoutUseCase", () => {
     const uc = new LogoutUseCase(sessionStore, tokenService);
 
     const user = AuthUser.create({
-      id: "u-1", username: "user@co.com",
+      id: "u-1", email: "user@co.com",
       roles: [Role.FLEET_ADMIN], tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
@@ -707,7 +754,7 @@ describe("LogoutUseCase", () => {
     const uc = new LogoutUseCase(sessionStore, tokenService);
 
     const user = AuthUser.create({
-      id: "u-1", username: "user@co.com",
+      id: "u-1", email: "user@co.com",
       roles: [Role.FLEET_ADMIN], tenantId: "t-1",
     });
     const at = tokenService.issueAccessToken(user);

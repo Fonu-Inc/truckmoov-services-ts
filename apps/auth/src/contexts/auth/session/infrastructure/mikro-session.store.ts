@@ -2,7 +2,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { AuthUser } from "../domain/entities/auth-user.entity";
 import type { SessionStore } from "../domain/ports/session-store.port";
-import { AuthSessionRecord, getAuthOrm } from "./persistence/auth-orm";
+import {
+  AuthSessionRecord,
+  getAuthOrm,
+  mapRoleIdsToNames,
+  mapRoleNamesToIds,
+} from "./persistence/auth-orm";
 
 @Injectable()
 export class MikroSessionStore implements SessionStore {
@@ -15,8 +20,8 @@ export class MikroSessionStore implements SessionStore {
     await em.upsert(AuthSessionRecord, {
       refreshToken,
       userId: user.id,
-      username: user.username,
-      roles: user.roles,
+      email: user.email,
+      roleIds: mapRoleNamesToIds(user.roles),
       tenantId: user.tenantId,
       updatedAt: new Date(),
     });
@@ -44,8 +49,8 @@ export class MikroSessionStore implements SessionStore {
   private toDomain(record: AuthSessionRecord) {
     return AuthUser.create({
       id: record.userId,
-      username: record.username,
-      roles: record.roles,
+      email: record.email,
+      roles: mapRoleIdsToNames(record.roleIds),
       tenantId: record.tenantId,
     });
   }

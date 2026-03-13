@@ -15,6 +15,8 @@ export default defineConfig({
       "@shared/eventbus": path.resolve(__dirname, "libs/shared/eventbus/src"),
       "@shared/mailer": path.resolve(__dirname, "libs/shared/mailer/src"),
       "@shared/sms": path.resolve(__dirname, "libs/shared/sms/src"),
+      "@auth/session": path.resolve(__dirname, "apps/auth/src/contexts/auth/session"),
+      "@fleet/shared": path.resolve(__dirname, "apps/fleet/src/contexts/fleet/shared"),
       "@auth/templates": path.resolve(__dirname, "apps/auth/src/templates"),
     },
   },

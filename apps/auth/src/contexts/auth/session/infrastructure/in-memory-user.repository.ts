@@ -12,8 +12,8 @@ import {
 export class InMemoryUserRepository implements UserRepository {
   private readonly store = new Map<string, StoredUser>();
 
-  async findByUsername(username: string): Promise<StoredUser | null> {
-    const user = this.store.get(username);
+  async findByEmail(email: string): Promise<StoredUser | null> {
+    const user = this.store.get(email);
     return user ? normalizeStoredUser(user) : null;
   }
 
@@ -25,7 +25,7 @@ export class InMemoryUserRepository implements UserRepository {
   }
 
   async save(user: StoredUser): Promise<void> {
-    this.store.set(user.username, normalizeStoredUser(user));
+    this.store.set(user.email, normalizeStoredUser(user));
   }
 
   async updateRoles(userId: string, roles: string[]): Promise<void> {

@@ -21,7 +21,7 @@ export type DispatcherPreferences = {
 
 export type StoredUser = {
   id: string;
-  username: string;
+  email: string;
   passwordHash: string;
   roles: string[];
   tenantId: string;
@@ -69,7 +69,7 @@ export function normalizeStoredUser(user: StoredUser): StoredUser {
 }
 
 export interface UserRepository {
-  findByUsername(username: string): Promise<StoredUser | null>;
+  findByEmail(email: string): Promise<StoredUser | null>;
   findById(id: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRoles(userId: string, roles: string[]): Promise<void>;

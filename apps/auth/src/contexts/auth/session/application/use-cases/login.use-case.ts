@@ -13,7 +13,7 @@ import {
 } from "../../domain/ports/token-service.port";
 
 export type LoginCommand = {
-  username: string;
+  email: string;
   password: string;
 };
 
@@ -30,7 +30,7 @@ export class LoginUseCase {
 
   async execute(command: LoginCommand) {
     const user = await this.identityProvider.verifyCredentials(
-      command.username,
+      command.email,
       command.password,
     );
 

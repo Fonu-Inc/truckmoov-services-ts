@@ -1,19 +1,19 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
+import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { Role } from "@shared/rbac";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
-import { UsernameTakenError } from "../../domain/errors/username-taken.error";
+import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { InviteNotFoundError } from "../../domain/errors/invite-not-found.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
-import { hashPassword } from "../../infrastructure/password";
 
 export type RegisterInvitedCommand = {
   inviteToken: string;
-  username: string;
+  email: string;
   password: string;
 };
 
@@ -28,6 +28,10 @@ export class RegisterInvitedUseCase {
     private readonly tokenService: TokenService,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasher,
+    @Inject(ID_GENERATOR)
+    private readonly idGenerator: IdGenerator,
   ) {}
 
   async execute(command: RegisterInvitedCommand) {
@@ -41,16 +45,16 @@ export class RegisterInvitedUseCase {
       throw new ForbiddenError("Cannot register as Enterprise Admin via invitation");
     }
 
-    const existing = await this.userRepo.findByUsername(command.username);
-    if (existing) throw new UsernameTakenError();
+    const existing = await this.userRepo.findByEmail(command.email);
+    if (existing) throw new EmailTakenError();
 
-    const id = randomUUID();
-    const passwordHash = await hashPassword(command.password);
+    const id = this.idGenerator.generate();
+    const passwordHash = await this.passwordHasher.hash(command.password);
     const roles = [invite.role];
 
     await this.userRepo.save({
       id,
-      username: command.username,
+      email: command.email,
       passwordHash,
       roles,
       tenantId: invite.tenantId,
@@ -60,7 +64,7 @@ export class RegisterInvitedUseCase {
 
     const user = AuthUser.create({
       id,
-      username: command.username,
+      email: command.email,
       roles,
       tenantId: invite.tenantId,
     });

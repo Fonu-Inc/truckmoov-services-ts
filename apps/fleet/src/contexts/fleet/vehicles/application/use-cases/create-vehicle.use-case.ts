@@ -1,9 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
+import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
+import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../domain/repositories/vehicle.repository";
 import { Vehicle } from "../../domain/entities/vehicle.entity";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type CreateVehicleCommand = {
   plateNumber: string;
@@ -17,15 +16,16 @@ export class CreateVehicleUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY)
     private readonly vehicleRepository: VehicleRepository,
-    private readonly config: AppConfigService,
+    @Inject(FLEET_RUNTIME)
+    private readonly runtime: FleetRuntime,
   ) {}
 
   async execute(command: CreateVehicleCommand) {
     const vehicle = Vehicle.create({
-      id: randomUUID(),
+      id: this.runtime.generateId(),
       plateNumber: command.plateNumber,
       model: command.model,
-      tenantId: command.tenantId ?? this.config.fleet.defaultTenant,
+      tenantId: command.tenantId ?? this.runtime.getDefaultTenantId(),
       status: command.status ?? "active",
       assignedDriverId: null,
       gpsDevice: null,

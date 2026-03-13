@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { AppConfigService } from "@shared/config";
 import { BulkImportDriversUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/bulk-import-drivers.use-case";
 import { CreateDriverUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/create-driver.use-case";
 import { DeleteDriverUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/delete-driver.use-case";
@@ -10,13 +9,16 @@ import { AssignDriverToVehicleUseCase } from "../../../apps/fleet/src/contexts/f
 import { SetDriverStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/set-driver-status.use-case";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
 
-const fakeConfig = { fleet: { defaultTenant: "default" } } as AppConfigService;
+const fakeRuntime = {
+  generateId: () => "generated-id",
+  getDefaultTenantId: () => "default",
+};
 
 describe("Fleet driver and assignment use-cases", () => {
   it("creates and deletes a driver", async () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
-    const createUseCase = new CreateDriverUseCase(driverRepository, fakeConfig);
+    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
     const deleteUseCase = new DeleteDriverUseCase(driverRepository, vehicleRepository);
 
     const created = await createUseCase.execute({
@@ -38,8 +40,8 @@ describe("Fleet driver and assignment use-cases", () => {
   it("assigns a driver to a vehicle and unassigns on driver deactivation", async () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
-    const createDriver = new CreateDriverUseCase(driverRepository, fakeConfig);
-    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeConfig);
+    const createDriver = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
+    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeRuntime as any);
     const assignDriver = new AssignDriverToVehicleUseCase(vehicleRepository, driverRepository);
     const setDriverStatus = new SetDriverStatusUseCase(driverRepository, vehicleRepository);
 
@@ -76,7 +78,7 @@ describe("Fleet driver and assignment use-cases", () => {
 
   it("bulk imports drivers and upserts by license number", async () => {
     const driverRepository = new InMemoryDriverRepository();
-    const bulkImport = new BulkImportDriversUseCase(driverRepository, fakeConfig);
+    const bulkImport = new BulkImportDriversUseCase(driverRepository, fakeRuntime as any);
 
     const firstBatch = await bulkImport.execute({
       tenantId: "default",

@@ -79,7 +79,7 @@ describe("Auth HTTP contract", () => {
     expect(res.status).toBe(201);
     expect(res.body.accessToken).toBeTypeOf("string");
     expect(res.body.refreshToken).toBeTypeOf("string");
-    expect(res.body.user.username).toBe("admin@contract.com");
+    expect(res.body.user.email).toBe("admin@contract.com");
     expect(res.body.user.tenantId).toBeTypeOf("string");
     expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
   });
@@ -96,7 +96,7 @@ describe("Auth HTTP contract", () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.user.username).toBe("wrapped@contract.com");
+    expect(res.body.user.email).toBe("wrapped@contract.com");
     expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
   });
 
@@ -133,7 +133,7 @@ describe("Auth HTTP contract", () => {
 
     const loginRes = await request(app.getHttpServer())
       .post("/auth/login")
-      .send({ username: "logintest@contract.com", password: "Str0ngPass!" });
+      .send({ email: "logintest@contract.com", password: "Str0ngPass!" });
 
     expect(loginRes.status).toBe(201);
     expect(loginRes.body.accessToken).toBeTypeOf("string");
@@ -143,14 +143,14 @@ describe("Auth HTTP contract", () => {
       .set("Authorization", `Bearer ${loginRes.body.accessToken}`);
 
     expect(meRes.status).toBe(200);
-    expect(meRes.body.username).toBe("logintest@contract.com");
+    expect(meRes.body.email).toBe("logintest@contract.com");
     expect(meRes.body.roles).toContain("ENTERPRISE_ADMIN");
   });
 
   it("POST /auth/login rejects wrong credentials", async () => {
     const res = await request(app.getHttpServer())
       .post("/auth/login")
-      .send({ username: "logintest@contract.com", password: "WrongPass!" });
+      .send({ email: "logintest@contract.com", password: "WrongPass!" });
 
     expect(res.status).toBe(401);
   });
@@ -237,7 +237,7 @@ describe("Auth HTTP contract", () => {
       .post("/auth/register/invited")
       .send({
         inviteToken: "nonexistent-token-value",
-        username: "new@co.com",
+        email: "new@co.com",
         password: "Str0ngPass!",
       });
 
@@ -438,7 +438,7 @@ describe("Auth HTTP contract", () => {
     const loginRes = await request(app.getHttpServer())
       .post("/auth/login")
       .send({
-        username: "dispatch-pref@contract.com",
+        email: "dispatch-pref@contract.com",
         password: "Str0ngPass!",
       });
     expect(loginRes.status).toBe(201);
@@ -537,7 +537,7 @@ describe("Auth HTTP contract", () => {
     const loginRes = await request(app.getHttpServer())
       .post("/auth/login")
       .send({
-        username: "org-denied@contract.com",
+        email: "org-denied@contract.com",
         password: "Str0ngPass!",
       });
     const dispatcherToken = loginRes.body.accessToken as string;

@@ -6,7 +6,7 @@ export class RegisterInvitedDto {
   inviteToken!: string;
 
   @IsEmail()
-  username!: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)

@@ -24,6 +24,8 @@
       "@shared/eventbus": ["libs/shared/eventbus/src"],
       "@shared/mailer": ["libs/shared/mailer/src"],
       "@shared/sms": ["libs/shared/sms/src"],
+      "@auth/session/*": ["apps/auth/src/contexts/auth/session/*"],
+      "@fleet/shared/*": ["apps/fleet/src/contexts/fleet/shared/*"],
       "@auth/templates/*": ["apps/auth/src/templates/*"]
     }
   },

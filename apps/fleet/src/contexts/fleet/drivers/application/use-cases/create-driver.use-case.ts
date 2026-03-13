@@ -1,9 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
+import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
+import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { Driver } from "../../domain/entities/driver.entity";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositories/driver.repository";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type CreateDriverCommand = {
   name: string;
@@ -17,15 +16,16 @@ export class CreateDriverUseCase {
   constructor(
     @Inject(DRIVER_REPOSITORY)
     private readonly driverRepository: DriverRepository,
-    private readonly config: AppConfigService,
+    @Inject(FLEET_RUNTIME)
+    private readonly runtime: FleetRuntime,
   ) {}
 
   async execute(command: CreateDriverCommand) {
     const driver = Driver.create({
-      id: randomUUID(),
+      id: this.runtime.generateId(),
       name: command.name,
       licenseNumber: command.licenseNumber,
-      tenantId: command.tenantId ?? this.config.fleet.defaultTenant,
+      tenantId: command.tenantId ?? this.runtime.getDefaultTenantId(),
       status: command.status ?? "active",
       assignedVehicleId: null,
       contactChannels: {

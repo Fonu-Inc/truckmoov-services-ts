@@ -1,6 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
+import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { JOB_STATUS_EVENT_PUBLISHER, type JobStatusEventPublisher } from "../../domain/ports/job-status-event.publisher";
 import { createJobStatusChangedEvent } from "../../domain/events/job-status-changed.event";
 import { Job } from "../../domain/entities/job.entity";
@@ -19,16 +18,16 @@ export class PublishJobStatusChangedUseCase {
     private readonly publisher: JobStatusEventPublisher,
     @Inject(JOB_REPOSITORY)
     private readonly jobRepository: JobRepository,
-    @Inject(AppConfigService)
-    private readonly config: AppConfigService,
+    @Inject(FLEET_RUNTIME)
+    private readonly runtime: FleetRuntime,
   ) {}
 
   async execute(command: PublishJobStatusChangedCommand) {
-    const tenantId = command.tenantId ?? this.config.fleet.defaultTenant;
+    const tenantId = command.tenantId ?? this.runtime.getDefaultTenantId();
     const status = command.status ?? "assigned";
 
     const event = createJobStatusChangedEvent({
-      id: randomUUID(),
+      id: this.runtime.generateId(),
       occurredAt: new Date().toISOString(),
       tenantId,
       jobId: command.jobId,

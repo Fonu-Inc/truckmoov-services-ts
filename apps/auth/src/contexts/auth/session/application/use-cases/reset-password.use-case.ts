@@ -1,9 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { PASSWORD_RESET_STORE, type PasswordResetStore } from "../../domain/ports/password-reset-store.port";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { InvalidResetTokenError } from "../../domain/errors/invalid-reset-token.error";
-import { hashPassword } from "../../infrastructure/password";
 
 export type ResetPasswordCommand = {
   token: string;
@@ -19,13 +19,15 @@ export class ResetPasswordUseCase {
     private readonly userRepo: UserRepository,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasher,
   ) {}
 
   async execute(command: ResetPasswordCommand) {
     const reset = await this.resetStore.findByToken(command.token);
     if (!reset || reset.expiresAt < new Date()) throw new InvalidResetTokenError();
 
-    const passwordHash = await hashPassword(command.newPassword);
+    const passwordHash = await this.passwordHasher.hash(command.newPassword);
     await this.userRepo.updatePassword(reset.userId, passwordHash);
     await this.resetStore.markUsed(command.token);
 

@@ -1,5 +1,6 @@
 import { EntitySchema } from "@mikro-orm/core";
 import { MikroORM } from "@mikro-orm/mysql";
+import { ROLE_SEED_ROWS, roleFromId, roleToId } from "@shared/rbac";
 
 export type DbConfig = {
   host: string;
@@ -9,13 +10,27 @@ export type DbConfig = {
   dbName: string;
 };
 
+export class AuthRoleRecord {
+  id!: number;
+  name!: string;
+}
+
+export const AuthRoleRecordSchema = new EntitySchema<AuthRoleRecord>({
+  class: AuthRoleRecord,
+  tableName: "auth_roles",
+  properties: {
+    id: { type: "number", primary: true },
+    name: { type: "string", length: 64, unique: true },
+  },
+});
+
 /* ── Session ─────────────────────────────────────────── */
 
 export class AuthSessionRecord {
   refreshToken!: string;
   userId!: string;
-  username!: string;
-  roles!: string[];
+  email!: string;
+  roleIds!: number[];
   tenantId!: string;
   updatedAt!: Date;
 }
@@ -26,8 +41,8 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
   properties: {
     refreshToken: { type: "string", primary: true },
     userId: { type: "string", length: 64 },
-    username: { type: "string", length: 128 },
-    roles: { type: "json" },
+    email: { type: "string", length: 128 },
+    roleIds: { type: "json" },
     tenantId: { type: "string", length: 64, default: "default" },
     updatedAt: {
       type: "datetime",
@@ -41,9 +56,9 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
 
 export class AuthUserRecord {
   id!: string;
-  username!: string;
+  email!: string;
   passwordHash!: string;
-  roles!: string[];
+  roleIds!: number[];
   tenantId!: string;
   profile?: { fullName: string | null; phoneNumber: string | null };
   notificationPreferences?: {
@@ -68,9 +83,9 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
   tableName: "auth_users",
   properties: {
     id: { type: "string", primary: true },
-    username: { type: "string", length: 128, unique: true },
+    email: { type: "string", length: 128, unique: true },
     passwordHash: { type: "string" },
-    roles: { type: "json" },
+    roleIds: { type: "json" },
     tenantId: { type: "string", length: 64, default: "default" },
     profile: { type: "json", nullable: true },
     notificationPreferences: { type: "json", nullable: true },
@@ -119,7 +134,7 @@ export const OrganizationSettingsRecordSchema =
 export class InviteRecord {
   id!: string;
   email!: string;
-  role!: string;
+  roleId!: number;
   tenantId!: string;
   token!: string;
   invitedBy!: string;
@@ -134,7 +149,7 @@ export const InviteRecordSchema = new EntitySchema<InviteRecord>({
   properties: {
     id: { type: "string", primary: true },
     email: { type: "string", length: 255 },
-    role: { type: "string", length: 64 },
+    roleId: { type: "number" },
     tenantId: { type: "string", length: 64 },
     token: { type: "string", length: 255, unique: true },
     invitedBy: { type: "string", length: 64 },
@@ -176,6 +191,90 @@ export const PasswordResetRecordSchema = new EntitySchema<PasswordResetRecord>({
 
 let ormPromise: Promise<MikroORM> | null = null;
 
+export function mapRoleIdsToNames(roleIds: number[]): string[] {
+  return roleIds.map((roleId) => roleFromId(roleId));
+}
+
+export function mapRoleNamesToIds(roles: string[]): number[] {
+  return roles.map((role) => roleToId(role));
+}
+
+async function hasColumn(orm: MikroORM, tableName: string, columnName: string) {
+  const connection = orm.em.getConnection();
+  const rows = await connection.execute(
+    `SHOW COLUMNS FROM \`${tableName}\` LIKE ?`,
+    [columnName],
+  ) as Array<Record<string, unknown>>;
+  return rows.length > 0;
+}
+
+async function backfillLegacyRoleColumns(orm: MikroORM) {
+  const connection = orm.em.getConnection();
+
+  if (
+    await hasColumn(orm, "auth_users", "roles")
+    && await hasColumn(orm, "auth_users", "role_ids")
+  ) {
+    const rows = await connection.execute(
+      "SELECT id, roles, role_ids FROM auth_users",
+    ) as Array<{ id: string; roles: string | string[] | null; role_ids: string | number[] | null }>;
+
+    for (const row of rows) {
+      if (row.role_ids || !row.roles) {
+        continue;
+      }
+      const roles = Array.isArray(row.roles)
+        ? row.roles
+        : JSON.parse(row.roles) as string[];
+      await connection.execute(
+        "UPDATE auth_users SET role_ids = ? WHERE id = ?",
+        [JSON.stringify(mapRoleNamesToIds(roles)), row.id],
+      );
+    }
+  }
+
+  if (
+    await hasColumn(orm, "auth_sessions", "roles")
+    && await hasColumn(orm, "auth_sessions", "role_ids")
+  ) {
+    const rows = await connection.execute(
+      "SELECT refresh_token, roles, role_ids FROM auth_sessions",
+    ) as Array<{ refresh_token: string; roles: string | string[] | null; role_ids: string | number[] | null }>;
+
+    for (const row of rows) {
+      if (row.role_ids || !row.roles) {
+        continue;
+      }
+      const roles = Array.isArray(row.roles)
+        ? row.roles
+        : JSON.parse(row.roles) as string[];
+      await connection.execute(
+        "UPDATE auth_sessions SET role_ids = ? WHERE refresh_token = ?",
+        [JSON.stringify(mapRoleNamesToIds(roles)), row.refresh_token],
+      );
+    }
+  }
+
+  if (
+    await hasColumn(orm, "auth_invites", "role")
+    && await hasColumn(orm, "auth_invites", "role_id")
+  ) {
+    const rows = await connection.execute(
+      "SELECT id, role, role_id FROM auth_invites",
+    ) as Array<{ id: string; role: string | null; role_id: number | null }>;
+
+    for (const row of rows) {
+      if (row.role_id || !row.role) {
+        continue;
+      }
+      await connection.execute(
+        "UPDATE auth_invites SET role_id = ? WHERE id = ?",
+        [roleToId(row.role), row.id],
+      );
+    }
+  }
+}
+
 export async function getAuthOrm(cfg: DbConfig) {
   if (ormPromise) {
     return ormPromise;
@@ -183,6 +282,7 @@ export async function getAuthOrm(cfg: DbConfig) {
 
   ormPromise = MikroORM.init({
     entities: [
+      AuthRoleRecordSchema,
       AuthSessionRecordSchema,
       AuthUserRecordSchema,
       InviteRecordSchema,
@@ -196,6 +296,11 @@ export async function getAuthOrm(cfg: DbConfig) {
     dbName: cfg.dbName,
   }).then(async (orm) => {
     await orm.schema.updateSchema();
+    const em = orm.em.fork();
+    for (const role of ROLE_SEED_ROWS) {
+      await em.upsert(AuthRoleRecord, role);
+    }
+    await backfillLegacyRoleColumns(orm);
     return orm;
   });
 

@@ -1,7 +1,7 @@
 // Domain errors
 export { InvalidCredentialsError } from "./domain/errors/invalid-credentials.error";
 export { InvalidRefreshTokenError } from "./domain/errors/invalid-refresh-token.error";
-export { UsernameTakenError } from "./domain/errors/username-taken.error";
+export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
 export { UserNotFoundError } from "./domain/errors/user-not-found.error";
@@ -16,6 +16,10 @@ export { USER_REPOSITORY } from "./domain/ports/user-repository.port";
 export { INVITE_REPOSITORY } from "./domain/ports/invite-repository.port";
 export { PASSWORD_RESET_STORE } from "./domain/ports/password-reset-store.port";
 export { ORGANIZATION_SETTINGS_REPOSITORY } from "./domain/ports/organization-settings.repository.port";
+export { ID_GENERATOR } from "./domain/ports/id-generator.port";
+export { PASSWORD_HASHER } from "./domain/ports/password-hasher.port";
+export { AUTH_NOTIFIER } from "./domain/ports/auth-notifier.port";
+export { AUTH_HEALTH_CHECK } from "./domain/ports/health-check.port";
 
 // Infrastructure
 export { DbIdentityProvider } from "./infrastructure/db-identity.provider";
@@ -30,11 +34,16 @@ export { InMemoryPasswordResetStore } from "./infrastructure/in-memory-password-
 export { MikroPasswordResetStore } from "./infrastructure/mikro-password-reset.store";
 export { InMemoryOrganizationSettingsRepository } from "./infrastructure/in-memory-organization-settings.repository";
 export { MikroOrganizationSettingsRepository } from "./infrastructure/mikro-organization-settings.repository";
+export { UuidIdGenerator } from "./infrastructure/uuid-id.generator";
+export { ScryptPasswordHasher } from "./infrastructure/password-hasher.adapter";
+export { MailerAuthNotifier } from "./infrastructure/auth-notifier.adapter";
+export { AuthPersistenceHealthCheck } from "./infrastructure/auth-health-check.adapter";
 
 // Use cases
 export { LoginUseCase } from "./application/use-cases/login.use-case";
 export { RefreshUseCase } from "./application/use-cases/refresh.use-case";
 export { GetMeUseCase } from "./application/use-cases/get-me.use-case";
+export { GetHealthUseCase } from "./application/use-cases/get-health.use-case";
 export { RegisterUseCase } from "./application/use-cases/register.use-case";
 export { InviteUserUseCase } from "./application/use-cases/invite-user.use-case";
 export { ValidateInviteUseCase } from "./application/use-cases/validate-invite.use-case";

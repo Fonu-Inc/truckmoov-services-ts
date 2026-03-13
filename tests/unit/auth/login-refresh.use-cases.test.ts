@@ -5,8 +5,8 @@ import { LoginUseCase } from "../../../apps/auth/src/contexts/auth/session/appli
 import { RefreshUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/refresh.use-case";
 
 class FakeIdentityProvider {
-  async verifyCredentials(username: string, _password: string) {
-    return AuthUser.create({ id: "user-1", username, roles: ["admin"], tenantId: "tenant-1" });
+  async verifyCredentials(email: string, _password: string) {
+    return AuthUser.create({ id: "user-1", email, roles: ["admin"], tenantId: "tenant-1" });
   }
 }
 
@@ -46,16 +46,16 @@ describe("Auth use-cases", () => {
     );
 
     const result = await useCase.execute({
-      username: "dev-admin",
+      email: "dev-admin",
       password: "StrongPass123!",
     });
 
     expect(result.accessToken).toBe("access-token");
     expect(result.refreshToken).toBe("refresh-token");
-    expect(result.user.username).toBe("dev-admin");
+    expect(result.user.email).toBe("dev-admin");
 
     const stored = await sessionStore.getByRefreshToken("refresh-token");
-    expect(stored?.username).toBe("dev-admin");
+    expect(stored?.email).toBe("dev-admin");
   });
 
   it("refresh rejects unknown refresh token", async () => {

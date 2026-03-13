@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
+import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { Driver, type DriverContactChannels } from "../../domain/entities/driver.entity";
 import {
   DRIVER_REPOSITORY,
@@ -26,7 +25,8 @@ export class BulkImportDriversUseCase {
   constructor(
     @Inject(DRIVER_REPOSITORY)
     private readonly driverRepository: DriverRepository,
-    private readonly config: AppConfigService,
+    @Inject(FLEET_RUNTIME)
+    private readonly runtime: FleetRuntime,
   ) {}
 
   async execute(command: BulkImportDriversCommand) {
@@ -35,7 +35,7 @@ export class BulkImportDriversUseCase {
     const records: ReturnType<Driver["toPrimitives"]>[] = [];
 
     for (const item of command.items) {
-      const tenantId = (item.tenantId ?? command.tenantId ?? this.config.fleet.defaultTenant).trim();
+      const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
       const existingDriver = await this.driverRepository.findByLicenseNumber(item.licenseNumber, tenantId);
 
       if (existingDriver) {
@@ -54,7 +54,7 @@ export class BulkImportDriversUseCase {
       }
 
       const createdDriver = Driver.create({
-        id: randomUUID(),
+        id: this.runtime.generateId(),
         name: item.name,
         licenseNumber: item.licenseNumber,
         tenantId,

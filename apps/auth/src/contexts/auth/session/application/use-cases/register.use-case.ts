@@ -1,8 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
+import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { Role } from "@shared/rbac";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
-import { UsernameTakenError } from "../../domain/errors/username-taken.error";
+import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import {
   ORGANIZATION_SETTINGS_REPOSITORY,
   buildDefaultOrganizationSettings,
@@ -11,10 +12,9 @@ import {
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
-import { hashPassword } from "../../infrastructure/password";
 
 export type RegisterCommand = {
-  username: string;
+  email: string;
   password: string;
   firstName: string;
   lastName: string;
@@ -32,15 +32,19 @@ export class RegisterUseCase {
     private readonly sessionStore: SessionStore,
     @Inject(ORGANIZATION_SETTINGS_REPOSITORY)
     private readonly organizationRepo: OrganizationSettingsRepository,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasher,
+    @Inject(ID_GENERATOR)
+    private readonly idGenerator: IdGenerator,
   ) {}
 
   async execute(command: RegisterCommand) {
-    const existing = await this.userRepo.findByUsername(command.username);
-    if (existing) throw new UsernameTakenError();
+    const existing = await this.userRepo.findByEmail(command.email);
+    if (existing) throw new EmailTakenError();
 
-    const id = randomUUID();
-    const tenantId = randomUUID();
-    const passwordHash = await hashPassword(command.password);
+    const id = this.idGenerator.generate();
+    const tenantId = this.idGenerator.generate();
+    const passwordHash = await this.passwordHasher.hash(command.password);
     const roles = [Role.ENTERPRISE_ADMIN];
     const profile = {
       fullName: `${command.firstName.trim()} ${command.lastName.trim()}`,
@@ -51,7 +55,7 @@ export class RegisterUseCase {
 
     await this.userRepo.save({
       id,
-      username: command.username,
+      email: command.email,
       passwordHash,
       roles,
       tenantId,
@@ -59,7 +63,7 @@ export class RegisterUseCase {
     });
     await this.organizationRepo.save(organizationSettings);
 
-    const user = AuthUser.create({ id, username: command.username, roles, tenantId });
+    const user = AuthUser.create({ id, email: command.email, roles, tenantId });
     const accessToken = this.tokenService.issueAccessToken(user);
     const refreshToken = this.tokenService.issueRefreshToken(user);
 

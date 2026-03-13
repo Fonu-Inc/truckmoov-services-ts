@@ -51,7 +51,7 @@ export class ProfileDataSchema {
   userId!: string;
 
   @ApiProperty()
-  username!: string;
+  email!: string;
 
   @ApiProperty()
   tenantId!: string;

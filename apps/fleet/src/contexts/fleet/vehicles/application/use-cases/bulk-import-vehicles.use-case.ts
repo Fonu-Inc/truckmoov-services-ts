@@ -1,7 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
+import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { Vehicle } from "../../domain/entities/vehicle.entity";
 import {
   VEHICLE_REPOSITORY,
@@ -25,7 +24,8 @@ export class BulkImportVehiclesUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY)
     private readonly vehicleRepository: VehicleRepository,
-    private readonly config: AppConfigService,
+    @Inject(FLEET_RUNTIME)
+    private readonly runtime: FleetRuntime,
   ) {}
 
   async execute(command: BulkImportVehiclesCommand) {
@@ -34,7 +34,7 @@ export class BulkImportVehiclesUseCase {
     const records: ReturnType<Vehicle["toPrimitives"]>[] = [];
 
     for (const item of command.items) {
-      const tenantId = (item.tenantId ?? command.tenantId ?? this.config.fleet.defaultTenant).trim();
+      const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
       const existingVehicle = await this.vehicleRepository.findByPlateNumber(item.plateNumber, tenantId);
 
       if (existingVehicle) {
@@ -51,7 +51,7 @@ export class BulkImportVehiclesUseCase {
       }
 
       const createdVehicle = Vehicle.create({
-        id: randomUUID(),
+        id: this.runtime.generateId(),
         plateNumber: item.plateNumber,
         model: item.model,
         tenantId,

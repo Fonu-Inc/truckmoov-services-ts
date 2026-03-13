@@ -47,7 +47,7 @@ export class UpdateProfileUseCase {
 
     return {
       userId: actor.id,
-      username: actor.username,
+      email: actor.email,
       tenantId: actor.tenantId,
       roles: actor.roles,
       profile: mergedProfile,

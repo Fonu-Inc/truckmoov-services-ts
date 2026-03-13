@@ -6,14 +6,14 @@ import type { IdentityProvider } from "../domain/ports/identity-provider.port";
 
 @Injectable()
 export class DevIdentityProvider implements IdentityProvider {
-  async verifyCredentials(username: string, password: string) {
-    if (!username.trim() || !password.trim()) {
+  async verifyCredentials(email: string, password: string) {
+    if (!email.trim() || !password.trim()) {
       throw new InvalidCredentialsError();
     }
 
     return AuthUser.create({
       id: randomUUID(),
-      username,
+      email,
       roles: ["admin"],
       tenantId: "dev-tenant",
     });

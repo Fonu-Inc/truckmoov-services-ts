@@ -41,11 +41,18 @@ import {
   VEHICLE_REPOSITORY,
 } from "./contexts/fleet/vehicles";
 import { FleetController } from "./fleet.controller";
+import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtime.port";
+import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
 
 @Module({
   imports: [ConfigModule, LoggerModule, EventBusModule],
   controllers: [FleetController],
   providers: [
+    DefaultFleetRuntime,
+    {
+      provide: FLEET_RUNTIME,
+      useExisting: DefaultFleetRuntime,
+    },
     InMemoryVehicleRepository,
     MikroVehicleRepository,
     {

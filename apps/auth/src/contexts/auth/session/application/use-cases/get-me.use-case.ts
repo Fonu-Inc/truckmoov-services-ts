@@ -20,7 +20,7 @@ export class GetMeUseCase {
       user ??
       AuthUser.create({
         id: "dev-user",
-        username: "dev-admin",
+        email: "dev-admin",
         roles: ["admin"],
         tenantId: "dev-tenant",
       });

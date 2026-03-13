@@ -5,7 +5,10 @@ import { MailerModule } from "@shared/mailer";
 import { SmsModule } from "@shared/sms";
 import {
   ChangeRoleUseCase,
+  AUTH_HEALTH_CHECK,
+  AUTH_NOTIFIER,
   GetDispatcherPreferencesUseCase,
+  GetHealthUseCase,
   GetNotificationPreferencesUseCase,
   GetOrganizationSettingsUseCase,
   GetProfileUseCase,
@@ -13,6 +16,7 @@ import {
   DevTokenService,
   ForgotPasswordUseCase,
   GetMeUseCase,
+  ID_GENERATOR,
   IDENTITY_PROVIDER,
   InMemoryInviteRepository,
   InMemoryPasswordResetStore,
@@ -30,12 +34,15 @@ import {
   MikroUserRepository,
   ORGANIZATION_SETTINGS_REPOSITORY,
   PASSWORD_RESET_STORE,
+  PASSWORD_HASHER,
   RefreshUseCase,
   RegisterInvitedUseCase,
   RegisterUseCase,
   ResetPasswordUseCase,
   SESSION_STORE,
+  ScryptPasswordHasher,
   TOKEN_SERVICE,
+  UuidIdGenerator,
   USER_REPOSITORY,
   ValidateInviteUseCase,
   VerifyResetUseCase,
@@ -43,6 +50,8 @@ import {
   UpdateNotificationPreferencesUseCase,
   UpdateOrganizationSettingsUseCase,
   UpdateProfileUseCase,
+  MailerAuthNotifier,
+  AuthPersistenceHealthCheck,
 } from "./contexts/auth/session";
 import { AuthController } from "./auth.controller";
 
@@ -75,6 +84,26 @@ import { AuthController } from "./auth.controller";
     {
       provide: TOKEN_SERVICE,
       useExisting: DevTokenService,
+    },
+    UuidIdGenerator,
+    {
+      provide: ID_GENERATOR,
+      useExisting: UuidIdGenerator,
+    },
+    ScryptPasswordHasher,
+    {
+      provide: PASSWORD_HASHER,
+      useExisting: ScryptPasswordHasher,
+    },
+    MailerAuthNotifier,
+    {
+      provide: AUTH_NOTIFIER,
+      useExisting: MailerAuthNotifier,
+    },
+    AuthPersistenceHealthCheck,
+    {
+      provide: AUTH_HEALTH_CHECK,
+      useExisting: AuthPersistenceHealthCheck,
     },
 
     // Session store
@@ -137,6 +166,7 @@ import { AuthController } from "./auth.controller";
     LoginUseCase,
     RefreshUseCase,
     GetMeUseCase,
+    GetHealthUseCase,
     RegisterUseCase,
     InviteUserUseCase,
     ValidateInviteUseCase,

@@ -12,8 +12,8 @@ export class DbIdentityProvider implements IdentityProvider {
     private readonly userRepo: UserRepository,
   ) {}
 
-  async verifyCredentials(username: string, password: string): Promise<AuthUser> {
-    const stored = await this.userRepo.findByUsername(username);
+  async verifyCredentials(email: string, password: string): Promise<AuthUser> {
+    const stored = await this.userRepo.findByEmail(email);
     if (!stored) throw new InvalidCredentialsError();
 
     const valid = await verifyPassword(password, stored.passwordHash);
@@ -21,7 +21,7 @@ export class DbIdentityProvider implements IdentityProvider {
 
     return AuthUser.create({
       id: stored.id,
-      username: stored.username,
+      email: stored.email,
       roles: stored.roles,
       tenantId: stored.tenantId,
     });
