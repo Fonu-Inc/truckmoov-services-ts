@@ -67,4 +67,4 @@ The deployment uses `imagePullPolicy: Never`, so the image must be built and imp
 
 This repo expects the Doppler Kubernetes Operator to create and refresh the runtime Kubernetes secrets consumed by the auth and fleet deployments.
 
-See `deploy/doppler/README.md` for the k3s bootstrap token flow, the expected Doppler project/config layout, and the manifests to apply.
+See `deploy/doppler/README.md` for the k3s bootstrap token flow, the expected Doppler project/config layout, and the env-specific Doppler kustomize overlays to apply before the service manifests.

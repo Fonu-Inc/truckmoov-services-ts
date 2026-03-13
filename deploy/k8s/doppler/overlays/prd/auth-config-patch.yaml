@@ -1,0 +1,7 @@
+apiVersion: secrets.doppler.com/v1alpha1
+kind: DopplerSecret
+metadata:
+  name: truckmoov-auth-secrets
+  namespace: doppler-operator-system
+spec:
+  config: prd

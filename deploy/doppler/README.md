@@ -5,10 +5,16 @@ This repo expects the Doppler Kubernetes Operator to be installed on the target 
 - `truckmoov-auth-secrets`
 - `truckmoov-fleet-secrets`
 
-The example `DopplerSecret` manifests live here:
+The base example `DopplerSecret` manifests live here:
 
 - `deploy/k8s/auth/doppler-secret.example.yaml`
 - `deploy/k8s/fleet/doppler-secret.example.yaml`
+
+The recommended deploy path is the env-specific kustomize overlays here:
+
+- `deploy/k8s/doppler/overlays/dev`
+- `deploy/k8s/doppler/overlays/stg`
+- `deploy/k8s/doppler/overlays/prd`
 
 The suggested Doppler layout is:
 
@@ -43,13 +49,13 @@ kubectl create secret generic doppler-token-secret \
   --from-literal=serviceToken='<doppler-service-token>'
 ```
 
-Apply the operator-managed secret manifests, then apply the service manifests:
+Apply the env-specific Doppler overlay first, then apply the service manifests:
 
 ```bash
-kubectl apply -f deploy/k8s/auth/doppler-secret.example.yaml
-kubectl apply -f deploy/k8s/fleet/doppler-secret.example.yaml
+kubectl apply -k deploy/k8s/doppler/overlays/dev
 kubectl apply -k deploy/k8s/auth
 kubectl apply -k deploy/k8s/fleet
 ```
 
-The example manifests default to Doppler config `dev`. Change `spec.config` in each file to `stg` or `prd` before applying to those environments.
+For staging, use `deploy/k8s/doppler/overlays/stg`.
+For production, use `deploy/k8s/doppler/overlays/prd`.
