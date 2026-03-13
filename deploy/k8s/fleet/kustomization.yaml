@@ -4,10 +4,6 @@ namespace: truckmoov
 resources:
   - configmap.yaml
   - service.yaml
-  - deployment.yaml
-images:
-  - name: fleet-image
-    newName: truckmoov-fleet
-    newTag: latest
-commonLabels:
-  app.kubernetes.io/part-of: truckmoov
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: truckmoov

@@ -81,24 +81,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Render service kustomize bundles
-        env:
-          AUTH_IMAGE_NAME: truckmoov-auth
-          FLEET_IMAGE_NAME: truckmoov-fleet
-          IMAGE_TAG: sha-${{ github.sha }}
-        run: |
-          rm -rf deploy/.rendered/auth deploy/.rendered/fleet
-          mkdir -p deploy/.rendered
-          cp -R deploy/k8s/auth deploy/.rendered/auth
-          cp -R deploy/k8s/fleet deploy/.rendered/fleet
-          sed -i "s|newName: .*|newName: ${AUTH_IMAGE_NAME}|" deploy/.rendered/auth/kustomization.yaml
-          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/auth/kustomization.yaml
-          sed -i "s|newName: .*|newName: ${FLEET_IMAGE_NAME}|" deploy/.rendered/fleet/kustomization.yaml
-          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/fleet/kustomization.yaml
-
-      - name: Show rendered service bundles
-        run: find deploy/.rendered -maxdepth 3 -type f | sort
-
       - name: Prepare SSH access
         env:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
@@ -127,30 +109,8 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$SOURCE_PATH\" ] || mkdir -p \"$SOURCE_PATH\""
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "rm -rf \"$SOURCE_PATH\" && mkdir -p \"$SOURCE_PATH\""
           git archive --format=tar HEAD | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xf - -C \"$SOURCE_PATH\""
-
-      - name: Copy service manifests to deploy host
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          DEPLOY_PATH: /var/www/truckmoov-services-ts
-          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
-          FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_MANIFEST_PATH\" ] || mkdir -p \"$AUTH_MANIFEST_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$FLEET_MANIFEST_PATH\" ] || mkdir -p \"$FLEET_MANIFEST_PATH\""
-          tar -C deploy/.rendered/auth -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$AUTH_MANIFEST_PATH\""
-          tar -C deploy/.rendered/fleet -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$FLEET_MANIFEST_PATH\""
 
       - name: Verify deploy host
         env:
@@ -277,8 +237,8 @@ jobs:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
           SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
-          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
-          FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
+          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
+          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
           DOPPLER_OVERLAY: stg
         run: |
           set -euo pipefail
@@ -289,34 +249,58 @@ jobs:
             -o ServerAliveInterval=30
             -o ServerAliveCountMax=10
           )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            set -eu
-            kubectl apply --validate=false -k $SOURCE_PATH/deploy/k8s/doppler/overlays/$DOPPLER_OVERLAY
-            for secret_name in truckmoov-auth-secrets truckmoov-fleet-secrets; do
-              for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-                if kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1; then
-                  break
-                fi
-                sleep 3
-              done
-              kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1 || {
-                kubectl get dopplersecrets -A
-                kubectl describe dopplersecret \"\$secret_name\" -n doppler-operator-system || true
-                exit 1
-              }
-            done
-            kubectl apply --validate=false -k $AUTH_MANIFEST_PATH
-            kubectl apply --validate=false -k $FLEET_MANIFEST_PATH
-            kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s || {
-              kubectl describe deployment auth-service -n truckmoov
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
-              exit 1
-            }
-            kubectl rollout status deployment/fleet-service -n truckmoov --timeout=300s || {
-              kubectl describe deployment fleet-service -n truckmoov
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=fleet-service --all-containers --tail=200
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
-              exit 1
-            }
-          "
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" <<EOF
+set -euo pipefail
+SOURCE_PATH="$SOURCE_PATH"
+AUTH_IMAGE="$AUTH_IMAGE"
+FLEET_IMAGE="$FLEET_IMAGE"
+DOPPLER_OVERLAY="$DOPPLER_OVERLAY"
+AUTH_BLUE_RENDERED="/tmp/auth-blue-${{ github.sha }}.yaml"
+AUTH_GREEN_RENDERED="/tmp/auth-green-${{ github.sha }}.yaml"
+FLEET_BLUE_RENDERED="/tmp/fleet-blue-${{ github.sha }}.yaml"
+FLEET_GREEN_RENDERED="/tmp/fleet-green-${{ github.sha }}.yaml"
+
+kubectl apply --validate=false -k "$SOURCE_PATH/deploy/k8s/doppler/overlays/$DOPPLER_OVERLAY"
+for secret_name in truckmoov-auth-secrets truckmoov-fleet-secrets; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    if kubectl get secret "$secret_name" -n truckmoov >/dev/null 2>&1; then
+      break
+    fi
+    sleep 3
+  done
+  kubectl get secret "$secret_name" -n truckmoov >/dev/null 2>&1 || {
+    kubectl get dopplersecrets -A
+    kubectl describe dopplersecret "$secret_name" -n doppler-operator-system || true
+    exit 1
+  }
+done
+
+for file in \
+  "$SOURCE_PATH/deploy/k8s/auth/overlays/blue/kustomization.yaml" \
+  "$SOURCE_PATH/deploy/k8s/auth/overlays/green/kustomization.yaml"; do
+  sed -i "s|newTag: .*|newTag: ${AUTH_IMAGE#truckmoov-auth:}|" "$file"
+done
+for file in \
+  "$SOURCE_PATH/deploy/k8s/fleet/overlays/blue/kustomization.yaml" \
+  "$SOURCE_PATH/deploy/k8s/fleet/overlays/green/kustomization.yaml"; do
+  sed -i "s|newTag: .*|newTag: ${FLEET_IMAGE#truckmoov-fleet:}|" "$file"
+done
+
+kubectl kustomize "$SOURCE_PATH/deploy/k8s/auth/overlays/blue" > "$AUTH_BLUE_RENDERED"
+kubectl kustomize "$SOURCE_PATH/deploy/k8s/auth/overlays/green" > "$AUTH_GREEN_RENDERED"
+kubectl kustomize "$SOURCE_PATH/deploy/k8s/fleet/overlays/blue" > "$FLEET_BLUE_RENDERED"
+kubectl kustomize "$SOURCE_PATH/deploy/k8s/fleet/overlays/green" > "$FLEET_GREEN_RENDERED"
+chmod +x "$SOURCE_PATH/deploy/blue-green-deploy.sh"
+AUTH_SERVICE_MANIFEST="$SOURCE_PATH/deploy/k8s/auth/service.yaml" \
+AUTH_BLUE_MANIFEST="$AUTH_BLUE_RENDERED" \
+AUTH_GREEN_MANIFEST="$AUTH_GREEN_RENDERED" \
+FLEET_SERVICE_MANIFEST="$SOURCE_PATH/deploy/k8s/fleet/service.yaml" \
+FLEET_BLUE_MANIFEST="$FLEET_BLUE_RENDERED" \
+FLEET_GREEN_MANIFEST="$FLEET_GREEN_RENDERED" \
+AUTH_IMAGE="$AUTH_IMAGE" \
+FLEET_IMAGE="$FLEET_IMAGE" \
+NAMESPACE=truckmoov \
+"$SOURCE_PATH/deploy/blue-green-deploy.sh"
+rm -f "$AUTH_BLUE_RENDERED" "$AUTH_GREEN_RENDERED" "$FLEET_BLUE_RENDERED" "$FLEET_GREEN_RENDERED"
+kubectl get pods -n truckmoov
+          EOF

@@ -8,6 +8,7 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: auth-service
+    truckmoov.track: blue
   ports:
     - name: http
       port: 3001

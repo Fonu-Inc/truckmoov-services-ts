@@ -5,7 +5,7 @@ This repo deploys the TypeScript auth and fleet services to the existing Kuberne
 ## GitHub Actions flow
 
 - `pull_request`: runs lint, tests, and build for service-related changes.
-- `push` to `main`: runs validation, copies the tracked source tree and rendered kustomize bundles to the deploy host, builds the auth and fleet Docker images on that host, imports them into `k3s`, and applies them with `kubectl`.
+- `push` to `main`: runs validation, copies the tracked source tree and rendered kustomize bundles to the deploy host, builds the auth and fleet Docker images on that host, imports them into `k3s`, applies the Doppler secret overlay, and performs a blue/green cutover.
 - `workflow_dispatch`: lets you trigger the same pipeline manually.
 
 The workflow uses these repository secrets:
@@ -31,28 +31,32 @@ The SSH target must already have:
 The deploy workflow manages these paths on the remote host:
 
 - tracked source tree: `/var/www/truckmoov-services-ts/source/<git-sha>`
-- rendered auth bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>/auth`
-- rendered fleet bundle: `/var/www/truckmoov-services-ts/rendered/<git-sha>/fleet`
+- rendered auth manifests:
+  - `/var/www/truckmoov-services-ts/rendered/<git-sha>/auth-blue.yaml`
+  - `/var/www/truckmoov-services-ts/rendered/<git-sha>/auth-green.yaml`
+- rendered fleet manifests:
+  - `/var/www/truckmoov-services-ts/rendered/<git-sha>/fleet-blue.yaml`
+  - `/var/www/truckmoov-services-ts/rendered/<git-sha>/fleet-green.yaml`
 
 ## Kubernetes manifests
 
 `deploy/k8s/auth` defines:
 
 - `Service` named `auth-service`
-- `Deployment` named `auth-service`
+- blue/green Deployments named `auth-service-blue` and `auth-service-green`
 - `ConfigMap` named `truckmoov-auth-config`
 - Doppler operator manifest example via `doppler-secret.example.yaml`
 
-Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, so once this workload is healthy the gateway can reach it inside the cluster.
+Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, so once the active color is healthy the gateway can reach it inside the cluster.
 
 `deploy/k8s/fleet` defines:
 
 - `Service` named `fleet-service`
-- `Deployment` named `fleet-service`
+- blue/green Deployments named `fleet-service-blue` and `fleet-service-green`
 - `ConfigMap` named `truckmoov-fleet-config`
 - Doppler operator manifest example via `doppler-secret.example.yaml`
 
-Expose `/fleet` to `http://fleet-service:3002` from the platform gateway once this workload is healthy.
+Expose `/fleet` to `http://fleet-service:3002` from the platform gateway once the active color is healthy.
 
 ## Image pulls
 
@@ -61,7 +65,7 @@ The workflow builds a local image on the deploy host:
 - `truckmoov-auth:sha-<commit>`
 - `truckmoov-fleet:sha-<commit>`
 
-The deployment uses `imagePullPolicy: Never`, so the image must be built and imported into the local `k3s` runtime before `kubectl apply`.
+The deployment uses `imagePullPolicy: Never`, so the image must be built and imported into the local `k3s` runtime before the blue/green cutover script runs. After a successful cutover, the script removes stale Docker and k3s images and keeps only the current image and one rollback image per service.
 
 ## Doppler-managed secrets
 
