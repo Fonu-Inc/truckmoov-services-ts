@@ -6,6 +6,7 @@ import { createCorsOptions } from "@shared/http";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
 import { AppModule } from "./app.module";
+import { getFleetOrm } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import {
   BulkDriverImportResponse,
   BulkDriverImportSchema,
@@ -76,6 +77,10 @@ async function bootstrap() {
     JobStatusResponse,
     FleetHealthResponse,
   ]);
+
+  if (cfg.persistence.backend === "mikro-orm") {
+    await getFleetOrm(cfg.db);
+  }
 
   await app.listen(cfg.server.fleetPort);
 }

@@ -6,6 +6,7 @@ import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
+import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
 import {
   AuthResponse,
   DispatcherPreferencesDataSchema,
@@ -70,6 +71,10 @@ async function bootstrap() {
     OrganizationSettingsResponse,
     HealthResponse,
   ]);
+
+  if (cfg.persistence.backend === "mikro-orm") {
+    await getAuthOrm(cfg.db);
+  }
 
   await app.listen(cfg.server.authPort);
 }
