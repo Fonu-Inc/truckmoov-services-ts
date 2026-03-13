@@ -249,45 +249,28 @@ describe("Auth HTTP contract", () => {
   it("POST /auth/forgot-password returns 404 for unknown user", async () => {
     const res = await request(app.getHttpServer())
       .post("/auth/forgot-password")
-      .send({ identifier: "ghost@unknown.com", method: "email" });
+      .send({ identifier: "ghost@unknown.com" });
 
     expect(res.status).toBe(404);
   });
 
-  it("POST /auth/forgot-password succeeds for registered user (email)", async () => {
+  it("POST /auth/forgot-password succeeds for registered user", async () => {
     await request(app.getHttpServer())
       .post("/auth/register")
       .send(makeRegisterPayload("forgetter@contract.com"));
 
     const res = await request(app.getHttpServer())
       .post("/auth/forgot-password")
-      .send({ identifier: "forgetter@contract.com", method: "email" });
+      .send({ identifier: "forgetter@contract.com" });
 
     expect(res.status).toBe(201);
-    expect(res.body.method).toBe("email");
+    expect(res.body.message).toContain("email");
   });
 
-  it("POST /auth/forgot-password succeeds for registered user (sms)", async () => {
-    await request(app.getHttpServer())
-      .post("/auth/register")
-      .send(makeRegisterPayload("smsforgetter@contract.com"));
-
-    const res = await request(app.getHttpServer())
-      .post("/auth/forgot-password")
-      .send({
-        identifier: "smsforgetter@contract.com",
-        method: "sms",
-        phone: "+1234567890",
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.method).toBe("sms");
-  });
-
-  it("POST /auth/verify-reset rejects invalid email token", async () => {
+  it("POST /auth/verify-reset rejects invalid token", async () => {
     const res = await request(app.getHttpServer())
       .post("/auth/verify-reset")
-      .send({ method: "email", token: "totally-bogus-token" });
+      .send({ token: "totally-bogus-token" });
 
     expect(res.status).toBe(400);
   });

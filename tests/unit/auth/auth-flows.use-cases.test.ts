@@ -487,16 +487,14 @@ describe("ForgotPasswordUseCase", () => {
   let userRepo: FakeUserRepository;
   let resetStore: FakePasswordResetStore;
   let mailer: FakeMailerService;
-  let sms: FakeSmsService;
   let uc: ForgotPasswordUseCase;
 
   beforeEach(async () => {
     userRepo = new FakeUserRepository();
     resetStore = new FakePasswordResetStore();
     mailer = new FakeMailerService();
-    sms = new FakeSmsService();
     uc = new ForgotPasswordUseCase(
-      userRepo, resetStore, mailer as any, sms as any, new FakeConfig() as any,
+      userRepo, resetStore, mailer as any, new FakeConfig() as any,
     );
 
     await userRepo.save({
@@ -506,104 +504,55 @@ describe("ForgotPasswordUseCase", () => {
   });
 
   it("sends reset email for known user", async () => {
-    const result = await uc.execute({ identifier: "user@test.com", method: "email" });
+    const result = await uc.execute({ identifier: "user@test.com" });
 
-    expect(result.method).toBe("email");
+    expect(result.message).toContain("email");
     expect(mailer.sent).toHaveLength(1);
     expect(resetStore.size).toBe(1);
   });
 
-  it("sends reset SMS for known user", async () => {
-    const result = await uc.execute({
-      identifier: "user@test.com", method: "sms", phone: "+1234567890",
-    });
-
-    expect(result.method).toBe("sms");
-    expect(sms.sent).toHaveLength(1);
-    expect(resetStore.size).toBe(1);
-
-    const reset = resetStore.getFirst();
-    expect(reset?.code).toBeTruthy();
-    expect(reset?.code).toHaveLength(6);
-  });
-
   it("rejects unknown user", async () => {
     await expect(
-      uc.execute({ identifier: "nobody@test.com", method: "email" }),
+      uc.execute({ identifier: "nobody@test.com" }),
     ).rejects.toBeInstanceOf(UserNotFoundError);
-  });
-
-  it("rejects SMS without phone number", async () => {
-    await expect(
-      uc.execute({ identifier: "user@test.com", method: "sms" }),
-    ).rejects.toThrow("Phone number is required");
   });
 });
 
 describe("VerifyResetUseCase", () => {
-  let userRepo: FakeUserRepository;
   let resetStore: FakePasswordResetStore;
   let uc: VerifyResetUseCase;
 
-  beforeEach(async () => {
-    userRepo = new FakeUserRepository();
+  beforeEach(() => {
     resetStore = new FakePasswordResetStore();
-    uc = new VerifyResetUseCase(resetStore, userRepo);
-
-    await userRepo.save({
-      id: "u-1", username: "user@test.com", passwordHash: "hash",
-      roles: [Role.FLEET_ADMIN], tenantId: "t-1",
-    });
+    uc = new VerifyResetUseCase(resetStore);
   });
 
-  it("verifies valid email reset token", async () => {
+  it("verifies valid reset token", async () => {
     await resetStore.save({
       id: "r-1", userId: "u-1", token: "email-token", method: "email",
       code: null, used: false, expiresAt: new Date(Date.now() + 3600000), createdAt: new Date(),
     });
 
-    const result = await uc.execute({ method: "email", token: "email-token" });
+    const result = await uc.execute({ token: "email-token" });
     expect(result.valid).toBe(true);
     expect(result.token).toBe("email-token");
   });
 
-  it("verifies valid SMS code", async () => {
-    await resetStore.save({
-      id: "r-2", userId: "u-1", token: "sms-token", method: "sms",
-      code: "123456", used: false, expiresAt: new Date(Date.now() + 600000), createdAt: new Date(),
-    });
-
-    const result = await uc.execute({ method: "sms", identifier: "user@test.com", code: "123456" });
-    expect(result.valid).toBe(true);
-    expect(result.token).toBe("sms-token");
-  });
-
-  it("rejects expired email token", async () => {
+  it("rejects expired token", async () => {
     await resetStore.save({
       id: "r-3", userId: "u-1", token: "old-token", method: "email",
       code: null, used: false, expiresAt: new Date(Date.now() - 1000), createdAt: new Date(),
     });
 
     await expect(
-      uc.execute({ method: "email", token: "old-token" }),
+      uc.execute({ token: "old-token" }),
     ).rejects.toBeInstanceOf(InvalidResetTokenError);
   });
 
-  it("rejects wrong SMS code", async () => {
-    await resetStore.save({
-      id: "r-4", userId: "u-1", token: "sms-token-2", method: "sms",
-      code: "111111", used: false, expiresAt: new Date(Date.now() + 600000), createdAt: new Date(),
-    });
-
+  it("rejects invalid token", async () => {
     await expect(
-      uc.execute({ method: "sms", identifier: "user@test.com", code: "999999" }),
+      uc.execute({ token: "nonexistent-token" }),
     ).rejects.toBeInstanceOf(InvalidResetTokenError);
-  });
-
-  it("rejects unknown user for SMS verify", async () => {
-    await expect(
-      uc.execute({ method: "sms", identifier: "ghost@test.com", code: "123456" }),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
   });
 });
 
