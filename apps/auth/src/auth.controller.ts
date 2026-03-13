@@ -11,8 +11,10 @@ import {
   Patch,
   Post,
   Query,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -79,6 +81,7 @@ import { UpdateNotificationPreferencesDto } from "./dto/update-notification-pref
 import { UpdateDispatcherPreferencesDto } from "./dto/update-dispatcher-preferences.dto";
 import { UpdateOrganizationSettingsDto } from "./dto/update-organization-settings.dto";
 import { BodyOrDataPipe } from "./body-or-data.pipe";
+import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -124,11 +127,32 @@ export class AuthController {
     private readonly getOrganizationSettingsUseCase: GetOrganizationSettingsUseCase,
     @Inject(UpdateOrganizationSettingsUseCase)
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
+    @Inject(AppConfigService)
+    private readonly config: AppConfigService,
   ) {}
 
   @Get("health")
-  health(): HealthResponse {
-    return { status: true, message: "success", data: { service: "auth" } };
+  async health(): Promise<HealthResponse> {
+    const persistenceBackend = this.config.persistence.backend;
+
+    if (persistenceBackend === "mikro-orm") {
+      try {
+        const orm = await getAuthOrm(this.config.db);
+        await orm.em.getConnection().execute("select 1");
+      } catch {
+        throw new ServiceUnavailableException("Database unavailable");
+      }
+    }
+
+    return {
+      status: true,
+      message: "success",
+      data: {
+        service: "auth",
+        persistenceBackend,
+        database: persistenceBackend === "mikro-orm" ? "up" : "n/a",
+      },
+    };
   }
 
   /** Register an enterprise admin (creates new tenant) */

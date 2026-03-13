@@ -59,6 +59,8 @@ describe("Auth HTTP contract", () => {
     const response = await request(app.getHttpServer()).get("/auth/health");
     expect(response.status).toBe(200);
     expect(response.body.data.service).toBe("auth");
+    expect(response.body.data.persistenceBackend).toBe("in-memory");
+    expect(response.body.data.database).toBe("n/a");
   });
 
   // ── Register (enterprise admin) ──────────────────────

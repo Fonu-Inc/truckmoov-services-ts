@@ -18,9 +18,24 @@ export class MeResponse extends StandardApiResponse<Record<string, unknown>> {
   data!: Record<string, unknown>;
 }
 
-export class HealthResponse extends StandardApiResponse<{ service: string }> {
-  @ApiProperty({ type: "object", properties: { service: { type: "string" } } })
-  data!: { service: string };
+export class HealthResponse extends StandardApiResponse<{
+  service: string;
+  persistenceBackend: string;
+  database: "up" | "n/a";
+}> {
+  @ApiProperty({
+    type: "object",
+    properties: {
+      service: { type: "string" },
+      persistenceBackend: { type: "string" },
+      database: { type: "string", enum: ["up", "n/a"] },
+    },
+  })
+  data!: {
+    service: string;
+    persistenceBackend: string;
+    database: "up" | "n/a";
+  };
 }
 
 export class UserProfileSchema {
