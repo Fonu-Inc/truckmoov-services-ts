@@ -41,7 +41,7 @@ The deploy workflow manages these paths on the remote host:
 - `Service` named `auth-service`
 - `Deployment` named `auth-service`
 - `ConfigMap` named `truckmoov-auth-config`
-- optional secret contract via `secret.example.yaml`
+- Doppler operator manifest example via `doppler-secret.example.yaml`
 
 Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, so once this workload is healthy the gateway can reach it inside the cluster.
 
@@ -50,6 +50,7 @@ Kong in the platform repo already routes `/auth` to `http://auth-service:3001`, 
 - `Service` named `fleet-service`
 - `Deployment` named `fleet-service`
 - `ConfigMap` named `truckmoov-fleet-config`
+- Doppler operator manifest example via `doppler-secret.example.yaml`
 
 Expose `/fleet` to `http://fleet-service:3002` from the platform gateway once this workload is healthy.
 
@@ -62,12 +63,8 @@ The workflow builds a local image on the deploy host:
 
 The deployment uses `imagePullPolicy: Never`, so the image must be built and imported into the local `k3s` runtime before `kubectl apply`.
 
-## Auth secrets
+## Doppler-managed secrets
 
-Create the auth secret before the first production-like deploy:
+This repo expects the Doppler Kubernetes Operator to create and refresh the runtime Kubernetes secrets consumed by the auth and fleet deployments.
 
-```bash
-kubectl apply -f deploy/k8s/auth/secret.example.yaml
-```
-
-Then replace the placeholder values with real credentials.
+See `deploy/doppler/README.md` for the k3s bootstrap token flow, the expected Doppler project/config layout, and the manifests to apply.

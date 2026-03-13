@@ -13,7 +13,6 @@ data:
   NATS_URL: nats://nats:4222
   NATS_STREAM: truckmoov.events
   DEFAULT_TENANT: default
-  FRONTEND_URL: http://localhost:3000
   MAIL_TRANSPORT: "null"
   SMS_TRANSPORT: "null"
   SENTRY_ENVIRONMENT: production

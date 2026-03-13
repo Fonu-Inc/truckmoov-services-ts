@@ -15,6 +15,8 @@ spec:
       labels:
         app.kubernetes.io/name: fleet-service
         app.kubernetes.io/component: backend
+      annotations:
+        secrets.doppler.com/reload: "true"
     spec:
       containers:
         - name: fleet-service
@@ -26,6 +28,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: truckmoov-fleet-config
+            - secretRef:
+                name: truckmoov-fleet-secrets
+                optional: false
           readinessProbe:
             httpGet:
               path: /fleet/health
