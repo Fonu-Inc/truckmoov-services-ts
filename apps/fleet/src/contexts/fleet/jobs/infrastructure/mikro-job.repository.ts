@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { Job } from "../domain/entities/job.entity";
 import type { JobFilters, JobRepository } from "../domain/repositories/job.repository";
@@ -6,7 +6,7 @@ import { JobRecord, getFleetOrm } from "../../shared/infrastructure/persistence/
 
 @Injectable()
 export class MikroJobRepository implements JobRepository {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async save(job: Job): Promise<void> {
     const orm = await getFleetOrm(this.config.db);

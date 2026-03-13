@@ -27,7 +27,7 @@ export class ChangeRoleUseCase {
     const caller = this.tokenService.resolveAccessToken(command.accessToken);
     if (!caller) throw new ForbiddenError();
 
-    const callerRole = caller.roles[0] as Role;
+    const callerRole = caller.role as Role;
     if (!hasPermission(callerRole, Permission.USER_ROLE_CHANGE)) {
       throw new ForbiddenError();
     }
@@ -44,7 +44,7 @@ export class ChangeRoleUseCase {
       throw new ForbiddenError("Invalid role");
     }
 
-    await this.userRepo.updateRoles(command.targetUserId, [newRole]);
+    await this.userRepo.updateRole(command.targetUserId, newRole);
 
     await this.sessionStore.deleteAllForUser(command.targetUserId);
 

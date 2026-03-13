@@ -28,8 +28,8 @@ export class InMemoryUserRepository implements UserRepository {
     this.store.set(user.email, normalizeStoredUser(user));
   }
 
-  async updateRoles(userId: string, roles: string[]): Promise<void> {
-    this.updateByUserId(userId, (user) => ({ ...user, roles }));
+  async updateRole(userId: string, role: string): Promise<void> {
+    this.updateByUserId(userId, (user) => ({ ...user, role }));
   }
 
   async updatePassword(userId: string, passwordHash: string): Promise<void> {

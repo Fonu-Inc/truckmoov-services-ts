@@ -1,7 +1,7 @@
 export type AuthUserProps = {
   id: string;
   email: string;
-  roles: string[];
+  role: string;
   tenantId: string;
 };
 
@@ -12,8 +12,8 @@ export class AuthUser {
     if (!props.email.trim()) {
       throw new Error("email is required");
     }
-    if (!props.roles.length) {
-      throw new Error("roles are required");
+    if (!props.role.trim()) {
+      throw new Error("role is required");
     }
     if (!props.tenantId.trim()) {
       throw new Error("tenantId is required");
@@ -22,7 +22,7 @@ export class AuthUser {
     return new AuthUser({
       id: props.id,
       email: props.email.trim(),
-      roles: [...props.roles],
+      role: props.role.trim(),
       tenantId: props.tenantId.trim(),
     });
   }
@@ -35,8 +35,8 @@ export class AuthUser {
     return this.props.email;
   }
 
-  get roles() {
-    return [...this.props.roles];
+  get role() {
+    return this.props.role;
   }
 
   get tenantId() {
@@ -47,7 +47,7 @@ export class AuthUser {
     return {
       id: this.id,
       email: this.email,
-      roles: this.roles,
+      role: this.role,
       tenantId: this.tenantId,
     };
   }

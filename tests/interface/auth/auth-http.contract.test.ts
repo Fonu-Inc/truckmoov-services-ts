@@ -2,9 +2,12 @@ import { ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
-import { describe, afterAll, beforeAll, expect, it } from "vitest";
-import { AppModule } from "../../../apps/auth/src/app.module";
+import { describe, afterAll, beforeAll, expect, it, vi } from "vitest";
 import { createCorsOptions } from "@shared/http";
+
+process.env.PERSISTENCE_BACKEND = "in-memory";
+process.env.MAIL_TRANSPORT ??= "null";
+process.env.SMS_TRANSPORT ??= "null";
 
 function makeRegisterPayload(
   email: string,
@@ -30,6 +33,8 @@ describe("Auth HTTP contract", () => {
 
   beforeAll(async () => {
     process.env.PERSISTENCE_BACKEND = "in-memory";
+    vi.resetModules();
+    const { AppModule } = await import("../../../apps/auth/src/app.module");
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -51,6 +56,7 @@ describe("Auth HTTP contract", () => {
   afterAll(async () => {
     await app.close();
     process.env.PERSISTENCE_BACKEND = previousBackend;
+    vi.resetModules();
   });
 
   // ── Health ────────────────────────────────────────────
@@ -81,7 +87,7 @@ describe("Auth HTTP contract", () => {
     expect(res.body.refreshToken).toBeTypeOf("string");
     expect(res.body.user.email).toBe("admin@contract.com");
     expect(res.body.user.tenantId).toBeTypeOf("string");
-    expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
+    expect(res.body.user.role).toBe("ENTERPRISE_ADMIN");
   });
 
   it("POST /auth/register accepts a wrapped data payload", async () => {
@@ -97,7 +103,7 @@ describe("Auth HTTP contract", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.user.email).toBe("wrapped@contract.com");
-    expect(res.body.user.roles).toContain("ENTERPRISE_ADMIN");
+    expect(res.body.user.role).toBe("ENTERPRISE_ADMIN");
   });
 
   it("POST /auth/register rejects duplicate email", async () => {
@@ -144,7 +150,7 @@ describe("Auth HTTP contract", () => {
 
     expect(meRes.status).toBe(200);
     expect(meRes.body.email).toBe("logintest@contract.com");
-    expect(meRes.body.roles).toContain("ENTERPRISE_ADMIN");
+    expect(meRes.body.role).toBe("ENTERPRISE_ADMIN");
   });
 
   it("POST /auth/login rejects wrong credentials", async () => {

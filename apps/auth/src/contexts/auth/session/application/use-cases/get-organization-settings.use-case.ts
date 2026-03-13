@@ -34,7 +34,7 @@ export class GetOrganizationSettingsUseCase {
       this.userRepo,
     );
 
-    if (!actor.roles.includes(Role.ENTERPRISE_ADMIN)) {
+    if (actor.role !== Role.ENTERPRISE_ADMIN) {
       throw new ForbiddenError(
         "Only enterprise admins can view organization settings",
       );

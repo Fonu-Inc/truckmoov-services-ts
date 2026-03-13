@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { Vehicle } from "../../domain/entities/vehicle.entity";
 import type {
@@ -9,7 +9,7 @@ import { VehicleRecord, getFleetOrm } from "../../../shared/infrastructure/persi
 
 @Injectable()
 export class MikroVehicleRepository implements VehicleRepository {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async save(vehicle: Vehicle): Promise<void> {
     const orm = await getFleetOrm(this.config.db);

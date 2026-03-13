@@ -3,9 +3,10 @@ import { ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AppModule } from "../../../apps/fleet/src/app.module";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createCorsOptions } from "@shared/http";
+
+process.env.PERSISTENCE_BACKEND = "in-memory";
 
 describe("Fleet HTTP contract", () => {
   let app: INestApplication;
@@ -13,6 +14,8 @@ describe("Fleet HTTP contract", () => {
 
   beforeAll(async () => {
     process.env.PERSISTENCE_BACKEND = "in-memory";
+    vi.resetModules();
+    const { AppModule } = await import("../../../apps/fleet/src/app.module");
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -34,6 +37,7 @@ describe("Fleet HTTP contract", () => {
   afterAll(async () => {
     await app.close();
     process.env.PERSISTENCE_BACKEND = previousBackend;
+    vi.resetModules();
   });
 
   it("GET /fleet/health returns service health", async () => {

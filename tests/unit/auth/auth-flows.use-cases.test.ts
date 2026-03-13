@@ -125,10 +125,10 @@ class FakeUserRepository {
     this.byId.set(normalized.id, normalized);
   }
 
-  async updateRoles(userId: string, roles: string[]) {
+  async updateRole(userId: string, role: string) {
     const user = this.byId.get(userId);
     if (user) {
-      const updated = { ...user, roles };
+      const updated = { ...user, role };
       this.byId.set(userId, updated);
       this.byEmail.set(user.email, updated);
     }
@@ -264,7 +264,7 @@ function makeAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): strin
   const user = AuthUser.create({
     id: "admin-1",
     email: "admin@test.com",
-    roles: [Role.ENTERPRISE_ADMIN],
+    role: Role.ENTERPRISE_ADMIN,
     tenantId,
   });
   return tokenService.issueAccessToken(user);
@@ -274,7 +274,7 @@ function makeNonAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): st
   const user = AuthUser.create({
     id: "viewer-1",
     email: "viewer@test.com",
-    roles: [Role.FINANCE_VIEWER],
+    role: Role.FINANCE_VIEWER,
     tenantId,
   });
   return tokenService.issueAccessToken(user);
@@ -308,7 +308,7 @@ describe("RegisterUseCase", () => {
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
     expect(result.user.email).toBe("boss@co.com");
-    expect(result.user.roles).toContain(Role.ENTERPRISE_ADMIN);
+    expect(result.user.role).toBe(Role.ENTERPRISE_ADMIN);
     expect(result.user.tenantId).toBeTruthy();
     expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
     expect(
@@ -476,7 +476,7 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     expect(result.accessToken).toBeTruthy();
-    expect(result.user.roles).toContain(Role.FLEET_ADMIN);
+    expect(result.user.role).toBe(Role.FLEET_ADMIN);
     expect(result.user.tenantId).toBe("t-1");
 
     const invite = inviteRepo.getByToken("good-token");
@@ -498,7 +498,7 @@ describe("RegisterInvitedUseCase", () => {
   it("rejects registration if email is already taken", async () => {
     await userRepo.save({
       id: "existing", email: "invited@co.com", passwordHash: "x",
-      roles: [Role.DISPATCHER], tenantId: "t-1",
+      role: Role.DISPATCHER, tenantId: "t-1",
     });
 
     await expect(
@@ -538,7 +538,7 @@ describe("ForgotPasswordUseCase", () => {
 
     await userRepo.save({
       id: "u-1", email: "user@test.com", passwordHash: "hash",
-      roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      role: Role.FLEET_ADMIN, tenantId: "t-1",
     });
   });
 
@@ -609,11 +609,11 @@ describe("ResetPasswordUseCase", () => {
 
     await userRepo.save({
       id: "u-1", email: "user@test.com", passwordHash: "old-hash",
-      roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      role: Role.FLEET_ADMIN, tenantId: "t-1",
     });
 
     const user = AuthUser.create({
-      id: "u-1", email: "user@test.com", roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      id: "u-1", email: "user@test.com", role: Role.FLEET_ADMIN, tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
     await sessionStore.save("rt-2", user);
@@ -667,7 +667,7 @@ describe("ChangeRoleUseCase", () => {
 
     await userRepo.save({
       id: "target-1", email: "target@co.com", passwordHash: "hash",
-      roles: [Role.DISPATCHER], tenantId: "tenant-1",
+      role: Role.DISPATCHER, tenantId: "tenant-1",
     });
   });
 
@@ -682,14 +682,14 @@ describe("ChangeRoleUseCase", () => {
 
     expect(result.newRole).toBe(Role.OPERATIONS_MANAGER);
     const updated = userRepo.getById("target-1");
-    expect(updated?.roles).toContain(Role.OPERATIONS_MANAGER);
+    expect(updated?.role).toBe(Role.OPERATIONS_MANAGER);
   });
 
   it("invalidates target user sessions after role change", async () => {
     const accessToken = makeAdmin(tokenService, "tenant-1");
     const target = AuthUser.create({
       id: "target-1", email: "target@co.com",
-      roles: [Role.DISPATCHER], tenantId: "tenant-1",
+      role: Role.DISPATCHER, tenantId: "tenant-1",
     });
     await sessionStore.save("target-rt", target);
     expect(sessionStore.size).toBe(1);
@@ -736,7 +736,7 @@ describe("LogoutUseCase", () => {
 
     const user = AuthUser.create({
       id: "u-1", email: "user@co.com",
-      roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      role: Role.FLEET_ADMIN, tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
     expect(sessionStore.size).toBe(1);
@@ -755,7 +755,7 @@ describe("LogoutUseCase", () => {
 
     const user = AuthUser.create({
       id: "u-1", email: "user@co.com",
-      roles: [Role.FLEET_ADMIN], tenantId: "t-1",
+      role: Role.FLEET_ADMIN, tenantId: "t-1",
     });
     const at = tokenService.issueAccessToken(user);
     await sessionStore.save("rt-1", user);

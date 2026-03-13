@@ -29,7 +29,7 @@ export class InviteUserUseCase {
     const caller = this.tokenService.resolveAccessToken(command.accessToken);
     if (!caller) throw new ForbiddenError();
 
-    const callerRole = caller.roles[0] as Role;
+    const callerRole = caller.role as Role;
     if (!hasPermission(callerRole, Permission.USER_INVITE)) {
       throw new ForbiddenError();
     }

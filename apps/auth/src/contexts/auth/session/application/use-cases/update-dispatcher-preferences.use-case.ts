@@ -41,7 +41,7 @@ export class UpdateDispatcherPreferencesUseCase {
       this.userRepo,
     );
 
-    if (!actor.roles.includes(Role.DISPATCHER)) {
+    if (actor.role !== Role.DISPATCHER) {
       throw new ForbiddenError(
         "Only dispatchers can update working hours and timezone settings",
       );

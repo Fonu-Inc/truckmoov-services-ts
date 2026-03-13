@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { Driver } from "../../domain/entities/driver.entity";
 import type {
@@ -9,7 +9,7 @@ import { DriverRecord, getFleetOrm } from "../../../shared/infrastructure/persis
 
 @Injectable()
 export class MikroDriverRepository implements DriverRepository {
-  constructor(private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async save(driver: Driver): Promise<void> {
     const orm = await getFleetOrm(this.config.db);

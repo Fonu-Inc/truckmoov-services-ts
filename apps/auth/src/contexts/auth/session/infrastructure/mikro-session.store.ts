@@ -5,8 +5,8 @@ import type { SessionStore } from "../domain/ports/session-store.port";
 import {
   AuthSessionRecord,
   getAuthOrm,
-  mapRoleIdsToNames,
-  mapRoleNamesToIds,
+  mapRoleIdToName,
+  mapRoleNameToId,
 } from "./persistence/auth-orm";
 
 @Injectable()
@@ -21,7 +21,7 @@ export class MikroSessionStore implements SessionStore {
       refreshToken,
       userId: user.id,
       email: user.email,
-      roleIds: mapRoleNamesToIds(user.roles),
+      roleId: mapRoleNameToId(user.role),
       tenantId: user.tenantId,
       updatedAt: new Date(),
     });
@@ -50,7 +50,7 @@ export class MikroSessionStore implements SessionStore {
     return AuthUser.create({
       id: record.userId,
       email: record.email,
-      roles: mapRoleIdsToNames(record.roleIds),
+      role: mapRoleIdToName(record.roleId),
       tenantId: record.tenantId,
     });
   }

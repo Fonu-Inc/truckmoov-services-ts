@@ -23,7 +23,7 @@ export type StoredUser = {
   id: string;
   email: string;
   passwordHash: string;
-  roles: string[];
+  role: string;
   tenantId: string;
   profile?: UserProfile;
   notificationPreferences?: NotificationPreferences;
@@ -72,7 +72,7 @@ export interface UserRepository {
   findByEmail(email: string): Promise<StoredUser | null>;
   findById(id: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
-  updateRoles(userId: string, roles: string[]): Promise<void>;
+  updateRole(userId: string, role: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
   updateProfile(userId: string, profile: UserProfile): Promise<void>;
   updateNotificationPreferences(

@@ -45,7 +45,7 @@ export class RegisterUseCase {
     const id = this.idGenerator.generate();
     const tenantId = this.idGenerator.generate();
     const passwordHash = await this.passwordHasher.hash(command.password);
-    const roles = [Role.ENTERPRISE_ADMIN];
+    const role = Role.ENTERPRISE_ADMIN;
     const profile = {
       fullName: `${command.firstName.trim()} ${command.lastName.trim()}`,
       phoneNumber: null,
@@ -57,13 +57,13 @@ export class RegisterUseCase {
       id,
       email: command.email,
       passwordHash,
-      roles,
+      role,
       tenantId,
       profile,
     });
     await this.organizationRepo.save(organizationSettings);
 
-    const user = AuthUser.create({ id, email: command.email, roles, tenantId });
+    const user = AuthUser.create({ id, email: command.email, role, tenantId });
     const accessToken = this.tokenService.issueAccessToken(user);
     const refreshToken = this.tokenService.issueRefreshToken(user);
 

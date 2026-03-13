@@ -11,8 +11,8 @@ import {
 import {
   AuthUserRecord,
   getAuthOrm,
-  mapRoleIdsToNames,
-  mapRoleNamesToIds,
+  mapRoleIdToName,
+  mapRoleNameToId,
 } from "./persistence/auth-orm";
 
 @Injectable()
@@ -26,7 +26,7 @@ export class MikroUserRepository implements UserRepository {
     return record
       ? normalizeStoredUser({
         ...record,
-        roles: mapRoleIdsToNames(record.roleIds),
+        role: mapRoleIdToName(record.roleId),
       })
       : null;
   }
@@ -38,7 +38,7 @@ export class MikroUserRepository implements UserRepository {
     return record
       ? normalizeStoredUser({
         ...record,
-        roles: mapRoleIdsToNames(record.roleIds),
+        role: mapRoleIdToName(record.roleId),
       })
       : null;
   }
@@ -51,7 +51,7 @@ export class MikroUserRepository implements UserRepository {
       id: normalized.id,
       email: normalized.email,
       passwordHash: normalized.passwordHash,
-      roleIds: mapRoleNamesToIds(normalized.roles),
+      roleId: mapRoleNameToId(normalized.role),
       tenantId: normalized.tenantId,
       profile: normalized.profile,
       notificationPreferences: normalized.notificationPreferences,
@@ -60,11 +60,11 @@ export class MikroUserRepository implements UserRepository {
     });
   }
 
-  async updateRoles(userId: string, roles: string[]): Promise<void> {
+  async updateRole(userId: string, role: string): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeUpdate(AuthUserRecord, { id: userId }, {
-      roleIds: mapRoleNamesToIds(roles),
+      roleId: mapRoleNameToId(role),
     });
   }
 

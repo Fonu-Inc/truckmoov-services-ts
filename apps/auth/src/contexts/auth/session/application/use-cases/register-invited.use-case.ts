@@ -50,13 +50,13 @@ export class RegisterInvitedUseCase {
 
     const id = this.idGenerator.generate();
     const passwordHash = await this.passwordHasher.hash(command.password);
-    const roles = [invite.role];
+    const role = invite.role;
 
     await this.userRepo.save({
       id,
       email: command.email,
       passwordHash,
-      roles,
+      role,
       tenantId: invite.tenantId,
     });
 
@@ -65,7 +65,7 @@ export class RegisterInvitedUseCase {
     const user = AuthUser.create({
       id,
       email: command.email,
-      roles,
+      role,
       tenantId: invite.tenantId,
     });
 

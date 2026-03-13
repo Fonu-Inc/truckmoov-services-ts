@@ -27,7 +27,7 @@ export class GetDispatcherPreferencesUseCase {
       this.userRepo,
     );
 
-    if (!actor.roles.includes(Role.DISPATCHER)) {
+    if (actor.role !== Role.DISPATCHER) {
       throw new ForbiddenError(
         "Only dispatchers can view working hours and timezone settings",
       );

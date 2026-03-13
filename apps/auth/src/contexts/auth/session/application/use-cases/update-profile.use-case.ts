@@ -49,7 +49,7 @@ export class UpdateProfileUseCase {
       userId: actor.id,
       email: actor.email,
       tenantId: actor.tenantId,
-      roles: actor.roles,
+      role: actor.role,
       profile: mergedProfile,
     };
   }

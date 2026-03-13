@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prepare": "husky",
     "build": "nest build auth && nest build fleet",
     "build:auth": "nest build auth",
     "build:fleet": "nest build fleet",
@@ -43,6 +44,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "@nestjs/cli": "^10.4.7",
     "@nestjs/schematics": "^10.2.3",
     "@nestjs/testing": "^10.4.20",

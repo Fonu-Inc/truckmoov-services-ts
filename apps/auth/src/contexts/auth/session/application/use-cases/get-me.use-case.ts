@@ -21,7 +21,7 @@ export class GetMeUseCase {
       AuthUser.create({
         id: "dev-user",
         email: "dev-admin",
-        roles: ["admin"],
+        role: "admin",
         tenantId: "dev-tenant",
       });
 

@@ -56,8 +56,8 @@ export class ProfileDataSchema {
   @ApiProperty()
   tenantId!: string;
 
-  @ApiProperty({ type: "string", isArray: true })
-  roles!: string[];
+  @ApiProperty()
+  role!: string;
 
   @ApiProperty({ type: UserProfileSchema })
   profile!: UserProfileSchema;

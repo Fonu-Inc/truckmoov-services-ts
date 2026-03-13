@@ -30,7 +30,7 @@ export class AuthSessionRecord {
   refreshToken!: string;
   userId!: string;
   email!: string;
-  roleIds!: number[];
+  roleId!: number;
   tenantId!: string;
   updatedAt!: Date;
 }
@@ -42,7 +42,7 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
     refreshToken: { type: "string", primary: true },
     userId: { type: "string", length: 64 },
     email: { type: "string", length: 128 },
-    roleIds: { type: "json" },
+    roleId: { type: "number" },
     tenantId: { type: "string", length: 64, default: "default" },
     updatedAt: {
       type: "datetime",
@@ -58,7 +58,7 @@ export class AuthUserRecord {
   id!: string;
   email!: string;
   passwordHash!: string;
-  roleIds!: number[];
+  roleId!: number;
   tenantId!: string;
   profile?: { fullName: string | null; phoneNumber: string | null };
   notificationPreferences?: {
@@ -85,7 +85,7 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     id: { type: "string", primary: true },
     email: { type: "string", length: 128, unique: true },
     passwordHash: { type: "string" },
-    roleIds: { type: "json" },
+    roleId: { type: "number" },
     tenantId: { type: "string", length: 64, default: "default" },
     profile: { type: "json", nullable: true },
     notificationPreferences: { type: "json", nullable: true },
@@ -191,12 +191,12 @@ export const PasswordResetRecordSchema = new EntitySchema<PasswordResetRecord>({
 
 let ormPromise: Promise<MikroORM> | null = null;
 
-export function mapRoleIdsToNames(roleIds: number[]): string[] {
-  return roleIds.map((roleId) => roleFromId(roleId));
+export function mapRoleIdToName(roleId: number): string {
+  return roleFromId(roleId);
 }
 
-export function mapRoleNamesToIds(roles: string[]): number[] {
-  return roles.map((role) => roleToId(role));
+export function mapRoleNameToId(role: string): number {
+  return roleToId(role);
 }
 
 async function hasColumn(orm: MikroORM, tableName: string, columnName: string) {
@@ -213,44 +213,44 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
 
   if (
     await hasColumn(orm, "auth_users", "roles")
-    && await hasColumn(orm, "auth_users", "role_ids")
+    && await hasColumn(orm, "auth_users", "role_id")
   ) {
     const rows = await connection.execute(
-      "SELECT id, roles, role_ids FROM auth_users",
-    ) as Array<{ id: string; roles: string | string[] | null; role_ids: string | number[] | null }>;
+      "SELECT id, roles, role_id FROM auth_users",
+    ) as Array<{ id: string; roles: string | string[] | null; role_id: number | null }>;
 
     for (const row of rows) {
-      if (row.role_ids || !row.roles) {
+      if (row.role_id || !row.roles) {
         continue;
       }
       const roles = Array.isArray(row.roles)
         ? row.roles
         : JSON.parse(row.roles) as string[];
       await connection.execute(
-        "UPDATE auth_users SET role_ids = ? WHERE id = ?",
-        [JSON.stringify(mapRoleNamesToIds(roles)), row.id],
+        "UPDATE auth_users SET role_id = ? WHERE id = ?",
+        [mapRoleNameToId(roles[0]), row.id],
       );
     }
   }
 
   if (
     await hasColumn(orm, "auth_sessions", "roles")
-    && await hasColumn(orm, "auth_sessions", "role_ids")
+    && await hasColumn(orm, "auth_sessions", "role_id")
   ) {
     const rows = await connection.execute(
-      "SELECT refresh_token, roles, role_ids FROM auth_sessions",
-    ) as Array<{ refresh_token: string; roles: string | string[] | null; role_ids: string | number[] | null }>;
+      "SELECT refresh_token, roles, role_id FROM auth_sessions",
+    ) as Array<{ refresh_token: string; roles: string | string[] | null; role_id: number | null }>;
 
     for (const row of rows) {
-      if (row.role_ids || !row.roles) {
+      if (row.role_id || !row.roles) {
         continue;
       }
       const roles = Array.isArray(row.roles)
         ? row.roles
         : JSON.parse(row.roles) as string[];
       await connection.execute(
-        "UPDATE auth_sessions SET role_ids = ? WHERE refresh_token = ?",
-        [JSON.stringify(mapRoleNamesToIds(roles)), row.refresh_token],
+        "UPDATE auth_sessions SET role_id = ? WHERE refresh_token = ?",
+        [mapRoleNameToId(roles[0]), row.refresh_token],
       );
     }
   }

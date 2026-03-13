@@ -14,7 +14,7 @@ export class DevIdentityProvider implements IdentityProvider {
     return AuthUser.create({
       id: randomUUID(),
       email,
-      roles: ["admin"],
+      role: "admin",
       tenantId: "dev-tenant",
     });
   }

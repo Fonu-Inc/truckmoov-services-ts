@@ -57,6 +57,29 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
 };
 
+const ROLE_INHERITANCE: Partial<Record<Role, Role[]>> = {
+  [Role.OPERATIONS_MANAGER]: [Role.DISPATCHER],
+  [Role.FLEET_ADMIN]: [Role.OPERATIONS_MANAGER, Role.DISPATCHER, Role.FINANCE_VIEWER],
+  [Role.PLATFORM_ADMIN]: [Role.FINANCE_VIEWER],
+};
+
 export function hasPermission(role: Role, perm: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(perm) ?? false;
+  const visited = new Set<Role>();
+  const stack: Role[] = [role];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    if (ROLE_PERMISSIONS[current]?.includes(perm)) {
+      return true;
+    }
+
+    for (const inherited of ROLE_INHERITANCE[current] ?? []) {
+      stack.push(inherited);
+    }
+  }
+
+  return false;
 }

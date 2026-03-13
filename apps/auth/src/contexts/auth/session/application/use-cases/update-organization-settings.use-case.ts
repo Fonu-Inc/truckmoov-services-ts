@@ -44,7 +44,7 @@ export class UpdateOrganizationSettingsUseCase {
       this.userRepo,
     );
 
-    if (!actor.roles.includes(Role.ENTERPRISE_ADMIN)) {
+    if (actor.role !== Role.ENTERPRISE_ADMIN) {
       throw new ForbiddenError(
         "Only enterprise admins can update organization settings",
       );
