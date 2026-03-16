@@ -67,6 +67,14 @@ export class InMemoryDriverRepository implements DriverRepository {
     );
   }
 
+  async findByWhatsappNumber(whatsappNumber: string, tenantId: string): Promise<Driver | null> {
+    return (
+      Array.from(this.data.values()).find(
+        (d) => d.contactChannels.whatsappNumber === whatsappNumber && d.tenantId === tenantId,
+      ) ?? null
+    );
+  }
+
   async deleteById(id: string): Promise<void> {
     this.data.delete(id);
   }

@@ -211,6 +211,209 @@ export class VehicleHealthResponse extends StandardApiResponse<VehicleHealthSche
   data!: VehicleHealthSchema;
 }
 
+export class NearestVehicleSchema {
+  @ApiProperty()
+  vehicleId!: string;
+
+  @ApiProperty()
+  plateNumber!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty({ nullable: true })
+  assignedDriverId!: string | null;
+
+  @ApiProperty()
+  lat!: number;
+
+  @ApiProperty()
+  lng!: number;
+
+  @ApiProperty()
+  distanceKm!: number;
+}
+
+export class NearestVehicleListResponse extends StandardApiResponse<NearestVehicleSchema[]> {
+  @ApiProperty({ type: NearestVehicleSchema, isArray: true })
+  data!: NearestVehicleSchema[];
+}
+
+export class AlertSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  type!: string;
+
+  @ApiProperty({ enum: ["low", "medium", "high", "critical"] })
+  severity!: string;
+
+  @ApiProperty({ enum: ["open", "acknowledged", "resolved", "escalated"] })
+  status!: string;
+
+  @ApiProperty({ nullable: true })
+  vehicleId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  jobId!: string | null;
+
+  @ApiProperty({ type: "object" })
+  details!: Record<string, unknown>;
+
+  @ApiProperty()
+  triggeredAt!: string;
+
+  @ApiProperty({ nullable: true })
+  acknowledgedAt!: string | null;
+
+  @ApiProperty({ nullable: true })
+  resolvedAt!: string | null;
+
+  @ApiProperty({ nullable: true })
+  escalatedAt!: string | null;
+
+  @ApiProperty({ nullable: true })
+  acknowledgedBy!: string | null;
+
+  @ApiProperty({ nullable: true })
+  resolvedBy!: string | null;
+}
+
+export class AlertListResponse extends StandardApiResponse<AlertSchema[]> {
+  @ApiProperty({ type: AlertSchema, isArray: true })
+  data!: AlertSchema[];
+}
+
+export class AlertResponse extends StandardApiResponse<AlertSchema> {
+  @ApiProperty({ type: AlertSchema })
+  data!: AlertSchema;
+}
+
+export class AlertStatsSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: "object" })
+  byStatus!: Record<string, number>;
+
+  @ApiProperty({ type: "object" })
+  byType!: Record<string, number>;
+
+  @ApiProperty({ type: "object" })
+  bySeverity!: Record<string, number>;
+
+  @ApiProperty({ nullable: true })
+  meanTimeToResolveMs!: number | null;
+}
+
+export class AlertStatsResponse extends StandardApiResponse<AlertStatsSchema> {
+  @ApiProperty({ type: AlertStatsSchema })
+  data!: AlertStatsSchema;
+}
+
+export class DashboardVehiclesSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+  @ApiProperty() assigned!: number;
+  @ApiProperty() seenInLastHour!: number;
+}
+
+export class DashboardDriversSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+  @ApiProperty() assigned!: number;
+}
+
+export class DashboardJobsSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: "object" }) byStatus!: Record<string, number>;
+}
+
+export class DashboardAlertsSchema {
+  @ApiProperty() open!: number;
+  @ApiProperty() escalated!: number;
+}
+
+export class DashboardSchema {
+  @ApiProperty({ type: DashboardVehiclesSchema }) vehicles!: DashboardVehiclesSchema;
+  @ApiProperty({ type: DashboardDriversSchema }) drivers!: DashboardDriversSchema;
+  @ApiProperty({ type: DashboardJobsSchema }) jobs!: DashboardJobsSchema;
+  @ApiProperty({ type: DashboardAlertsSchema }) alerts!: DashboardAlertsSchema;
+  @ApiProperty() generatedAt!: string;
+}
+
+export class DashboardResponse extends StandardApiResponse<DashboardSchema> {
+  @ApiProperty({ type: DashboardSchema })
+  data!: DashboardSchema;
+}
+
+export class DeliveryMetricsSchema {
+  @ApiProperty() totalJobs!: number;
+  @ApiProperty() delivered!: number;
+  @ApiProperty() cancelled!: number;
+  @ApiProperty() inProgress!: number;
+  @ApiProperty() deliverySuccessRate!: number;
+  @ApiProperty({ nullable: true }) averageCycleTimeMs!: number | null;
+  @ApiProperty() vehicleUtilizationRate!: number;
+  @ApiProperty() generatedAt!: string;
+}
+
+export class DeliveryMetricsResponse extends StandardApiResponse<DeliveryMetricsSchema> {
+  @ApiProperty({ type: DeliveryMetricsSchema })
+  data!: DeliveryMetricsSchema;
+}
+
+export class DocumentSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: ["job", "vehicle", "driver"] }) entityType!: string;
+  @ApiProperty() entityId!: string;
+  @ApiProperty({ enum: ["pod", "invoice", "permit", "other"] }) docType!: string;
+  @ApiProperty() filename!: string;
+  @ApiProperty() contentType!: string;
+  @ApiProperty() sizeBytes!: number;
+  @ApiProperty() uploadedBy!: string;
+  @ApiProperty() uploadedAt!: string;
+  @ApiProperty({ nullable: true }) expiresAt!: string | null;
+}
+
+export class DocumentResponse extends StandardApiResponse<DocumentSchema> {
+  @ApiProperty({ type: DocumentSchema })
+  data!: DocumentSchema;
+}
+
+export class DocumentListResponse extends StandardApiResponse<DocumentSchema[]> {
+  @ApiProperty({ type: DocumentSchema, isArray: true })
+  data!: DocumentSchema[];
+}
+
+export class DownloadUrlSchema {
+  @ApiProperty() url!: string;
+  @ApiProperty() expiresIn!: number;
+}
+
+export class DownloadUrlResponse extends StandardApiResponse<DownloadUrlSchema> {
+  @ApiProperty({ type: DownloadUrlSchema })
+  data!: DownloadUrlSchema;
+}
+
+export class AccessLogEntrySchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() docId!: string;
+  @ApiProperty({ enum: ["upload", "download"] }) action!: string;
+  @ApiProperty() userId!: string;
+  @ApiProperty() ip!: string;
+  @ApiProperty() at!: string;
+}
+
+export class AccessLogListResponse extends StandardApiResponse<AccessLogEntrySchema[]> {
+  @ApiProperty({ type: AccessLogEntrySchema, isArray: true })
+  data!: AccessLogEntrySchema[];
+}
+
 export class UploadedMediaSchema {
   @ApiProperty()
   key!: string;

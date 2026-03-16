@@ -4,15 +4,21 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Inject,
   Logger,
   NotFoundException,
   Param,
-  Patch,
   Post,
   Query,
+  Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
+  Patch,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
@@ -44,14 +50,24 @@ import {
 } from "./dto/vehicle.dto";
 import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
 import {
+  AccessLogListResponse,
+  AlertListResponse,
+  AlertResponse,
+  AlertStatsResponse,
   BulkDriverImportResponse,
   BulkVehicleImportResponse,
+  DashboardResponse,
+  DeliveryMetricsResponse,
   DispatchSearchResponse,
+  DocumentListResponse,
+  DocumentResponse,
+  DownloadUrlResponse,
   DriverListResponse,
   DriverResponse,
   FleetHealthResponse,
   JobListResponse,
   JobStatusResponse,
+  NearestVehicleListResponse,
   UploadedMediaResponse,
   VehicleDriverAssignmentResponse,
   VehicleHealthListResponse,
@@ -59,6 +75,7 @@ import {
   VehicleListResponse,
   VehicleResponse,
 } from "./dto/fleet.schema";
+import { haversineKm } from "./utils/haversine";
 import {
   BulkImportDriversUseCase,
   CreateDriverUseCase,
@@ -71,6 +88,24 @@ import {
   UpdateDriverUseCase,
 } from "./contexts/fleet/drivers";
 import { ListJobsUseCase, PublishJobStatusChangedUseCase } from "./contexts/fleet/jobs";
+import {
+  AcknowledgeAlertUseCase,
+  AlertNotFoundError,
+  GetAlertStatsUseCase,
+  ListAlertsUseCase,
+  ResolveAlertUseCase,
+} from "./contexts/fleet/alerts";
+import type { AlertStatus } from "./contexts/fleet/alerts/domain/alert.entity";
+import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase, type ExportEntity } from "./contexts/fleet/reports";
+import { AuditLogService, type AuditEntityType } from "./audit-log.service";
+import {
+  GetDownloadUrlUseCase,
+  ListAccessLogUseCase,
+  ListDocumentsUseCase,
+  UploadDocumentUseCase,
+  type DocumentType,
+  type EntityType,
+} from "./contexts/fleet/documents";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import {
   AssignDriverToVehicleUseCase,
@@ -137,12 +172,31 @@ export class FleetController {
     private readonly publishJobStatusChangedUseCase: PublishJobStatusChangedUseCase,
     private readonly geofenceService: GeofenceService,
     private readonly vehicleHealthService: VehicleHealthService,
+    @Inject(ListAlertsUseCase) private readonly listAlertsUseCase: ListAlertsUseCase,
+    @Inject(AcknowledgeAlertUseCase) private readonly acknowledgeAlertUseCase: AcknowledgeAlertUseCase,
+    @Inject(ResolveAlertUseCase) private readonly resolveAlertUseCase: ResolveAlertUseCase,
+    @Inject(GetAlertStatsUseCase) private readonly getAlertStatsUseCase: GetAlertStatsUseCase,
+    @Inject(DashboardUseCase) private readonly dashboardUseCase: DashboardUseCase,
+    @Inject(DeliveryMetricsUseCase) private readonly deliveryMetricsUseCase: DeliveryMetricsUseCase,
+    @Inject(ExportUseCase) private readonly exportUseCase: ExportUseCase,
+    @Inject(UploadDocumentUseCase) private readonly uploadDocumentUseCase: UploadDocumentUseCase,
+    @Inject(GetDownloadUrlUseCase) private readonly getDownloadUrlUseCase: GetDownloadUrlUseCase,
+    @Inject(ListDocumentsUseCase) private readonly listDocumentsUseCase: ListDocumentsUseCase,
+    @Inject(ListAccessLogUseCase) private readonly listAccessLogUseCase: ListAccessLogUseCase,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /** Health check */
   @Get("health")
   health(): FleetHealthResponse {
     return { status: true, message: "success", data: { service: "fleet" } };
+  }
+
+  /** Readiness probe — L14 */
+  @Get("ready")
+  @ApiOperation({ summary: "Readiness probe" })
+  ready(): { ready: boolean } {
+    return { ready: true };
   }
 
   @Get("test-sentry")
@@ -222,6 +276,47 @@ export class FleetController {
     const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { deviceId: string } | null }>)
       .map((v) => this.buildHealth(v));
     return { status: true, data };
+  }
+
+  @Get("vehicles/nearest")
+  @Roles("admin", "fleet_manager", "operations_manager", "dispatcher")
+  @ApiOperation({ summary: "Find nearest vehicles to a coordinate" })
+  @ApiQuery({ name: "lat", required: true, type: Number })
+  @ApiQuery({ name: "lng", required: true, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiOkResponse({ type: NearestVehicleListResponse })
+  async nearestVehicles(
+    @Query("lat") lat: string,
+    @Query("lng") lng: string,
+    @Query("limit") limit = "5",
+  ): Promise<NearestVehicleListResponse> {
+    const originLat = parseFloat(lat);
+    const originLng = parseFloat(lng);
+    const maxResults = parseInt(limit, 10) || 5;
+
+    const vehicles = await this.listVehiclesUseCase.execute() as unknown as Array<{
+      id: string; plateNumber: string; model: string; assignedDriverId: string | null;
+    }>;
+
+    const data = vehicles
+      .map((v) => {
+        const entry = this.vehicleHealthService.get(v.id);
+        if (!entry || entry.lat == null || entry.lng == null) return null;
+        return {
+          vehicleId: v.id,
+          plateNumber: v.plateNumber,
+          model: v.model,
+          assignedDriverId: v.assignedDriverId,
+          lat: entry.lat,
+          lng: entry.lng,
+          distanceKm: haversineKm(originLat, originLng, entry.lat, entry.lng),
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, maxResults);
+
+    return { status: true, message: "success", data } as unknown as NearestVehicleListResponse;
   }
 
   /** Retrieve vehicles with optional dispatch-centric filters */
@@ -578,6 +673,218 @@ export class FleetController {
       status,
       tenantId: tenant,
     }) as unknown as Promise<JobStatusResponse>;
+  }
+
+  @Get("alerts/stats")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Alert statistics — H06" })
+  @ApiOkResponse({ type: AlertStatsResponse })
+  async getAlertStats(@Query("tenantId") tenantId = "default"): Promise<AlertStatsResponse> {
+    const data = await this.getAlertStatsUseCase.execute(tenantId);
+    return { status: true, message: "success", data } as unknown as AlertStatsResponse;
+  }
+
+  @Get("alerts")
+  @Roles("admin", "fleet_manager", "operations_manager", "dispatcher")
+  @ApiOperation({ summary: "List alerts — H04" })
+  @ApiQuery({ name: "status", required: false, enum: ["open", "acknowledged", "resolved", "escalated"] })
+  @ApiQuery({ name: "type", required: false, type: String })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: AlertListResponse })
+  async listAlerts(
+    @Query("tenantId") tenantId = "default",
+    @Query("status") status?: string,
+    @Query("type") type?: string,
+    @Query("vehicleId") vehicleId?: string,
+  ): Promise<AlertListResponse> {
+    const alerts = await this.listAlertsUseCase.execute(tenantId, {
+      status: status as AlertStatus | undefined,
+      type,
+      vehicleId,
+    });
+    const data = alerts.map((a) => ({ ...a.toPrimitives(), triggeredAt: a.triggeredAt.toISOString(), acknowledgedAt: a.acknowledgedAt?.toISOString() ?? null, resolvedAt: a.resolvedAt?.toISOString() ?? null, escalatedAt: a.escalatedAt?.toISOString() ?? null }));
+    return { status: true, message: "success", data } as unknown as AlertListResponse;
+  }
+
+  @Post("alerts/:id/acknowledge")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @ApiOperation({ summary: "Acknowledge alert — H04" })
+  @ApiOkResponse({ type: AlertResponse })
+  async acknowledgeAlert(
+    @Param("id") id: string,
+    @Query("tenantId") tenantId = "default",
+    @Query("by") by = "system",
+  ): Promise<AlertResponse> {
+    try {
+      const alert = await this.acknowledgeAlertUseCase.execute(tenantId, id, by);
+      return { status: true, message: "success", data: alert.toPrimitives() } as unknown as AlertResponse;
+    } catch (e) {
+      if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
+      throw e;
+    }
+  }
+
+  @Post("alerts/:id/resolve")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @ApiOperation({ summary: "Resolve alert — H04" })
+  @ApiOkResponse({ type: AlertResponse })
+  async resolveAlert(
+    @Param("id") id: string,
+    @Query("tenantId") tenantId = "default",
+    @Query("by") by = "system",
+  ): Promise<AlertResponse> {
+    try {
+      const alert = await this.resolveAlertUseCase.execute(tenantId, id, by);
+      return { status: true, message: "success", data: alert.toPrimitives() } as unknown as AlertResponse;
+    } catch (e) {
+      if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
+      throw e;
+    }
+  }
+
+  @Get("reports/dashboard")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Operational dashboard — I01" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: DashboardResponse })
+  async getDashboard(@Query("tenantId") tenantId = "default"): Promise<DashboardResponse> {
+    const data = await this.dashboardUseCase.execute(tenantId);
+    return { status: true, message: "success", data } as unknown as DashboardResponse;
+  }
+
+  @Get("reports/delivery-metrics")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Delivery metrics — I05" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: DeliveryMetricsResponse })
+  async getDeliveryMetrics(@Query("tenantId") tenantId = "default"): Promise<DeliveryMetricsResponse> {
+    const data = await this.deliveryMetricsUseCase.execute(tenantId);
+    return { status: true, message: "success", data } as unknown as DeliveryMetricsResponse;
+  }
+
+  @Get("reports/export/:entity")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @Header("Content-Type", "text/csv")
+  @ApiOperation({ summary: "CSV export — I07" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  async exportCsv(
+    @Param("entity") entity: string,
+    @Query("tenantId") tenantId = "default",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    @Res() res: any,
+  ): Promise<void> {
+    const validEntities: ExportEntity[] = ["jobs", "vehicles", "drivers", "alerts"];
+    if (!validEntities.includes(entity as ExportEntity)) {
+      throw new BadRequestException(`entity must be one of: ${validEntities.join(", ")}`);
+    }
+    const csv = await this.exportUseCase.toCsv(entity as ExportEntity, tenantId);
+    res.setHeader("Content-Disposition", `attachment; filename="${entity}.csv"`);
+    res.send(csv);
+  }
+
+  @Post("documents")
+  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiOperation({ summary: "Upload document — J01" })
+  @ApiCreatedResponse({ type: DocumentResponse })
+  async uploadDocument(
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @Query("tenantId") tenantId = "default",
+    @Query("entityType") entityType: string,
+    @Query("entityId") entityId: string,
+    @Query("docType") docType: string,
+    @Query("uploadedBy") uploadedBy = "system",
+  ): Promise<DocumentResponse> {
+    const validEntityTypes: EntityType[] = ["job", "vehicle", "driver"];
+    const validDocTypes: DocumentType[] = ["pod", "invoice", "permit", "other"];
+    if (!validEntityTypes.includes(entityType as EntityType)) throw new BadRequestException("invalid entityType");
+    if (!validDocTypes.includes(docType as DocumentType)) throw new BadRequestException("invalid docType");
+    if (!file) throw new BadRequestException("file is required");
+
+    const doc = await this.uploadDocumentUseCase.execute({
+      tenantId,
+      entityType: entityType as EntityType,
+      entityId,
+      docType: docType as DocumentType,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      buffer: file.buffer,
+      uploadedBy,
+    });
+
+    return { status: true, message: "uploaded", data: { ...doc.toPrimitives(), uploadedAt: doc.uploadedAt.toISOString(), expiresAt: doc.expiresAt?.toISOString() ?? null } } as unknown as DocumentResponse;
+  }
+
+  @Get("documents")
+  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @ApiOperation({ summary: "List documents for an entity — J01" })
+  @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
+  @ApiQuery({ name: "entityId", required: true, type: String })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: DocumentListResponse })
+  async listDocuments(
+    @Query("tenantId") tenantId = "default",
+    @Query("entityType") entityType: string,
+    @Query("entityId") entityId: string,
+  ): Promise<DocumentListResponse> {
+    const docs = await this.listDocumentsUseCase.execute(tenantId, entityType as EntityType, entityId);
+    const data = docs.map((d) => ({ ...d.toPrimitives(), uploadedAt: d.uploadedAt.toISOString(), expiresAt: d.expiresAt?.toISOString() ?? null }));
+    return { status: true, message: "success", data } as unknown as DocumentListResponse;
+  }
+
+  @Get("documents/:id/download-url")
+  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager", "driver")
+  @ApiOperation({ summary: "Get secure download URL — J02" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: DownloadUrlResponse })
+  async getDocumentDownloadUrl(
+    @Param("id") id: string,
+    @Query("tenantId") tenantId = "default",
+    @Query("userId") userId = "system",
+    @Req() req: { ip?: string },
+  ): Promise<DownloadUrlResponse> {
+    const result = await this.getDownloadUrlUseCase.execute(tenantId, id, userId, req.ip ?? "unknown");
+    return { status: true, message: "success", data: result } as unknown as DownloadUrlResponse;
+  }
+
+  @Get("documents/:id/access-log")
+  @Roles("admin", "operations_manager")
+  @ApiOperation({ summary: "Document access log — J04" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: AccessLogListResponse })
+  async getDocumentAccessLog(
+    @Param("id") docId: string,
+    @Query("tenantId") tenantId = "default",
+  ): Promise<AccessLogListResponse> {
+    const entries = await this.listAccessLogUseCase.execute(tenantId, docId);
+    const data = entries.map((e) => ({ ...e, at: e.at.toISOString() }));
+    return { status: true, message: "success", data } as unknown as AccessLogListResponse;
+  }
+
+  @Get("audit")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Activity/audit log — M06" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "alert", "document", "geofence"] })
+  @ApiQuery({ name: "entityId", required: false, type: String })
+  @ApiQuery({ name: "action", required: false, type: String })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiOkResponse({ description: "Audit entries (newest first)" })
+  getAuditLog(
+    @Query("tenantId") tenantId = "default",
+    @Query("entityType") entityType?: string,
+    @Query("entityId") entityId?: string,
+    @Query("action") action?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const entries = this.auditLog.query(tenantId, {
+      entityType: entityType as AuditEntityType | undefined,
+      entityId,
+      action,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+    return { status: true, message: "success", data: entries };
   }
 
   private parseOptionalBoolean(

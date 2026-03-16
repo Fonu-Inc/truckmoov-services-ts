@@ -61,6 +61,18 @@ export class UpdateOrganizationSettingsUseCase {
           command.branding?.organizationName === undefined
             ? current.branding.organizationName
             : command.branding.organizationName,
+        contactEmail:
+          command.branding?.contactEmail === undefined
+            ? current.branding.contactEmail
+            : command.branding.contactEmail,
+        phoneNumber:
+          command.branding?.phoneNumber === undefined
+            ? current.branding.phoneNumber
+            : command.branding.phoneNumber,
+        address:
+          command.branding?.address === undefined
+            ? current.branding.address
+            : command.branding.address,
         logoUrl:
           command.branding?.logoUrl === undefined
             ? current.branding.logoUrl
@@ -77,9 +89,38 @@ export class UpdateOrganizationSettingsUseCase {
           command.branding?.secondaryColor === undefined
             ? current.branding.secondaryColor
             : command.branding.secondaryColor,
+        accentColor:
+          command.branding?.accentColor === undefined
+            ? current.branding.accentColor
+            : command.branding.accentColor,
+        successColor:
+          command.branding?.successColor === undefined
+            ? current.branding.successColor
+            : command.branding.successColor,
+        warningColor:
+          command.branding?.warningColor === undefined
+            ? current.branding.warningColor
+            : command.branding.warningColor,
+        destructiveColor:
+          command.branding?.destructiveColor === undefined
+            ? current.branding.destructiveColor
+            : command.branding.destructiveColor,
+        sidebarBackground:
+          command.branding?.sidebarBackground === undefined
+            ? current.branding.sidebarBackground
+            : command.branding.sidebarBackground,
+        sidebarText:
+          command.branding?.sidebarText === undefined
+            ? current.branding.sidebarText
+            : command.branding.sidebarText,
+        sidebarAccent:
+          command.branding?.sidebarAccent === undefined
+            ? current.branding.sidebarAccent
+            : command.branding.sidebarAccent,
       },
       defaults: {
         timezone: command.defaults?.timezone ?? current.defaults.timezone,
+        language: command.defaults?.language ?? current.defaults.language,
         currency: command.defaults?.currency ?? current.defaults.currency,
         dateFormat: command.defaults?.dateFormat ?? current.defaults.dateFormat,
         weekStartsOn:

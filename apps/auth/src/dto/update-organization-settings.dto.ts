@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import {
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
@@ -17,6 +18,20 @@ class BrandingDto {
   organizationName?: string;
 
   @IsOptional()
+  @IsEmail()
+  contactEmail?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phoneNumber?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   logoUrl?: string | null;
@@ -28,23 +43,59 @@ class BrandingDto {
 
   @IsOptional()
   @IsString()
-  @Matches(HEX_COLOR_PATTERN, {
-    message: "primaryColor must be a valid hex color (e.g. #0052CC)",
-  })
+  @Matches(HEX_COLOR_PATTERN, { message: "primaryColor must be a valid hex color (e.g. #0052CC)" })
   primaryColor?: string | null;
 
   @IsOptional()
   @IsString()
-  @Matches(HEX_COLOR_PATTERN, {
-    message: "secondaryColor must be a valid hex color (e.g. #00A3FF)",
-  })
+  @Matches(HEX_COLOR_PATTERN, { message: "secondaryColor must be a valid hex color (e.g. #00A3FF)" })
   secondaryColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "accentColor must be a valid hex color" })
+  accentColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "successColor must be a valid hex color" })
+  successColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "warningColor must be a valid hex color" })
+  warningColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "destructiveColor must be a valid hex color" })
+  destructiveColor?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "sidebarBackground must be a valid hex color" })
+  sidebarBackground?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "sidebarText must be a valid hex color" })
+  sidebarText?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HEX_COLOR_PATTERN, { message: "sidebarAccent must be a valid hex color" })
+  sidebarAccent?: string | null;
 }
 
 class DefaultsDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  language?: string;
 
   @IsOptional()
   @IsString()

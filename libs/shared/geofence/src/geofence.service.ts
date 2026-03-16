@@ -5,6 +5,7 @@ import { BoundingBox, LatLng } from "./geofence.types";
 export class GeofenceService {
   private readonly logger = new Logger(GeofenceService.name);
   private readonly geofences = new Map<string, BoundingBox>();
+  private readonly prevState = new Map<string, boolean>();
 
   set(vehicleId: string, box: BoundingBox) {
     this.geofences.set(vehicleId, box);
@@ -27,7 +28,18 @@ export class GeofenceService {
     return withinLat && withinLng;
   }
 
+  checkTransition(vehicleId: string, point: LatLng): "entered" | "exited" | null {
+    const now = this.isInside(vehicleId, point);
+    const prev = this.prevState.get(vehicleId);
+    this.prevState.set(vehicleId, now);
+    if (prev === undefined) return null;
+    if (!prev && now) return "entered";
+    if (prev && !now) return "exited";
+    return null;
+  }
+
   clear(vehicleId: string) {
     this.geofences.delete(vehicleId);
+    this.prevState.delete(vehicleId);
   }
 }

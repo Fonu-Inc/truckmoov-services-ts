@@ -104,13 +104,24 @@ export class OrganizationSettingsRecord {
   tenantId!: string;
   branding!: {
     organizationName: string;
+    contactEmail: string | null;
+    phoneNumber: string | null;
+    address: string | null;
     logoUrl: string | null;
     profilePictureUrl: string | null;
     primaryColor: string | null;
     secondaryColor: string | null;
+    accentColor: string | null;
+    successColor: string | null;
+    warningColor: string | null;
+    destructiveColor: string | null;
+    sidebarBackground: string | null;
+    sidebarText: string | null;
+    sidebarAccent: string | null;
   };
   defaults!: {
     timezone: string;
+    language: string;
     currency: string;
     dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
     weekStartsOn: "monday" | "sunday";

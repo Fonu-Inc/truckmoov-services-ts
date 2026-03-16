@@ -158,6 +158,15 @@ export class OrganizationBrandingSchema {
   organizationName!: string;
 
   @ApiProperty({ nullable: true })
+  contactEmail!: string | null;
+
+  @ApiProperty({ nullable: true })
+  phoneNumber!: string | null;
+
+  @ApiProperty({ nullable: true })
+  address!: string | null;
+
+  @ApiProperty({ nullable: true })
   logoUrl!: string | null;
 
   @ApiProperty({ nullable: true })
@@ -168,11 +177,35 @@ export class OrganizationBrandingSchema {
 
   @ApiProperty({ nullable: true })
   secondaryColor!: string | null;
+
+  @ApiProperty({ nullable: true })
+  accentColor!: string | null;
+
+  @ApiProperty({ nullable: true })
+  successColor!: string | null;
+
+  @ApiProperty({ nullable: true })
+  warningColor!: string | null;
+
+  @ApiProperty({ nullable: true })
+  destructiveColor!: string | null;
+
+  @ApiProperty({ nullable: true })
+  sidebarBackground!: string | null;
+
+  @ApiProperty({ nullable: true })
+  sidebarText!: string | null;
+
+  @ApiProperty({ nullable: true })
+  sidebarAccent!: string | null;
 }
 
 export class OrganizationDefaultsSchema {
   @ApiProperty()
   timezone!: string;
+
+  @ApiProperty()
+  language!: string;
 
   @ApiProperty()
   currency!: string;

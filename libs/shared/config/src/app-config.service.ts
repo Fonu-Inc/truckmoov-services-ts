@@ -27,6 +27,19 @@ export class AppConfigService {
   get fleet() {
     return {
       defaultTenant: this.config.get("DEFAULT_TENANT", "default"),
+      reportIntervalHours: this.config.get<number>("REPORT_INTERVAL_HOURS", 24),
+      alertEscalationMinutes: this.config.get<number>("ALERT_ESCALATION_MINUTES", 30),
+      documentRetentionDays: this.config.get<number>("DOCUMENT_RETENTION_DAYS", 365),
+      rateLimitRps: this.config.get<number>("RATE_LIMIT_RPS", 100),
+      rateLimitBurst: this.config.get<number>("RATE_LIMIT_BURST", 200),
+    };
+  }
+
+  get webhooks() {
+    return {
+      cpaasSecret: this.config.get<string>("CPAAS_WEBHOOK_SECRET", ""),
+      cpaasIpAllowlist: this.config.get<string>("CPAAS_IP_ALLOWLIST", ""),
+      erpSecret: this.config.get<string>("ERP_WEBHOOK_SECRET", ""),
     };
   }
 

@@ -3,6 +3,11 @@ export type JobProps = {
   tenantId: string;
   status: string;
   updatedAt: string;
+  assignedDriverId?: string | null;
+  assignedVehicleId?: string | null;
+  assignedAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
 };
 
 export class Job {
@@ -52,12 +57,13 @@ export class Job {
     });
   }
 
+  get assignedDriverId() { return this.props.assignedDriverId ?? null; }
+  get assignedVehicleId() { return this.props.assignedVehicleId ?? null; }
+  get assignedAt() { return this.props.assignedAt ?? null; }
+  get deliveredAt() { return this.props.deliveredAt ?? null; }
+  get cancelledAt() { return this.props.cancelledAt ?? null; }
+
   toPrimitives(): JobProps {
-    return {
-      jobId: this.jobId,
-      tenantId: this.tenantId,
-      status: this.status,
-      updatedAt: this.updatedAt,
-    };
+    return { ...this.props };
   }
 }

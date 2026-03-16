@@ -89,9 +89,14 @@ export class MikroDriverRepository implements DriverRepository {
   async findByAssignedVehicleId(vehicleId: string): Promise<Driver | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const record = await em.findOne(DriverRecord, {
-      assignedVehicleId: vehicleId,
-    });
+    const record = await em.findOne(DriverRecord, { assignedVehicleId: vehicleId });
+    return record ? this.toDomain(record) : null;
+  }
+
+  async findByWhatsappNumber(whatsappNumber: string, tenantId: string): Promise<Driver | null> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(DriverRecord, { whatsappNumber, tenantId });
     return record ? this.toDomain(record) : null;
   }
 

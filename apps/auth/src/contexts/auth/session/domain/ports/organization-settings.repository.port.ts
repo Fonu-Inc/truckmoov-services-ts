@@ -1,13 +1,24 @@
 export type OrganizationBranding = {
   organizationName: string;
+  contactEmail: string | null;
+  phoneNumber: string | null;
+  address: string | null;
   logoUrl: string | null;
   profilePictureUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
+  accentColor: string | null;
+  successColor: string | null;
+  warningColor: string | null;
+  destructiveColor: string | null;
+  sidebarBackground: string | null;
+  sidebarText: string | null;
+  sidebarAccent: string | null;
 };
 
 export type OrganizationDefaults = {
   timezone: string;
+  language: string;
   currency: string;
   dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
   weekStartsOn: "monday" | "sunday";
@@ -26,13 +37,24 @@ export function buildDefaultOrganizationSettings(
     tenantId,
     branding: {
       organizationName: "Truckmoov Tenant",
+      contactEmail: null,
+      phoneNumber: null,
+      address: null,
       logoUrl: null,
       profilePictureUrl: null,
       primaryColor: null,
       secondaryColor: null,
+      accentColor: null,
+      successColor: null,
+      warningColor: null,
+      destructiveColor: null,
+      sidebarBackground: null,
+      sidebarText: null,
+      sidebarAccent: null,
     },
     defaults: {
       timezone: "UTC",
+      language: "en",
       currency: "USD",
       dateFormat: "YYYY-MM-DD",
       weekStartsOn: "monday",

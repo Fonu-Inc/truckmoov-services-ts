@@ -14,6 +14,7 @@ export interface DriverRepository {
   findById(id: string): Promise<Driver | null>;
   findByLicenseNumber(licenseNumber: string, tenantId: string): Promise<Driver | null>;
   findByAssignedVehicleId(vehicleId: string): Promise<Driver | null>;
+  findByWhatsappNumber(whatsappNumber: string, tenantId: string): Promise<Driver | null>;
   deleteById(id: string): Promise<void>;
 }
 
