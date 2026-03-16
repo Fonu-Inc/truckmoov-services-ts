@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AppConfigService } from "../../../libs/shared/config/src/app-config.service";
+import { AppConfigService } from "@shared/config";
 import { AuthUser } from "../../../apps/auth/src/contexts/auth/session/domain/entities/auth-user.entity";
 import { DevTokenService } from "../../../apps/auth/src/contexts/auth/session/infrastructure/dev-token.service";
 
