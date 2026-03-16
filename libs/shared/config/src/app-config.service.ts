@@ -60,6 +60,12 @@ export class AppConfigService {
     };
   }
 
+  get auth() {
+    return {
+      jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),
+    };
+  }
+
   get sentry() {
     return {
       dsn: this.config.get<string>("SENTRY_DSN", ""),
