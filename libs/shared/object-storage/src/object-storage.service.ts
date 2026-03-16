@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   GetObjectCommand,
   PutObjectCommand,
@@ -19,7 +19,7 @@ export class ObjectStorageService {
   private readonly client: S3Client;
   private readonly config: ObjectStorageConfig;
 
-  constructor(appConfig: AppConfigService) {
+  constructor(@Inject(AppConfigService) appConfig: AppConfigService) {
     this.config = appConfig.objectStorage;
     this.client = new S3Client({
       region: this.config.region,
