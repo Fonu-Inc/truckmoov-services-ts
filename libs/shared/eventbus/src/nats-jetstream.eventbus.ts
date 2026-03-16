@@ -1,4 +1,4 @@
-import { connect, JSONCodec, type JetStreamClient, type NatsConnection } from "nats";
+import { AckPolicy, connect, DeliverPolicy, JSONCodec, type JetStreamClient, type NatsConnection } from "nats";
 import { AppLogger } from "../../logger/src";
 import type { EventBus } from "./event-bus.interface";
 import type { EventEnvelope } from "./event-envelope";
@@ -30,11 +30,46 @@ export class NatsJetStreamEventBus implements EventBus {
   }
 
   async subscribe(
-    _subject: string,
-    _handler: (envelope: EventEnvelope) => Promise<void>,
+    subject: string,
+    handler: (envelope: EventEnvelope) => Promise<void>,
   ): Promise<() => Promise<void>> {
-    // Durable consumer setup is deferred for feature implementation.
-    return async () => Promise.resolve();
+    const js = await this.getJetStream();
+    if (!js || !this.connection) {
+      this.logger.warn("Skipping subscribe because NATS is not reachable", { subject });
+      return async () => Promise.resolve();
+    }
+
+    const durable = subject.replace(/[.*>]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    const manager = await this.connection.jetstreamManager();
+
+    try {
+      await manager.consumers.info(this.streamName, durable);
+    } catch {
+      await manager.consumers.add(this.streamName, {
+        durable_name: durable,
+        filter_subject: subject,
+        ack_policy: AckPolicy.Explicit,
+        deliver_policy: DeliverPolicy.New,
+      });
+    }
+
+    const consumer = await js.consumers.get(this.streamName, durable);
+    const sub = await consumer.consume();
+
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          const envelope = this.jsonCodec.decode(msg.data);
+          await handler(envelope);
+          msg.ack();
+        } catch (err) {
+          this.logger.warn("event_handler_failed", { subject, error: (err as Error).message });
+          msg.nak();
+        }
+      }
+    })();
+
+    return async () => sub.stop();
   }
 
   private async getJetStream(): Promise<JetStreamClient | null> {

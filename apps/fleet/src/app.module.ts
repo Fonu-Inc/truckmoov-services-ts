@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
+import { GeofenceModule } from "@shared/geofence";
 import { LoggerModule } from "@shared/logger";
 import { ObjectStorageModule } from "@shared/object-storage";
 import { IdempotencyGuard, RolesGuard } from "@shared/rbac";
@@ -44,11 +45,15 @@ import {
 import { FleetController } from "./fleet.controller";
 import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtime.port";
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
+import { VehicleHealthService } from "./vehicle-health.service";
+import { VehicleLocationListener } from "./vehicle-location.listener";
 
 @Module({
-  imports: [ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule],
+  imports: [ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule],
   controllers: [FleetController],
   providers: [
+    VehicleHealthService,
+    VehicleLocationListener,
     DefaultFleetRuntime,
     {
       provide: FLEET_RUNTIME,

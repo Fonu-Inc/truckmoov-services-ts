@@ -1,3 +1,4 @@
+import { PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsArray,
@@ -29,27 +30,7 @@ export class CreateVehicleDto {
   status?: "active" | "inactive";
 }
 
-export class UpdateVehicleDto {
-  /** License plate number of the vehicle */
-  @IsOptional()
-  @IsString()
-  plateNumber?: string;
-
-  /** Vehicle make and model */
-  @IsOptional()
-  @IsString()
-  model?: string;
-
-  /** Tenant scope */
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
-
-  /** Operational availability status */
-  @IsOptional()
-  @IsIn(FLEET_ASSET_STATUSES)
-  status?: "active" | "inactive";
-}
+export class UpdateVehicleDto extends PartialType(CreateVehicleDto) {}
 
 export class SetVehicleStatusDto {
   @IsIn(FLEET_ASSET_STATUSES)

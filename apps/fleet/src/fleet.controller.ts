@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Inject,
+  Logger,
   NotFoundException,
   Param,
   Patch,
@@ -20,6 +21,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { GeofenceService } from "@shared/geofence";
 import { IdempotencyGuard, RequireIdempotency, Roles, RolesGuard } from "@shared/rbac";
 import {
   BulkImportDriversDto,
@@ -40,6 +42,7 @@ import {
   UpdateVehicleDto,
   VehicleListQueryDto,
 } from "./dto/vehicle.dto";
+import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
 import {
   BulkDriverImportResponse,
   BulkVehicleImportResponse,
@@ -49,7 +52,10 @@ import {
   FleetHealthResponse,
   JobListResponse,
   JobStatusResponse,
+  UploadedMediaResponse,
   VehicleDriverAssignmentResponse,
+  VehicleHealthListResponse,
+  VehicleHealthResponse,
   VehicleListResponse,
   VehicleResponse,
 } from "./dto/fleet.schema";
@@ -79,11 +85,15 @@ import {
   UpdateVehicleUseCase,
   VehicleNotFoundError,
 } from "./contexts/fleet/vehicles";
+import { VehicleHealthService } from "./vehicle-health.service";
+
+const HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
 
 @ApiTags("Fleet")
 @Controller("fleet")
 @UseGuards(RolesGuard)
 export class FleetController {
+  private readonly logger = new Logger(FleetController.name);
   constructor(
     @Inject(ListVehiclesUseCase)
     private readonly listVehiclesUseCase: ListVehiclesUseCase,
@@ -125,6 +135,8 @@ export class FleetController {
     private readonly listJobsUseCase: ListJobsUseCase,
     @Inject(PublishJobStatusChangedUseCase)
     private readonly publishJobStatusChangedUseCase: PublishJobStatusChangedUseCase,
+    private readonly geofenceService: GeofenceService,
+    private readonly vehicleHealthService: VehicleHealthService,
   ) {}
 
   /** Health check */
@@ -140,6 +152,76 @@ export class FleetController {
   })
   testSentry(): never {
     throw new Error("Sentry test error from fleet service");
+  }
+
+  @Post("routes/:vehicleId/geofence")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({
+    summary: "Register a geofence",
+    description: "Stores a bounding box for a vehicle so we can detect deviations.",
+  })
+  @ApiCreatedResponse({ description: "Geofence stored" })
+  async setGeofence(
+    @Param("vehicleId") vehicleId: string,
+    @Body() payload: SetGeofenceDto,
+  ) {
+    this.geofenceService.set(vehicleId, {
+      northeast: { lat: payload.northeast.lat, lng: payload.northeast.lng },
+      southwest: { lat: payload.southwest.lat, lng: payload.southwest.lng },
+    });
+    return { status: true, message: "geofence registered" };
+  }
+
+  @Get("routes/:vehicleId/geofence")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Read the configured geofence" })
+  @ApiOkResponse({ description: "Current bounding box" })
+  async getGeofence(@Param("vehicleId") vehicleId: string) {
+    return { status: true, geofence: this.geofenceService.get(vehicleId) };
+  }
+
+  @Post("routes/:vehicleId/location")
+  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @ApiOperation({ summary: "Report live position and detect deviations" })
+  @ApiOkResponse({ description: "Deviation flag" })
+  async reportLocation(
+    @Param("vehicleId") vehicleId: string,
+    @Body() payload: LocationUpdateDto,
+  ) {
+    this.vehicleHealthService.touch(vehicleId);
+    const inside = this.geofenceService.isInside(vehicleId, {
+      lat: payload.lat,
+      lng: payload.lng,
+    });
+    if (!inside) {
+      this.logger.warn(`Deviation for vehicle ${vehicleId} at ${payload.lat},${payload.lng}`);
+    }
+    return {
+      status: true,
+      deviation: !inside,
+      point: payload,
+      message: inside ? "within geofence" : "vehicle deviated",
+    };
+  }
+
+  @Get("vehicles/:vehicleId/health")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Get last seen status" })
+  @ApiOkResponse({ type: VehicleHealthResponse })
+  async getVehicleHealth(@Param("vehicleId") vehicleId: string) {
+    const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(vehicleId));
+    return { status: true, data: this.buildHealth(vehicle as never) };
+  }
+
+  @Get("vehicles/health")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "List all last seen statuses" })
+  @ApiOkResponse({ type: VehicleHealthListResponse })
+  async listVehicleHealth() {
+    const vehicles = await this.listVehiclesUseCase.execute();
+    const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { deviceId: string } | null }>)
+      .map((v) => this.buildHealth(v));
+    return { status: true, data };
   }
 
   /** Retrieve vehicles with optional dispatch-centric filters */
@@ -512,6 +594,22 @@ export class FleetController {
       return false;
     }
     throw new BadRequestException(`${field} must be either "true" or "false"`);
+  }
+
+  private buildHealth(vehicle: { id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { deviceId: string } | null }) {
+    const entry = this.vehicleHealthService.get(vehicle.id);
+    const lastSeen = entry?.lastSeen ?? null;
+    const deviceId = entry?.deviceId ?? vehicle.gpsDevice?.deviceId ?? null;
+    const healthy = lastSeen !== null && Date.now() - lastSeen < HEALTH_THRESHOLD_MS;
+    return {
+      vehicleId: vehicle.id,
+      plateNumber: vehicle.plateNumber,
+      model: vehicle.model,
+      assignedDriverId: vehicle.assignedDriverId,
+      deviceId,
+      lastSeen,
+      healthy,
+    };
   }
 
   private async runFleetUseCase<T>(fn: () => Promise<T>) {

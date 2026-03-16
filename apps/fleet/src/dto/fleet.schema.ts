@@ -178,6 +178,39 @@ export class FleetHealthResponse extends StandardApiResponse<{ service: string }
   data!: { service: string };
 }
 
+export class VehicleHealthSchema {
+  @ApiProperty()
+  vehicleId!: string;
+
+  @ApiProperty()
+  plateNumber!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty({ nullable: true })
+  assignedDriverId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  deviceId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  lastSeen!: number | null;
+
+  @ApiProperty()
+  healthy!: boolean;
+}
+
+export class VehicleHealthListResponse extends StandardApiResponse<VehicleHealthSchema[]> {
+  @ApiProperty({ type: VehicleHealthSchema, isArray: true })
+  data!: VehicleHealthSchema[];
+}
+
+export class VehicleHealthResponse extends StandardApiResponse<VehicleHealthSchema> {
+  @ApiProperty({ type: VehicleHealthSchema })
+  data!: VehicleHealthSchema;
+}
+
 export class UploadedMediaSchema {
   @ApiProperty()
   key!: string;
