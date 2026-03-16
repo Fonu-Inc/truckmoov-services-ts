@@ -38,6 +38,28 @@ export class HealthResponse extends StandardApiResponse<{
   };
 }
 
+export class UploadedMediaSchema {
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty()
+  url!: string;
+
+  @ApiProperty()
+  filename!: string;
+
+  @ApiProperty()
+  contentType!: string;
+
+  @ApiProperty()
+  size!: number;
+}
+
+export class UploadedMediaResponse extends StandardApiResponse<UploadedMediaSchema> {
+  @ApiProperty({ type: UploadedMediaSchema })
+  data!: UploadedMediaSchema;
+}
+
 export class UserProfileSchema {
   @ApiProperty({ nullable: true })
   fullName!: string | null;

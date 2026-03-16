@@ -24,6 +24,8 @@ import {
   ProfileDataSchema,
   ProfileResponse,
   SessionSchema,
+  UploadedMediaResponse,
+  UploadedMediaSchema,
   UserProfileSchema,
 } from "./dto/auth.schema";
 
@@ -56,6 +58,8 @@ async function bootstrap() {
     SessionSchema,
     AuthResponse,
     MeResponse,
+    UploadedMediaSchema,
+    UploadedMediaResponse,
     UserProfileSchema,
     ProfileDataSchema,
     ProfileResponse,

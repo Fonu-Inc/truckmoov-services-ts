@@ -22,6 +22,8 @@ import {
   JobListResponse,
   JobSchema,
   JobStatusResponse,
+  UploadedMediaResponse,
+  UploadedMediaSchema,
   VehicleDriverAssignmentResponse,
   VehicleDriverAssignmentSchema,
   VehicleGpsDeviceSchema,
@@ -76,6 +78,8 @@ async function bootstrap() {
     DispatchSearchResponse,
     JobStatusResponse,
     FleetHealthResponse,
+    UploadedMediaSchema,
+    UploadedMediaResponse,
   ]);
 
   if (cfg.persistence.backend === "mikro-orm") {

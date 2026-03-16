@@ -1,4 +1,6 @@
 import {
+  UploadedFile,
+  UseInterceptors,
   BadRequestException,
   Body,
   ConflictException,
@@ -15,9 +17,12 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import {
+  ApiBody,
   ApiBadRequestResponse,
+  ApiConsumes,
   ApiBearerAuth,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -25,6 +30,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { ObjectStorageService } from "@shared/object-storage";
+import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
 import {
   ChangeRoleUseCase,
   ForgotPasswordUseCase,
@@ -75,6 +84,7 @@ import {
   NotificationPreferencesResponse,
   OrganizationSettingsResponse,
   ProfileResponse,
+  UploadedMediaResponse,
 } from "./dto/auth.schema";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateNotificationPreferencesDto } from "./dto/update-notification-preferences.dto";
@@ -128,6 +138,7 @@ export class AuthController {
     private readonly getOrganizationSettingsUseCase: GetOrganizationSettingsUseCase,
     @Inject(UpdateOrganizationSettingsUseCase)
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
+    private readonly objectStorageService: ObjectStorageService,
   ) {}
 
   @Get("health")
@@ -151,6 +162,39 @@ export class AuthController {
   })
   testSentry(): never {
     throw new Error("Sentry test error from auth service");
+  }
+
+  @Post("media/upload")
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary: "Upload media",
+    description: "Uploads a media file to object storage and returns a link to it.",
+  })
+  @ApiCreatedResponse({ type: UploadedMediaResponse })
+  @ApiBadRequestResponse({ description: "Missing upload file" })
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["file"],
+      properties: {
+        file: {
+          type: "string",
+          format: "binary",
+        },
+      },
+    },
+  })
+  async uploadMedia(
+    @UploadedFile()
+    file?: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    return this.storeUploadedMedia("auth", file);
   }
 
   /** Register an enterprise admin (creates new tenant) */
@@ -587,5 +631,51 @@ export class AuthController {
     const [scheme, token] = header.split(" ");
     if (scheme?.toLowerCase() !== "bearer" || !token) return null;
     return token;
+  }
+
+  private async storeUploadedMedia(
+    service: "auth" | "fleet",
+    file?: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Missing upload file");
+    }
+
+    const extension = extname(file.originalname);
+    const baseName = file.originalname.slice(
+      0,
+      file.originalname.length - extension.length,
+    );
+    const normalizedBaseName =
+      baseName.replace(/[^a-zA-Z0-9-_]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80)
+      || "file";
+    const key = `${service}/media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
+
+    try {
+      await this.objectStorageService.putObject({
+        key,
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
+
+      const url =
+        this.objectStorageService.publicUrl(key)
+        ?? await this.objectStorageService.createPresignedDownloadUrl({ key });
+
+      return {
+        key,
+        url,
+        filename: file.originalname,
+        contentType: file.mimetype,
+        size: file.size,
+      };
+    } catch {
+      throw new ServiceUnavailableException("Media upload failed");
+    }
   }
 }

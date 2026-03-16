@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
 import { LoggerModule } from "@shared/logger";
+import { ObjectStorageModule } from "@shared/object-storage";
 import { IdempotencyGuard, RolesGuard } from "@shared/rbac";
 import {
   BulkImportDriversUseCase,
@@ -45,7 +46,7 @@ import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtim
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
 
 @Module({
-  imports: [ConfigModule, LoggerModule, EventBusModule],
+  imports: [ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule],
   controllers: [FleetController],
   providers: [
     DefaultFleetRuntime,

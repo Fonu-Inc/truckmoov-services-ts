@@ -177,3 +177,25 @@ export class FleetHealthResponse extends StandardApiResponse<{ service: string }
   @ApiProperty({ type: "object", properties: { service: { type: "string" } } })
   data!: { service: string };
 }
+
+export class UploadedMediaSchema {
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty()
+  url!: string;
+
+  @ApiProperty()
+  filename!: string;
+
+  @ApiProperty()
+  contentType!: string;
+
+  @ApiProperty()
+  size!: number;
+}
+
+export class UploadedMediaResponse extends StandardApiResponse<UploadedMediaSchema> {
+  @ApiProperty({ type: UploadedMediaSchema })
+  data!: UploadedMediaSchema;
+}

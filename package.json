@@ -25,6 +25,8 @@
     "migration:revert": "node -e \"console.log('MikroORM rollback is not wired in this bootstrap yet.')\""
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/s3-request-presigner": "^3.1005.0",
     "@aws-sdk/client-ses": "^3.1005.0",
     "@mikro-orm/core": "^6.5.5",
     "@mikro-orm/mysql": "^6.6.9",

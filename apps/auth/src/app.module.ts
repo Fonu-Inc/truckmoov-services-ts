@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { LoggerModule } from "@shared/logger";
 import { MailerModule } from "@shared/mailer";
+import { ObjectStorageModule } from "@shared/object-storage";
 import { SmsModule } from "@shared/sms";
 import {
   ChangeRoleUseCase,
@@ -56,7 +57,7 @@ import {
 import { AuthController } from "./auth.controller";
 
 @Module({
-  imports: [ConfigModule, LoggerModule, MailerModule, SmsModule],
+  imports: [ConfigModule, LoggerModule, MailerModule, ObjectStorageModule, SmsModule],
   controllers: [AuthController],
   providers: [
     // User repository

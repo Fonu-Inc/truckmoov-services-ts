@@ -53,6 +53,23 @@ export class AppConfigService {
     };
   }
 
+  get objectStorage() {
+    return {
+      provider: this.config.get<string>("OBJECT_STORAGE_PROVIDER", "wasabi"),
+      region: this.config.get<string>("OBJECT_STORAGE_REGION", "us-east-1"),
+      endpoint: this.config.get<string>(
+        "OBJECT_STORAGE_ENDPOINT",
+        "https://s3.us-east-1.wasabisys.com",
+      ),
+      bucket: this.config.get<string>("OBJECT_STORAGE_BUCKET", "truckmoov-dev"),
+      accessKey: this.config.get<string>("OBJECT_STORAGE_ACCESS_KEY", ""),
+      secretKey: this.config.get<string>("OBJECT_STORAGE_SECRET_KEY", ""),
+      forcePathStyle: this.config.get<string>("OBJECT_STORAGE_FORCE_PATH_STYLE", "false") === "true",
+      publicBaseUrl: this.config.get<string>("OBJECT_STORAGE_PUBLIC_BASE_URL", ""),
+      prefix: this.config.get<string>("OBJECT_STORAGE_PREFIX", ""),
+    };
+  }
+
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
