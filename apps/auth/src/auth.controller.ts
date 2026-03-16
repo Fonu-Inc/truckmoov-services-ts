@@ -144,6 +144,15 @@ export class AuthController {
     }
   }
 
+  @Get("test-sentry")
+  @ApiOperation({
+    summary: "Trigger a test Sentry error",
+    description: "Throws an unhandled error so Sentry capture can be verified.",
+  })
+  testSentry(): never {
+    throw new Error("Sentry test error from auth service");
+  }
+
   /** Register an enterprise admin (creates new tenant) */
   @Post("register")
   async register(@Body(BodyOrDataPipe) payload: RegisterDto): Promise<AuthResponse> {

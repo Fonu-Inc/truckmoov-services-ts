@@ -133,6 +133,15 @@ export class FleetController {
     return { status: true, message: "success", data: { service: "fleet" } };
   }
 
+  @Get("test-sentry")
+  @ApiOperation({
+    summary: "Trigger a test Sentry error",
+    description: "Throws an unhandled error so Sentry capture can be verified.",
+  })
+  testSentry(): never {
+    throw new Error("Sentry test error from fleet service");
+  }
+
   /** Retrieve vehicles with optional dispatch-centric filters */
   @Get("vehicles")
   @Roles("admin", "fleet_manager", "operator", "dispatcher")

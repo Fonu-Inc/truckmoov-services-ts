@@ -69,6 +69,11 @@ describe("Auth HTTP contract", () => {
     expect(response.body.data.database).toBe("n/a");
   });
 
+  it("GET /auth/test-sentry returns 500", async () => {
+    const response = await request(app.getHttpServer()).get("/auth/test-sentry");
+    expect(response.status).toBe(500);
+  });
+
   // ── Register (enterprise admin) ──────────────────────
 
   it("POST /auth/register creates an enterprise admin", async () => {

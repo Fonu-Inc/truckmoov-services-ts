@@ -51,6 +51,11 @@ describe("Fleet HTTP contract", () => {
     });
   });
 
+  it("GET /fleet/test-sentry returns 500", async () => {
+    const response = await request(app.getHttpServer()).get("/fleet/test-sentry");
+    expect(response.status).toBe(500);
+  });
+
   it("supports assignment, activation, contact channels, and GPS mapping", async () => {
     const createVehicle = await request(app.getHttpServer())
       .post("/fleet/vehicles")
