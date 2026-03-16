@@ -435,3 +435,68 @@ export class UploadedMediaResponse extends StandardApiResponse<UploadedMediaSche
   @ApiProperty({ type: UploadedMediaSchema })
   data!: UploadedMediaSchema;
 }
+
+export class FuelRecordSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty({ nullable: true }) driverId!: string | null;
+  @ApiProperty({ nullable: true }) vehicleType!: string | null;
+  @ApiProperty() liters!: number;
+  @ApiProperty() pricePerLiter!: number;
+  @ApiProperty() totalCost!: number;
+  @ApiProperty({ nullable: true }) station!: string | null;
+  @ApiProperty({ nullable: true }) odometer!: number | null;
+  @ApiProperty() recordedAt!: string;
+  @ApiProperty() recordedBy!: string;
+  @ApiProperty({ nullable: true }) deletedAt!: string | null;
+}
+
+export class FuelRecordResponse extends StandardApiResponse<FuelRecordSchema> {
+  @ApiProperty({ type: FuelRecordSchema })
+  data!: FuelRecordSchema;
+}
+
+export class FuelRecordListResponse extends StandardApiResponse<FuelRecordSchema[]> {
+  @ApiProperty({ type: FuelRecordSchema, isArray: true })
+  data!: FuelRecordSchema[];
+}
+
+export class ConsumptionBucketSchema {
+  @ApiProperty() label!: string;
+  @ApiProperty() liters!: number;
+  @ApiProperty() totalCost!: number;
+  @ApiProperty() records!: number;
+}
+
+export class FuelConsumptionResponse extends StandardApiResponse<ConsumptionBucketSchema[]> {
+  @ApiProperty({ type: ConsumptionBucketSchema, isArray: true })
+  data!: ConsumptionBucketSchema[];
+}
+
+export class VehicleEfficiencySchema {
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty({ nullable: true }) kmPerLiter!: number | null;
+  @ApiProperty() belowThreshold!: boolean;
+  @ApiProperty({ nullable: true }) threshold!: number | null;
+}
+
+export class FuelEfficiencyResponse extends StandardApiResponse<VehicleEfficiencySchema[]> {
+  @ApiProperty({ type: VehicleEfficiencySchema, isArray: true })
+  data!: VehicleEfficiencySchema[];
+}
+
+export class FuelThresholdSchema {
+  @ApiProperty() vehicleType!: string;
+  @ApiProperty() minKmPerLiter!: number;
+}
+
+export class FuelThresholdResponse extends StandardApiResponse<FuelThresholdSchema> {
+  @ApiProperty({ type: FuelThresholdSchema })
+  data!: FuelThresholdSchema;
+}
+
+export class FuelThresholdListResponse extends StandardApiResponse<FuelThresholdSchema[]> {
+  @ApiProperty({ type: FuelThresholdSchema, isArray: true })
+  data!: FuelThresholdSchema[];
+}

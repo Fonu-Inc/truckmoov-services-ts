@@ -1,0 +1,15 @@
+export { FuelRecord } from "./domain/entities/fuel-record.entity";
+export type { FuelRecordProps, AuditEntry } from "./domain/entities/fuel-record.entity";
+export { FUEL_RECORD_REPOSITORY } from "./domain/repositories/fuel-record.repository";
+export type { FuelRecordRepository, FuelRecordFilters } from "./domain/repositories/fuel-record.repository";
+export { FuelRecordNotFoundError } from "./domain/errors/fuel-record-not-found.error";
+export { FuelThresholdService } from "./application/fuel-threshold.service";
+export type { FuelEfficiencyThreshold } from "./application/fuel-threshold.service";
+export { RecordFuelUseCase } from "./application/record-fuel.use-case";
+export type { RecordFuelCommand } from "./application/record-fuel.use-case";
+export { ListFuelRecordsUseCase } from "./application/list-fuel-records.use-case";
+export { UpdateFuelRecordUseCase } from "./application/update-fuel-record.use-case";
+export { DeleteFuelRecordUseCase } from "./application/delete-fuel-record.use-case";
+export { FuelMetricsUseCase } from "./application/fuel-metrics.use-case";
+export type { MetricsPeriod, ConsumptionBucket, VehicleEfficiency } from "./application/fuel-metrics.use-case";
+export { InMemoryFuelRecordRepository } from "./infrastructure/in-memory-fuel-record.repository";

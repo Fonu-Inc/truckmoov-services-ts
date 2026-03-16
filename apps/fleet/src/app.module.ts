@@ -60,6 +60,16 @@ import {
 } from "./contexts/fleet/alerts";
 import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase } from "./contexts/fleet/reports";
 import {
+  DeleteFuelRecordUseCase,
+  FUEL_RECORD_REPOSITORY,
+  FuelMetricsUseCase,
+  FuelThresholdService,
+  InMemoryFuelRecordRepository,
+  ListFuelRecordsUseCase,
+  RecordFuelUseCase,
+  UpdateFuelRecordUseCase,
+} from "./contexts/fleet/fuel";
+import {
   ACCESS_LOG_REPOSITORY,
   DOCUMENT_REPOSITORY,
   GetDownloadUrlUseCase,
@@ -185,6 +195,14 @@ import { JobAssignmentNotifier } from "./job-assignment-notifier";
     PublishJobStatusChangedUseCase,
     RolesGuard,
     IdempotencyGuard,
+    InMemoryFuelRecordRepository,
+    { provide: FUEL_RECORD_REPOSITORY, useExisting: InMemoryFuelRecordRepository },
+    FuelThresholdService,
+    RecordFuelUseCase,
+    ListFuelRecordsUseCase,
+    UpdateFuelRecordUseCase,
+    DeleteFuelRecordUseCase,
+    FuelMetricsUseCase,
   ],
 })
 export class AppModule {}

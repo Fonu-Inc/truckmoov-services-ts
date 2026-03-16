@@ -3,9 +3,10 @@ import { JOB_REPOSITORY, type JobRepository } from "../../jobs/domain/repositori
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../alerts/domain/alert.repository";
+import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "../../fuel/domain/repositories/fuel-record.repository";
 import { toCsv } from "../../../../utils/csv";
 
-export type ExportEntity = "jobs" | "vehicles" | "drivers" | "alerts";
+export type ExportEntity = "jobs" | "vehicles" | "drivers" | "alerts" | "fuel";
 
 @Injectable()
 export class ExportUseCase {
@@ -14,6 +15,7 @@ export class ExportUseCase {
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
+    @Inject(FUEL_RECORD_REPOSITORY) private readonly fuelRepo: FuelRecordRepository,
   ) {}
 
   async toCsv(entity: ExportEntity, tenantId: string): Promise<string> {
@@ -39,6 +41,10 @@ export class ExportUseCase {
           resolvedAt: a.resolvedAt?.toISOString() ?? null,
           details: JSON.stringify(a.details),
         })));
+      }
+      case "fuel": {
+        const rows = await this.fuelRepo.findAll({ tenantId });
+        return toCsv(rows.map((r) => ({ ...r.toPrimitives(), auditTrail: JSON.stringify(r.auditTrail) })));
       }
     }
   }

@@ -9,14 +9,15 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Patch,
   Post,
+  Put,
   Query,
   Req,
   Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  Patch,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -49,6 +50,7 @@ import {
   VehicleListQueryDto,
 } from "./dto/vehicle.dto";
 import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
+import { FuelListQueryDto, FuelMetricsQueryDto, FuelThresholdDto, RecordFuelDto, UpdateFuelRecordDto } from "./dto/fuel.dto";
 import {
   AccessLogListResponse,
   AlertListResponse,
@@ -56,6 +58,7 @@ import {
   AlertStatsResponse,
   BulkDriverImportResponse,
   BulkVehicleImportResponse,
+  ConsumptionBucketSchema,
   DashboardResponse,
   DeliveryMetricsResponse,
   DispatchSearchResponse,
@@ -65,11 +68,18 @@ import {
   DriverListResponse,
   DriverResponse,
   FleetHealthResponse,
+  FuelConsumptionResponse,
+  FuelEfficiencyResponse,
+  FuelRecordListResponse,
+  FuelRecordResponse,
+  FuelThresholdListResponse,
+  FuelThresholdResponse,
   JobListResponse,
   JobStatusResponse,
   NearestVehicleListResponse,
   UploadedMediaResponse,
   VehicleDriverAssignmentResponse,
+  VehicleEfficiencySchema,
   VehicleHealthListResponse,
   VehicleHealthResponse,
   VehicleListResponse,
@@ -121,6 +131,15 @@ import {
   VehicleNotFoundError,
 } from "./contexts/fleet/vehicles";
 import { VehicleHealthService } from "./vehicle-health.service";
+import {
+  DeleteFuelRecordUseCase,
+  FuelMetricsUseCase,
+  FuelRecordNotFoundError,
+  FuelThresholdService,
+  ListFuelRecordsUseCase,
+  RecordFuelUseCase,
+  UpdateFuelRecordUseCase,
+} from "./contexts/fleet/fuel";
 
 const HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
 
@@ -184,6 +203,12 @@ export class FleetController {
     @Inject(ListDocumentsUseCase) private readonly listDocumentsUseCase: ListDocumentsUseCase,
     @Inject(ListAccessLogUseCase) private readonly listAccessLogUseCase: ListAccessLogUseCase,
     private readonly auditLog: AuditLogService,
+    @Inject(RecordFuelUseCase) private readonly recordFuelUseCase: RecordFuelUseCase,
+    @Inject(ListFuelRecordsUseCase) private readonly listFuelRecordsUseCase: ListFuelRecordsUseCase,
+    @Inject(UpdateFuelRecordUseCase) private readonly updateFuelRecordUseCase: UpdateFuelRecordUseCase,
+    @Inject(DeleteFuelRecordUseCase) private readonly deleteFuelRecordUseCase: DeleteFuelRecordUseCase,
+    @Inject(FuelMetricsUseCase) private readonly fuelMetricsUseCase: FuelMetricsUseCase,
+    @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
   ) {}
 
   /** Health check */
@@ -774,13 +799,146 @@ export class FleetController {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Res() res: any,
   ): Promise<void> {
-    const validEntities: ExportEntity[] = ["jobs", "vehicles", "drivers", "alerts"];
+    const validEntities: ExportEntity[] = ["jobs", "vehicles", "drivers", "alerts", "fuel"];
     if (!validEntities.includes(entity as ExportEntity)) {
       throw new BadRequestException(`entity must be one of: ${validEntities.join(", ")}`);
     }
     const csv = await this.exportUseCase.toCsv(entity as ExportEntity, tenantId);
     res.setHeader("Content-Disposition", `attachment; filename="${entity}.csv"`);
     res.send(csv);
+  }
+
+  // ─── Fuel & Cost Management (Epic N) ───────────────────────────────────────
+
+  @Post("fuel")
+  @Roles("admin", "fleet_manager", "dispatcher")
+  @ApiOperation({ summary: "Record fuel transaction — N01" })
+  @ApiCreatedResponse({ type: FuelRecordResponse })
+  async recordFuel(
+    @Body() dto: RecordFuelDto,
+    @Req() req: { user?: { userId?: string } },
+  ): Promise<FuelRecordResponse> {
+    const record = await this.recordFuelUseCase.execute({
+      ...dto,
+      recordedBy: req.user?.userId ?? "system",
+    });
+    return { status: true, message: "success", data: record.toPrimitives() };
+  }
+
+  @Get("fuel/metrics")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Fuel consumption chart — N04" })
+  @ApiQuery({ name: "period", required: false, enum: ["weekly", "monthly"] })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: FuelConsumptionResponse })
+  async fuelConsumption(@Query() query: FuelMetricsQueryDto): Promise<FuelConsumptionResponse> {
+    const buckets = await this.fuelMetricsUseCase.consumption(query.tenantId, query.period ?? "monthly");
+    return { status: true, message: "success", data: buckets as ConsumptionBucketSchema[] };
+  }
+
+  @Get("fuel/efficiency")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Vehicle fuel efficiency — N05" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: FuelEfficiencyResponse })
+  async fuelEfficiency(@Query("tenantId") tenantId?: string): Promise<FuelEfficiencyResponse> {
+    const result = await this.fuelMetricsUseCase.efficiency(tenantId);
+    return { status: true, message: "success", data: result as VehicleEfficiencySchema[] };
+  }
+
+  @Get("fuel/thresholds")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @ApiOperation({ summary: "Get fuel efficiency thresholds — N08" })
+  @ApiOkResponse({ type: FuelThresholdListResponse })
+  listFuelThresholds(): FuelThresholdListResponse {
+    return { status: true, message: "success", data: this.fuelThresholdService.getAll() };
+  }
+
+  @Get("fuel/export")
+  @Roles("admin", "fleet_manager", "operations_manager")
+  @Header("Content-Type", "text/csv")
+  @ApiOperation({ summary: "Export fuel transactions to CSV — N07" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  async exportFuel(
+    @Query("tenantId") tenantId = "default",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    @Res() res: any,
+  ): Promise<void> {
+    const csv = await this.exportUseCase.toCsv("fuel", tenantId);
+    res.setHeader("Content-Disposition", `attachment; filename="fuel.csv"`);
+    res.send(csv);
+  }
+
+  @Get("fuel")
+  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @ApiOperation({ summary: "List fuel transactions — N02" })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "driverId", required: false, type: String })
+  @ApiQuery({ name: "station", required: false, type: String })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ type: FuelRecordListResponse })
+  async listFuel(@Query() query: FuelListQueryDto): Promise<FuelRecordListResponse> {
+    const records = await this.listFuelRecordsUseCase.execute(query);
+    return { status: true, message: "success", data: records.map((r) => r.toPrimitives()) };
+  }
+
+  @Patch("fuel/:id")
+  @Roles("admin", "fleet_manager")
+  @ApiOperation({ summary: "Edit fuel transaction with audit trail — N03" })
+  @ApiOkResponse({ type: FuelRecordResponse })
+  async updateFuel(
+    @Param("id") id: string,
+    @Query("tenantId") tenantId = "default",
+    @Body() dto: UpdateFuelRecordDto,
+    @Req() req: { user?: { userId?: string } },
+  ): Promise<FuelRecordResponse> {
+    try {
+      const record = await this.updateFuelRecordUseCase.execute({
+        id,
+        tenantId,
+        updatedBy: req.user?.userId ?? "system",
+        ...dto,
+      });
+      return { status: true, message: "success", data: record.toPrimitives() };
+    } catch (err) {
+      if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
+      throw err;
+    }
+  }
+
+  @Delete("fuel/:id")
+  @Roles("admin", "fleet_manager")
+  @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
+  async deleteFuel(
+    @Param("id") id: string,
+    @Query("tenantId") tenantId = "default",
+    @Req() req: { user?: { userId?: string } },
+  ): Promise<{ status: boolean; message: string }> {
+    try {
+      await this.deleteFuelRecordUseCase.execute(id, tenantId, req.user?.userId ?? "system");
+      return { status: true, message: "deleted" };
+    } catch (err) {
+      if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
+      throw err;
+    }
+  }
+
+  @Put("fuel/thresholds/:vehicleType")
+  @Roles("admin")
+  @ApiOperation({ summary: "Set fuel efficiency threshold by vehicle type — N08" })
+  @ApiOkResponse({ type: FuelThresholdResponse })
+  setFuelThreshold(
+    @Param("vehicleType") vehicleType: string,
+    @Body() dto: FuelThresholdDto,
+  ): FuelThresholdResponse {
+    try {
+      const threshold = this.fuelThresholdService.set(vehicleType, dto.minKmPerLiter);
+      return { status: true, message: "success", data: threshold };
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
   }
 
   @Post("documents")
