@@ -1,6 +1,7 @@
 export type OrganizationBranding = {
   organizationName: string;
   logoUrl: string | null;
+  profilePictureUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
 };
@@ -26,6 +27,7 @@ export function buildDefaultOrganizationSettings(
     branding: {
       organizationName: "Truckmoov Tenant",
       logoUrl: null,
+      profilePictureUrl: null,
       primaryColor: null,
       secondaryColor: null,
     },

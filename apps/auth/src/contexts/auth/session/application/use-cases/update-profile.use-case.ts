@@ -14,6 +14,7 @@ export type UpdateProfileCommand = {
   accessToken: string;
   fullName?: string;
   phoneNumber?: string;
+  profilePictureUrl?: string;
 };
 
 @Injectable()
@@ -41,6 +42,10 @@ export class UpdateProfileUseCase {
         command.phoneNumber === undefined
           ? actor.profile!.phoneNumber
           : this.toNullableTrimmedString(command.phoneNumber),
+      profilePictureUrl:
+        command.profilePictureUrl === undefined
+          ? actor.profile!.profilePictureUrl
+          : this.toNullableTrimmedString(command.profilePictureUrl),
     };
 
     await this.userRepo.updateProfile(actor.id, mergedProfile);

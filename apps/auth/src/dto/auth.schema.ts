@@ -66,6 +66,9 @@ export class UserProfileSchema {
 
   @ApiProperty({ nullable: true })
   phoneNumber!: string | null;
+
+  @ApiProperty({ nullable: true })
+  profilePictureUrl!: string | null;
 }
 
 export class ProfileDataSchema {
@@ -156,6 +159,9 @@ export class OrganizationBrandingSchema {
 
   @ApiProperty({ nullable: true })
   logoUrl!: string | null;
+
+  @ApiProperty({ nullable: true })
+  profilePictureUrl!: string | null;
 
   @ApiProperty({ nullable: true })
   primaryColor!: string | null;

@@ -65,6 +65,10 @@ export class UpdateOrganizationSettingsUseCase {
           command.branding?.logoUrl === undefined
             ? current.branding.logoUrl
             : command.branding.logoUrl,
+        profilePictureUrl:
+          command.branding?.profilePictureUrl === undefined
+            ? current.branding.profilePictureUrl
+            : command.branding.profilePictureUrl,
         primaryColor:
           command.branding?.primaryColor === undefined
             ? current.branding.primaryColor

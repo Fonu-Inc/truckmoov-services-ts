@@ -407,6 +407,7 @@ export class AuthController {
         accessToken,
         fullName: payload.fullName,
         phoneNumber: payload.phoneNumber,
+        profilePictureUrl: payload.profilePictureUrl,
       });
     } catch (error) {
       if (error instanceof ForbiddenError)

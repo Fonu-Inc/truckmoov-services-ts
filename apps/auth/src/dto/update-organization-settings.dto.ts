@@ -23,6 +23,11 @@ class BrandingDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  profilePictureUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
   @Matches(HEX_COLOR_PATTERN, {
     message: "primaryColor must be a valid hex color (e.g. #0052CC)",
   })

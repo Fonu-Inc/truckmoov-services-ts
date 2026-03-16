@@ -60,7 +60,11 @@ export class AuthUserRecord {
   passwordHash!: string;
   roleId!: number;
   tenantId!: string;
-  profile?: { fullName: string | null; phoneNumber: string | null };
+  profile?: {
+    fullName: string | null;
+    phoneNumber: string | null;
+    profilePictureUrl: string | null;
+  };
   notificationPreferences?: {
     emailAlerts: boolean;
     smsAlerts: boolean;
@@ -101,6 +105,7 @@ export class OrganizationSettingsRecord {
   branding!: {
     organizationName: string;
     logoUrl: string | null;
+    profilePictureUrl: string | null;
     primaryColor: string | null;
     secondaryColor: string | null;
   };

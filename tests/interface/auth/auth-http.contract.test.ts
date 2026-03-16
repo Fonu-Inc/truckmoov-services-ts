@@ -386,6 +386,7 @@ describe("Auth HTTP contract", () => {
     expect(getProfileRes.status).toBe(200);
     expect(getProfileRes.body.profile.fullName).toBe("Profile Owner");
     expect(getProfileRes.body.profile.phoneNumber).toBeNull();
+    expect(getProfileRes.body.profile.profilePictureUrl).toBeNull();
 
     const patchProfileRes = await request(app.getHttpServer())
       .patch("/auth/profile")
@@ -393,11 +394,15 @@ describe("Auth HTTP contract", () => {
       .send({
         fullName: "Adebayo Adekunle",
         phoneNumber: "+2348011112222",
+        profilePictureUrl: "https://cdn.example.com/users/adebayo.png",
       });
 
     expect(patchProfileRes.status).toBe(200);
     expect(patchProfileRes.body.profile.fullName).toBe("Adebayo Adekunle");
     expect(patchProfileRes.body.profile.phoneNumber).toBe("+2348011112222");
+    expect(patchProfileRes.body.profile.profilePictureUrl).toBe(
+      "https://cdn.example.com/users/adebayo.png",
+    );
   });
 
   it("GET/PATCH /auth/preferences/notifications supports notification settings", async () => {
@@ -508,6 +513,8 @@ describe("Auth HTTP contract", () => {
       .send({
         branding: {
           organizationName: "Lagos Express Logistics",
+          logoUrl: "https://cdn.example.com/orgs/logo.png",
+          profilePictureUrl: "https://cdn.example.com/orgs/profile.png",
           primaryColor: "#0D9488",
           secondaryColor: "#0EA5E9",
         },
@@ -521,6 +528,10 @@ describe("Auth HTTP contract", () => {
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.branding.organizationName).toBe("Lagos Express Logistics");
+    expect(patchRes.body.branding.logoUrl).toBe("https://cdn.example.com/orgs/logo.png");
+    expect(patchRes.body.branding.profilePictureUrl).toBe(
+      "https://cdn.example.com/orgs/profile.png",
+    );
     expect(patchRes.body.defaults.currency).toBe("NGN");
 
     const getRes = await request(app.getHttpServer())
@@ -529,6 +540,9 @@ describe("Auth HTTP contract", () => {
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.branding.primaryColor).toBe("#0D9488");
+    expect(getRes.body.branding.profilePictureUrl).toBe(
+      "https://cdn.example.com/orgs/profile.png",
+    );
     expect(getRes.body.defaults.timezone).toBe("Africa/Lagos");
   });
 

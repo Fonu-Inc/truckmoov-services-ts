@@ -311,6 +311,7 @@ describe("RegisterUseCase", () => {
     expect(result.user.role).toBe(Role.ENTERPRISE_ADMIN);
     expect(result.user.tenantId).toBeTruthy();
     expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
+    expect(userRepo.getById(result.user.id)?.profile?.profilePictureUrl).toBeNull();
     expect(
       organizationRepo.getByTenantId(result.user.tenantId)?.branding.organizationName,
     ).toBe("Boss Transport");

@@ -1,6 +1,7 @@
 export type UserProfile = {
   fullName: string | null;
   phoneNumber: string | null;
+  profilePictureUrl: string | null;
 };
 
 export type NotificationPreferences = {
@@ -34,6 +35,7 @@ export function defaultUserProfile(): UserProfile {
   return {
     fullName: null,
     phoneNumber: null,
+    profilePictureUrl: null,
   };
 }
 
