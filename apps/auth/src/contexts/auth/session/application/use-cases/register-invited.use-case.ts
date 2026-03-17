@@ -58,6 +58,7 @@ export class RegisterInvitedUseCase {
       passwordHash,
       role,
       tenantId: invite.tenantId,
+      emailVerificationToken: null,
     });
 
     await this.inviteRepo.markAccepted(command.inviteToken);

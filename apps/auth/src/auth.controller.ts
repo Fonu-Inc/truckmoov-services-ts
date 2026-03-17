@@ -64,6 +64,8 @@ import {
   ValidateInviteUseCase,
   VerifyResetUseCase,
   ForbiddenError,
+  InvalidVerificationTokenError,
+  VerifyEmailUseCase,
 } from "./contexts/auth/session";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
@@ -73,6 +75,7 @@ import { ValidateInviteDto } from "./dto/validate-invite.dto";
 import { RegisterInvitedDto } from "./dto/register-invited.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { VerifyResetDto } from "./dto/verify-reset.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { ChangeRoleDto } from "./dto/change-role.dto";
 import { LogoutDto } from "./dto/logout.dto";
@@ -138,6 +141,8 @@ export class AuthController {
     private readonly getOrganizationSettingsUseCase: GetOrganizationSettingsUseCase,
     @Inject(UpdateOrganizationSettingsUseCase)
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
+    @Inject(VerifyEmailUseCase)
+    private readonly verifyEmailUseCase: VerifyEmailUseCase,
     private readonly objectStorageService: ObjectStorageService,
   ) {}
 
@@ -304,6 +309,18 @@ export class AuthController {
       return await this.verifyResetUseCase.execute({ token: payload.token });
     } catch (error) {
       if (error instanceof InvalidResetTokenError)
+        throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  /** Verify email address and set full name + password */
+  @Post("verify-email")
+  async verifyEmail(@Body(BodyOrDataPipe) payload: VerifyEmailDto) {
+    try {
+      return await this.verifyEmailUseCase.execute(payload);
+    } catch (error) {
+      if (error instanceof InvalidVerificationTokenError)
         throw new BadRequestException(error.message);
       throw error;
     }

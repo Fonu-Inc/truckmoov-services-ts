@@ -3,6 +3,7 @@ import type {
   AuthNotifier,
   InviteEmail,
   PasswordResetEmail,
+  VerificationEmail,
 } from "@auth/session/domain/ports/auth-notifier.port";
 import { AppConfigService } from "@shared/config";
 import { MailerService } from "@shared/mailer";
@@ -11,6 +12,10 @@ import {
   FORGOT_PASSWORD_EMAIL_TEMPLATE,
   FORGOT_PASSWORD_SUBJECT,
 } from "@auth/templates/forgot-password.template";
+import {
+  VERIFY_EMAIL_SUBJECT,
+  VERIFY_EMAIL_TEMPLATE,
+} from "@auth/templates/verify-email.template";
 
 @Injectable()
 export class MailerAuthNotifier implements AuthNotifier {
@@ -22,7 +27,7 @@ export class MailerAuthNotifier implements AuthNotifier {
   ) {}
 
   async sendInviteEmail(input: InviteEmail): Promise<void> {
-    const inviteLink = `${this.config.app.frontendUrl}/register?invite=${input.inviteToken}`;
+    const inviteLink = `${this.config.app.frontendUrl}${this.config.app.inviteAcceptPath}?invite=${input.inviteToken}`;
 
     await this.mailer.send({
       to: input.email,
@@ -45,6 +50,22 @@ export class MailerAuthNotifier implements AuthNotifier {
       template: FORGOT_PASSWORD_EMAIL_TEMPLATE,
       variables: {
         resetLink,
+        year: String(new Date().getFullYear()),
+      },
+    });
+  }
+
+  async sendVerificationEmail(input: VerificationEmail): Promise<void> {
+    const verificationLink = `${this.config.app.frontendUrl}${this.config.app.emailVerificationPath}?token=${input.verificationToken}`;
+
+    await this.mailer.send({
+      to: input.email,
+      subject: VERIFY_EMAIL_SUBJECT,
+      template: VERIFY_EMAIL_TEMPLATE,
+      variables: {
+        firstName: input.firstName,
+        email: input.email,
+        verificationLink,
         year: String(new Date().getFullYear()),
       },
     });

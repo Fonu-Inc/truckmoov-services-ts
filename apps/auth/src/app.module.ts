@@ -51,6 +51,7 @@ import {
   UpdateNotificationPreferencesUseCase,
   UpdateOrganizationSettingsUseCase,
   UpdateProfileUseCase,
+  VerifyEmailUseCase,
   MailerAuthNotifier,
   AuthPersistenceHealthCheck,
 } from "./contexts/auth/session";
@@ -185,6 +186,7 @@ import { AuthController } from "./auth.controller";
     UpdateDispatcherPreferencesUseCase,
     GetOrganizationSettingsUseCase,
     UpdateOrganizationSettingsUseCase,
+    VerifyEmailUseCase,
   ],
 })
 export class AppModule {}

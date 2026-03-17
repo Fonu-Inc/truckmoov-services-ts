@@ -26,6 +26,7 @@ export type StoredUser = {
   passwordHash: string;
   role: string;
   tenantId: string;
+  emailVerificationToken?: string | null;
   profile?: UserProfile;
   notificationPreferences?: NotificationPreferences;
   dispatcherPreferences?: DispatcherPreferences;
@@ -73,6 +74,7 @@ export function normalizeStoredUser(user: StoredUser): StoredUser {
 export interface UserRepository {
   findByEmail(email: string): Promise<StoredUser | null>;
   findById(id: string): Promise<StoredUser | null>;
+  findByVerificationToken(token: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRole(userId: string, role: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;

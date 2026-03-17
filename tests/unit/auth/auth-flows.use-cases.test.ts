@@ -69,6 +69,7 @@ class FakePasswordHasher {
 class FakeAuthNotifier {
   public invites: Array<{ email: string; role: string; inviteToken: string }> = [];
   public resets: Array<{ email: string; resetToken: string }> = [];
+  public verifications: Array<{ email: string; firstName: string; verificationToken: string }> = [];
 
   async sendInviteEmail(input: { email: string; role: string; inviteToken: string }) {
     this.invites.push(input);
@@ -76,6 +77,10 @@ class FakeAuthNotifier {
 
   async sendPasswordResetEmail(input: { email: string; resetToken: string }) {
     this.resets.push(input);
+  }
+
+  async sendVerificationEmail(input: { email: string; firstName: string; verificationToken: string }) {
+    this.verifications.push(input);
   }
 }
 
@@ -295,6 +300,7 @@ describe("RegisterUseCase", () => {
       organizationRepo as any,
       new FakePasswordHasher() as any,
       new FakeIdGenerator() as any,
+      new FakeAuthNotifier() as any,
     );
 
     const result = await uc.execute({
@@ -329,6 +335,7 @@ describe("RegisterUseCase", () => {
       organizationRepo as any,
       new FakePasswordHasher() as any,
       new FakeIdGenerator() as any,
+      new FakeAuthNotifier() as any,
     );
 
     await uc.execute({

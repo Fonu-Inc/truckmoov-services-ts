@@ -15,6 +15,14 @@ import {
   mapRoleNameToId,
 } from "./persistence/auth-orm";
 
+function toStoredUser(record: AuthUserRecord): StoredUser {
+  return {
+    ...record,
+    role: mapRoleIdToName(record.roleId),
+    emailVerificationToken: record.emailVerificationToken ?? null,
+  };
+}
+
 @Injectable()
 export class MikroUserRepository implements UserRepository {
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
@@ -23,24 +31,21 @@ export class MikroUserRepository implements UserRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(AuthUserRecord, { email });
-    return record
-      ? normalizeStoredUser({
-        ...record,
-        role: mapRoleIdToName(record.roleId),
-      })
-      : null;
+    return record ? normalizeStoredUser(toStoredUser(record)) : null;
   }
 
   async findById(id: string): Promise<StoredUser | null> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(AuthUserRecord, { id });
-    return record
-      ? normalizeStoredUser({
-        ...record,
-        role: mapRoleIdToName(record.roleId),
-      })
-      : null;
+    return record ? normalizeStoredUser(toStoredUser(record)) : null;
+  }
+
+  async findByVerificationToken(token: string): Promise<StoredUser | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(AuthUserRecord, { emailVerificationToken: token });
+    return record ? normalizeStoredUser(toStoredUser(record)) : null;
   }
 
   async save(user: StoredUser): Promise<void> {
@@ -53,6 +58,7 @@ export class MikroUserRepository implements UserRepository {
       passwordHash: normalized.passwordHash,
       roleId: mapRoleNameToId(normalized.role),
       tenantId: normalized.tenantId,
+      emailVerificationToken: normalized.emailVerificationToken ?? null,
       profile: normalized.profile,
       notificationPreferences: normalized.notificationPreferences,
       dispatcherPreferences: normalized.dispatcherPreferences,

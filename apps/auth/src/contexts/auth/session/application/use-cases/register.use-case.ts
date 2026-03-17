@@ -12,6 +12,7 @@ import {
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
+import { AUTH_NOTIFIER, type AuthNotifier } from "../../domain/ports/auth-notifier.port";
 
 export type RegisterCommand = {
   email: string;
@@ -36,6 +37,8 @@ export class RegisterUseCase {
     private readonly passwordHasher: PasswordHasher,
     @Inject(ID_GENERATOR)
     private readonly idGenerator: IdGenerator,
+    @Inject(AUTH_NOTIFIER)
+    private readonly notifier: AuthNotifier,
   ) {}
 
   async execute(command: RegisterCommand) {
@@ -44,6 +47,7 @@ export class RegisterUseCase {
 
     const id = this.idGenerator.generate();
     const tenantId = this.idGenerator.generate();
+    const emailVerificationToken = this.idGenerator.generate();
     const passwordHash = await this.passwordHasher.hash(command.password);
     const role = Role.ENTERPRISE_ADMIN;
     const profile = {
@@ -60,9 +64,16 @@ export class RegisterUseCase {
       passwordHash,
       role,
       tenantId,
+      emailVerificationToken,
       profile,
     });
     await this.organizationRepo.save(organizationSettings);
+
+    await this.notifier.sendVerificationEmail({
+      email: command.email,
+      firstName: command.firstName.trim(),
+      verificationToken: emailVerificationToken,
+    });
 
     const user = AuthUser.create({ id, email: command.email, role, tenantId });
     const accessToken = this.tokenService.issueAccessToken(user);

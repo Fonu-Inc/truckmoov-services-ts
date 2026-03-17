@@ -24,6 +24,13 @@ export class InMemoryUserRepository implements UserRepository {
     return null;
   }
 
+  async findByVerificationToken(token: string): Promise<StoredUser | null> {
+    for (const user of this.store.values()) {
+      if (user.emailVerificationToken === token) return normalizeStoredUser(user);
+    }
+    return null;
+  }
+
   async save(user: StoredUser): Promise<void> {
     this.store.set(user.email, normalizeStoredUser(user));
   }

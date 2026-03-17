@@ -4,6 +4,7 @@ export { InvalidRefreshTokenError } from "./domain/errors/invalid-refresh-token.
 export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
+export { InvalidVerificationTokenError } from "./domain/errors/invalid-verification-token.error";
 export { UserNotFoundError } from "./domain/errors/user-not-found.error";
 export { ForbiddenError } from "./domain/errors/forbidden.error";
 export { InvalidSettingsError } from "./domain/errors/invalid-settings.error";
@@ -50,6 +51,7 @@ export { ValidateInviteUseCase } from "./application/use-cases/validate-invite.u
 export { RegisterInvitedUseCase } from "./application/use-cases/register-invited.use-case";
 export { ForgotPasswordUseCase } from "./application/use-cases/forgot-password.use-case";
 export { VerifyResetUseCase } from "./application/use-cases/verify-reset.use-case";
+export { VerifyEmailUseCase } from "./application/use-cases/verify-email.use-case";
 export { ResetPasswordUseCase } from "./application/use-cases/reset-password.use-case";
 export { ChangeRoleUseCase } from "./application/use-cases/change-role.use-case";
 export { LogoutUseCase } from "./application/use-cases/logout.use-case";

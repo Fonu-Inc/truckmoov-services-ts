@@ -60,6 +60,7 @@ export class AuthUserRecord {
   passwordHash!: string;
   roleId!: number;
   tenantId!: string;
+  emailVerificationToken?: string | null;
   profile?: {
     fullName: string | null;
     phoneNumber: string | null;
@@ -91,6 +92,7 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     passwordHash: { type: "string" },
     roleId: { type: "number" },
     tenantId: { type: "string", length: 64, default: "default" },
+    emailVerificationToken: { type: "string", length: 128, nullable: true },
     profile: { type: "json", nullable: true },
     notificationPreferences: { type: "json", nullable: true },
     dispatcherPreferences: { type: "json", nullable: true },

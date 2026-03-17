@@ -54,6 +54,12 @@ export class AppConfigService {
       transport: this.config.get<string>("MAIL_TRANSPORT", "null"),
       region: this.config.get<string>("AWS_REGION", "us-east-1"),
       from: this.config.get<string>("MAIL_FROM", "noreply@truckmoov.com"),
+      smtp: {
+        host: this.config.get<string>("SMTP_HOST", ""),
+        port: this.config.get<number>("SMTP_PORT", 465),
+        username: this.config.get<string>("SMTP_USERNAME", ""),
+        password: this.config.get<string>("SMTP_PASSWORD", ""),
+      },
     };
   }
 
@@ -86,6 +92,8 @@ export class AppConfigService {
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+      emailVerificationPath: this.config.get<string>("EMAIL_VERIFICATION_PATH", "/verify-email"),
+      inviteAcceptPath: this.config.get<string>("INVITE_ACCEPT_PATH", "/register"),
       env: this.config.get<NodeEnv>("NODE_ENV", NodeEnv.Development),
     };
   }
