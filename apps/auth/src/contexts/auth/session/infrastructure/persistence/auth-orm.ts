@@ -220,8 +220,7 @@ export function mapRoleNameToId(role: string): number {
 async function hasColumn(orm: MikroORM, tableName: string, columnName: string) {
   const connection = orm.em.getConnection();
   const rows = await connection.execute(
-    "SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND column_name = $2",
-    [tableName, columnName],
+    `SELECT column_name FROM information_schema.columns WHERE table_name = '${tableName}' AND column_name = '${columnName}'`,
   ) as Array<Record<string, unknown>>;
   return rows.length > 0;
 }
@@ -245,8 +244,7 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
         ? row.roles
         : JSON.parse(row.roles) as string[];
       await connection.execute(
-        "UPDATE auth_users SET role_id = $1 WHERE id = $2",
-        [mapRoleNameToId(roles[0]), row.id],
+        `UPDATE auth_users SET role_id = ${mapRoleNameToId(roles[0])} WHERE id = '${row.id}'`,
       );
     }
   }
@@ -267,8 +265,7 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
         ? row.roles
         : JSON.parse(row.roles) as string[];
       await connection.execute(
-        "UPDATE auth_sessions SET role_id = $1 WHERE refresh_token = $2",
-        [mapRoleNameToId(roles[0]), row.refresh_token],
+        `UPDATE auth_sessions SET role_id = ${mapRoleNameToId(roles[0])} WHERE refresh_token = '${row.refresh_token}'`,
       );
     }
   }
@@ -286,8 +283,7 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
         continue;
       }
       await connection.execute(
-        "UPDATE auth_invites SET role_id = $1 WHERE id = $2",
-        [roleToId(row.role), row.id],
+        `UPDATE auth_invites SET role_id = ${roleToId(row.role)} WHERE id = '${row.id}'`,
       );
     }
   }
