@@ -42,7 +42,7 @@ export class MailerAuthNotifier implements AuthNotifier {
   }
 
   async sendPasswordResetEmail(input: PasswordResetEmail): Promise<void> {
-    const resetLink = `${this.config.app.frontendUrl}/reset-password?token=${input.resetToken}`;
+    const resetLink = `${this.config.app.frontendUrl}${this.config.app.emailVerificationPath}?token=${input.resetToken}&type=reset-password`;
 
     await this.mailer.send({
       to: input.email,
@@ -56,7 +56,7 @@ export class MailerAuthNotifier implements AuthNotifier {
   }
 
   async sendVerificationEmail(input: VerificationEmail): Promise<void> {
-    const verificationLink = `${this.config.app.frontendUrl}${this.config.app.emailVerificationPath}?token=${input.verificationToken}`;
+    const verificationLink = `${this.config.app.frontendUrl}${this.config.app.emailVerificationPath}?token=${input.verificationToken}&type=new-user`;
 
     await this.mailer.send({
       to: input.email,

@@ -92,7 +92,7 @@ export class AppConfigService {
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
-      emailVerificationPath: this.config.get<string>("EMAIL_VERIFICATION_PATH", "/verify-email"),
+      emailVerificationPath: this.config.get<string>("EMAIL_VERIFICATION_PATH", "/auth/verify-email"),
       inviteAcceptPath: this.config.get<string>("INVITE_ACCEPT_PATH", "/register"),
       env: this.config.get<NodeEnv>("NODE_ENV", NodeEnv.Development),
     };
