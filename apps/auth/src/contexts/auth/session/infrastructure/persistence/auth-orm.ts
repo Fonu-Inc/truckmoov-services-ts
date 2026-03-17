@@ -220,7 +220,7 @@ export function mapRoleNameToId(role: string): number {
 async function hasColumn(orm: MikroORM, tableName: string, columnName: string) {
   const connection = orm.em.getConnection();
   const rows = await connection.execute(
-    `SELECT column_name FROM information_schema.columns WHERE table_name = '${tableName}' AND column_name = '${columnName}'`,
+    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${columnName}'`,
   ) as Array<Record<string, unknown>>;
   return rows.length > 0;
 }
@@ -308,6 +308,7 @@ export async function getAuthOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
+    schema: "public",
   }).then(async (orm) => {
     await orm.schema.updateSchema();
     const em = orm.em.fork();
