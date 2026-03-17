@@ -11,10 +11,11 @@ export class SmtpMailAdapter implements MailTransport {
   constructor(config: AppConfigService) {
     const { host, port, username, password } = config.mail.smtp;
     this.from = config.mail.from;
+    const portNum = Number(port);
     this.transporter = nodemailer.createTransport({
       host,
-      port,
-      secure: port === 465,
+      port: portNum,
+      secure: portNum === 465,
       auth: { user: username, pass: password },
     });
   }
