@@ -1,5 +1,5 @@
 import { EntitySchema } from "@mikro-orm/core";
-import { MikroORM } from "@mikro-orm/mysql";
+import { MikroORM } from "@mikro-orm/postgresql";
 
 export type DbConfig = {
   host: string;
