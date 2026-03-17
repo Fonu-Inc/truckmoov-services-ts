@@ -52,6 +52,7 @@ import {
   UpdateOrganizationSettingsUseCase,
   UpdateProfileUseCase,
   VerifyEmailUseCase,
+  CompleteProfileUseCase,
   MailerAuthNotifier,
   AuthPersistenceHealthCheck,
 } from "./contexts/auth/session";
@@ -187,6 +188,7 @@ import { AuthController } from "./auth.controller";
     GetOrganizationSettingsUseCase,
     UpdateOrganizationSettingsUseCase,
     VerifyEmailUseCase,
+    CompleteProfileUseCase,
   ],
 })
 export class AppModule {}

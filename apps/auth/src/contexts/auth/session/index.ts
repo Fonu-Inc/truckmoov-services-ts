@@ -52,6 +52,7 @@ export { RegisterInvitedUseCase } from "./application/use-cases/register-invited
 export { ForgotPasswordUseCase } from "./application/use-cases/forgot-password.use-case";
 export { VerifyResetUseCase } from "./application/use-cases/verify-reset.use-case";
 export { VerifyEmailUseCase } from "./application/use-cases/verify-email.use-case";
+export { CompleteProfileUseCase } from "./application/use-cases/complete-profile.use-case";
 export { ResetPasswordUseCase } from "./application/use-cases/reset-password.use-case";
 export { ChangeRoleUseCase } from "./application/use-cases/change-role.use-case";
 export { LogoutUseCase } from "./application/use-cases/logout.use-case";

@@ -66,6 +66,7 @@ import {
   ForbiddenError,
   InvalidVerificationTokenError,
   VerifyEmailUseCase,
+  CompleteProfileUseCase,
 } from "./contexts/auth/session";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
@@ -76,6 +77,7 @@ import { RegisterInvitedDto } from "./dto/register-invited.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { VerifyResetDto } from "./dto/verify-reset.dto";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
+import { CompleteProfileDto } from "./dto/complete-profile.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { ChangeRoleDto } from "./dto/change-role.dto";
 import { LogoutDto } from "./dto/logout.dto";
@@ -143,6 +145,8 @@ export class AuthController {
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
     @Inject(VerifyEmailUseCase)
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
+    @Inject(CompleteProfileUseCase)
+    private readonly completeProfileUseCase: CompleteProfileUseCase,
     private readonly objectStorageService: ObjectStorageService,
   ) {}
 
@@ -314,11 +318,23 @@ export class AuthController {
     }
   }
 
-  /** Verify email address and set full name + password */
+  /** Verify new-user email token */
   @Post("verify-email")
   async verifyEmail(@Body(BodyOrDataPipe) payload: VerifyEmailDto) {
     try {
-      return await this.verifyEmailUseCase.execute(payload);
+      return await this.verifyEmailUseCase.execute({ token: payload.token });
+    } catch (error) {
+      if (error instanceof InvalidVerificationTokenError)
+        throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  /** Complete invited-user profile (fullName + password) */
+  @Post("complete-profile")
+  async completeProfile(@Body(BodyOrDataPipe) payload: CompleteProfileDto) {
+    try {
+      return await this.completeProfileUseCase.execute(payload);
     } catch (error) {
       if (error instanceof InvalidVerificationTokenError)
         throw new BadRequestException(error.message);
