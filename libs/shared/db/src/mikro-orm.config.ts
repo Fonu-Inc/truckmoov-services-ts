@@ -1,4 +1,4 @@
-import { defineConfig } from "@mikro-orm/mysql";
+import { defineConfig } from "@mikro-orm/postgresql";
 
 export default defineConfig({
   host: process.env.POSTGRES_HOST ?? "localhost",

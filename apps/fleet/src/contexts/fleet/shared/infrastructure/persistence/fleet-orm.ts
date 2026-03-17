@@ -132,8 +132,16 @@ export async function getFleetOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
+    migrations: {
+      path: process.env.NODE_ENV === "production"
+        ? "dist/apps/fleet/src/migrations"
+        : "apps/fleet/src/migrations",
+      tableName: "mikro_migrations_fleet",
+      safe: true,
+      glob: "!(*.d).{js,ts}",
+    },
   }).then(async (orm) => {
-    await orm.schema.updateSchema();
+    await orm.getMigrator().up();
     return orm;
   });
 

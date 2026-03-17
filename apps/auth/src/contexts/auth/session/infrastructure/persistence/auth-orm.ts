@@ -309,8 +309,16 @@ export async function getAuthOrm(cfg: DbConfig) {
     password: cfg.password,
     dbName: cfg.dbName,
     schema: "public",
+    migrations: {
+      path: process.env.NODE_ENV === "production"
+        ? "dist/apps/auth/src/migrations"
+        : "apps/auth/src/migrations",
+      tableName: "mikro_migrations_auth",
+      safe: true,
+      glob: "!(*.d).{js,ts}",
+    },
   }).then(async (orm) => {
-    await orm.schema.updateSchema();
+    await orm.getMigrator().up();
     const em = orm.em.fork();
     for (const role of ROLE_SEED_ROWS) {
       await em.upsert(AuthRoleRecord, role);
