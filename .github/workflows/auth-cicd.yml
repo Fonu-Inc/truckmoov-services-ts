@@ -242,12 +242,12 @@ jobs:
             -o ServerAliveInterval=30
             -o ServerAliveCountMax=10
           )
-          scp "${ssh_opts[@]}" "$AUTH_IMAGE_TAR" "$DEV_SSH_USER@$DEV_SSH_HOST:$REMOTE_AUTH_IMAGE_TAR"
-          scp "${ssh_opts[@]}" "$FLEET_IMAGE_TAR" "$DEV_SSH_USER@$DEV_SSH_HOST:$REMOTE_FLEET_IMAGE_TAR"
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat > \"$REMOTE_AUTH_IMAGE_TAR\"" < "$AUTH_IMAGE_TAR"
+          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat > \"$REMOTE_FLEET_IMAGE_TAR\"" < "$FLEET_IMAGE_TAR"
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
             set -eu
-            sudo -n k3s ctr images import \"$REMOTE_AUTH_IMAGE_TAR\"
-            sudo -n k3s ctr images import \"$REMOTE_FLEET_IMAGE_TAR\"
+            k3s ctr images import \"$REMOTE_AUTH_IMAGE_TAR\"
+            k3s ctr images import \"$REMOTE_FLEET_IMAGE_TAR\"
             rm -f \"$REMOTE_AUTH_IMAGE_TAR\" \"$REMOTE_FLEET_IMAGE_TAR\"
           "
           rm -f "$AUTH_IMAGE_TAR" "$FLEET_IMAGE_TAR"
