@@ -246,8 +246,8 @@ jobs:
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat > \"$REMOTE_FLEET_IMAGE_TAR\"" < "$FLEET_IMAGE_TAR"
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
             set -eu
-            k3s ctr images import \"$REMOTE_AUTH_IMAGE_TAR\"
-            k3s ctr images import \"$REMOTE_FLEET_IMAGE_TAR\"
+            /usr/local/bin/k3s ctr images import \"$REMOTE_AUTH_IMAGE_TAR\"
+            /usr/local/bin/k3s ctr images import \"$REMOTE_FLEET_IMAGE_TAR\"
             rm -f \"$REMOTE_AUTH_IMAGE_TAR\" \"$REMOTE_FLEET_IMAGE_TAR\"
           "
           rm -f "$AUTH_IMAGE_TAR" "$FLEET_IMAGE_TAR"
