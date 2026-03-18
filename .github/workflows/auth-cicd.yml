@@ -169,6 +169,35 @@ jobs:
             set -eu
             command -v docker >/dev/null 2>&1
             kubectl config current-context
+            if ! docker buildx version >/dev/null 2>&1; then
+              echo "docker buildx not found on deploy host; installing user-scoped plugin"
+              install -d -m 700 "$HOME/.docker/cli-plugins"
+              arch=$(uname -m)
+              case "$arch" in
+                x86_64|amd64)
+                  buildx_arch=amd64
+                  ;;
+                aarch64|arm64)
+                  buildx_arch=arm64
+                  ;;
+                *)
+                  echo "Unsupported architecture for docker buildx bootstrap: $arch" >&2
+                  exit 1
+                  ;;
+              esac
+              buildx_version=v0.17.1
+              buildx_url="https://github.com/docker/buildx/releases/download/${buildx_version}/buildx-${buildx_version}.linux-${buildx_arch}"
+              if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$buildx_url" -o "$HOME/.docker/cli-plugins/docker-buildx"
+              elif command -v wget >/dev/null 2>&1; then
+                wget -qO "$HOME/.docker/cli-plugins/docker-buildx" "$buildx_url"
+              else
+                echo "Neither curl nor wget is available on the deploy host, so docker buildx cannot be installed automatically." >&2
+                exit 1
+              fi
+              chmod 700 "$HOME/.docker/cli-plugins/docker-buildx"
+            fi
+            docker buildx version
           '
 
       - name: Build auth image
