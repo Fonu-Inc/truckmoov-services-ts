@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { RolesGuard } from "../../../libs/shared/rbac/src/roles.guard";
+import { RolesGuard } from "@shared/rbac";
 
 function makeGuard(requiredRoles: string[]): RolesGuard {
   const reflector = {

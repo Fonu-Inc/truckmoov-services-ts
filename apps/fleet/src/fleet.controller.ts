@@ -796,7 +796,6 @@ export class FleetController {
   async exportCsv(
     @Param("entity") entity: string,
     @Query("tenantId") tenantId = "default",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Res() res: any,
   ): Promise<void> {
     const validEntities: ExportEntity[] = ["jobs", "vehicles", "drivers", "alerts", "fuel"];
@@ -861,7 +860,6 @@ export class FleetController {
   @ApiQuery({ name: "tenantId", required: false, type: String })
   async exportFuel(
     @Query("tenantId") tenantId = "default",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Res() res: any,
   ): Promise<void> {
     const csv = await this.exportUseCase.toCsv("fuel", tenantId);
