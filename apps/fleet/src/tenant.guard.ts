@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { Role, normalizeRole } from "@shared/rbac";
 
 // Routes decorated with @SkipTenantCheck() bypass this guard.
 export const SKIP_TENANT_KEY = "skipTenantCheck";
@@ -24,8 +25,8 @@ export class TenantGuard implements CanActivate {
     const claimedTenant = req.headers["x-tenant-id"];
     if (!claimedTenant) return true; // No tenant header → single-tenant / unauthenticated dev mode
 
-    const role = req.headers["x-user-role"];
-    if (role === "admin") return true; // Admins can access any tenant
+    const role = normalizeRole(req.headers["x-user-role"]);
+    if (role === Role.ENTERPRISE_ADMIN) return true; // Enterprise admins can access any tenant
 
     const requested =
       req.query["tenantId"] ??

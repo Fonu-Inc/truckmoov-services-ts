@@ -29,7 +29,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { GeofenceService } from "@shared/geofence";
-import { IdempotencyGuard, RequireIdempotency, Roles, RolesGuard } from "@shared/rbac";
+import { IdempotencyGuard, RequireIdempotency, Role, Roles, RolesGuard } from "@shared/rbac";
 import {
   BulkImportDriversDto,
   CreateDriverDto,
@@ -234,7 +234,7 @@ export class FleetController {
   }
 
   @Post("routes/:vehicleId/geofence")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Register a geofence",
     description: "Stores a bounding box for a vehicle so we can detect deviations.",
@@ -252,7 +252,7 @@ export class FleetController {
   }
 
   @Get("routes/:vehicleId/geofence")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Read the configured geofence" })
   @ApiOkResponse({ description: "Current bounding box" })
   async getGeofence(@Param("vehicleId") vehicleId: string) {
@@ -260,7 +260,7 @@ export class FleetController {
   }
 
   @Post("routes/:vehicleId/location")
-  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Report live position and detect deviations" })
   @ApiOkResponse({ description: "Deviation flag" })
   async reportLocation(
@@ -284,7 +284,7 @@ export class FleetController {
   }
 
   @Get("vehicles/:vehicleId/health")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get last seen status" })
   @ApiOkResponse({ type: VehicleHealthResponse })
   async getVehicleHealth(@Param("vehicleId") vehicleId: string) {
@@ -293,7 +293,7 @@ export class FleetController {
   }
 
   @Get("vehicles/health")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List all last seen statuses" })
   @ApiOkResponse({ type: VehicleHealthListResponse })
   async listVehicleHealth() {
@@ -304,7 +304,7 @@ export class FleetController {
   }
 
   @Get("vehicles/nearest")
-  @Roles("admin", "fleet_manager", "operations_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Find nearest vehicles to a coordinate" })
   @ApiQuery({ name: "lat", required: true, type: Number })
   @ApiQuery({ name: "lng", required: true, type: Number })
@@ -346,7 +346,7 @@ export class FleetController {
 
   /** Retrieve vehicles with optional dispatch-centric filters */
   @Get("vehicles")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List vehicles",
     description: "Epic C (US-C01, US-C04, US-C06): list/search/filter fleet vehicles.",
@@ -368,7 +368,7 @@ export class FleetController {
 
   /** Register a new vehicle in the fleet */
   @Post("vehicles")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -382,7 +382,7 @@ export class FleetController {
 
   /** Bulk onboarding for fleet inventory imports */
   @Post("vehicles/import")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -396,7 +396,7 @@ export class FleetController {
 
   /** Retrieve a vehicle by ID */
   @Get("vehicles/:id")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get vehicle by ID" })
   @ApiOkResponse({ type: VehicleResponse })
   async getVehicle(@Param("id") id: string): Promise<VehicleResponse> {
@@ -405,7 +405,7 @@ export class FleetController {
 
   /** Partially update a vehicle's details */
   @Patch("vehicles/:id")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update vehicle" })
@@ -418,7 +418,7 @@ export class FleetController {
 
   /** Activate/deactivate vehicle availability for dispatch */
   @Patch("vehicles/:id/status")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -434,7 +434,7 @@ export class FleetController {
 
   /** Assign a driver to a vehicle (US-C03) */
   @Patch("vehicles/:id/assignment")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -454,7 +454,7 @@ export class FleetController {
 
   /** Remove current driver assignment from a vehicle */
   @Delete("vehicles/:id/assignment")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign driver from vehicle" })
@@ -467,7 +467,7 @@ export class FleetController {
 
   /** Register or replace GPS hardware mapped to a vehicle */
   @Patch("vehicles/:id/gps-device")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -486,7 +486,7 @@ export class FleetController {
 
   /** Remove a vehicle from the fleet */
   @Delete("vehicles/:id")
-  @Roles("admin")
+  @Roles(Role.ENTERPRISE_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete vehicle" })
@@ -499,7 +499,7 @@ export class FleetController {
 
   /** Retrieve drivers with optional dispatch-centric filters */
   @Get("drivers")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List drivers",
     description: "Epic C (US-C02, US-C04, US-C06): list/search/filter drivers.",
@@ -521,7 +521,7 @@ export class FleetController {
 
   /** Register a new driver */
   @Post("drivers")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -535,7 +535,7 @@ export class FleetController {
 
   /** Bulk onboarding for driver records */
   @Post("drivers/import")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -549,7 +549,7 @@ export class FleetController {
 
   /** Retrieve a driver by ID */
   @Get("drivers/:id")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get driver by ID" })
   @ApiOkResponse({ type: DriverResponse })
   async getDriver(@Param("id") id: string): Promise<DriverResponse> {
@@ -558,7 +558,7 @@ export class FleetController {
 
   /** Partially update a driver's details */
   @Patch("drivers/:id")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update driver" })
@@ -571,7 +571,7 @@ export class FleetController {
 
   /** Activate/deactivate driver availability for dispatch */
   @Patch("drivers/:id/status")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -587,7 +587,7 @@ export class FleetController {
 
   /** Manage WhatsApp/SMS/voice contact channels used for dispatch communication */
   @Patch("drivers/:id/contact-channels")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -606,7 +606,7 @@ export class FleetController {
 
   /** Remove a driver record */
   @Delete("drivers/:id")
-  @Roles("admin")
+  @Roles(Role.ENTERPRISE_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete driver" })
@@ -619,7 +619,7 @@ export class FleetController {
 
   /** List jobs for dispatch search/filter use-cases */
   @Get("jobs")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List jobs",
     description: "Epic C (US-C06): filter/search jobs for dispatch views.",
@@ -638,7 +638,7 @@ export class FleetController {
 
   /** Combined dispatcher search over vehicles, drivers, and jobs */
   @Get("dispatch/search")
-  @Roles("admin", "fleet_manager", "operator", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Dispatch search",
     description: "Epic C (US-C06): combined search/filter over vehicles, drivers, and jobs.",
@@ -680,7 +680,7 @@ export class FleetController {
 
   /** Emit a job-status-changed domain event to the event bus */
   @Post("events/job-status")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -701,7 +701,7 @@ export class FleetController {
   }
 
   @Get("alerts/stats")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Alert statistics — H06" })
   @ApiOkResponse({ type: AlertStatsResponse })
   async getAlertStats(@Query("tenantId") tenantId = "default"): Promise<AlertStatsResponse> {
@@ -710,7 +710,7 @@ export class FleetController {
   }
 
   @Get("alerts")
-  @Roles("admin", "fleet_manager", "operations_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "List alerts — H04" })
   @ApiQuery({ name: "status", required: false, enum: ["open", "acknowledged", "resolved", "escalated"] })
   @ApiQuery({ name: "type", required: false, type: String })
@@ -733,7 +733,7 @@ export class FleetController {
   }
 
   @Post("alerts/:id/acknowledge")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Acknowledge alert — H04" })
   @ApiOkResponse({ type: AlertResponse })
   async acknowledgeAlert(
@@ -751,7 +751,7 @@ export class FleetController {
   }
 
   @Post("alerts/:id/resolve")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Resolve alert — H04" })
   @ApiOkResponse({ type: AlertResponse })
   async resolveAlert(
@@ -769,7 +769,7 @@ export class FleetController {
   }
 
   @Get("reports/dashboard")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Operational dashboard — I01" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DashboardResponse })
@@ -779,7 +779,7 @@ export class FleetController {
   }
 
   @Get("reports/delivery-metrics")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delivery metrics — I05" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DeliveryMetricsResponse })
@@ -789,7 +789,7 @@ export class FleetController {
   }
 
   @Get("reports/export/:entity")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "CSV export — I07" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
@@ -811,7 +811,7 @@ export class FleetController {
   // ─── Fuel & Cost Management (Epic N) ───────────────────────────────────────
 
   @Post("fuel")
-  @Roles("admin", "fleet_manager", "dispatcher")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Record fuel transaction — N01" })
   @ApiCreatedResponse({ type: FuelRecordResponse })
   async recordFuel(
@@ -826,7 +826,7 @@ export class FleetController {
   }
 
   @Get("fuel/metrics")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel consumption chart — N04" })
   @ApiQuery({ name: "period", required: false, enum: ["weekly", "monthly"] })
   @ApiQuery({ name: "tenantId", required: false, type: String })
@@ -837,7 +837,7 @@ export class FleetController {
   }
 
   @Get("fuel/efficiency")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle fuel efficiency — N05" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: FuelEfficiencyResponse })
@@ -847,7 +847,7 @@ export class FleetController {
   }
 
   @Get("fuel/thresholds")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get fuel efficiency thresholds — N08" })
   @ApiOkResponse({ type: FuelThresholdListResponse })
   listFuelThresholds(): FuelThresholdListResponse {
@@ -855,7 +855,7 @@ export class FleetController {
   }
 
   @Get("fuel/export")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "Export fuel transactions to CSV — N07" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
@@ -870,7 +870,7 @@ export class FleetController {
   }
 
   @Get("fuel")
-  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List fuel transactions — N02" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
@@ -885,7 +885,7 @@ export class FleetController {
   }
 
   @Patch("fuel/:id")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @ApiOperation({ summary: "Edit fuel transaction with audit trail — N03" })
   @ApiOkResponse({ type: FuelRecordResponse })
   async updateFuel(
@@ -909,7 +909,7 @@ export class FleetController {
   }
 
   @Delete("fuel/:id")
-  @Roles("admin", "fleet_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
   async deleteFuel(
     @Param("id") id: string,
@@ -926,7 +926,7 @@ export class FleetController {
   }
 
   @Put("fuel/thresholds/:vehicleType")
-  @Roles("admin")
+  @Roles(Role.ENTERPRISE_ADMIN)
   @ApiOperation({ summary: "Set fuel efficiency threshold by vehicle type — N08" })
   @ApiOkResponse({ type: FuelThresholdResponse })
   setFuelThreshold(
@@ -942,7 +942,7 @@ export class FleetController {
   }
 
   @Post("documents")
-  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @UseInterceptors(FileInterceptor("file"))
   @ApiOperation({ summary: "Upload document — J01" })
   @ApiCreatedResponse({ type: DocumentResponse })
@@ -975,7 +975,7 @@ export class FleetController {
   }
 
   @Get("documents")
-  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List documents for an entity — J01" })
   @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
   @ApiQuery({ name: "entityId", required: true, type: String })
@@ -992,7 +992,7 @@ export class FleetController {
   }
 
   @Get("documents/:id/download-url")
-  @Roles("admin", "fleet_manager", "dispatcher", "operations_manager", "driver")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
   @ApiOperation({ summary: "Get secure download URL — J02" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DownloadUrlResponse })
@@ -1007,7 +1007,7 @@ export class FleetController {
   }
 
   @Get("documents/:id/access-log")
-  @Roles("admin", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Document access log — J04" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: AccessLogListResponse })
@@ -1021,7 +1021,7 @@ export class FleetController {
   }
 
   @Get("audit")
-  @Roles("admin", "fleet_manager", "operations_manager")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Activity/audit log — M06" })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "alert", "document", "geofence"] })
