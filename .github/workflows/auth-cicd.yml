@@ -188,7 +188,18 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            nohup sh -c 'DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
+            nohup sh -c '
+              if docker buildx version >/dev/null 2>&1; then
+                echo \"Using BuildKit for auth image build\"
+                DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\"
+              else
+                echo \"docker buildx not found on deploy host; falling back to legacy docker build for auth image\"
+                DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\"
+              fi
+              status=\$?
+              echo \$status >\"$BUILD_LOG.exit\"
+              exit \$status
+            ' >\"$BUILD_LOG\" 2>&1 &
           "
           while true; do
             if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
@@ -219,7 +230,18 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            nohup sh -c 'DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
+            nohup sh -c '
+              if docker buildx version >/dev/null 2>&1; then
+                echo \"Using BuildKit for fleet image build\"
+                DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\"
+              else
+                echo \"docker buildx not found on deploy host; falling back to legacy docker build for fleet image\"
+                DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\"
+              fi
+              status=\$?
+              echo \$status >\"$BUILD_LOG.exit\"
+              exit \$status
+            ' >\"$BUILD_LOG\" 2>&1 &
           "
           while true; do
             if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
