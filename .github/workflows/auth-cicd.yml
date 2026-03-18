@@ -172,7 +172,6 @@ jobs:
           remote_arch=$(ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
             set -eu
             kubectl config current-context >/dev/null
-            sudo -n k3s ctr version >/dev/null 2>&1
             uname -m
           ')
           case "$remote_arch" in
@@ -190,7 +189,6 @@ jobs:
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
             set -eu
             kubectl config current-context
-            sudo -n k3s ctr version >/dev/null 2>&1
           '
 
       - name: Build auth image
