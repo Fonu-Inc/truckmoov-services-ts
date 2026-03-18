@@ -188,7 +188,7 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            nohup sh -c 'DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
+            nohup sh -c 'DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.auth\" -t \"$AUTH_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
           "
           while true; do
             if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
@@ -219,7 +219,7 @@ jobs:
             -o ServerAliveCountMax=10
           )
           ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            nohup sh -c 'DOCKER_BUILDKIT=0 docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
+            nohup sh -c 'DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build -f \"$SOURCE_PATH/Dockerfile.fleet\" -t \"$FLEET_IMAGE\" \"$SOURCE_PATH\" >\"$BUILD_LOG\" 2>&1; echo \$? >\"$BUILD_LOG.exit\"' &
           "
           while true; do
             if ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "test -f \"$BUILD_LOG.exit\"" 2>/dev/null; then
