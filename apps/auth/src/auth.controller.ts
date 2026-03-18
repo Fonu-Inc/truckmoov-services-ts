@@ -5,11 +5,13 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
   Inject,
   NotFoundException,
+  Param,
   Patch,
   Post,
   Query,
@@ -54,9 +56,13 @@ import {
   RefreshUseCase,
   RegisterInvitedUseCase,
   RegisterUseCase,
+  RemoveOrganizationUserUseCase,
+  ResendPendingInviteUseCase,
   ResetPasswordUseCase,
+  ListOrganizationUsersUseCase,
   UpdateDispatcherPreferencesUseCase,
   UpdateNotificationPreferencesUseCase,
+  UpdateOrganizationUserUseCase,
   UpdateOrganizationSettingsUseCase,
   UpdateProfileUseCase,
   EmailTakenError,
@@ -85,12 +91,18 @@ import {
   AuthResponse,
   DispatcherPreferencesResponse,
   HealthResponse,
+  InviteActionResponse,
   MeResponse,
   NotificationPreferencesResponse,
+  OrganizationUserResponse,
   OrganizationSettingsResponse,
+  OrganizationUsersResponse,
   ProfileResponse,
+  RemoveOrganizationUserResponse,
   UploadedMediaResponse,
 } from "./dto/auth.schema";
+import { ResendInviteDto } from "./dto/resend-invite.dto";
+import { UpdateOrganizationUserDto } from "./dto/update-organization-user.dto";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateNotificationPreferencesDto } from "./dto/update-notification-preferences.dto";
 import { UpdateDispatcherPreferencesDto } from "./dto/update-dispatcher-preferences.dto";
@@ -129,8 +141,12 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCase,
     @Inject(GetProfileUseCase)
     private readonly getProfileUseCase: GetProfileUseCase,
+    @Inject(ListOrganizationUsersUseCase)
+    private readonly listOrganizationUsersUseCase: ListOrganizationUsersUseCase,
     @Inject(UpdateProfileUseCase)
     private readonly updateProfileUseCase: UpdateProfileUseCase,
+    @Inject(UpdateOrganizationUserUseCase)
+    private readonly updateOrganizationUserUseCase: UpdateOrganizationUserUseCase,
     @Inject(GetNotificationPreferencesUseCase)
     private readonly getNotificationPreferencesUseCase: GetNotificationPreferencesUseCase,
     @Inject(UpdateNotificationPreferencesUseCase)
@@ -143,6 +159,10 @@ export class AuthController {
     private readonly getOrganizationSettingsUseCase: GetOrganizationSettingsUseCase,
     @Inject(UpdateOrganizationSettingsUseCase)
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
+    @Inject(ResendPendingInviteUseCase)
+    private readonly resendPendingInviteUseCase: ResendPendingInviteUseCase,
+    @Inject(RemoveOrganizationUserUseCase)
+    private readonly removeOrganizationUserUseCase: RemoveOrganizationUserUseCase,
     @Inject(VerifyEmailUseCase)
     private readonly verifyEmailUseCase: VerifyEmailUseCase,
     @Inject(CompleteProfileUseCase)
@@ -262,6 +282,38 @@ export class AuthController {
     } catch (error) {
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  /** Resend a pending invite to a user who has not accepted yet */
+  @Post("organization/invites/resend")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Resend pending invite",
+    description: "Enterprise admin action: reissue an invite email for a still-pending tenant invite.",
+  })
+  @ApiCreatedResponse({ type: InviteActionResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "Pending invite not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted to resend invites" })
+  async resendInvite(
+    @Body(BodyOrDataPipe) payload: ResendInviteDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.resendPendingInviteUseCase.execute({
+        accessToken,
+        email: payload.email,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof InviteNotFoundError)
+        throw new NotFoundException(error.message);
       throw error;
     }
   }
@@ -440,6 +492,7 @@ export class AuthController {
         accessToken,
         fullName: payload.fullName,
         phoneNumber: payload.phoneNumber,
+        address: payload.address,
         profilePictureUrl: payload.profilePictureUrl,
       });
     } catch (error) {
@@ -578,6 +631,103 @@ export class AuthController {
         throw new NotFoundException(error.message);
       if (error instanceof InvalidSettingsError)
         throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  /** Lists accepted users for the current tenant */
+  @Get("organization/users")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "List organization users",
+    description: "Admin user management: fetch all accepted users that belong to the caller's tenant.",
+  })
+  @ApiOkResponse({ type: OrganizationUsersResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted to read users" })
+  async listOrganizationUsers(
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.listOrganizationUsersUseCase.execute(accessToken);
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Admin-only update of another tenant user's profile details */
+  @Patch("organization/users/:userId")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Update organization user profile",
+    description: "Admin user management: update another user's profile/contact details within the current tenant.",
+  })
+  @ApiOkResponse({ type: OrganizationUserResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted to update users" })
+  async updateOrganizationUser(
+    @Param("userId") userId: string,
+    @Body(BodyOrDataPipe) payload: UpdateOrganizationUserDto,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.updateOrganizationUserUseCase.execute({
+        accessToken,
+        targetUserId: userId,
+        fullName: payload.fullName,
+        phoneNumber: payload.phoneNumber,
+        address: payload.address,
+        profilePictureUrl: payload.profilePictureUrl,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Admin-only removal of a tenant user */
+  @Delete("organization/users/:userId")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Remove organization user",
+    description: "Admin user management: remove a user from the current tenant and revoke their sessions.",
+  })
+  @ApiOkResponse({ type: RemoveOrganizationUserResponse })
+  @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Caller is not permitted to remove users" })
+  async removeOrganizationUser(
+    @Param("userId") userId: string,
+    @Headers("authorization") authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException("Missing authorization");
+
+    try {
+      return await this.removeOrganizationUserUseCase.execute({
+        accessToken,
+        targetUserId: userId,
+      });
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
       throw error;
     }
   }

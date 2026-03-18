@@ -21,6 +21,7 @@ Each bounded context should follow:
 Within `auth/session`, the current vertical slices include:
 - identity/session lifecycle (`login`, `refresh`, `logout`, `me`, registration flows)
 - user profile management (`/auth/profile`)
+- organization user management (`/auth/organization/users`, `/auth/organization/invites/resend`)
 - notification preferences (`/auth/preferences/notifications`)
 - dispatcher schedule/timezone preferences (`/auth/preferences/dispatch`)
 - tenant organization settings for enterprise admins (`/auth/organization/settings`)
@@ -84,6 +85,10 @@ Fleet API behavior (Epic C-aligned):
 
 Added auth API behavior:
 - `GET/PATCH /auth/profile`
+- `GET /auth/organization/users`
+- `PATCH /auth/organization/users/:userId`
+- `DELETE /auth/organization/users/:userId`
+- `POST /auth/organization/invites/resend`
 - `GET/PATCH /auth/preferences/notifications`
 - `GET/PATCH /auth/preferences/dispatch` (dispatcher role required)
 - `GET/PATCH /auth/organization/settings` (enterprise admin role required)

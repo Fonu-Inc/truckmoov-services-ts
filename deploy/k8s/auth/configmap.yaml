@@ -11,7 +11,7 @@ data:
   POSTGRES_USER: truckmoov
   POSTGRES_DB: truckmoov
   NATS_URL: nats://nats:4222
-  NATS_STREAM: truckmoov.events
+  NATS_STREAM: truckmoov_events
   DEFAULT_TENANT: default
   MAIL_TRANSPORT: "null"
   SMS_TRANSPORT: "null"

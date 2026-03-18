@@ -50,6 +50,24 @@ export class MikroInviteRepository implements InviteRepository {
       : null;
   }
 
+  async findPendingByEmailForTenant(
+    tenantId: string,
+    email: string,
+  ): Promise<StoredInvite | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(InviteRecord, { tenantId, email, status: "pending" }, {
+      orderBy: { createdAt: "desc" },
+    });
+    return record
+      ? {
+        ...record,
+        role: roleFromId(record.roleId),
+        status: record.status as StoredInvite["status"],
+      }
+      : null;
+  }
+
   async markAccepted(token: string): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();

@@ -53,6 +53,7 @@ export class RegisterUseCase {
     const profile = {
       fullName: `${command.firstName.trim()} ${command.lastName.trim()}`,
       phoneNumber: null,
+      address: null,
       profilePictureUrl: null,
     };
     const organizationSettings = buildDefaultOrganizationSettings(tenantId);

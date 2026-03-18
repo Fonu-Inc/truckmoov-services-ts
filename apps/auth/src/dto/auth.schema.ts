@@ -68,6 +68,9 @@ export class UserProfileSchema {
   phoneNumber!: string | null;
 
   @ApiProperty({ nullable: true })
+  address!: string | null;
+
+  @ApiProperty({ nullable: true })
   profilePictureUrl!: string | null;
 }
 
@@ -91,6 +94,81 @@ export class ProfileDataSchema {
 export class ProfileResponse extends StandardApiResponse<ProfileDataSchema> {
   @ApiProperty({ type: ProfileDataSchema })
   data!: ProfileDataSchema;
+}
+
+export class OrganizationUserSchema {
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  role!: string;
+
+  @ApiProperty({ type: UserProfileSchema })
+  profile!: UserProfileSchema;
+}
+
+export class OrganizationUsersDataSchema {
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty({ type: OrganizationUserSchema, isArray: true })
+  users!: OrganizationUserSchema[];
+}
+
+export class OrganizationUsersResponse extends StandardApiResponse<OrganizationUsersDataSchema> {
+  @ApiProperty({ type: OrganizationUsersDataSchema })
+  data!: OrganizationUsersDataSchema;
+}
+
+export class OrganizationUserDataSchema {
+  @ApiProperty()
+  message!: string;
+
+  @ApiProperty({ type: OrganizationUserSchema })
+  user!: OrganizationUserSchema;
+}
+
+export class OrganizationUserResponse extends StandardApiResponse<OrganizationUserDataSchema> {
+  @ApiProperty({ type: OrganizationUserDataSchema })
+  data!: OrganizationUserDataSchema;
+}
+
+export class InviteActionDataSchema {
+  @ApiProperty()
+  message!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  role!: string;
+}
+
+export class InviteActionResponse extends StandardApiResponse<InviteActionDataSchema> {
+  @ApiProperty({ type: InviteActionDataSchema })
+  data!: InviteActionDataSchema;
+}
+
+export class RemoveOrganizationUserDataSchema {
+  @ApiProperty()
+  message!: string;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  email!: string;
+}
+
+export class RemoveOrganizationUserResponse extends StandardApiResponse<RemoveOrganizationUserDataSchema> {
+  @ApiProperty({ type: RemoveOrganizationUserDataSchema })
+  data!: RemoveOrganizationUserDataSchema;
 }
 
 export class NotificationPreferencesSchema {

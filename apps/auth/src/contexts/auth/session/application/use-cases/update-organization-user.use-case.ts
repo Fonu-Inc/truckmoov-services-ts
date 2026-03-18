@@ -1,0 +1,91 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { Role, hasPermission, Permission } from "@shared/rbac";
+import {
+  TOKEN_SERVICE,
+  type TokenService,
+} from "../../domain/ports/token-service.port";
+import {
+  USER_REPOSITORY,
+  type UserProfile,
+  type UserRepository,
+} from "../../domain/ports/user-repository.port";
+import { ForbiddenError } from "../../domain/errors/forbidden.error";
+import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
+import { resolveActorUser } from "./support/resolve-actor-user";
+
+export type UpdateOrganizationUserCommand = {
+  accessToken: string;
+  targetUserId: string;
+  fullName?: string;
+  phoneNumber?: string;
+  address?: string;
+  profilePictureUrl?: string;
+};
+
+@Injectable()
+export class UpdateOrganizationUserUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE)
+    private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: UserRepository,
+  ) {}
+
+  async execute(command: UpdateOrganizationUserCommand) {
+    const actor = await resolveActorUser(
+      command.accessToken,
+      this.tokenService,
+      this.userRepo,
+    );
+
+    if (!hasPermission(actor.role as Role, Permission.USER_UPDATE)) {
+      throw new ForbiddenError();
+    }
+
+    const target = await this.userRepo.findById(command.targetUserId);
+    if (!target) {
+      throw new UserNotFoundError();
+    }
+
+    if (target.tenantId !== actor.tenantId) {
+      throw new ForbiddenError("Cannot update users outside your tenant");
+    }
+
+    const mergedProfile: UserProfile = {
+      fullName:
+        command.fullName === undefined
+          ? target.profile!.fullName
+          : this.toNullableTrimmedString(command.fullName),
+      phoneNumber:
+        command.phoneNumber === undefined
+          ? target.profile!.phoneNumber
+          : this.toNullableTrimmedString(command.phoneNumber),
+      address:
+        command.address === undefined
+          ? target.profile!.address
+          : this.toNullableTrimmedString(command.address),
+      profilePictureUrl:
+        command.profilePictureUrl === undefined
+          ? target.profile!.profilePictureUrl
+          : this.toNullableTrimmedString(command.profilePictureUrl),
+    };
+
+    await this.userRepo.updateProfile(target.id, mergedProfile);
+
+    return {
+      message: "User updated successfully",
+      user: {
+        userId: target.id,
+        email: target.email,
+        role: target.role,
+        tenantId: target.tenantId,
+        profile: mergedProfile,
+      },
+    };
+  }
+
+  private toNullableTrimmedString(value: string): string | null {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+}

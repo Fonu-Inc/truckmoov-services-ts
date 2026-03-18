@@ -41,6 +41,15 @@ export class MikroUserRepository implements UserRepository {
     return record ? normalizeStoredUser(toStoredUser(record)) : null;
   }
 
+  async findAllByTenant(tenantId: string): Promise<StoredUser[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(AuthUserRecord, { tenantId }, {
+      orderBy: { email: "asc" },
+    });
+    return records.map((record) => normalizeStoredUser(toStoredUser(record)));
+  }
+
   async findByVerificationToken(token: string): Promise<StoredUser | null> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
@@ -84,6 +93,12 @@ export class MikroUserRepository implements UserRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeUpdate(AuthUserRecord, { id: userId }, { profile });
+  }
+
+  async deleteById(userId: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeDelete(AuthUserRecord, { id: userId });
   }
 
   async updateNotificationPreferences(

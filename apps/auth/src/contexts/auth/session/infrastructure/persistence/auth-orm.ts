@@ -64,6 +64,7 @@ export class AuthUserRecord {
   profile?: {
     fullName: string | null;
     phoneNumber: string | null;
+    address: string | null;
     profilePictureUrl: string | null;
   };
   notificationPreferences?: {

@@ -24,6 +24,17 @@ export class InMemoryUserRepository implements UserRepository {
     return null;
   }
 
+  async findAllByTenant(tenantId: string): Promise<StoredUser[]> {
+    const users: StoredUser[] = [];
+    for (const user of this.store.values()) {
+      if (user.tenantId === tenantId) {
+        users.push(normalizeStoredUser(user));
+      }
+    }
+
+    return users.sort((left, right) => left.email.localeCompare(right.email));
+  }
+
   async findByVerificationToken(token: string): Promise<StoredUser | null> {
     for (const user of this.store.values()) {
       if (user.emailVerificationToken === token) return normalizeStoredUser(user);
@@ -45,6 +56,15 @@ export class InMemoryUserRepository implements UserRepository {
 
   async updateProfile(userId: string, profile: UserProfile): Promise<void> {
     this.updateByUserId(userId, (user) => ({ ...user, profile }));
+  }
+
+  async deleteById(userId: string): Promise<void> {
+    for (const [key, user] of this.store.entries()) {
+      if (user.id === userId) {
+        this.store.delete(key);
+        return;
+      }
+    }
   }
 
   async updateNotificationPreferences(

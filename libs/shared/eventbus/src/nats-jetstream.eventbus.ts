@@ -3,16 +3,35 @@ import { AppLogger } from "../../logger/src";
 import type { EventBus } from "./event-bus.interface";
 import type { EventEnvelope } from "./event-envelope";
 
+function sanitizeJetStreamName(streamName: string): string {
+  const normalized = streamName
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return normalized || "truckmoov_events";
+}
+
 export class NatsJetStreamEventBus implements EventBus {
   private connection: NatsConnection | null = null;
   private jetstream: JetStreamClient | null = null;
   private readonly jsonCodec = JSONCodec<EventEnvelope>();
+  private readonly streamName: string;
 
   constructor(
     private readonly logger: AppLogger,
     private readonly natsUrl: string,
-    private readonly streamName: string,
-  ) {}
+    streamName: string,
+  ) {
+    // JetStream stream names cannot contain "." even though event subjects do.
+    this.streamName = sanitizeJetStreamName(streamName);
+    if (this.streamName !== streamName) {
+      this.logger.warn("Sanitized invalid JetStream stream name", {
+        configuredStream: streamName,
+        effectiveStream: this.streamName,
+      });
+    }
+  }
 
   async publish<TData extends Record<string, unknown>>(
     subject: string,

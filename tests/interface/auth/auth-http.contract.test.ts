@@ -29,12 +29,18 @@ function makeRegisterPayload(
 
 describe("Auth HTTP contract", () => {
   let app: INestApplication;
+  let userRepo: {
+    save(user: Record<string, unknown>): Promise<void>;
+  };
   const previousBackend = process.env.PERSISTENCE_BACKEND;
 
   beforeAll(async () => {
     process.env.PERSISTENCE_BACKEND = "in-memory";
     vi.resetModules();
     const { AppModule } = await import("../../../apps/auth/src/app.module");
+    const { USER_REPOSITORY } = await import(
+      "../../../apps/auth/src/contexts/auth/session"
+    );
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -49,6 +55,8 @@ describe("Auth HTTP contract", () => {
         forbidNonWhitelisted: true,
       }),
     );
+
+    userRepo = moduleRef.get(USER_REPOSITORY);
 
     await app.init();
   });
@@ -255,6 +263,152 @@ describe("Auth HTTP contract", () => {
     expect(res.status).toBe(404);
   });
 
+  it("GET /auth/organization/users lists users within the caller organization", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send(makeRegisterPayload("org-users-admin@contract.com", {
+        firstName: "Org",
+        lastName: "Admin",
+        organizationName: "Org User Fleet",
+      }));
+    const accessToken = regRes.body.accessToken as string;
+    const tenantId = regRes.body.user.tenantId as string;
+
+    await userRepo.save({
+      id: "org-user-1",
+      email: "org-user-1@contract.com",
+      passwordHash: "hash",
+      role: "DISPATCHER",
+      tenantId,
+      emailVerificationToken: null,
+      profile: {
+        fullName: "Ops User",
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get("/auth/organization/users")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.tenantId).toBe(tenantId);
+    expect(res.body.users.some((user: { email: string }) => user.email === "org-user-1@contract.com")).toBe(true);
+    expect(res.body.users.some((user: { email: string }) => user.email === "org-users-admin@contract.com")).toBe(true);
+  });
+
+  it("PATCH /auth/organization/users/:userId lets admin edit another user's profile", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send(makeRegisterPayload("edit-org-admin@contract.com", {
+        firstName: "Edit",
+        lastName: "Admin",
+        organizationName: "Edit Fleet",
+      }));
+    const accessToken = regRes.body.accessToken as string;
+    const tenantId = regRes.body.user.tenantId as string;
+
+    await userRepo.save({
+      id: "org-user-2",
+      email: "org-user-2@contract.com",
+      passwordHash: "hash",
+      role: "DISPATCHER",
+      tenantId,
+      emailVerificationToken: null,
+      profile: {
+        fullName: "Before Edit",
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .patch("/auth/organization/users/org-user-2")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({
+        fullName: "After Edit",
+        phoneNumber: "+2348099998888",
+        address: "27 Allen Avenue, Ikeja",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("User updated successfully");
+    expect(res.body.user.profile.fullName).toBe("After Edit");
+    expect(res.body.user.profile.address).toBe("27 Allen Avenue, Ikeja");
+  });
+
+  it("POST /auth/organization/invites/resend resends a pending invite", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send(makeRegisterPayload("resend-admin@contract.com", {
+        firstName: "Resend",
+        lastName: "Admin",
+        organizationName: "Resend Fleet",
+      }));
+    const accessToken = regRes.body.accessToken as string;
+
+    const inviteRes = await request(app.getHttpServer())
+      .post("/auth/invite")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ email: "pending-resend@contract.com", role: "DISPATCHER" });
+
+    expect(inviteRes.status).toBe(201);
+
+    const resendRes = await request(app.getHttpServer())
+      .post("/auth/organization/invites/resend")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ email: "pending-resend@contract.com" });
+
+    expect(resendRes.status).toBe(201);
+    expect(resendRes.body.message).toBe("Invitation resent");
+    expect(resendRes.body.email).toBe("pending-resend@contract.com");
+    expect(resendRes.body.role).toBe("DISPATCHER");
+  });
+
+  it("DELETE /auth/organization/users/:userId removes a user from the organization", async () => {
+    const regRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send(makeRegisterPayload("remove-admin@contract.com", {
+        firstName: "Remove",
+        lastName: "Admin",
+        organizationName: "Remove Fleet",
+      }));
+    const accessToken = regRes.body.accessToken as string;
+    const tenantId = regRes.body.user.tenantId as string;
+
+    await userRepo.save({
+      id: "org-user-3",
+      email: "org-user-3@contract.com",
+      passwordHash: "hash",
+      role: "DISPATCHER",
+      tenantId,
+      emailVerificationToken: null,
+      profile: {
+        fullName: "Remove Me",
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
+    });
+
+    const deleteRes = await request(app.getHttpServer())
+      .delete("/auth/organization/users/org-user-3")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.message).toBe("User removed from organization");
+
+    const listRes = await request(app.getHttpServer())
+      .get("/auth/organization/users")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.users.some((user: { userId: string }) => user.userId === "org-user-3")).toBe(false);
+  });
+
   // ── Forgot / Verify / Reset password ──────────────────
 
   it("POST /auth/forgot-password returns 404 for unknown user", async () => {
@@ -386,6 +540,7 @@ describe("Auth HTTP contract", () => {
     expect(getProfileRes.status).toBe(200);
     expect(getProfileRes.body.profile.fullName).toBe("Profile Owner");
     expect(getProfileRes.body.profile.phoneNumber).toBeNull();
+    expect(getProfileRes.body.profile.address).toBeNull();
     expect(getProfileRes.body.profile.profilePictureUrl).toBeNull();
 
     const patchProfileRes = await request(app.getHttpServer())
@@ -394,12 +549,16 @@ describe("Auth HTTP contract", () => {
       .send({
         fullName: "Adebayo Adekunle",
         phoneNumber: "+2348011112222",
+        address: "12 Broad Street, Lagos Island",
         profilePictureUrl: "https://cdn.example.com/users/adebayo.png",
       });
 
     expect(patchProfileRes.status).toBe(200);
     expect(patchProfileRes.body.profile.fullName).toBe("Adebayo Adekunle");
     expect(patchProfileRes.body.profile.phoneNumber).toBe("+2348011112222");
+    expect(patchProfileRes.body.profile.address).toBe(
+      "12 Broad Street, Lagos Island",
+    );
     expect(patchProfileRes.body.profile.profilePictureUrl).toBe(
       "https://cdn.example.com/users/adebayo.png",
     );

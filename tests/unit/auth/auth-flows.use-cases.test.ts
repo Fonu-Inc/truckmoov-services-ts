@@ -9,7 +9,11 @@ import { ForgotPasswordUseCase } from "../../../apps/auth/src/contexts/auth/sess
 import { VerifyResetUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/verify-reset.use-case";
 import { ResetPasswordUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/reset-password.use-case";
 import { ChangeRoleUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/change-role.use-case";
+import { ListOrganizationUsersUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/list-organization-users.use-case";
 import { LogoutUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/logout.use-case";
+import { RemoveOrganizationUserUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/remove-organization-user.use-case";
+import { ResendPendingInviteUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/resend-pending-invite.use-case";
+import { UpdateOrganizationUserUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/update-organization-user.use-case";
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
 import { InviteNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invite-not-found.error";
 import { EmailTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/email-taken.error";
@@ -124,6 +128,13 @@ class FakeUserRepository {
     return user ? normalizeStoredUser(user) : null;
   }
 
+  async findAllByTenant(tenantId: string) {
+    return [...this.byId.values()]
+      .filter((user) => user.tenantId === tenantId)
+      .map((user) => normalizeStoredUser(user))
+      .sort((left, right) => left.email.localeCompare(right.email));
+  }
+
   async save(user: StoredUser) {
     const normalized = normalizeStoredUser(user);
     this.byEmail.set(normalized.email, normalized);
@@ -155,6 +166,13 @@ class FakeUserRepository {
       this.byId.set(userId, updated);
       this.byEmail.set(user.email, updated);
     }
+  }
+
+  async deleteById(userId: string) {
+    const user = this.byId.get(userId);
+    if (!user) return;
+    this.byId.delete(userId);
+    this.byEmail.delete(user.email);
   }
 
   async updateNotificationPreferences(
@@ -190,6 +208,11 @@ class FakeInviteRepository {
   private readonly store = new Map<string, StoredInvite>();
 
   async save(invite: StoredInvite) {
+    for (const [token, existing] of this.store.entries()) {
+      if (existing.id === invite.id && token !== invite.token) {
+        this.store.delete(token);
+      }
+    }
     this.store.set(invite.token, invite);
   }
 
@@ -202,6 +225,17 @@ class FakeInviteRepository {
       if (inv.email === email && inv.status === "pending") return inv;
     }
     return null;
+  }
+
+  async findPendingByEmailForTenant(tenantId: string, email: string) {
+    const invites = [...this.store.values()]
+      .filter((invite) =>
+        invite.tenantId === tenantId
+        && invite.email === email
+        && invite.status === "pending",
+      )
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    return invites[0] ?? null;
   }
 
   async markAccepted(token: string) {
@@ -317,6 +351,7 @@ describe("RegisterUseCase", () => {
     expect(result.user.role).toBe(Role.ENTERPRISE_ADMIN);
     expect(result.user.tenantId).toBeTruthy();
     expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
+    expect(userRepo.getById(result.user.id)?.profile?.address).toBeNull();
     expect(userRepo.getById(result.user.id)?.profile?.profilePictureUrl).toBeNull();
     expect(
       organizationRepo.getByTenantId(result.user.tenantId)?.branding.organizationName,
@@ -733,6 +768,181 @@ describe("ChangeRoleUseCase", () => {
     await expect(
       uc.execute({ targetUserId: "ghost", newRole: Role.FLEET_ADMIN, accessToken }),
     ).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+});
+
+describe("Organization user management use cases", () => {
+  it("lists users within the caller tenant", async () => {
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    const uc = new ListOrganizationUsersUseCase(tokenService, userRepo);
+
+    await userRepo.save({
+      id: "admin-1", email: "admin@co.com", passwordHash: "hash",
+      role: Role.ENTERPRISE_ADMIN, tenantId: "tenant-1",
+    });
+    await userRepo.save({
+      id: "user-1", email: "dispatcher@co.com", passwordHash: "hash",
+      role: Role.DISPATCHER, tenantId: "tenant-1",
+    });
+    await userRepo.save({
+      id: "user-2", email: "other@co.com", passwordHash: "hash",
+      role: Role.DISPATCHER, tenantId: "tenant-2",
+    });
+
+    const accessToken = tokenService.issueAccessToken(
+      AuthUser.create({
+        id: "admin-1",
+        email: "admin@co.com",
+        role: Role.ENTERPRISE_ADMIN,
+        tenantId: "tenant-1",
+      }),
+    );
+
+    const result = await uc.execute(accessToken);
+
+    expect(result.tenantId).toBe("tenant-1");
+    expect(result.users).toHaveLength(2);
+    expect(result.users.map((user) => user.email)).toEqual([
+      "admin@co.com",
+      "dispatcher@co.com",
+    ]);
+  });
+
+  it("updates another user profile within the same tenant", async () => {
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    const uc = new UpdateOrganizationUserUseCase(tokenService, userRepo);
+
+    await userRepo.save({
+      id: "admin-1", email: "admin@co.com", passwordHash: "hash",
+      role: Role.ENTERPRISE_ADMIN, tenantId: "tenant-1",
+    });
+    await userRepo.save({
+      id: "user-1", email: "dispatcher@co.com", passwordHash: "hash",
+      role: Role.DISPATCHER, tenantId: "tenant-1",
+      profile: {
+        fullName: "Old Name",
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
+    });
+
+    const accessToken = tokenService.issueAccessToken(
+      AuthUser.create({
+        id: "admin-1",
+        email: "admin@co.com",
+        role: Role.ENTERPRISE_ADMIN,
+        tenantId: "tenant-1",
+      }),
+    );
+
+    const result = await uc.execute({
+      accessToken,
+      targetUserId: "user-1",
+      fullName: "New Name",
+      phoneNumber: "+2348012345678",
+      address: "12 Marina, Lagos",
+    });
+
+    expect(result.user.profile.fullName).toBe("New Name");
+    expect(result.user.profile.address).toBe("12 Marina, Lagos");
+    expect(userRepo.getById("user-1")?.profile?.phoneNumber).toBe("+2348012345678");
+  });
+
+  it("resends a pending invite by rotating its token", async () => {
+    const tokenService = new FakeTokenService();
+    const inviteRepo = new FakeInviteRepository();
+    const userRepo = new FakeUserRepository();
+    const notifier = new FakeAuthNotifier();
+    const uc = new ResendPendingInviteUseCase(
+      inviteRepo,
+      tokenService,
+      notifier as any,
+      new FakeIdGenerator() as any,
+      userRepo,
+    );
+
+    await userRepo.save({
+      id: "admin-1", email: "admin@co.com", passwordHash: "hash",
+      role: Role.ENTERPRISE_ADMIN, tenantId: "tenant-1",
+    });
+    await inviteRepo.save({
+      id: "inv-1",
+      email: "pending@co.com",
+      role: Role.DISPATCHER,
+      tenantId: "tenant-1",
+      token: "old-token",
+      invitedBy: "admin-1",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(Date.now() - 60_000),
+    });
+
+    const accessToken = tokenService.issueAccessToken(
+      AuthUser.create({
+        id: "admin-1",
+        email: "admin@co.com",
+        role: Role.ENTERPRISE_ADMIN,
+        tenantId: "tenant-1",
+      }),
+    );
+
+    const result = await uc.execute({
+      accessToken,
+      email: "pending@co.com",
+    });
+
+    expect(result.message).toBe("Invitation resent");
+    expect(notifier.invites.at(-1)?.email).toBe("pending@co.com");
+    expect(inviteRepo.getByToken("old-token")).toBeUndefined();
+  });
+
+  it("removes a tenant user and revokes their sessions", async () => {
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    const sessionStore = new FakeSessionStore();
+    const uc = new RemoveOrganizationUserUseCase(
+      userRepo,
+      tokenService,
+      sessionStore,
+    );
+
+    await userRepo.save({
+      id: "admin-1", email: "admin@co.com", passwordHash: "hash",
+      role: Role.ENTERPRISE_ADMIN, tenantId: "tenant-1",
+    });
+    await userRepo.save({
+      id: "user-1", email: "dispatcher@co.com", passwordHash: "hash",
+      role: Role.DISPATCHER, tenantId: "tenant-1",
+    });
+
+    const target = AuthUser.create({
+      id: "user-1",
+      email: "dispatcher@co.com",
+      role: Role.DISPATCHER,
+      tenantId: "tenant-1",
+    });
+    await sessionStore.save("target-session", target);
+
+    const accessToken = tokenService.issueAccessToken(
+      AuthUser.create({
+        id: "admin-1",
+        email: "admin@co.com",
+        role: Role.ENTERPRISE_ADMIN,
+        tenantId: "tenant-1",
+      }),
+    );
+
+    const result = await uc.execute({
+      accessToken,
+      targetUserId: "user-1",
+    });
+
+    expect(result.message).toBe("User removed from organization");
+    expect(userRepo.getById("user-1")).toBeUndefined();
+    expect(sessionStore.size).toBe(0);
   });
 });
 

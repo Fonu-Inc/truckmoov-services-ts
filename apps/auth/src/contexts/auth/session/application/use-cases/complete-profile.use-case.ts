@@ -32,6 +32,7 @@ export class CompleteProfileUseCase {
         ...user.profile,
         fullName: command.fullName.trim(),
         phoneNumber: user.profile?.phoneNumber ?? null,
+        address: user.profile?.address ?? null,
         profilePictureUrl: user.profile?.profilePictureUrl ?? null,
       },
     });

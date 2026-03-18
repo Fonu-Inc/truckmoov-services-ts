@@ -14,6 +14,7 @@ export type UpdateProfileCommand = {
   accessToken: string;
   fullName?: string;
   phoneNumber?: string;
+  address?: string;
   profilePictureUrl?: string;
 };
 
@@ -42,6 +43,10 @@ export class UpdateProfileUseCase {
         command.phoneNumber === undefined
           ? actor.profile!.phoneNumber
           : this.toNullableTrimmedString(command.phoneNumber),
+      address:
+        command.address === undefined
+          ? actor.profile!.address
+          : this.toNullableTrimmedString(command.address),
       profilePictureUrl:
         command.profilePictureUrl === undefined
           ? actor.profile!.profilePictureUrl

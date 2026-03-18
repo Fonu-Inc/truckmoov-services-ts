@@ -1,6 +1,7 @@
 export type UserProfile = {
   fullName: string | null;
   phoneNumber: string | null;
+  address: string | null;
   profilePictureUrl: string | null;
 };
 
@@ -36,6 +37,7 @@ export function defaultUserProfile(): UserProfile {
   return {
     fullName: null,
     phoneNumber: null,
+    address: null,
     profilePictureUrl: null,
   };
 }
@@ -63,7 +65,8 @@ export function defaultDispatcherPreferences(): DispatcherPreferences {
 export function normalizeStoredUser(user: StoredUser): StoredUser {
   return {
     ...user,
-    profile: user.profile ?? defaultUserProfile(),
+    // Merge with defaults so older JSON payloads still expose the full profile shape.
+    profile: { ...defaultUserProfile(), ...(user.profile ?? {}) },
     notificationPreferences:
       user.notificationPreferences ?? defaultNotificationPreferences(),
     dispatcherPreferences:
@@ -74,11 +77,13 @@ export function normalizeStoredUser(user: StoredUser): StoredUser {
 export interface UserRepository {
   findByEmail(email: string): Promise<StoredUser | null>;
   findById(id: string): Promise<StoredUser | null>;
+  findAllByTenant(tenantId: string): Promise<StoredUser[]>;
   findByVerificationToken(token: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRole(userId: string, role: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
   updateProfile(userId: string, profile: UserProfile): Promise<void>;
+  deleteById(userId: string): Promise<void>;
   updateNotificationPreferences(
     userId: string,
     preferences: NotificationPreferences,

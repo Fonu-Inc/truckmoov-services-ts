@@ -21,5 +21,7 @@ export function setupSwagger(
     .build();
 
   const document = SwaggerModule.createDocument(app, config, { extraModels });
-  SwaggerModule.setup(`${tag}/docs`, app, document);
+  // Serve docs under /docs/<service> so Kong can proxy the native Swagger UI path
+  // without breaking Nest's relative asset and init-script URLs.
+  SwaggerModule.setup(`docs/${tag}`, app, document);
 }
