@@ -35,7 +35,7 @@ export class ObjectStorageService {
   async putObject(input: PutObjectInput): Promise<string> {
     const objectKey = this.buildKey(input.key);
     const command: PutObjectCommandInput = {
-      Bucket: this.config.bucket,
+      Bucket: this.resolveBucket(input.visibility),
       Key: objectKey,
       Body: input.body,
     };
@@ -81,6 +81,10 @@ export class ObjectStorageService {
     return `${baseUrl}/${this.buildKey(key)}`;
   }
 
+  hasPublicBaseUrl(): boolean {
+    return Boolean(this.config.publicBaseUrl);
+  }
+
   private buildKey(key: string): string {
     const normalizedKey = key.replace(/^\/+/, "");
     const prefix = (this.config.prefix ?? "").replace(/^\/+|\/+$/g, "");
@@ -90,5 +94,13 @@ export class ObjectStorageService {
     }
 
     return `${prefix}/${normalizedKey}`;
+  }
+
+  private resolveBucket(visibility: "private" | "public" = "private"): string {
+    if (visibility === "public") {
+      return this.config.publicBucket || this.config.bucket;
+    }
+
+    return this.config.bucket;
   }
 }

@@ -860,16 +860,21 @@ export class AuthController {
       baseName.replace(/[^a-zA-Z0-9-_]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80)
       || "file";
     const key = `${service}/media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
+    const usePublicMediaUrl = this.objectStorageService.hasPublicBaseUrl();
 
     try {
       await this.objectStorageService.putObject({
         key,
         body: file.buffer,
         contentType: file.mimetype,
+        // Profile and organization branding images are display media, so they can
+        // live in a public bucket/root when configured. Private business documents
+        // such as fleet attachments still use presigned URLs elsewhere.
+        visibility: usePublicMediaUrl ? "public" : "private",
       });
 
       const url =
-        this.objectStorageService.publicUrl(key)
+        (usePublicMediaUrl ? this.objectStorageService.publicUrl(key) : null)
         ?? await this.objectStorageService.createPresignedDownloadUrl({ key });
 
       return {

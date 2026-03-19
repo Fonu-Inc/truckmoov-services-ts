@@ -81,6 +81,7 @@ export class AppConfigService {
         "https://s3.us-east-1.wasabisys.com",
       ),
       bucket: this.config.get<string>("OBJECT_STORAGE_BUCKET", "truckmoov-dev"),
+      publicBucket: this.config.get<string>("OBJECT_STORAGE_PUBLIC_BUCKET", ""),
       accessKey: this.config.get<string>("OBJECT_STORAGE_ACCESS_KEY", ""),
       secretKey: this.config.get<string>("OBJECT_STORAGE_SECRET_KEY", ""),
       forcePathStyle: this.config.get<string>("OBJECT_STORAGE_FORCE_PATH_STYLE", "false") === "true",
