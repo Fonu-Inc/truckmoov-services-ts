@@ -5,6 +5,7 @@ import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-ge
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
+import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 
 export type InviteUserCommand = {
   email: string;
@@ -27,7 +28,7 @@ export class InviteUserUseCase {
 
   async execute(command: InviteUserCommand) {
     const caller = this.tokenService.resolveAccessToken(command.accessToken);
-    if (!caller) throw new ForbiddenError();
+    if (!caller) throw new InvalidAccessTokenError();
 
     const callerRole = caller.role as Role;
     if (!hasPermission(callerRole, Permission.USER_INVITE)) {

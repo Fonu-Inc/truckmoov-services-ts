@@ -1,4 +1,4 @@
-import { ForbiddenError } from "../../../domain/errors/forbidden.error";
+import { InvalidAccessTokenError } from "../../../domain/errors/invalid-access-token.error";
 import { UserNotFoundError } from "../../../domain/errors/user-not-found.error";
 import type { TokenService } from "../../../domain/ports/token-service.port";
 import {
@@ -18,7 +18,7 @@ export async function resolveActorUser(
 ): Promise<StoredUser> {
   const actor = tokenService.resolveAccessToken(accessToken);
   if (!actor) {
-    throw new ForbiddenError();
+    throw new InvalidAccessTokenError();
   }
 
   const storedUser = await userRepo.findById(actor.id);

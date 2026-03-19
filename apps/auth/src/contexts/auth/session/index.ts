@@ -1,6 +1,7 @@
 // Domain errors
 export { InvalidCredentialsError } from "./domain/errors/invalid-credentials.error";
 export { InvalidRefreshTokenError } from "./domain/errors/invalid-refresh-token.error";
+export { InvalidAccessTokenError } from "./domain/errors/invalid-access-token.error";
 export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";

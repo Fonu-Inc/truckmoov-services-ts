@@ -240,7 +240,7 @@ describe("Auth HTTP contract", () => {
       .set("Authorization", "Bearer invalid-token-here")
       .send({ email: "someone@co.com", role: "DISPATCHER" });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("GET /auth/invite/validate rejects invalid token", async () => {
@@ -464,7 +464,7 @@ describe("Auth HTTP contract", () => {
       .set("Authorization", "Bearer bad-token")
       .send({ targetUserId: "some-id", newRole: "DISPATCHER" });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("POST /auth/change-role returns 404 for nonexistent target user", async () => {
@@ -562,6 +562,15 @@ describe("Auth HTTP contract", () => {
     expect(patchProfileRes.body.profile.profilePictureUrl).toBe(
       "https://cdn.example.com/users/adebayo.png",
     );
+  });
+
+  it("GET /auth/profile returns 401 for an invalid bearer token", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/auth/profile")
+      .set("Authorization", "Bearer definitely-not-a-truckmoov-token");
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toBe("Invalid or expired access token");
   });
 
   it("GET/PATCH /auth/preferences/notifications supports notification settings", async () => {

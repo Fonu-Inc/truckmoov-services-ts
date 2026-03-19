@@ -71,6 +71,7 @@ import {
   VerifyResetUseCase,
   ForbiddenError,
   InvalidVerificationTokenError,
+  InvalidAccessTokenError,
   VerifyEmailUseCase,
   CompleteProfileUseCase,
 } from "./contexts/auth/session";
@@ -280,6 +281,7 @@ export class AuthController {
         accessToken,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       throw error;
@@ -310,6 +312,7 @@ export class AuthController {
         email: payload.email,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof InviteNotFoundError)
@@ -422,6 +425,7 @@ export class AuthController {
         accessToken,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -461,6 +465,7 @@ export class AuthController {
     try {
       return await this.getProfileUseCase.execute(accessToken);
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -496,6 +501,7 @@ export class AuthController {
         profilePictureUrl: payload.profilePictureUrl,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -524,6 +530,7 @@ export class AuthController {
     try {
       return await this.getNotificationPreferencesUseCase.execute(accessToken);
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -561,6 +568,7 @@ export class AuthController {
         marketingAnnouncements: payload.marketingAnnouncements,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -589,6 +597,7 @@ export class AuthController {
     try {
       return await this.getDispatcherPreferencesUseCase.execute(accessToken);
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -625,6 +634,7 @@ export class AuthController {
         workDays: payload.workDays,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -655,6 +665,7 @@ export class AuthController {
     try {
       return await this.listOrganizationUsersUseCase.execute(accessToken);
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -692,6 +703,7 @@ export class AuthController {
         profilePictureUrl: payload.profilePictureUrl,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -724,6 +736,7 @@ export class AuthController {
         targetUserId: userId,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -752,6 +765,7 @@ export class AuthController {
     try {
       return await this.getOrganizationSettingsUseCase.execute(accessToken);
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -786,6 +800,7 @@ export class AuthController {
         defaults: payload.defaults,
       });
     } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
@@ -807,6 +822,12 @@ export class AuthController {
         throw new UnauthorizedException(error.message);
       }
       throw error;
+    }
+  }
+
+  private rethrowInvalidAccessToken(error: unknown): void {
+    if (error instanceof InvalidAccessTokenError) {
+      throw new UnauthorizedException(error.message);
     }
   }
 

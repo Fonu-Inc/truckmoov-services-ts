@@ -15,6 +15,7 @@ import { RemoveOrganizationUserUseCase } from "../../../apps/auth/src/contexts/a
 import { ResendPendingInviteUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/resend-pending-invite.use-case";
 import { UpdateOrganizationUserUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/update-organization-user.use-case";
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
+import { InvalidAccessTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-access-token.error";
 import { InviteNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invite-not-found.error";
 import { EmailTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/email-taken.error";
 import { UserNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/user-not-found.error";
@@ -435,7 +436,7 @@ describe("InviteUserUseCase", () => {
   it("rejects invite with invalid token", async () => {
     await expect(
       uc.execute({ email: "x@y.com", role: Role.DISPATCHER, accessToken: "bogus" }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    ).rejects.toBeInstanceOf(InvalidAccessTokenError);
   });
 
   it("rejects inviting an enterprise admin role", async () => {

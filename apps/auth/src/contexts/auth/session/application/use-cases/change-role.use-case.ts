@@ -4,6 +4,7 @@ import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-re
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
+import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 
 export type ChangeRoleCommand = {
@@ -25,7 +26,7 @@ export class ChangeRoleUseCase {
 
   async execute(command: ChangeRoleCommand) {
     const caller = this.tokenService.resolveAccessToken(command.accessToken);
-    if (!caller) throw new ForbiddenError();
+    if (!caller) throw new InvalidAccessTokenError();
 
     const callerRole = caller.role as Role;
     if (!hasPermission(callerRole, Permission.USER_ROLE_CHANGE)) {
