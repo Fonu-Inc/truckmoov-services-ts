@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ObjectStorageService } from "../../../libs/shared/object-storage/src/object-storage.service";
+import { ObjectStorageService } from "@shared/object-storage";
 
 const { sendMock, getSignedUrlMock } = vi.hoisted(() => ({
   sendMock: vi.fn(),
