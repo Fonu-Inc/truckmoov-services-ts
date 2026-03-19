@@ -9,6 +9,7 @@ export {
   ROLE_SEED_ROWS,
   roleFromId,
   roleToId,
+  normalizeRole,
   INVITABLE_ROLES,
   MULTI_STAKEHOLDER_ROLES,
   FLEET_PROVIDER_ROLES,

@@ -67,3 +67,34 @@ export const INVITABLE_ROLES = [
   Role.DISPATCHER,
   Role.FINANCE_VIEWER,
 ] as const;
+
+const LEGACY_ROLE_ALIASES: Record<string, string> = {
+  admin: Role.ENTERPRISE_ADMIN,
+  enterprise_admin: Role.ENTERPRISE_ADMIN,
+  aggregator_admin: Role.AGGREGATOR_ADMIN,
+  owner_operator: Role.OWNER_OPERATOR,
+  platform_admin: Role.PLATFORM_ADMIN,
+  fleet_admin: Role.FLEET_ADMIN,
+  fleet_manager: Role.FLEET_ADMIN,
+  operations_manager: Role.OPERATIONS_MANAGER,
+  dispatcher: Role.DISPATCHER,
+  finance_viewer: Role.FINANCE_VIEWER,
+};
+
+export function normalizeRole(role?: string | null): string | null {
+  if (!role) {
+    return null;
+  }
+
+  const trimmedRole = role.trim();
+  if (!trimmedRole) {
+    return null;
+  }
+
+  const upperRole = trimmedRole.toUpperCase();
+  if (upperRole in ROLE_IDS) {
+    return upperRole;
+  }
+
+  return LEGACY_ROLE_ALIASES[trimmedRole.toLowerCase()] ?? trimmedRole;
+}

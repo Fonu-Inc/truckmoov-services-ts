@@ -39,6 +39,10 @@ describe("TenantGuard", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "admin", queryTenantId: "t2" }))).toBe(true);
   });
 
+  it("allows enterprise admin regardless of tenant mismatch", () => {
+    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "ENTERPRISE_ADMIN", queryTenantId: "t2" }))).toBe(true);
+  });
+
   it("allows when claimed tenant matches query param", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", queryTenantId: "t1" }))).toBe(true);
   });
