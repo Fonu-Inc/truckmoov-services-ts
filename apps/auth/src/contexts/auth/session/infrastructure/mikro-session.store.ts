@@ -1,7 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { AuthUser } from "../domain/entities/auth-user.entity";
-import type { SessionStore } from "../domain/ports/session-store.port";
+import type {
+  SessionStore,
+  UserSessionActivity,
+} from "../domain/ports/session-store.port";
 import {
   AuthSessionRecord,
   getAuthOrm,
@@ -44,6 +47,34 @@ export class MikroSessionStore implements SessionStore {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeDelete(AuthSessionRecord, { userId });
+  }
+
+  async listUserActivity(userIds: string[]): Promise<UserSessionActivity[]> {
+    if (!userIds.length) {
+      return [];
+    }
+
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(
+      AuthSessionRecord,
+      { userId: { $in: userIds } } as never,
+    );
+
+    const activityByUserId = new Map<string, UserSessionActivity>();
+
+    for (const record of records) {
+      const existing = activityByUserId.get(record.userId);
+      if (!existing || (existing.lastActiveAt?.getTime() ?? 0) < record.updatedAt.getTime()) {
+        activityByUserId.set(record.userId, {
+          userId: record.userId,
+          hasActiveSession: true,
+          lastActiveAt: record.updatedAt,
+        });
+      }
+    }
+
+    return [...activityByUserId.values()];
   }
 
   private toDomain(record: AuthSessionRecord) {

@@ -32,6 +32,9 @@ describe("Auth HTTP contract", () => {
   let userRepo: {
     save(user: Record<string, unknown>): Promise<void>;
   };
+  let inviteRepo: {
+    findByEmail(email: string): Promise<{ token: string } | null>;
+  };
   const previousBackend = process.env.PERSISTENCE_BACKEND;
 
   beforeAll(async () => {
@@ -39,6 +42,9 @@ describe("Auth HTTP contract", () => {
     vi.resetModules();
     const { AppModule } = await import("../../../apps/auth/src/app.module");
     const { USER_REPOSITORY } = await import(
+      "../../../apps/auth/src/contexts/auth/session"
+    );
+    const { INVITE_REPOSITORY } = await import(
       "../../../apps/auth/src/contexts/auth/session"
     );
 
@@ -57,6 +63,7 @@ describe("Auth HTTP contract", () => {
     );
 
     userRepo = moduleRef.get(USER_REPOSITORY);
+    inviteRepo = moduleRef.get(INVITE_REPOSITORY);
 
     await app.init();
   });
@@ -256,11 +263,44 @@ describe("Auth HTTP contract", () => {
       .post("/auth/register/invited")
       .send({
         inviteToken: "nonexistent-token-value",
-        email: "new@co.com",
+        fullName: "New User",
         password: "Str0ngPass!",
       });
 
     expect(res.status).toBe(404);
+  });
+
+  it("POST /auth/register/invited derives email from the invite token", async () => {
+    const adminRes = await request(app.getHttpServer())
+      .post("/auth/register")
+      .send(makeRegisterPayload("invite-admin@contract.com", {
+        firstName: "Invite",
+        lastName: "Admin",
+        organizationName: "Invite Org",
+      }));
+    const adminToken = adminRes.body.accessToken as string;
+
+    await request(app.getHttpServer())
+      .post("/auth/invite")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ email: "derived@contract.com", role: "DISPATCHER" })
+      .expect(201);
+
+    const invite = await inviteRepo.findByEmail("derived@contract.com");
+    expect(invite).toBeTruthy();
+
+    const res = await request(app.getHttpServer())
+      .post("/auth/register/invited")
+      .send({
+        inviteToken: invite!.token,
+        fullName: "Derived User",
+        email: "ignored@contract.com",
+        password: "Str0ngPass!",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe("derived@contract.com");
+    expect(res.body.user.role).toBe("DISPATCHER");
   });
 
   it("GET /auth/organization/users lists users within the caller organization", async () => {
@@ -295,8 +335,16 @@ describe("Auth HTTP contract", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.tenantId).toBe(tenantId);
-    expect(res.body.users.some((user: { email: string }) => user.email === "org-user-1@contract.com")).toBe(true);
-    expect(res.body.users.some((user: { email: string }) => user.email === "org-users-admin@contract.com")).toBe(true);
+    const invitedUser = res.body.users.find((user: { email: string }) => user.email === "org-user-1@contract.com");
+    const adminUser = res.body.users.find((user: { email: string }) => user.email === "org-users-admin@contract.com");
+
+    expect(invitedUser).toMatchObject({
+      email: "org-user-1@contract.com",
+      status: "inactive",
+      lastActiveAt: null,
+    });
+    expect(adminUser?.status).toBe("active");
+    expect(adminUser?.lastActiveAt).toEqual(expect.any(String));
   });
 
   it("PATCH /auth/organization/users/:userId lets admin edit another user's profile", async () => {
@@ -338,6 +386,8 @@ describe("Auth HTTP contract", () => {
     expect(res.body.message).toBe("User updated successfully");
     expect(res.body.user.profile.fullName).toBe("After Edit");
     expect(res.body.user.profile.address).toBe("27 Allen Avenue, Ikeja");
+    expect(res.body.user.status).toBe("inactive");
+    expect(res.body.user.lastActiveAt).toBeNull();
   });
 
   it("POST /auth/organization/invites/resend resends a pending invite", async () => {

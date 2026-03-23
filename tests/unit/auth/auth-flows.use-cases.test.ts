@@ -90,14 +90,20 @@ class FakeAuthNotifier {
 }
 
 class FakeSessionStore {
-  private readonly data = new Map<string, AuthUser>();
+  private readonly data = new Map<string, {
+    user: AuthUser;
+    updatedAt: Date;
+  }>();
 
   async save(refreshToken: string, user: AuthUser) {
-    this.data.set(refreshToken, user);
+    this.data.set(refreshToken, {
+      user,
+      updatedAt: new Date(),
+    });
   }
 
   async getByRefreshToken(refreshToken: string) {
-    return this.data.get(refreshToken) ?? null;
+    return this.data.get(refreshToken)?.user ?? null;
   }
 
   async deleteByRefreshToken(refreshToken: string) {
@@ -106,8 +112,33 @@ class FakeSessionStore {
 
   async deleteAllForUser(userId: string) {
     for (const [k, v] of this.data.entries()) {
-      if (v.id === userId) this.data.delete(k);
+      if (v.user.id === userId) this.data.delete(k);
     }
+  }
+
+  async listUserActivity(userIds: string[]) {
+    const activityByUserId = new Map<string, {
+      userId: string;
+      hasActiveSession: boolean;
+      lastActiveAt: Date | null;
+    }>();
+
+    for (const session of this.data.values()) {
+      if (!userIds.includes(session.user.id)) {
+        continue;
+      }
+
+      const existing = activityByUserId.get(session.user.id);
+      if (!existing || (existing.lastActiveAt?.getTime() ?? 0) < session.updatedAt.getTime()) {
+        activityByUserId.set(session.user.id, {
+          userId: session.user.id,
+          hasActiveSession: true,
+          lastActiveAt: session.updatedAt,
+        });
+      }
+    }
+
+    return [...activityByUserId.values()];
   }
 
   get size() {
@@ -515,13 +546,17 @@ describe("RegisterInvitedUseCase", () => {
   it("registers a user from a valid invite", async () => {
     const result = await uc.execute({
       inviteToken: "good-token",
-      email: "invited@co.com",
+      fullName: "Invited Fleet User",
       password: "Str0ngPass!",
     });
 
     expect(result.accessToken).toBeTruthy();
     expect(result.user.role).toBe(Role.FLEET_ADMIN);
     expect(result.user.tenantId).toBe("t-1");
+    expect(result.user.email).toBe("invited@co.com");
+
+    const stored = await userRepo.findByEmail("invited@co.com");
+    expect(stored?.profile?.fullName).toBe("Invited Fleet User");
 
     const invite = inviteRepo.getByToken("good-token");
     expect(invite?.status).toBe("accepted");
@@ -535,7 +570,7 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     await expect(
-      uc.execute({ inviteToken: "expired-invite", email: "late@co.com", password: "Pass1234!" }),
+      uc.execute({ inviteToken: "expired-invite", fullName: "Late User", password: "Pass1234!" }),
     ).rejects.toBeInstanceOf(InviteNotFoundError);
   });
 
@@ -546,8 +581,20 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     await expect(
-      uc.execute({ inviteToken: "good-token", email: "invited@co.com", password: "Pass1234!" }),
+      uc.execute({ inviteToken: "good-token", fullName: "Invited Fleet User", password: "Pass1234!" }),
     ).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
+  it("ignores a legacy email field and still uses the invite email", async () => {
+    const result = await uc.execute({
+      inviteToken: "good-token",
+      fullName: "Invited Fleet User",
+      email: "different@co.com",
+      password: "Str0ngPass!",
+    });
+
+    expect(result.user.email).toBe("invited@co.com");
+    expect(await userRepo.findByEmail("different@co.com")).toBeNull();
   });
 
   it("rejects invite if role is ENTERPRISE_ADMIN", async () => {
@@ -776,7 +823,8 @@ describe("Organization user management use cases", () => {
   it("lists users within the caller tenant", async () => {
     const tokenService = new FakeTokenService();
     const userRepo = new FakeUserRepository();
-    const uc = new ListOrganizationUsersUseCase(tokenService, userRepo);
+    const sessionStore = new FakeSessionStore();
+    const uc = new ListOrganizationUsersUseCase(tokenService, userRepo, sessionStore);
 
     await userRepo.save({
       id: "admin-1", email: "admin@co.com", passwordHash: "hash",
@@ -799,6 +847,12 @@ describe("Organization user management use cases", () => {
         tenantId: "tenant-1",
       }),
     );
+    await sessionStore.save("admin-session", AuthUser.create({
+      id: "admin-1",
+      email: "admin@co.com",
+      role: Role.ENTERPRISE_ADMIN,
+      tenantId: "tenant-1",
+    }));
 
     const result = await uc.execute(accessToken);
 
@@ -808,12 +862,20 @@ describe("Organization user management use cases", () => {
       "admin@co.com",
       "dispatcher@co.com",
     ]);
+    expect(result.users[0]?.status).toBe("active");
+    expect(result.users[0]?.lastActiveAt).toEqual(expect.any(String));
+    expect(result.users[1]).toMatchObject({
+      email: "dispatcher@co.com",
+      status: "inactive",
+      lastActiveAt: null,
+    });
   });
 
   it("updates another user profile within the same tenant", async () => {
     const tokenService = new FakeTokenService();
     const userRepo = new FakeUserRepository();
-    const uc = new UpdateOrganizationUserUseCase(tokenService, userRepo);
+    const sessionStore = new FakeSessionStore();
+    const uc = new UpdateOrganizationUserUseCase(tokenService, userRepo, sessionStore);
 
     await userRepo.save({
       id: "admin-1", email: "admin@co.com", passwordHash: "hash",
@@ -849,6 +911,8 @@ describe("Organization user management use cases", () => {
 
     expect(result.user.profile.fullName).toBe("New Name");
     expect(result.user.profile.address).toBe("12 Marina, Lagos");
+    expect(result.user.status).toBe("inactive");
+    expect(result.user.lastActiveAt).toBeNull();
     expect(userRepo.getById("user-1")?.profile?.phoneNumber).toBe("+2348012345678");
   });
 

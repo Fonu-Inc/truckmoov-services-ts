@@ -5,6 +5,10 @@ import {
   type TokenService,
 } from "../../domain/ports/token-service.port";
 import {
+  SESSION_STORE,
+  type SessionStore,
+} from "../../domain/ports/session-store.port";
+import {
   USER_REPOSITORY,
   type UserProfile,
   type UserRepository,
@@ -29,6 +33,8 @@ export class UpdateOrganizationUserUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepo: UserRepository,
+    @Inject(SESSION_STORE)
+    private readonly sessionStore: SessionStore,
   ) {}
 
   async execute(command: UpdateOrganizationUserCommand) {
@@ -71,6 +77,7 @@ export class UpdateOrganizationUserUseCase {
     };
 
     await this.userRepo.updateProfile(target.id, mergedProfile);
+    const [activity] = await this.sessionStore.listUserActivity([target.id]);
 
     return {
       message: "User updated successfully",
@@ -79,6 +86,8 @@ export class UpdateOrganizationUserUseCase {
         email: target.email,
         role: target.role,
         tenantId: target.tenantId,
+        status: activity?.hasActiveSession ? "active" : "inactive",
+        lastActiveAt: activity?.lastActiveAt?.toISOString() ?? null,
         profile: mergedProfile,
       },
     };

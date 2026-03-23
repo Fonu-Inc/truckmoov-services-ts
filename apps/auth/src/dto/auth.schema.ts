@@ -109,6 +109,12 @@ export class OrganizationUserSchema {
   @ApiProperty()
   role!: string;
 
+  @ApiProperty({ enum: ["active", "inactive"] })
+  status!: "active" | "inactive";
+
+  @ApiProperty({ nullable: true, type: String, format: "date-time" })
+  lastActiveAt!: string | null;
+
   @ApiProperty({ type: UserProfileSchema })
   profile!: UserProfileSchema;
 }

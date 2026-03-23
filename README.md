@@ -75,9 +75,13 @@ pnpm test
 - `GET http://localhost:3002/docs/fleet`
 
 ## Auth profile/preferences endpoints
+- `GET /auth/invite/validate?token=...`
+- `POST /auth/register/invited`
+  The invite token is authoritative for the email address. The client should send `inviteToken`, `fullName`, and `password`.
 - `GET /auth/profile`
 - `PATCH /auth/profile`
 - `GET /auth/organization/users`
+  Returns each tenant user with `status` (`active` or `inactive`) and `lastActiveAt`, derived from auth session activity.
 - `PATCH /auth/organization/users/:userId`
 - `DELETE /auth/organization/users/:userId`
 - `POST /auth/organization/invites/resend`

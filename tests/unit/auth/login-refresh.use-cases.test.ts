@@ -25,14 +25,42 @@ class FakeTokenService {
 }
 
 class FakeSessionStore {
-  private readonly data = new Map<string, AuthUser>();
+  private readonly data = new Map<string, {
+    user: AuthUser;
+    updatedAt: Date;
+  }>();
 
   async save(refreshToken: string, user: AuthUser) {
-    this.data.set(refreshToken, user);
+    this.data.set(refreshToken, {
+      user,
+      updatedAt: new Date(),
+    });
   }
 
   async getByRefreshToken(refreshToken: string) {
-    return this.data.get(refreshToken) ?? null;
+    return this.data.get(refreshToken)?.user ?? null;
+  }
+
+  async deleteByRefreshToken(refreshToken: string) {
+    this.data.delete(refreshToken);
+  }
+
+  async deleteAllForUser(userId: string) {
+    for (const [refreshToken, session] of this.data.entries()) {
+      if (session.user.id === userId) {
+        this.data.delete(refreshToken);
+      }
+    }
+  }
+
+  async listUserActivity(userIds: string[]) {
+    return [...this.data.values()]
+      .filter((session) => userIds.includes(session.user.id))
+      .map((session) => ({
+        userId: session.user.id,
+        hasActiveSession: true,
+        lastActiveAt: session.updatedAt,
+      }));
   }
 }
 

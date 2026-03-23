@@ -13,7 +13,8 @@ import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-servi
 
 export type RegisterInvitedCommand = {
   inviteToken: string;
-  email: string;
+  fullName: string;
+  email?: string;
   password: string;
 };
 
@@ -45,7 +46,7 @@ export class RegisterInvitedUseCase {
       throw new ForbiddenError("Cannot register as Enterprise Admin via invitation");
     }
 
-    const existing = await this.userRepo.findByEmail(command.email);
+    const existing = await this.userRepo.findByEmail(invite.email);
     if (existing) throw new EmailTakenError();
 
     const id = this.idGenerator.generate();
@@ -54,18 +55,26 @@ export class RegisterInvitedUseCase {
 
     await this.userRepo.save({
       id,
-      email: command.email,
+      // The invite email is authoritative. Clients should not be able to swap
+      // it during onboarding by posting a different value in the request body.
+      email: invite.email,
       passwordHash,
       role,
       tenantId: invite.tenantId,
       emailVerificationToken: null,
+      profile: {
+        fullName: command.fullName.trim(),
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
     });
 
     await this.inviteRepo.markAccepted(command.inviteToken);
 
     const user = AuthUser.create({
       id,
-      email: command.email,
+      email: invite.email,
       role,
       tenantId: invite.tenantId,
     });
