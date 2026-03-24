@@ -27,7 +27,14 @@ export class MailerAuthNotifier implements AuthNotifier {
   ) {}
 
   async sendInviteEmail(input: InviteEmail): Promise<void> {
-    const inviteLink = `${this.config.app.frontendUrl}${this.config.app.inviteAcceptPath}?invite=${input.inviteToken}`;
+    const inviteLink = new URL(
+      this.config.app.inviteAcceptPath,
+      this.config.app.frontendUrl,
+    );
+    // The invite email is deliberately duplicated in the link so the frontend
+    // can show the invited address before the invited-registration call runs.
+    inviteLink.searchParams.set("invite", input.inviteToken);
+    inviteLink.searchParams.set("email", input.email);
 
     await this.mailer.send({
       to: input.email,
@@ -35,7 +42,7 @@ export class MailerAuthNotifier implements AuthNotifier {
       template: INVITE_USER_TEMPLATE,
       variables: {
         role: formatRole(input.role),
-        inviteLink,
+        inviteLink: inviteLink.toString(),
         year: String(new Date().getFullYear()),
       },
     });

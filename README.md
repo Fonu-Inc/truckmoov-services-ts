@@ -78,6 +78,7 @@ pnpm test
 - `GET /auth/invite/validate?token=...`
 - `POST /auth/register/invited`
   The invite token is authoritative for the email address. The client should send `inviteToken`, `fullName`, and `password`.
+  Invitation emails now link to `/auth/invite` with both `invite` and `email` query params so the frontend can display the invited address before submission.
 - `GET /auth/profile`
 - `PATCH /auth/profile`
 - `GET /auth/organization/users`
