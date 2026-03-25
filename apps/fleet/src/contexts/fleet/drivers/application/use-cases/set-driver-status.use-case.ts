@@ -4,7 +4,8 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "../../domain/repositories/driver.repository";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type { FleetDriverStatus } from "../../domain/entities/driver.entity";
+import { isDriverUnavailableStatus } from "../../domain/entities/driver.entity";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
@@ -12,7 +13,7 @@ import {
 
 export type SetDriverStatusCommand = {
   id: string;
-  status: FleetAssetStatus;
+  status: FleetDriverStatus;
 };
 
 @Injectable()
@@ -33,7 +34,7 @@ export class SetDriverStatusUseCase {
     const updatedDriver = driver.setStatus(command.status);
     await this.driverRepository.save(updatedDriver);
 
-    if (command.status === "inactive" && driver.assignedVehicleId) {
+    if (isDriverUnavailableStatus(command.status) && driver.assignedVehicleId) {
       const vehicle = await this.vehicleRepository.findById(driver.assignedVehicleId);
       if (vehicle) {
         await this.vehicleRepository.save(vehicle.unassignDriver());

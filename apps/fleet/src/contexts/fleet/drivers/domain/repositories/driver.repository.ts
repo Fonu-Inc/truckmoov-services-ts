@@ -1,10 +1,12 @@
-import type { Driver } from "../entities/driver.entity";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type {
+  Driver,
+  FleetDriverStatus,
+} from "../entities/driver.entity";
 
 export type DriverFilters = {
   tenantId?: string;
   query?: string;
-  status?: FleetAssetStatus;
+  status?: FleetDriverStatus;
   assigned?: boolean;
 };
 

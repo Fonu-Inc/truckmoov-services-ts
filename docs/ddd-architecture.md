@@ -36,6 +36,7 @@ Within `auth/session`, the current vertical slices include:
 - driver-to-vehicle assignment/unassignment
 - activation/deactivation status transitions
 - GPS device registration/mapping
+- GPS device listing from vehicle-attached mappings
 - bulk import upsert by plate number
 
 `fleet/drivers` follows the same layering:
@@ -62,6 +63,7 @@ Fleet interface entrypoint remains `apps/fleet/src/fleet.controller.ts`.
 
 Fleet API behavior (Epic C-aligned):
 - `GET /fleet/vehicles`
+- `GET /fleet/gps-devices`
 - `POST /fleet/vehicles`
 - `GET /fleet/vehicles/:id`
 - `PATCH /fleet/vehicles/:id`

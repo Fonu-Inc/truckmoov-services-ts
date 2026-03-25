@@ -5,11 +5,18 @@ import {
 } from "../../domain/repositories/vehicle.repository";
 import { VehicleNotFoundError } from "../../domain/errors/vehicle-not-found.error";
 import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type { FleetVehicleType } from "../../domain/entities/vehicle.entity";
 
 export type UpdateVehicleCommand = {
   id: string;
+  registrationNumber?: string;
   plateNumber?: string;
+  vin?: string | null;
+  make?: string | null;
   model?: string;
+  year?: number | null;
+  type?: FleetVehicleType | null;
+  capacity?: number | null;
   tenantId?: string;
   status?: FleetAssetStatus;
 };
@@ -27,9 +34,15 @@ export class UpdateVehicleUseCase {
       throw new VehicleNotFoundError(command.id);
     }
 
+    // Keep the same aliasing rule on updates so the UI never has to know about plateNumber.
     const updatedVehicle = existingVehicle.update({
-      plateNumber: command.plateNumber,
+      plateNumber: command.registrationNumber ?? command.plateNumber,
+      vin: command.vin,
+      make: command.make,
       model: command.model,
+      year: command.year,
+      type: command.type,
+      capacity: command.capacity,
       tenantId: command.tenantId,
       status: command.status,
     });

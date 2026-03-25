@@ -96,7 +96,10 @@ pnpm test
 ## Fleet master data endpoints (Epic C)
 - Vehicles
   - `GET /fleet/vehicles?query=&status=&assigned=&tenantId=`
+  - `GET /fleet/gps-devices?query=&vehicleStatus=&tenantId=`
+    Returns GPS devices currently mapped to fleet vehicles, using the UI device fields: `imei`, `manufacturer`, `model`, `firmwareVersion`, plus the linked vehicle and tenant metadata.
   - `POST /fleet/vehicles`
+    Accepts the fleet UI vehicle shape: `registrationNumber`, `vin`, `make`, `model`, `year`, `type`, `capacity`, plus `tenantId` and optional `status`. Legacy `plateNumber` is still accepted.
   - `POST /fleet/vehicles/import`
   - `GET /fleet/vehicles/:id`
   - `PATCH /fleet/vehicles/:id`
@@ -104,10 +107,12 @@ pnpm test
   - `PATCH /fleet/vehicles/:id/assignment`
   - `DELETE /fleet/vehicles/:id/assignment`
   - `PATCH /fleet/vehicles/:id/gps-device`
+    Accepts the fleet UI GPS-device shape: `imei`, `manufacturer`, `model`, and `firmwareVersion`. The backend persists the install timestamp automatically unless `installedAt` is supplied by a back-office client.
   - `DELETE /fleet/vehicles/:id`
 - Drivers
   - `GET /fleet/drivers?query=&status=&assigned=&tenantId=`
   - `POST /fleet/drivers`
+    Accepts the fleet UI driver shape: `firstName`, `lastName`, `phone`, `email`, `licenseNumber`, `licenseExpiryDate`, `status`, and `communicationPreference`, plus `tenantId`. Legacy `name` and `inactive` status input are still accepted for backward compatibility.
   - `POST /fleet/drivers/import`
   - `GET /fleet/drivers/:id`
   - `PATCH /fleet/drivers/:id`

@@ -36,6 +36,8 @@ export class InMemoryDriverRepository implements DriverRepository {
       return [
         driver.id,
         driver.name,
+        driver.phone,
+        driver.email ?? "",
         driver.licenseNumber,
         driver.contactChannels.whatsappNumber ?? "",
         driver.contactChannels.smsNumber ?? "",

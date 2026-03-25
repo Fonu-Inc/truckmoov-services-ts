@@ -18,13 +18,23 @@ export class MikroVehicleRepository implements VehicleRepository {
     await em.upsert(VehicleRecord, {
       id: vehicle.id,
       plateNumber: vehicle.plateNumber,
+      vin: vehicle.vin,
+      make: vehicle.make,
       model: vehicle.model,
+      year: vehicle.year,
+      type: vehicle.type,
+      capacity: vehicle.capacity,
       tenantId: vehicle.tenantId,
       status: vehicle.status,
       assignedDriverId: vehicle.assignedDriverId,
-      gpsDeviceId: vehicle.gpsDevice?.deviceId ?? null,
-      gpsProvider: vehicle.gpsDevice?.provider ?? null,
-      gpsSerialNumber: vehicle.gpsDevice?.serialNumber ?? null,
+      gpsImei: vehicle.gpsDevice?.imei ?? null,
+      gpsManufacturer: vehicle.gpsDevice?.manufacturer ?? null,
+      gpsModel: vehicle.gpsDevice?.model ?? null,
+      gpsFirmwareVersion: vehicle.gpsDevice?.firmwareVersion ?? null,
+      // Mirror the old fields during the transition so legacy rows and ad hoc queries remain usable.
+      gpsDeviceId: vehicle.gpsDevice?.imei ?? null,
+      gpsProvider: vehicle.gpsDevice?.manufacturer ?? null,
+      gpsSerialNumber: vehicle.gpsDevice?.imei ?? null,
       gpsInstalledAt: vehicle.gpsDevice?.installedAt
         ? new Date(vehicle.gpsDevice.installedAt)
         : null,
@@ -56,9 +66,14 @@ export class MikroVehicleRepository implements VehicleRepository {
           [
             record.id,
             record.plateNumber,
+            record.vin ?? "",
+            record.make ?? "",
             record.model,
-            record.gpsDeviceId ?? "",
-            record.gpsSerialNumber ?? "",
+            record.type ?? "",
+            record.gpsImei ?? record.gpsDeviceId ?? "",
+            record.gpsManufacturer ?? record.gpsProvider ?? "",
+            record.gpsModel ?? "",
+            record.gpsFirmwareVersion ?? "",
           ].some((value) => value.toLowerCase().includes(query)),
         );
 
@@ -101,16 +116,27 @@ export class MikroVehicleRepository implements VehicleRepository {
     return Vehicle.create({
       id: record.id,
       plateNumber: record.plateNumber,
+      vin: record.vin ?? null,
+      make: record.make ?? null,
       model: record.model,
+      year: record.year ?? null,
+      type: record.type === null || record.type === undefined
+        ? null
+        : record.type === "truck" || record.type === "van" || record.type === "trailer"
+          ? record.type
+          : null,
+      capacity: record.capacity ?? null,
       tenantId: record.tenantId,
       status: record.status === "inactive" ? "inactive" : "active",
       assignedDriverId: record.assignedDriverId ?? null,
       gpsDevice:
-        record.gpsDeviceId && record.gpsProvider && record.gpsSerialNumber
+        (record.gpsImei ?? record.gpsDeviceId)
+        && (record.gpsManufacturer ?? record.gpsProvider)
           ? {
-              deviceId: record.gpsDeviceId,
-              provider: record.gpsProvider,
-              serialNumber: record.gpsSerialNumber,
+              imei: record.gpsImei ?? record.gpsDeviceId ?? "",
+              manufacturer: record.gpsManufacturer ?? record.gpsProvider ?? "",
+              model: record.gpsModel ?? "Unknown",
+              firmwareVersion: record.gpsFirmwareVersion ?? "Unknown",
               installedAt:
                 record.gpsInstalledAt?.toISOString() ?? new Date().toISOString(),
             }

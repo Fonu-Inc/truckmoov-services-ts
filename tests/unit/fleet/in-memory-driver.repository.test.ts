@@ -3,7 +3,19 @@ import { InMemoryDriverRepository } from "../../../apps/fleet/src/contexts/fleet
 import { Driver } from "../../../apps/fleet/src/contexts/fleet/drivers/domain/entities/driver.entity";
 
 function makeDriver(id: string, tenantId = "t1", overrides: Partial<Parameters<typeof Driver.create>[0]> = {}) {
-  return Driver.create({ id, name: `Driver ${id}`, licenseNumber: `LIC-${id}`, tenantId, status: "active", assignedVehicleId: null, contactChannels: { whatsappNumber: null, smsNumber: null, voiceNumber: null }, ...overrides });
+  return Driver.create({
+    id,
+    name: `Driver ${id}`,
+    phone: `+23480000000${id}`,
+    licenseNumber: `LIC-${id}`,
+    licenseExpiryDate: "2026-08-15",
+    tenantId,
+    status: "available",
+    communicationPreference: "whatsapp",
+    assignedVehicleId: null,
+    contactChannels: { whatsappNumber: null, smsNumber: null, voiceNumber: null },
+    ...overrides,
+  });
 }
 
 describe("InMemoryDriverRepository", () => {
@@ -27,9 +39,9 @@ describe("InMemoryDriverRepository", () => {
   });
 
   it("findAll filters by status", async () => {
-    await repo.save(makeDriver("d1", "t1", { status: "active" }));
-    await repo.save(makeDriver("d2", "t1", { status: "inactive" }));
-    expect(await repo.findAll({ status: "inactive" })).toHaveLength(1);
+    await repo.save(makeDriver("d1", "t1", { status: "available" }));
+    await repo.save(makeDriver("d2", "t1", { status: "offline" }));
+    expect(await repo.findAll({ status: "offline" })).toHaveLength(1);
   });
 
   it("findAll filters by assigned", async () => {

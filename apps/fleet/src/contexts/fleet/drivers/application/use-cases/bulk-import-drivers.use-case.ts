@@ -1,17 +1,32 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
-import { Driver, type DriverContactChannels } from "../../domain/entities/driver.entity";
+import {
+  Driver,
+  type DriverCommunicationPreference,
+  type DriverContactChannels,
+  type DriverStatusInput,
+  normalizeDriverStatus,
+} from "../../domain/entities/driver.entity";
 import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "../../domain/repositories/driver.repository";
+import {
+  buildPreferredContactChannelUpdate,
+  composeDriverName,
+} from "../support/driver-input";
 
 export type BulkImportDriverItem = {
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string | null;
   licenseNumber: string;
+  licenseExpiryDate?: string | null;
   tenantId?: string;
-  status?: FleetAssetStatus;
+  status?: DriverStatusInput;
+  communicationPreference?: DriverCommunicationPreference;
   contactChannels?: Partial<DriverContactChannels>;
 };
 
@@ -37,16 +52,31 @@ export class BulkImportDriversUseCase {
     for (const item of command.items) {
       const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
       const existingDriver = await this.driverRepository.findByLicenseNumber(item.licenseNumber, tenantId);
+      const communicationPreference =
+        item.communicationPreference
+        ?? existingDriver?.communicationPreference
+        ?? "whatsapp";
+      const contactChannelUpdate = {
+        ...(item.contactChannels ?? {}),
+        ...buildPreferredContactChannelUpdate({
+          phone: item.phone,
+          communicationPreference,
+        }),
+      };
 
       if (existingDriver) {
         const updatedDriver = existingDriver
           .update({
-            name: item.name,
+            name: composeDriverName(item),
+            phone: item.phone,
+            email: item.email,
             licenseNumber: item.licenseNumber,
+            licenseExpiryDate: item.licenseExpiryDate,
             tenantId,
-            status: item.status ?? existingDriver.status,
+            status: normalizeDriverStatus(item.status) ?? existingDriver.status,
+            communicationPreference,
           })
-          .updateContactChannels(item.contactChannels ?? {});
+          .updateContactChannels(contactChannelUpdate);
         await this.driverRepository.save(updatedDriver);
         records.push(updatedDriver.toPrimitives());
         updated += 1;
@@ -55,16 +85,23 @@ export class BulkImportDriversUseCase {
 
       const createdDriver = Driver.create({
         id: this.runtime.generateId(),
-        name: item.name,
+        name: composeDriverName(item),
+        phone: item.phone ?? "",
+        email: item.email ?? null,
         licenseNumber: item.licenseNumber,
+        licenseExpiryDate: item.licenseExpiryDate ?? null,
         tenantId,
-        status: item.status ?? "active",
+        status: normalizeDriverStatus(item.status) ?? "active",
+        communicationPreference,
         assignedVehicleId: null,
         contactChannels: {
-          whatsappNumber: item.contactChannels?.whatsappNumber ?? null,
-          smsNumber: item.contactChannels?.smsNumber ?? null,
-          voiceNumber: item.contactChannels?.voiceNumber ?? null,
+          whatsappNumber: null,
+          smsNumber: null,
+          voiceNumber: null,
+          ...contactChannelUpdate,
         },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
       await this.driverRepository.save(createdDriver);
       records.push(createdDriver.toPrimitives());

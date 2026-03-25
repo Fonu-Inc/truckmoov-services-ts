@@ -42,8 +42,10 @@ export class AssignDriverToVehicleUseCase {
     if (vehicle.status !== "active") {
       throw new FleetRuleError("Inactive vehicles cannot receive new assignments");
     }
-    if (driver.status !== "active") {
-      throw new FleetRuleError("Inactive drivers cannot be assigned to vehicles");
+    if (!["active", "available"].includes(driver.status)) {
+      throw new FleetRuleError(
+        "Only active or available drivers can be assigned to vehicles",
+      );
     }
 
     // Keep assignment links symmetric: every driver points to one vehicle and vice versa.

@@ -5,9 +5,13 @@ function makeDriver(overrides: Partial<Parameters<typeof Driver.create>[0]> = {}
   return Driver.create({
     id: "d1",
     name: "John Doe",
+    phone: "+2348000000001",
+    email: null,
     licenseNumber: "NG-12345",
+    licenseExpiryDate: "2026-08-15",
     tenantId: "tenant-1",
-    status: "active",
+    status: "available",
+    communicationPreference: "whatsapp",
     assignedVehicleId: null,
     contactChannels: { whatsappNumber: null, smsNumber: null, voiceNumber: null },
     ...overrides,
@@ -22,6 +26,8 @@ describe("Driver entity", () => {
   it("trims name and tenantId", () => {
     const d = makeDriver({ name: "  Jane  ", tenantId: "  t1  " });
     expect(d.name).toBe("Jane");
+    expect(d.firstName).toBe("Jane");
+    expect(d.lastName).toBe("");
     expect(d.tenantId).toBe("t1");
   });
 
@@ -34,7 +40,7 @@ describe("Driver entity", () => {
   });
 
   it("throws for invalid status", () => {
-    expect(() => makeDriver({ status: "suspended" as any })).toThrow("status must be one of");
+    expect(() => makeDriver({ status: "paused" as any })).toThrow("status must be one of");
   });
 
   it("assignVehicle returns new instance", () => {
@@ -47,8 +53,8 @@ describe("Driver entity", () => {
     expect(makeDriver().assignVehicle("v1").unassignVehicle().assignedVehicleId).toBeNull();
   });
 
-  it("setStatus inactive clears assignedVehicleId", () => {
-    expect(makeDriver().assignVehicle("v1").setStatus("inactive").assignedVehicleId).toBeNull();
+  it("setStatus offline clears assignedVehicleId", () => {
+    expect(makeDriver().assignVehicle("v1").setStatus("offline").assignedVehicleId).toBeNull();
   });
 
   it("updateContactChannels merges channels", () => {
@@ -59,5 +65,7 @@ describe("Driver entity", () => {
 
   it("toPrimitives returns plain object", () => {
     expect(makeDriver().toPrimitives().id).toBe("d1");
+    expect(makeDriver().toPrimitives().firstName).toBe("John");
+    expect(makeDriver().toPrimitives().lastName).toBe("Doe");
   });
 });

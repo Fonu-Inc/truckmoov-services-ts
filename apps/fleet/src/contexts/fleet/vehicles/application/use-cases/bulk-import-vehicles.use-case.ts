@@ -1,15 +1,21 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
-import { Vehicle } from "../../domain/entities/vehicle.entity";
+import { Vehicle, type FleetVehicleType } from "../../domain/entities/vehicle.entity";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
 } from "../../domain/repositories/vehicle.repository";
 
 export type BulkImportVehicleItem = {
-  plateNumber: string;
+  plateNumber?: string;
+  registrationNumber?: string;
+  vin?: string;
+  make?: string;
   model: string;
+  year?: number;
+  type?: FleetVehicleType;
+  capacity?: number;
   tenantId?: string;
   status?: FleetAssetStatus;
 };
@@ -35,12 +41,18 @@ export class BulkImportVehiclesUseCase {
 
     for (const item of command.items) {
       const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
-      const existingVehicle = await this.vehicleRepository.findByPlateNumber(item.plateNumber, tenantId);
+      const plateNumber = item.registrationNumber ?? item.plateNumber ?? "";
+      const existingVehicle = await this.vehicleRepository.findByPlateNumber(plateNumber, tenantId);
 
       if (existingVehicle) {
         const updatedVehicle = existingVehicle.update({
-          plateNumber: item.plateNumber,
+          plateNumber,
+          vin: item.vin,
+          make: item.make,
           model: item.model,
+          year: item.year,
+          type: item.type,
+          capacity: item.capacity,
           tenantId,
           status: item.status ?? existingVehicle.status,
         });
@@ -52,8 +64,13 @@ export class BulkImportVehiclesUseCase {
 
       const createdVehicle = Vehicle.create({
         id: this.runtime.generateId(),
-        plateNumber: item.plateNumber,
+        plateNumber,
+        vin: item.vin ?? null,
+        make: item.make ?? null,
         model: item.model,
+        year: item.year ?? null,
+        type: item.type ?? null,
+        capacity: item.capacity ?? null,
         tenantId,
         status: item.status ?? "active",
         assignedDriverId: null,

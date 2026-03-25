@@ -26,7 +26,7 @@ export class ExportUseCase {
       }
       case "vehicles": {
         const rows = await this.vehicleRepo.findAll({ tenantId });
-        return toCsv(rows.map((v) => ({ ...v.toPrimitives(), gpsDevice: v.gpsDevice?.deviceId ?? null })));
+        return toCsv(rows.map((v) => ({ ...v.toPrimitives(), gpsDevice: v.gpsDevice?.imei ?? null })));
       }
       case "drivers": {
         const rows = await this.driverRepo.findAll({ tenantId });

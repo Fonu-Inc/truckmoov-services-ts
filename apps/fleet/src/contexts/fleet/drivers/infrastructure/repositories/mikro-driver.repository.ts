@@ -1,6 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
-import { Driver } from "../../domain/entities/driver.entity";
+import {
+  Driver,
+  normalizeDriverStatus,
+} from "../../domain/entities/driver.entity";
 import type {
   DriverFilters,
   DriverRepository,
@@ -18,9 +21,13 @@ export class MikroDriverRepository implements DriverRepository {
     await em.upsert(DriverRecord, {
       id: driver.id,
       name: driver.name,
+      phone: driver.phone || null,
+      email: driver.email,
       licenseNumber: driver.licenseNumber,
+      licenseExpiryDate: driver.licenseExpiryDate,
       tenantId: driver.tenantId,
       status: driver.status,
+      communicationPreference: driver.communicationPreference,
       assignedVehicleId: driver.assignedVehicleId,
       whatsappNumber: driver.contactChannels.whatsappNumber,
       smsNumber: driver.contactChannels.smsNumber,
@@ -53,6 +60,8 @@ export class MikroDriverRepository implements DriverRepository {
           [
             record.id,
             record.name,
+            record.phone ?? "",
+            record.email ?? "",
             record.licenseNumber,
             record.whatsappNumber ?? "",
             record.smsNumber ?? "",
@@ -104,15 +113,36 @@ export class MikroDriverRepository implements DriverRepository {
     return Driver.create({
       id: record.id,
       name: record.name,
+      phone: record.phone ?? "",
+      email: record.email ?? null,
       licenseNumber: record.licenseNumber,
+      licenseExpiryDate: record.licenseExpiryDate ?? null,
       tenantId: record.tenantId,
-      status: record.status === "inactive" ? "inactive" : "active",
+      status: normalizeDriverStatus(record.status as never) ?? "active",
+      communicationPreference:
+        (record.communicationPreference as
+          | "whatsapp"
+          | "sms"
+          | "email"
+          | "voice"
+          | null)
+        ?? (record.email
+          ? "email"
+          : record.whatsappNumber
+            ? "whatsapp"
+            : record.smsNumber
+              ? "sms"
+              : record.voiceNumber
+                ? "voice"
+                : "whatsapp"),
       assignedVehicleId: record.assignedVehicleId ?? null,
       contactChannels: {
         whatsappNumber: record.whatsappNumber ?? null,
         smsNumber: record.smsNumber ?? null,
         voiceNumber: record.voiceNumber ?? null,
       },
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString(),
     });
   }
 }

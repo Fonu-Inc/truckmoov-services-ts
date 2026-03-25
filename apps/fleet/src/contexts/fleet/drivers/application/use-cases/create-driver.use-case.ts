@@ -1,14 +1,28 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { Driver } from "../../domain/entities/driver.entity";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositories/driver.repository";
+import type {
+  DriverCommunicationPreference,
+  DriverStatusInput,
+} from "../../domain/entities/driver.entity";
+import { normalizeDriverStatus } from "../../domain/entities/driver.entity";
+import {
+  buildPreferredContactChannelUpdate,
+  composeDriverName,
+} from "../support/driver-input";
 
 export type CreateDriverCommand = {
-  name: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string | null;
   licenseNumber: string;
+  licenseExpiryDate?: string | null;
   tenantId?: string;
-  status?: FleetAssetStatus;
+  status?: DriverStatusInput;
+  communicationPreference?: DriverCommunicationPreference;
 };
 
 @Injectable()
@@ -21,18 +35,30 @@ export class CreateDriverUseCase {
   ) {}
 
   async execute(command: CreateDriverCommand) {
+    const communicationPreference = command.communicationPreference ?? "whatsapp";
     const driver = Driver.create({
       id: this.runtime.generateId(),
-      name: command.name,
+      // The UI submits split first/last names, but older clients still send a single name field.
+      name: composeDriverName(command),
+      phone: command.phone ?? "",
+      email: command.email ?? null,
       licenseNumber: command.licenseNumber,
+      licenseExpiryDate: command.licenseExpiryDate ?? null,
       tenantId: command.tenantId ?? this.runtime.getDefaultTenantId(),
-      status: command.status ?? "active",
+      status: normalizeDriverStatus(command.status) ?? "active",
+      communicationPreference,
       assignedVehicleId: null,
       contactChannels: {
         whatsappNumber: null,
         smsNumber: null,
         voiceNumber: null,
+        ...buildPreferredContactChannelUpdate({
+          phone: command.phone,
+          communicationPreference,
+        }),
       },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
 
     await this.driverRepository.save(driver);

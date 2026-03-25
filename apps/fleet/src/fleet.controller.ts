@@ -44,6 +44,7 @@ import {
   BulkImportVehiclesDto,
   CreateVehicleDto,
   DispatchSearchQueryDto,
+  GpsDeviceListQueryDto,
   RegisterGpsDeviceDto,
   SetVehicleStatusDto,
   UpdateVehicleDto,
@@ -74,6 +75,7 @@ import {
   FuelRecordResponse,
   FuelThresholdListResponse,
   FuelThresholdResponse,
+  GpsDeviceListResponse,
   JobListResponse,
   JobStatusResponse,
   NearestVehicleListResponse,
@@ -123,6 +125,7 @@ import {
   CreateVehicleUseCase,
   DeleteVehicleUseCase,
   GetVehicleUseCase,
+  ListGpsDevicesUseCase,
   ListVehiclesUseCase,
   RegisterVehicleGpsDeviceUseCase,
   SetVehicleStatusUseCase,
@@ -130,6 +133,10 @@ import {
   UpdateVehicleUseCase,
   VehicleNotFoundError,
 } from "./contexts/fleet/vehicles";
+import {
+  DRIVER_STATUS_INPUTS,
+  normalizeDriverStatus,
+} from "./contexts/fleet/drivers/domain/entities/driver.entity";
 import { VehicleHealthService } from "./vehicle-health.service";
 import {
   DeleteFuelRecordUseCase,
@@ -151,6 +158,8 @@ export class FleetController {
   constructor(
     @Inject(ListVehiclesUseCase)
     private readonly listVehiclesUseCase: ListVehiclesUseCase,
+    @Inject(ListGpsDevicesUseCase)
+    private readonly listGpsDevicesUseCase: ListGpsDevicesUseCase,
     @Inject(CreateVehicleUseCase)
     private readonly createVehicleUseCase: CreateVehicleUseCase,
     @Inject(GetVehicleUseCase)
@@ -298,7 +307,7 @@ export class FleetController {
   @ApiOkResponse({ type: VehicleHealthListResponse })
   async listVehicleHealth() {
     const vehicles = await this.listVehiclesUseCase.execute();
-    const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { deviceId: string } | null }>)
+    const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { imei: string } | null }>)
       .map((v) => this.buildHealth(v));
     return { status: true, data };
   }
@@ -364,6 +373,29 @@ export class FleetController {
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
       tenantId: query.tenantId,
     }) as unknown as Promise<VehicleListResponse>;
+  }
+
+  /** Retrieve GPS devices currently registered against fleet vehicles */
+  @Get("gps-devices")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @ApiOperation({
+    summary: "List GPS devices",
+    description: "Lists GPS devices currently mapped to fleet vehicles. This service exposes vehicle-attached tracking devices rather than a separate standalone device registry.",
+  })
+  @ApiQuery({ name: "query", required: false, type: String })
+  @ApiQuery({ name: "vehicleStatus", required: false, enum: ["active", "inactive"] })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: GpsDeviceListResponse })
+  async listGpsDevices(@Query() query: GpsDeviceListQueryDto): Promise<GpsDeviceListResponse> {
+    return {
+      status: true,
+      message: "success",
+      data: await this.listGpsDevicesUseCase.execute({
+        query: query.query,
+        vehicleStatus: query.vehicleStatus,
+        tenantId: query.tenantId,
+      }),
+    } as GpsDeviceListResponse;
   }
 
   /** Register a new vehicle in the fleet */
@@ -505,7 +537,7 @@ export class FleetController {
     description: "Epic C (US-C02, US-C04, US-C06): list/search/filter drivers.",
   })
   @ApiQuery({ name: "query", required: false, type: String })
-  @ApiQuery({ name: "status", required: false, enum: ["active", "inactive"] })
+  @ApiQuery({ name: "status", required: false, enum: DRIVER_STATUS_INPUTS })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
   @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DriverListResponse })
@@ -513,7 +545,7 @@ export class FleetController {
   async listDrivers(@Query() query: DriverListQueryDto): Promise<DriverListResponse> {
     return this.listDriversUseCase.execute({
       query: query.query,
-      status: query.status,
+      status: normalizeDriverStatus(query.status),
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
       tenantId: query.tenantId,
     }) as unknown as Promise<DriverListResponse>;
@@ -581,7 +613,10 @@ export class FleetController {
   @ApiOkResponse({ type: DriverResponse })
   async setDriverStatus(@Param("id") id: string, @Body() payload: SetDriverStatusDto): Promise<DriverResponse> {
     return this.runFleetUseCase(() =>
-      this.setDriverStatusUseCase.execute({ id, status: payload.status }),
+      this.setDriverStatusUseCase.execute({
+        id,
+        status: normalizeDriverStatus(payload.status) ?? "active",
+      }),
     ) as unknown as Promise<DriverResponse>;
   }
 
@@ -645,7 +680,7 @@ export class FleetController {
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "vehicleStatus", required: false, enum: ["active", "inactive"] })
-  @ApiQuery({ name: "driverStatus", required: false, enum: ["active", "inactive"] })
+  @ApiQuery({ name: "driverStatus", required: false, enum: DRIVER_STATUS_INPUTS })
   @ApiQuery({ name: "jobStatus", required: false, type: String })
   @ApiQuery({ name: "assignedOnly", required: false, enum: ["true", "false"] })
   @ApiQuery({ name: "tenantId", required: false, type: String })
@@ -664,7 +699,7 @@ export class FleetController {
       }),
       this.listDriversUseCase.execute({
         query: query.query,
-        status: query.driverStatus,
+        status: normalizeDriverStatus(query.driverStatus),
         assigned: assignedOnly,
         tenantId: query.tenantId,
       }),
@@ -1059,10 +1094,10 @@ export class FleetController {
     throw new BadRequestException(`${field} must be either "true" or "false"`);
   }
 
-  private buildHealth(vehicle: { id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { deviceId: string } | null }) {
+  private buildHealth(vehicle: { id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { imei: string } | null }) {
     const entry = this.vehicleHealthService.get(vehicle.id);
     const lastSeen = entry?.lastSeen ?? null;
-    const deviceId = entry?.deviceId ?? vehicle.gpsDevice?.deviceId ?? null;
+    const deviceId = entry?.deviceId ?? vehicle.gpsDevice?.imei ?? null;
     const healthy = lastSeen !== null && Date.now() - lastSeen < HEALTH_THRESHOLD_MS;
     return {
       vehicleId: vehicle.id,

@@ -62,22 +62,57 @@ describe("Fleet HTTP contract", () => {
       .set("x-user-role", "admin")
       .set("Idempotency-Key", randomUUID())
       .send({
-        plateNumber: "TM-909",
-        model: "Volvo FH",
+        registrationNumber: "TM-909",
+        vin: "1HGCM82633A123456",
+        make: "Volvo",
+        model: "FH",
+        year: 2025,
+        type: "truck",
+        capacity: 18,
         tenantId: "default",
       });
     expect(createVehicle.status).toBe(201);
+    expect(createVehicle.body.registrationNumber).toBe("TM-909");
+    expect(createVehicle.body.plateNumber).toBe("TM-909");
+    expect(createVehicle.body.vin).toBe("1HGCM82633A123456");
+    expect(createVehicle.body.make).toBe("Volvo");
+    expect(createVehicle.body.model).toBe("FH");
+    expect(createVehicle.body.year).toBe(2025);
+    expect(createVehicle.body.type).toBe("truck");
+    expect(createVehicle.body.capacity).toBe(18);
+
+    const fetchedVehicle = await request(app.getHttpServer())
+      .get(`/fleet/vehicles/${createVehicle.body.id}`)
+      .set("x-user-role", "dispatcher");
+    expect(fetchedVehicle.status).toBe(200);
+    expect(fetchedVehicle.body.registrationNumber).toBe("TM-909");
+    expect(fetchedVehicle.body.vin).toBe("1HGCM82633A123456");
+    expect(fetchedVehicle.body.make).toBe("Volvo");
 
     const createDriver = await request(app.getHttpServer())
       .post("/fleet/drivers")
       .set("x-user-role", "admin")
       .set("Idempotency-Key", randomUUID())
       .send({
-        name: "Ayo Dispatcher",
+        firstName: "Ayo",
+        lastName: "Dispatcher",
+        phone: "+2348000000101",
+        email: "ayo.dispatcher@example.com",
         licenseNumber: "LIC-909",
+        licenseExpiryDate: "2026-10-01",
+        communicationPreference: "whatsapp",
+        status: "available",
         tenantId: "default",
       });
     expect(createDriver.status).toBe(201);
+    expect(createDriver.body.firstName).toBe("Ayo");
+    expect(createDriver.body.lastName).toBe("Dispatcher");
+    expect(createDriver.body.name).toBe("Ayo Dispatcher");
+    expect(createDriver.body.phone).toBe("+2348000000101");
+    expect(createDriver.body.email).toBe("ayo.dispatcher@example.com");
+    expect(createDriver.body.licenseExpiryDate).toBe("2026-10-01");
+    expect(createDriver.body.communicationPreference).toBe("whatsapp");
+    expect(createDriver.body.status).toBe("available");
 
     const assignment = await request(app.getHttpServer())
       .patch(`/fleet/vehicles/${createVehicle.body.id}/assignment`)
@@ -95,12 +130,33 @@ describe("Fleet HTTP contract", () => {
       .set("x-user-role", "fleet_manager")
       .set("Idempotency-Key", randomUUID())
       .send({
-        deviceId: "GPS-001",
-        provider: "Teltonika",
-        serialNumber: "SN-001",
+        imei: "359779090012345",
+        manufacturer: "Teltonika",
+        model: "FMC130",
+        firmwareVersion: "3.28.07",
       });
     expect(gpsUpdate.status).toBe(200);
-    expect(gpsUpdate.body.gpsDevice.deviceId).toBe("GPS-001");
+    expect(gpsUpdate.body.gpsDevice.imei).toBe("359779090012345");
+    expect(gpsUpdate.body.gpsDevice.manufacturer).toBe("Teltonika");
+    expect(gpsUpdate.body.gpsDevice.model).toBe("FMC130");
+    expect(gpsUpdate.body.gpsDevice.firmwareVersion).toBe("3.28.07");
+
+    const listGpsDevices = await request(app.getHttpServer())
+      .get("/fleet/gps-devices?query=359779090012345")
+      .set("x-user-role", "dispatcher");
+    expect(listGpsDevices.status).toBe(200);
+    expect(listGpsDevices.body.data).toHaveLength(1);
+    expect(listGpsDevices.body.data[0]).toMatchObject({
+      id: "359779090012345",
+      imei: "359779090012345",
+      manufacturer: "Teltonika",
+      model: "FMC130",
+      firmwareVersion: "3.28.07",
+      vehicleId: createVehicle.body.id,
+      vehicleRegistrationNumber: "TM-909",
+      vehicleStatus: "active",
+      tenantId: "default",
+    });
 
     const contactUpdate = await request(app.getHttpServer())
       .patch(`/fleet/drivers/${createDriver.body.id}/contact-channels`)
@@ -153,14 +209,21 @@ describe("Fleet HTTP contract", () => {
         tenantId: "default",
         items: [
           {
-            name: "Driver One",
+            firstName: "Driver",
+            lastName: "One",
+            phone: "+2348000000003",
             licenseNumber: "DRV-111",
+            licenseExpiryDate: "2026-12-01",
+            status: "available",
             contactChannels: { voiceNumber: "+2348000000003" },
           },
           {
-            name: "Driver Two",
+            firstName: "Driver",
+            lastName: "Two",
+            phone: "+2348000000004",
             licenseNumber: "DRV-112",
-            status: "inactive",
+            licenseExpiryDate: "2026-12-02",
+            status: "offline",
           },
         ],
       });
@@ -196,8 +259,13 @@ describe("Fleet HTTP contract", () => {
       .set("x-user-role", "operator")
       .set("Idempotency-Key", randomUUID())
       .send({
-        plateNumber: "TM-910",
-        model: "Scania R450",
+        registrationNumber: "TM-910",
+        vin: "1HGCM82633A654321",
+        make: "Scania",
+        model: "R450",
+        year: 2024,
+        type: "truck",
+        capacity: 20,
         tenantId: "default",
       });
 

@@ -3,26 +3,73 @@ import { StandardApiResponse } from "@shared/openapi";
 
 export class VehicleGpsDeviceSchema {
   @ApiProperty()
-  deviceId!: string;
+  imei!: string;
 
   @ApiProperty()
-  provider!: string;
+  manufacturer!: string;
 
   @ApiProperty()
-  serialNumber!: string;
+  model!: string;
+
+  @ApiProperty()
+  firmwareVersion!: string;
 
   @ApiProperty()
   installedAt!: string;
+}
+
+export class GpsDeviceSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  imei!: string;
+
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty()
+  firmwareVersion!: string;
+
+  @ApiProperty()
+  installedAt!: string;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  vehicleId!: string;
+
+  @ApiProperty()
+  vehicleRegistrationNumber!: string;
+
+  @ApiProperty({ enum: ["active", "inactive"] })
+  vehicleStatus!: "active" | "inactive";
 }
 
 /** Vehicle record */
 export class VehicleSchema {
   /** UUID */
   id!: string;
+  /** Registration number used by the UI */
+  registrationNumber!: string;
   /** License plate */
   plateNumber!: string;
+  /** 17-character vehicle identification number */
+  vin!: string | null;
+  /** Manufacturer */
+  make!: string | null;
   /** Make and model */
   model!: string;
+  /** Manufacture year */
+  year!: number | null;
+  /** Vehicle body type */
+  type!: "truck" | "van" | "trailer" | null;
+  /** Carrying capacity in tons */
+  capacity!: number | null;
   /** Tenant scope */
   tenantId!: string;
   /** Operational availability */
@@ -43,6 +90,11 @@ export class VehicleListResponse extends StandardApiResponse<VehicleSchema[]> {
   data!: VehicleSchema[];
 }
 
+export class GpsDeviceListResponse extends StandardApiResponse<GpsDeviceSchema[]> {
+  @ApiProperty({ type: GpsDeviceSchema, isArray: true })
+  data!: GpsDeviceSchema[];
+}
+
 export class DriverContactChannelsSchema {
   @ApiProperty({ nullable: true })
   whatsappNumber!: string | null;
@@ -58,18 +110,34 @@ export class DriverContactChannelsSchema {
 export class DriverSchema {
   /** UUID */
   id!: string;
+  /** Driver first name */
+  firstName!: string;
+  /** Driver last name */
+  lastName!: string;
   /** Full name */
   name!: string;
+  /** Primary phone number */
+  phone!: string;
+  /** Optional email address */
+  email!: string | null;
   /** Driver license number */
   licenseNumber!: string;
+  /** License expiry date */
+  licenseExpiryDate!: string | null;
   /** Tenant scope */
   tenantId!: string;
   /** Operational availability */
-  status!: "active" | "inactive";
+  status!: "active" | "available" | "offline" | "suspended";
+  /** Preferred communication channel */
+  communicationPreference!: "whatsapp" | "sms" | "email" | "voice";
   /** Assigned vehicle ID, if any */
   assignedVehicleId!: string | null;
   /** Contact channels used for dispatch communications */
   contactChannels!: DriverContactChannelsSchema;
+  /** Record creation timestamp */
+  createdAt!: string;
+  /** Record update timestamp */
+  updatedAt!: string;
 }
 
 export class DriverResponse extends StandardApiResponse<DriverSchema> {

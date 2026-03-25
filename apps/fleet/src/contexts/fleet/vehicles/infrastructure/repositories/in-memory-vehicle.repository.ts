@@ -36,9 +36,14 @@ export class InMemoryVehicleRepository implements VehicleRepository {
       return [
         vehicle.id,
         vehicle.plateNumber,
+        vehicle.vin ?? "",
+        vehicle.make ?? "",
         vehicle.model,
-        vehicle.gpsDevice?.deviceId ?? "",
-        vehicle.gpsDevice?.serialNumber ?? "",
+        vehicle.type ?? "",
+        vehicle.gpsDevice?.imei ?? "",
+        vehicle.gpsDevice?.manufacturer ?? "",
+        vehicle.gpsDevice?.model ?? "",
+        vehicle.gpsDevice?.firmwareVersion ?? "",
       ].some((value) => value.toLowerCase().includes(query));
     });
   }

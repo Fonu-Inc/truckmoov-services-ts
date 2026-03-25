@@ -11,4 +11,5 @@ export { AssignDriverToVehicleUseCase } from "./application/use-cases/assign-dri
 export { UnassignDriverFromVehicleUseCase } from "./application/use-cases/unassign-driver-from-vehicle.use-case";
 export { SetVehicleStatusUseCase } from "./application/use-cases/set-vehicle-status.use-case";
 export { RegisterVehicleGpsDeviceUseCase } from "./application/use-cases/register-vehicle-gps-device.use-case";
+export { ListGpsDevicesUseCase } from "./application/use-cases/list-gps-devices.use-case";
 export { BulkImportVehiclesUseCase } from "./application/use-cases/bulk-import-vehicles.use-case";

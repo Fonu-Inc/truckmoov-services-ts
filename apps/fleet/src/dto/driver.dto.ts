@@ -2,21 +2,59 @@ import { PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsArray,
+  IsEmail,
   IsIn,
+  IsISO8601,
   IsOptional,
   IsString,
+  MaxLength,
+  MinLength,
   ValidateNested,
 } from "class-validator";
-import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
+import {
+  DRIVER_COMMUNICATION_PREFERENCES,
+  DRIVER_STATUS_INPUTS,
+} from "../contexts/fleet/drivers/domain/entities/driver.entity";
 
 export class CreateDriverDto {
-  /** Driver's full name */
+  /** Legacy full-name field accepted for backward compatibility */
+  @IsOptional()
   @IsString()
-  name!: string;
+  name?: string;
+
+  /** Driver first name */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  firstName?: string;
+
+  /** Driver last name */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  lastName?: string;
+
+  /** Preferred phone number shown in the UI */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  /** Driver email address */
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   /** Driver license number */
   @IsString()
   licenseNumber!: string;
+
+  /** Driver license expiry date */
+  @IsOptional()
+  @IsISO8601()
+  licenseExpiryDate?: string;
 
   /** Tenant scope; defaults to DEFAULT_TENANT env */
   @IsOptional()
@@ -25,15 +63,20 @@ export class CreateDriverDto {
 
   /** Operational availability status */
   @IsOptional()
-  @IsIn(FLEET_ASSET_STATUSES)
-  status?: "active" | "inactive";
+  @IsIn(DRIVER_STATUS_INPUTS)
+  status?: "active" | "available" | "offline" | "suspended" | "inactive";
+
+  /** Preferred communication channel */
+  @IsOptional()
+  @IsIn(DRIVER_COMMUNICATION_PREFERENCES)
+  communicationPreference?: "whatsapp" | "sms" | "email" | "voice";
 }
 
 export class UpdateDriverDto extends PartialType(CreateDriverDto) {}
 
 export class SetDriverStatusDto {
-  @IsIn(FLEET_ASSET_STATUSES)
-  status!: "active" | "inactive";
+  @IsIn(DRIVER_STATUS_INPUTS)
+  status!: "active" | "available" | "offline" | "suspended" | "inactive";
 }
 
 export class UpdateDriverContactChannelsDto {
@@ -51,19 +94,49 @@ export class UpdateDriverContactChannelsDto {
 }
 
 export class DriverImportItemDto {
+  @IsOptional()
   @IsString()
-  name!: string;
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @IsString()
   licenseNumber!: string;
+
+  @IsOptional()
+  @IsISO8601()
+  licenseExpiryDate?: string;
 
   @IsOptional()
   @IsString()
   tenantId?: string;
 
   @IsOptional()
-  @IsIn(FLEET_ASSET_STATUSES)
-  status?: "active" | "inactive";
+  @IsIn(DRIVER_STATUS_INPUTS)
+  status?: "active" | "available" | "offline" | "suspended" | "inactive";
+
+  @IsOptional()
+  @IsIn(DRIVER_COMMUNICATION_PREFERENCES)
+  communicationPreference?: "whatsapp" | "sms" | "email" | "voice";
 
   @IsOptional()
   @ValidateNested()
@@ -88,8 +161,8 @@ export class DriverListQueryDto {
   query?: string;
 
   @IsOptional()
-  @IsIn(FLEET_ASSET_STATUSES)
-  status?: "active" | "inactive";
+  @IsIn(DRIVER_STATUS_INPUTS)
+  status?: "active" | "available" | "offline" | "suspended" | "inactive";
 
   @IsOptional()
   @IsString()

@@ -57,8 +57,8 @@ export class DashboardUseCase {
       },
       drivers: {
         total: drivers.length,
-        active: drivers.filter((d) => d.status === "active").length,
-        inactive: drivers.filter((d) => d.status === "inactive").length,
+        active: drivers.filter((d) => d.status === "active" || d.status === "available").length,
+        inactive: drivers.filter((d) => d.status === "offline" || d.status === "suspended").length,
         assigned: drivers.filter((d) => d.assignedVehicleId !== null).length,
       },
       jobs: { total: jobs.length, byStatus: jobsByStatus },

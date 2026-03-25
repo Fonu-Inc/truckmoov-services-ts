@@ -22,12 +22,21 @@ describe("Fleet driver and assignment use-cases", () => {
     const deleteUseCase = new DeleteDriverUseCase(driverRepository, vehicleRepository);
 
     const created = await createUseCase.execute({
-      name: "John Doe",
+      firstName: "John",
+      lastName: "Doe",
+      phone: "+2348000000001",
+      email: "john@example.com",
       licenseNumber: "LIC-1234",
+      licenseExpiryDate: "2026-08-15",
+      communicationPreference: "whatsapp",
+      status: "available",
       tenantId: "default",
     });
 
     expect(created.name).toBe("John Doe");
+    expect(created.firstName).toBe("John");
+    expect(created.phone).toBe("+2348000000001");
+    expect(created.status).toBe("available");
 
     const deleted = await deleteUseCase.execute(created.id);
     expect(deleted).toEqual({ deleted: true, id: created.id });
@@ -46,13 +55,22 @@ describe("Fleet driver and assignment use-cases", () => {
     const setDriverStatus = new SetDriverStatusUseCase(driverRepository, vehicleRepository);
 
     const driver = await createDriver.execute({
-      name: "Lara Ade",
+      firstName: "Lara",
+      lastName: "Ade",
+      phone: "+2348000000002",
       licenseNumber: "DRV-556",
+      licenseExpiryDate: "2026-10-01",
+      status: "available",
       tenantId: "default",
     });
     const vehicle = await createVehicle.execute({
-      plateNumber: "TM-556",
-      model: "DAF CF",
+      registrationNumber: "TM-556",
+      vin: "1HGCM82633A556556",
+      make: "DAF",
+      model: "CF",
+      year: 2024,
+      type: "truck",
+      capacity: 16,
       tenantId: "default",
     });
 
@@ -63,13 +81,15 @@ describe("Fleet driver and assignment use-cases", () => {
 
     expect(assignment.vehicle.assignedDriverId).toBe(driver.id);
     expect(assignment.driver.assignedVehicleId).toBe(vehicle.id);
+    expect(assignment.vehicle.registrationNumber).toBe("TM-556");
+    expect(assignment.vehicle.vin).toBe("1HGCM82633A556556");
 
     const deactivated = await setDriverStatus.execute({
       id: driver.id,
-      status: "inactive",
+      status: "offline",
     });
 
-    expect(deactivated.status).toBe("inactive");
+    expect(deactivated.status).toBe("offline");
     expect(deactivated.assignedVehicleId).toBeNull();
 
     const vehicleAfterDeactivate = await vehicleRepository.findById(vehicle.id);
@@ -84,23 +104,30 @@ describe("Fleet driver and assignment use-cases", () => {
       tenantId: "default",
       items: [
         {
-          name: "First Driver",
+          firstName: "First",
+          lastName: "Driver",
+          phone: "+2348000000003",
           licenseNumber: "LIC-0001",
+          licenseExpiryDate: "2026-08-15",
+          status: "available",
         },
       ],
     });
 
     expect(firstBatch.created).toBe(1);
     expect(firstBatch.updated).toBe(0);
-    expect(firstBatch.records[0]?.status).toBe("active");
+    expect(firstBatch.records[0]?.status).toBe("available");
 
     const secondBatch = await bulkImport.execute({
       tenantId: "default",
       items: [
         {
-          name: "First Driver Updated",
+          firstName: "First",
+          lastName: "Driver Updated",
+          phone: "+2348000000001",
           licenseNumber: "LIC-0001",
-          status: "inactive",
+          status: "offline",
+          communicationPreference: "whatsapp",
           contactChannels: {
             whatsappNumber: "+2348000000001",
           },
@@ -111,7 +138,7 @@ describe("Fleet driver and assignment use-cases", () => {
     expect(secondBatch.created).toBe(0);
     expect(secondBatch.updated).toBe(1);
     expect(secondBatch.records[0]?.name).toBe("First Driver Updated");
-    expect(secondBatch.records[0]?.status).toBe("inactive");
+    expect(secondBatch.records[0]?.status).toBe("offline");
     expect(secondBatch.records[0]?.contactChannels.whatsappNumber).toBe(
       "+2348000000001",
     );

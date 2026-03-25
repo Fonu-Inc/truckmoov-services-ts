@@ -4,20 +4,72 @@ import {
   IsArray,
   IsIn,
   IsISO8601,
+  IsInt,
+  IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
   ValidateNested,
 } from "class-validator";
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
+import { DRIVER_STATUS_INPUTS } from "../contexts/fleet/drivers/domain/entities/driver.entity";
+
+const FLEET_VEHICLE_TYPES = ["truck", "van", "trailer"] as const;
 
 export class CreateVehicleDto {
-  /** License plate number of the vehicle */
+  /** Legacy vehicle identifier accepted for backward compatibility */
+  @IsOptional()
   @IsString()
-  plateNumber!: string;
+  plateNumber?: string;
 
-  /** Vehicle make and model */
+  /** Registration number shown in the UI */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
+  registrationNumber?: string;
+
+  /** Vehicle identification number */
+  @IsOptional()
+  @IsString()
+  @MinLength(17)
+  @MaxLength(17)
+  vin?: string;
+
+  /** OEM or manufacturer */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  make?: string;
+
+  /** Vehicle model */
   @IsString()
   model!: string;
+
+  /** Vehicle year of manufacture */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1990)
+  @Max(new Date().getFullYear() + 1)
+  year?: number;
+
+  /** Vehicle body type */
+  @IsOptional()
+  @IsIn(FLEET_VEHICLE_TYPES)
+  type?: "truck" | "van" | "trailer";
+
+  /** Vehicle carrying capacity in tons */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  capacity?: number;
 
   /** Tenant scope; defaults to DEFAULT_TENANT env */
   @IsOptional()
@@ -43,26 +95,90 @@ export class AssignDriverToVehicleDto {
 }
 
 export class RegisterGpsDeviceDto {
+  /** Device IMEI shown in the fleet admin UI */
   @IsString()
-  deviceId!: string;
+  @MinLength(15)
+  @MaxLength(15)
+  @Matches(/^\d+$/)
+  imei!: string;
 
+  /** OEM / device manufacturer */
   @IsString()
-  provider!: string;
+  @MaxLength(50)
+  manufacturer!: string;
 
+  /** Device model */
   @IsString()
-  serialNumber!: string;
+  @MaxLength(50)
+  model!: string;
 
+  /** Current firmware version */
+  @IsString()
+  @MaxLength(20)
+  firmwareVersion!: string;
+
+  /** Optional install timestamp for back-office tools */
   @IsOptional()
   @IsISO8601()
   installedAt?: string;
 }
 
-export class VehicleImportItemDto {
+export class GpsDeviceListQueryDto {
+  @IsOptional()
   @IsString()
-  plateNumber!: string;
+  query?: string;
+
+  @IsOptional()
+  @IsIn(FLEET_ASSET_STATUSES)
+  vehicleStatus?: "active" | "inactive";
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+}
+
+export class VehicleImportItemDto {
+  @IsOptional()
+  @IsString()
+  plateNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
+  registrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(17)
+  @MaxLength(17)
+  vin?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  make?: string;
 
   @IsString()
   model!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1990)
+  @Max(new Date().getFullYear() + 1)
+  year?: number;
+
+  @IsOptional()
+  @IsIn(FLEET_VEHICLE_TYPES)
+  type?: "truck" | "van" | "trailer";
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  capacity?: number;
 
   @IsOptional()
   @IsString()
@@ -112,8 +228,8 @@ export class DispatchSearchQueryDto {
   vehicleStatus?: "active" | "inactive";
 
   @IsOptional()
-  @IsIn(FLEET_ASSET_STATUSES)
-  driverStatus?: "active" | "inactive";
+  @IsIn(DRIVER_STATUS_INPUTS)
+  driverStatus?: "active" | "available" | "offline" | "suspended" | "inactive";
 
   @IsOptional()
   @IsString()

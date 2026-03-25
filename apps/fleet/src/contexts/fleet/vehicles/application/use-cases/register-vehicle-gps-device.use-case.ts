@@ -7,9 +7,10 @@ import {
 
 export type RegisterVehicleGpsDeviceCommand = {
   vehicleId: string;
-  deviceId: string;
-  provider: string;
-  serialNumber: string;
+  imei: string;
+  manufacturer: string;
+  model: string;
+  firmwareVersion: string;
   installedAt?: string;
 };
 
@@ -27,9 +28,10 @@ export class RegisterVehicleGpsDeviceUseCase {
     }
 
     const updatedVehicle = vehicle.registerGpsDevice({
-      deviceId: command.deviceId,
-      provider: command.provider,
-      serialNumber: command.serialNumber,
+      imei: command.imei,
+      manufacturer: command.manufacturer,
+      model: command.model,
+      firmwareVersion: command.firmwareVersion,
       installedAt: command.installedAt ?? new Date().toISOString(),
     });
 

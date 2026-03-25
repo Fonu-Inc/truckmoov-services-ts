@@ -12,10 +12,19 @@ export type DbConfig = {
 export class VehicleRecord {
   id!: string;
   plateNumber!: string;
+  vin?: string | null;
+  make?: string | null;
   model!: string;
+  year?: number | null;
+  type?: string | null;
+  capacity?: number | null;
   tenantId!: string;
   status!: string;
   assignedDriverId?: string | null;
+  gpsImei?: string | null;
+  gpsManufacturer?: string | null;
+  gpsModel?: string | null;
+  gpsFirmwareVersion?: string | null;
   gpsDeviceId?: string | null;
   gpsProvider?: string | null;
   gpsSerialNumber?: string | null;
@@ -27,9 +36,13 @@ export class VehicleRecord {
 export class DriverRecord {
   id!: string;
   name!: string;
+  phone?: string | null;
+  email?: string | null;
   licenseNumber!: string;
+  licenseExpiryDate?: string | null;
   tenantId!: string;
   status!: string;
+  communicationPreference?: string | null;
   assignedVehicleId?: string | null;
   whatsappNumber?: string | null;
   smsNumber?: string | null;
@@ -52,10 +65,19 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
   properties: {
     id: { type: "string", primary: true },
     plateNumber: { type: "string", length: 64 },
+    vin: { type: "string", length: 17, nullable: true },
+    make: { type: "string", length: 64, nullable: true },
     model: { type: "string", length: 128 },
+    year: { type: "integer", nullable: true },
+    type: { type: "string", length: 32, nullable: true },
+    capacity: { type: "float", nullable: true },
     tenantId: { type: "string", length: 64 },
     status: { type: "string", length: 16, defaultRaw: "'active'" },
     assignedDriverId: { type: "string", length: 64, nullable: true },
+    gpsImei: { type: "string", length: 32, nullable: true },
+    gpsManufacturer: { type: "string", length: 64, nullable: true },
+    gpsModel: { type: "string", length: 64, nullable: true },
+    gpsFirmwareVersion: { type: "string", length: 32, nullable: true },
     gpsDeviceId: { type: "string", length: 128, nullable: true },
     gpsProvider: { type: "string", length: 128, nullable: true },
     gpsSerialNumber: { type: "string", length: 128, nullable: true },
@@ -70,6 +92,7 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
   indexes: [
     { properties: ["tenantId", "plateNumber"] },
     { properties: ["tenantId", "status"] },
+    { properties: ["tenantId", "vin"] },
     { properties: ["assignedDriverId"] },
   ],
 });
@@ -80,9 +103,13 @@ export const DriverRecordSchema = new EntitySchema<DriverRecord>({
   properties: {
     id: { type: "string", primary: true },
     name: { type: "string", length: 128 },
+    phone: { type: "string", length: 32, nullable: true },
+    email: { type: "string", length: 128, nullable: true },
     licenseNumber: { type: "string", length: 64 },
+    licenseExpiryDate: { type: "string", length: 32, nullable: true },
     tenantId: { type: "string", length: 64 },
     status: { type: "string", length: 16, defaultRaw: "'active'" },
+    communicationPreference: { type: "string", length: 16, nullable: true },
     assignedVehicleId: { type: "string", length: 64, nullable: true },
     whatsappNumber: { type: "string", length: 32, nullable: true },
     smsNumber: { type: "string", length: 32, nullable: true },

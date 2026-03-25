@@ -5,7 +5,12 @@ function makeVehicle(overrides: Partial<Parameters<typeof Vehicle.create>[0]> = 
   return Vehicle.create({
     id: "v1",
     plateNumber: "LND-001-XY",
+    vin: null,
+    make: null,
     model: "Mercedes Actros",
+    year: null,
+    type: null,
+    capacity: null,
     tenantId: "tenant-1",
     status: "active",
     assignedDriverId: null,
@@ -25,12 +30,37 @@ describe("Vehicle entity", () => {
     expect(v.tenantId).toBe("t1");
   });
 
+  it("normalizes vin to uppercase and mirrors registrationNumber", () => {
+    const vehicle = makeVehicle({
+      plateNumber: "lag-123-xy",
+      vin: "1hgcm82633a123456",
+    });
+    expect(vehicle.registrationNumber).toBe("LAG-123-XY");
+    expect(vehicle.vin).toBe("1HGCM82633A123456");
+  });
+
   it("throws for empty plateNumber", () => {
     expect(() => makeVehicle({ plateNumber: "  " })).toThrow("plateNumber is required");
   });
 
   it("throws for empty model", () => {
     expect(() => makeVehicle({ model: "" })).toThrow("model is required");
+  });
+
+  it("throws for invalid vin length", () => {
+    expect(() => makeVehicle({ vin: "SHORT-VIN" })).toThrow("vin must be 17 characters");
+  });
+
+  it("throws for invalid year", () => {
+    expect(() => makeVehicle({ year: 1989 })).toThrow("year must be between 1990");
+  });
+
+  it("throws for invalid type", () => {
+    expect(() => makeVehicle({ type: "bus" as any })).toThrow("type must be one of: truck, van, trailer");
+  });
+
+  it("throws for negative capacity", () => {
+    expect(() => makeVehicle({ capacity: -1 })).toThrow("capacity must be zero or greater");
   });
 
   it("throws for invalid status", () => {
@@ -55,20 +85,44 @@ describe("Vehicle entity", () => {
   });
 
   it("registerGpsDevice sets device", () => {
-    const v = makeVehicle().registerGpsDevice({ deviceId: "gps-1", provider: "teltonika", serialNumber: "SN-001", installedAt: "" });
-    expect(v.gpsDevice?.deviceId).toBe("gps-1");
+    const v = makeVehicle().registerGpsDevice({ imei: "359779090012345", manufacturer: "Teltonika", model: "FMC130", firmwareVersion: "3.28.07", installedAt: "" });
+    expect(v.gpsDevice?.imei).toBe("359779090012345");
+  });
+
+  it("rejects gps devices with invalid imei", () => {
+    expect(() =>
+      makeVehicle().registerGpsDevice({
+        imei: "gps-1",
+        manufacturer: "Teltonika",
+        model: "FMC130",
+        firmwareVersion: "3.28.07",
+        installedAt: "",
+      }),
+    ).toThrow("gps device imei must be 15 digits");
   });
 
   it("clearGpsDevice removes device", () => {
     const v = makeVehicle()
-      .registerGpsDevice({ deviceId: "g1", provider: "p", serialNumber: "s", installedAt: "" })
+      .registerGpsDevice({ imei: "359779090012345", manufacturer: "Teltonika", model: "FMC130", firmwareVersion: "3.28.07", installedAt: "" })
       .clearGpsDevice();
     expect(v.gpsDevice).toBeNull();
   });
 
   it("toPrimitives returns plain object", () => {
-    const p = makeVehicle().toPrimitives();
+    const p = makeVehicle({
+      vin: "1HGCM82633A123456",
+      make: "Mercedes-Benz",
+      year: 2026,
+      type: "truck",
+      capacity: 20,
+    }).toPrimitives();
     expect(p.id).toBe("v1");
     expect(p.status).toBe("active");
+    expect(p.registrationNumber).toBe("LND-001-XY");
+    expect(p.vin).toBe("1HGCM82633A123456");
+    expect(p.make).toBe("Mercedes-Benz");
+    expect(p.year).toBe(2026);
+    expect(p.type).toBe("truck");
+    expect(p.capacity).toBe(20);
   });
 });

@@ -4,14 +4,28 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "../../domain/repositories/driver.repository";
-import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
+import type {
+  DriverCommunicationPreference,
+  DriverStatusInput,
+} from "../../domain/entities/driver.entity";
+import { normalizeDriverStatus } from "../../domain/entities/driver.entity";
+import {
+  buildPreferredContactChannelUpdate,
+  composeDriverName,
+} from "../support/driver-input";
 
 export type UpdateDriverCommand = {
   id: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
+  phone?: string;
+  email?: string | null;
   licenseNumber?: string;
+  licenseExpiryDate?: string | null;
   tenantId?: string;
-  status?: FleetAssetStatus;
+  status?: DriverStatusInput;
+  communicationPreference?: DriverCommunicationPreference;
 };
 
 @Injectable()
@@ -27,12 +41,30 @@ export class UpdateDriverUseCase {
       throw new DriverNotFoundError(command.id);
     }
 
-    const updatedDriver = existingDriver.update({
-      name: command.name,
-      licenseNumber: command.licenseNumber,
-      tenantId: command.tenantId,
-      status: command.status,
-    });
+    const shouldRebuildName =
+      command.name !== undefined
+      || command.firstName !== undefined
+      || command.lastName !== undefined;
+
+    const updatedDriver = existingDriver
+      .update({
+        // Preserve the legacy full-name field internally while accepting the UI's split-name payload.
+        name: shouldRebuildName ? composeDriverName(command) : undefined,
+        phone: command.phone,
+        email: command.email,
+        licenseNumber: command.licenseNumber,
+        licenseExpiryDate: command.licenseExpiryDate,
+        tenantId: command.tenantId,
+        status: normalizeDriverStatus(command.status),
+        communicationPreference: command.communicationPreference,
+      })
+      .updateContactChannels(
+        buildPreferredContactChannelUpdate({
+          phone: command.phone,
+          communicationPreference:
+            command.communicationPreference ?? existingDriver.communicationPreference,
+        }),
+      );
 
     await this.driverRepository.save(updatedDriver);
     return updatedDriver.toPrimitives();
