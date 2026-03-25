@@ -1,6 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Role } from "@shared/rbac";
-import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import {
   ORGANIZATION_SETTINGS_REPOSITORY,
   type OrganizationSettingsRepository,
@@ -33,12 +31,6 @@ export class GetOrganizationSettingsUseCase {
       this.tokenService,
       this.userRepo,
     );
-
-    if (actor.role !== Role.ENTERPRISE_ADMIN) {
-      throw new ForbiddenError(
-        "Only enterprise admins can view organization settings",
-      );
-    }
 
     return (
       (await this.organizationRepo.findByTenantId(actor.tenantId)) ??

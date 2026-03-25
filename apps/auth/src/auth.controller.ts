@@ -745,17 +745,16 @@ export class AuthController {
     }
   }
 
-  /** Gets organization-level settings for current tenant (enterprise admin only) */
+  /** Gets organization-level settings for the caller's tenant (read-only for authenticated tenant users). */
   @Get("organization/settings")
   @ApiBearerAuth()
   @ApiOperation({
     summary: "Get organization settings",
-    description: "Epic B (US-B04): retrieve tenant-level branding/default settings.",
+    description: "Epic B (US-B04): retrieve tenant-level branding/default settings for the current tenant.",
   })
   @ApiOkResponse({ type: OrganizationSettingsResponse })
   @ApiUnauthorizedResponse({ description: "Missing or invalid bearer token" })
   @ApiNotFoundResponse({ description: "User not found" })
-  @ApiForbiddenResponse({ description: "Caller is not an enterprise admin" })
   async getOrganizationSettings(
     @Headers("authorization") authorization?: string,
   ) {
@@ -774,7 +773,7 @@ export class AuthController {
     }
   }
 
-  /** Updates organization-level settings for current tenant (enterprise admin only) */
+  /** Updates organization-level settings for current tenant (enterprise admin only). */
   @Patch("organization/settings")
   @ApiBearerAuth()
   @ApiOperation({

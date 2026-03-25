@@ -93,7 +93,8 @@ Added auth API behavior:
 - `POST /auth/organization/invites/resend`
 - `GET/PATCH /auth/preferences/notifications`
 - `GET/PATCH /auth/preferences/dispatch` (dispatcher role required)
-- `GET/PATCH /auth/organization/settings` (enterprise admin role required)
+- `GET /auth/organization/settings` (authenticated tenant user)
+- `PATCH /auth/organization/settings` (enterprise admin role required)
 
 ## Current verification coverage
 - Unit tests:

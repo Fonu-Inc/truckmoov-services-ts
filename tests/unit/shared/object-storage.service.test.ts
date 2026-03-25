@@ -64,6 +64,7 @@ describe("ObjectStorageService", () => {
       Bucket: "truckmoov-public",
       Key: "dev/auth/media/logo.png",
       ContentType: "image/png",
+      ACL: "public-read",
     });
   });
 

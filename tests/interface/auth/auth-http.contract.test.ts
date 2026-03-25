@@ -764,7 +764,7 @@ describe("Auth HTTP contract", () => {
     expect(getRes.body.defaults.timezone).toBe("Africa/Lagos");
   });
 
-  it("GET /auth/organization/settings rejects non-enterprise-admin user", async () => {
+  it("GET /auth/organization/settings allows non-enterprise-admin user but PATCH still rejects", async () => {
     const regRes = await request(app.getHttpServer())
       .post("/auth/register")
       .send(makeRegisterPayload("org-denied@contract.com"));
@@ -789,7 +789,19 @@ describe("Auth HTTP contract", () => {
       .get("/auth/organization/settings")
       .set("Authorization", `Bearer ${dispatcherToken}`);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.tenantId).toBe(regRes.body.user.tenantId);
+
+    const patchRes = await request(app.getHttpServer())
+      .patch("/auth/organization/settings")
+      .set("Authorization", `Bearer ${dispatcherToken}`)
+      .send({
+        branding: {
+          organizationName: "Should Not Save",
+        },
+      });
+
+    expect(patchRes.status).toBe(403);
   });
 
   // ── CORS ──────────────────────────────────────────────

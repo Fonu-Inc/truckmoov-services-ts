@@ -90,7 +90,7 @@ pnpm test
 - `PATCH /auth/preferences/notifications`
 - `GET /auth/preferences/dispatch` (dispatcher role)
 - `PATCH /auth/preferences/dispatch` (dispatcher role)
-- `GET /auth/organization/settings` (enterprise admin role)
+- `GET /auth/organization/settings` (authenticated tenant user)
 - `PATCH /auth/organization/settings` (enterprise admin role)
 
 ## Fleet master data endpoints (Epic C)

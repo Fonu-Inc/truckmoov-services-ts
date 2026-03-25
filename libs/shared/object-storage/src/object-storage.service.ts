@@ -34,14 +34,21 @@ export class ObjectStorageService {
 
   async putObject(input: PutObjectInput): Promise<string> {
     const objectKey = this.buildKey(input.key);
+    const visibility = input.visibility ?? "private";
     const command: PutObjectCommandInput = {
-      Bucket: this.resolveBucket(input.visibility),
+      Bucket: this.resolveBucket(visibility),
       Key: objectKey,
       Body: input.body,
     };
 
     if (input.contentType) {
       command.ContentType = input.contentType;
+    }
+
+    if (visibility === "public") {
+      // Mirror the Fonu upload pattern so the returned stable URL is directly
+      // readable even when the bucket relies on object ACLs for public access.
+      command.ACL = "public-read";
     }
 
     await this.client.send(new PutObjectCommand(command));
