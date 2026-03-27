@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   CanActivate,
   ConflictException,
   ExecutionContext,
@@ -34,9 +33,9 @@ export class IdempotencyGuard implements CanActivate {
     const key = Array.isArray(keyHeader) ? keyHeader[0] : keyHeader;
 
     if (!key || typeof key !== "string") {
-      throw new BadRequestException(
-        "Missing idempotency key header: Idempotency-Key",
-      );
+      // UI form posts are allowed to proceed without an idempotency key.
+      // When a client does supply the header, we enforce duplicate protection.
+      return true;
     }
 
     const requestFingerprint = `${request.method}:${request.originalUrl}:${key}`;

@@ -96,8 +96,20 @@ pnpm test
 ## Fleet master data endpoints (Epic C)
 - Vehicles
   - `GET /fleet/vehicles?query=&status=&assigned=&tenantId=`
+  - `GET /fleet/devices?query=&manufacturer=&status=&lifecycleStatus=&assigned=&tenantId=`
+    Returns the standalone IoT/GPS device inventory used by the Devices page, including lifecycle state, assignment state, and latest signal/heartbeat snapshots when available.
+  - `POST /fleet/devices`
+    Registers a standalone device inventory record with `imei`, `manufacturer`, `model`, `firmwareVersion`, and optional `tenantId`.
+  - `POST /fleet/devices/import`
+  - `GET /fleet/devices/:id`
+  - `PATCH /fleet/devices/:id`
+  - `PATCH /fleet/devices/:id/lifecycle`
+  - `GET /fleet/devices/:id/assignment/validate?vehicleId=`
+  - `PATCH /fleet/devices/:id/assignment`
+  - `DELETE /fleet/devices/:id/assignment`
+  - `DELETE /fleet/devices/:id`
   - `GET /fleet/gps-devices?query=&vehicleStatus=&tenantId=`
-    Returns GPS devices currently mapped to fleet vehicles, using the UI device fields: `imei`, `manufacturer`, `model`, `firmwareVersion`, plus the linked vehicle and tenant metadata.
+    Legacy alias over the standalone device registry that still returns linked vehicle metadata for older consumers.
   - `POST /fleet/vehicles`
     Accepts the fleet UI vehicle shape: `registrationNumber`, `vin`, `make`, `model`, `year`, `type`, `capacity`, plus `tenantId` and optional `status`. Legacy `plateNumber` is still accepted.
   - `POST /fleet/vehicles/import`
@@ -141,6 +153,8 @@ MikroORM is the chosen migration strategy for this bootstrap.
 - Implemented layered slices:
   - `apps/auth/src/contexts/auth/session`
     - includes profile, notification preferences, dispatcher schedule/timezone, and tenant organization settings use-cases
+  - `apps/fleet/src/contexts/fleet/devices`
+    - standalone device inventory, lifecycle transitions, assignment validation, and vehicle mapping sync
   - `apps/fleet/src/contexts/fleet/vehicles`
   - `apps/fleet/src/contexts/fleet/drivers`
   - `apps/fleet/src/contexts/fleet/jobs`

@@ -36,8 +36,20 @@ Within `auth/session`, the current vertical slices include:
 - driver-to-vehicle assignment/unassignment
 - activation/deactivation status transitions
 - GPS device registration/mapping
-- GPS device listing from vehicle-attached mappings
+- GPS device listing from the standalone device inventory
 - bulk import upsert by plate number
+
+`fleet/devices` follows the same layering:
+- `apps/fleet/src/contexts/fleet/devices/domain/*`
+- `apps/fleet/src/contexts/fleet/devices/application/*`
+- `apps/fleet/src/contexts/fleet/devices/infrastructure/*`
+
+`fleet/devices` now includes:
+- standalone IoT/GPS device inventory CRUD
+- lifecycle transitions aligned to installer/device-verification workflow
+- assignment validation and assignment/unassignment to vehicles
+- bulk import/upsert by IMEI
+- synchronization back into the vehicle aggregate so older `/fleet/vehicles/:id/gps-device` consumers stay compatible
 
 `fleet/drivers` follows the same layering:
 - `apps/fleet/src/contexts/fleet/drivers/domain/*`
@@ -63,6 +75,16 @@ Fleet interface entrypoint remains `apps/fleet/src/fleet.controller.ts`.
 
 Fleet API behavior (Epic C-aligned):
 - `GET /fleet/vehicles`
+- `GET /fleet/devices`
+- `POST /fleet/devices`
+- `GET /fleet/devices/:id`
+- `PATCH /fleet/devices/:id`
+- `DELETE /fleet/devices/:id`
+- `POST /fleet/devices/import`
+- `PATCH /fleet/devices/:id/lifecycle`
+- `GET /fleet/devices/:id/assignment/validate`
+- `PATCH /fleet/devices/:id/assignment`
+- `DELETE /fleet/devices/:id/assignment`
 - `GET /fleet/gps-devices`
 - `POST /fleet/vehicles`
 - `GET /fleet/vehicles/:id`

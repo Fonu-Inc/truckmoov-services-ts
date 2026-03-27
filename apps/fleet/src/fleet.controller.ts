@@ -41,12 +41,19 @@ import {
 } from "./dto/driver.dto";
 import {
   AssignDriverToVehicleDto,
+  AssignDeviceToVehicleDto,
   BulkImportVehiclesDto,
+  BulkImportDevicesDto,
+  CreateDeviceDto,
   CreateVehicleDto,
+  DeviceAssignmentValidationQueryDto,
+  DeviceListQueryDto,
   DispatchSearchQueryDto,
   GpsDeviceListQueryDto,
   RegisterGpsDeviceDto,
+  SetDeviceLifecycleStatusDto,
   SetVehicleStatusDto,
+  UpdateDeviceDto,
   UpdateVehicleDto,
   VehicleListQueryDto,
 } from "./dto/vehicle.dto";
@@ -58,7 +65,11 @@ import {
   AlertResponse,
   AlertStatsResponse,
   BulkDriverImportResponse,
+  BulkDeviceImportResponse,
   BulkVehicleImportResponse,
+  DeviceAssignmentValidationResponse,
+  DeviceListResponse,
+  DeviceResponse,
   ConsumptionBucketSchema,
   DashboardResponse,
   DeliveryMetricsResponse,
@@ -88,6 +99,19 @@ import {
   VehicleResponse,
 } from "./dto/fleet.schema";
 import { haversineKm } from "./utils/haversine";
+import {
+  AssignDeviceToVehicleUseCase,
+  BulkImportDevicesUseCase,
+  CreateDeviceUseCase,
+  DeleteDeviceUseCase,
+  DeviceNotFoundError,
+  GetDeviceUseCase,
+  ListDevicesUseCase,
+  SetDeviceLifecycleStatusUseCase,
+  UnassignDeviceFromVehicleUseCase,
+  UpdateDeviceUseCase,
+  ValidateDeviceAssignmentUseCase,
+} from "./contexts/fleet/devices";
 import {
   BulkImportDriversUseCase,
   CreateDriverUseCase,
@@ -158,6 +182,26 @@ export class FleetController {
   constructor(
     @Inject(ListVehiclesUseCase)
     private readonly listVehiclesUseCase: ListVehiclesUseCase,
+    @Inject(ListDevicesUseCase)
+    private readonly listDevicesUseCase: ListDevicesUseCase,
+    @Inject(GetDeviceUseCase)
+    private readonly getDeviceUseCase: GetDeviceUseCase,
+    @Inject(CreateDeviceUseCase)
+    private readonly createDeviceUseCase: CreateDeviceUseCase,
+    @Inject(UpdateDeviceUseCase)
+    private readonly updateDeviceUseCase: UpdateDeviceUseCase,
+    @Inject(DeleteDeviceUseCase)
+    private readonly deleteDeviceUseCase: DeleteDeviceUseCase,
+    @Inject(BulkImportDevicesUseCase)
+    private readonly bulkImportDevicesUseCase: BulkImportDevicesUseCase,
+    @Inject(AssignDeviceToVehicleUseCase)
+    private readonly assignDeviceToVehicleUseCase: AssignDeviceToVehicleUseCase,
+    @Inject(UnassignDeviceFromVehicleUseCase)
+    private readonly unassignDeviceFromVehicleUseCase: UnassignDeviceFromVehicleUseCase,
+    @Inject(SetDeviceLifecycleStatusUseCase)
+    private readonly setDeviceLifecycleStatusUseCase: SetDeviceLifecycleStatusUseCase,
+    @Inject(ValidateDeviceAssignmentUseCase)
+    private readonly validateDeviceAssignmentUseCase: ValidateDeviceAssignmentUseCase,
     @Inject(ListGpsDevicesUseCase)
     private readonly listGpsDevicesUseCase: ListGpsDevicesUseCase,
     @Inject(CreateVehicleUseCase)
@@ -375,12 +419,181 @@ export class FleetController {
     }) as unknown as Promise<VehicleListResponse>;
   }
 
+  /** Retrieve standalone device inventory for the fleet admin Devices page */
+  @Get("devices")
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.PLATFORM_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
+  @ApiOperation({
+    summary: "List devices",
+    description: "Lists standalone GPS/IoT devices for the fleet admin Devices inventory page.",
+  })
+  @ApiQuery({ name: "query", required: false, type: String })
+  @ApiQuery({ name: "manufacturer", required: false, type: String })
+  @ApiQuery({ name: "status", required: false, enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
+  @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
+  @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
+  @ApiQuery({ name: "tenantId", required: false, type: String })
+  @ApiOkResponse({ type: DeviceListResponse })
+  async listDevices(@Query() query: DeviceListQueryDto): Promise<DeviceListResponse> {
+    return this.listDevicesUseCase.execute({
+      query: query.query,
+      manufacturer: query.manufacturer,
+      status: query.status,
+      lifecycleStatus: query.lifecycleStatus,
+      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      tenantId: query.tenantId,
+    }) as unknown as Promise<DeviceListResponse>;
+  }
+
+  @Post("devices")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({
+    summary: "Create device",
+    description: "Registers a standalone GPS/IoT device before it is assigned to a vehicle.",
+  })
+  @ApiCreatedResponse({ type: DeviceResponse })
+  async createDevice(@Body() payload: CreateDeviceDto): Promise<DeviceResponse> {
+    return this.createDeviceUseCase.execute(payload) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Post("devices/import")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({
+    summary: "Bulk import devices",
+    description: "Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.",
+  })
+  @ApiCreatedResponse({ type: BulkDeviceImportResponse })
+  async bulkImportDevices(@Body() payload: BulkImportDevicesDto): Promise<BulkDeviceImportResponse> {
+    return this.bulkImportDevicesUseCase.execute(payload) as unknown as Promise<BulkDeviceImportResponse>;
+  }
+
+  @Get("devices/:id")
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.PLATFORM_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
+  @ApiOperation({ summary: "Get device by ID" })
+  @ApiOkResponse({ type: DeviceResponse })
+  async getDevice(@Param("id") id: string): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() => this.getDeviceUseCase.execute(id)) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Patch("devices/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({ summary: "Update device" })
+  @ApiOkResponse({ type: DeviceResponse })
+  async updateDevice(@Param("id") id: string, @Body() payload: UpdateDeviceDto): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.updateDeviceUseCase.execute({ id, ...payload }),
+    ) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Patch("devices/:id/lifecycle")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({
+    summary: "Set device lifecycle status",
+    description: "Advances or changes a device through the installation lifecycle used by the Devices page.",
+  })
+  @ApiOkResponse({ type: DeviceResponse })
+  async setDeviceLifecycleStatus(
+    @Param("id") id: string,
+    @Body() payload: SetDeviceLifecycleStatusDto,
+  ): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.setDeviceLifecycleStatusUseCase.execute({ id, lifecycleStatus: payload.lifecycleStatus }),
+    ) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Get("devices/:id/assignment/validate")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @ApiOperation({
+    summary: "Validate device assignment",
+    description: "Checks whether a device can be assigned to a specific vehicle before the UI submits the actual assignment.",
+  })
+  @ApiOkResponse({ type: DeviceAssignmentValidationResponse })
+  async validateDeviceAssignment(
+    @Param("id") id: string,
+    @Query() query: DeviceAssignmentValidationQueryDto,
+  ): Promise<DeviceAssignmentValidationResponse> {
+    return this.validateDeviceAssignmentUseCase.execute(
+      id,
+      query.vehicleId,
+    ) as unknown as DeviceAssignmentValidationResponse;
+  }
+
+  @Patch("devices/:id/assignment")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({
+    summary: "Assign device to vehicle",
+    description: "Assigns a standalone device inventory record to a fleet vehicle.",
+  })
+  @ApiOkResponse({ type: DeviceResponse })
+  async assignDeviceToVehicle(
+    @Param("id") id: string,
+    @Body() payload: AssignDeviceToVehicleDto,
+  ): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.assignDeviceToVehicleUseCase.execute({ deviceId: id, vehicleId: payload.vehicleId }),
+    ) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Delete("devices/:id/assignment")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({ summary: "Unassign device from vehicle" })
+  @ApiOkResponse({ type: DeviceResponse })
+  async unassignDeviceFromVehicle(@Param("id") id: string): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.unassignDeviceFromVehicleUseCase.execute(id),
+    ) as unknown as Promise<DeviceResponse>;
+  }
+
+  @Delete("devices/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({ summary: "Delete device" })
+  @ApiOkResponse({ type: DeviceResponse })
+  async deleteDevice(@Param("id") id: string): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.deleteDeviceUseCase.execute(id),
+    ) as unknown as Promise<DeviceResponse>;
+  }
+
   /** Retrieve GPS devices currently registered against fleet vehicles */
   @Get("gps-devices")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.PLATFORM_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
   @ApiOperation({
     summary: "List GPS devices",
-    description: "Lists GPS devices currently mapped to fleet vehicles. This service exposes vehicle-attached tracking devices rather than a separate standalone device registry.",
+    description: "Legacy alias for device inventory with vehicle mapping details preserved for older clients.",
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "vehicleStatus", required: false, enum: ["active", "inactive"] })
@@ -1114,7 +1327,11 @@ export class FleetController {
     try {
       return await fn();
     } catch (error) {
-      if (error instanceof VehicleNotFoundError || error instanceof DriverNotFoundError) {
+      if (
+        error instanceof VehicleNotFoundError
+        || error instanceof DriverNotFoundError
+        || error instanceof DeviceNotFoundError
+      ) {
         throw new NotFoundException(error.message);
       }
       if (error instanceof FleetRuleError) {

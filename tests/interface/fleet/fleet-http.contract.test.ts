@@ -60,7 +60,6 @@ describe("Fleet HTTP contract", () => {
     const createVehicle = await request(app.getHttpServer())
       .post("/fleet/vehicles")
       .set("x-user-role", "admin")
-      .set("Idempotency-Key", randomUUID())
       .send({
         registrationNumber: "TM-909",
         vin: "1HGCM82633A123456",
@@ -184,6 +183,161 @@ describe("Fleet HTTP contract", () => {
       .set("x-user-role", "dispatcher");
     expect(driverAfterDeactivate.status).toBe(200);
     expect(driverAfterDeactivate.body.assignedVehicleId).toBeNull();
+  });
+
+  it("treats idempotency headers as optional but still rejects duplicate keys when provided", async () => {
+    const duplicateKey = randomUUID();
+
+    const first = await request(app.getHttpServer())
+      .post("/fleet/vehicles")
+      .set("x-user-role", "admin")
+      .set("Idempotency-Key", duplicateKey)
+      .send({
+        registrationNumber: "TM-919",
+        vin: "1HGCM82633A654321",
+        make: "Mercedes-Benz",
+        model: "Actros",
+        year: 2026,
+        type: "truck",
+        capacity: 15,
+        tenantId: "default",
+      });
+
+    expect(first.status).toBe(201);
+
+    const second = await request(app.getHttpServer())
+      .post("/fleet/vehicles")
+      .set("x-user-role", "admin")
+      .set("Idempotency-Key", duplicateKey)
+      .send({
+        registrationNumber: "TM-920",
+        vin: "1HGCM82633A654322",
+        make: "Mercedes-Benz",
+        model: "Actros",
+        year: 2026,
+        type: "truck",
+        capacity: 15,
+        tenantId: "default",
+      });
+
+    expect(second.status).toBe(409);
+    expect(second.body.message).toBe("Duplicate idempotent request");
+  });
+
+  it("supports standalone device inventory, lifecycle transitions, and assignment validation", async () => {
+    const createVehicle = await request(app.getHttpServer())
+      .post("/fleet/vehicles")
+      .set("x-user-role", "fleet_manager")
+      .send({
+        registrationNumber: "TM-930",
+        vin: "1HGCM82633A777777",
+        make: "DAF",
+        model: "XF",
+        year: 2026,
+        type: "truck",
+        capacity: 22,
+        tenantId: "default",
+      });
+    expect(createVehicle.status).toBe(201);
+
+    const createDevice = await request(app.getHttpServer())
+      .post("/fleet/devices")
+      .set("x-user-role", "fleet_manager")
+      .send({
+        imei: "359779090012399",
+        manufacturer: "Teltonika",
+        model: "FMC130",
+        firmwareVersion: "3.28.07",
+        tenantId: "default",
+      });
+    expect(createDevice.status).toBe(201);
+    expect(createDevice.body.lifecycleStatus).toBe("registered");
+    expect(createDevice.body.status).toBe("registered");
+
+    const listDevices = await request(app.getHttpServer())
+      .get("/fleet/devices?query=359779090012399")
+      .set("x-user-role", "dispatcher");
+    expect(listDevices.status).toBe(200);
+    expect(listDevices.body).toHaveLength(1);
+    expect(listDevices.body[0]).toMatchObject({
+      imei: "359779090012399",
+      manufacturer: "Teltonika",
+      model: "FMC130",
+      status: "registered",
+      lifecycleStatus: "registered",
+    });
+
+    for (const lifecycleStatus of ["config_pending", "configured", "verified_online", "assignable"] as const) {
+      const transition = await request(app.getHttpServer())
+        .patch(`/fleet/devices/${createDevice.body.id}/lifecycle`)
+        .set("x-user-role", "fleet_manager")
+        .send({ lifecycleStatus });
+      expect(transition.status).toBe(200);
+      expect(transition.body.lifecycleStatus).toBe(lifecycleStatus);
+    }
+
+    const validation = await request(app.getHttpServer())
+      .get(`/fleet/devices/${createDevice.body.id}/assignment/validate`)
+      .set("x-user-role", "dispatcher")
+      .query({ vehicleId: createVehicle.body.id });
+    expect(validation.status).toBe(200);
+    expect(validation.body).toEqual({ canAssign: true });
+
+    const assign = await request(app.getHttpServer())
+      .patch(`/fleet/devices/${createDevice.body.id}/assignment`)
+      .set("x-user-role", "fleet_manager")
+      .send({ vehicleId: createVehicle.body.id });
+    expect(assign.status).toBe(200);
+    expect(assign.body.lifecycleStatus).toBe("assigned");
+    expect(assign.body.vehicleId).toBe(createVehicle.body.id);
+
+    const legacyGpsList = await request(app.getHttpServer())
+      .get("/fleet/gps-devices?query=359779090012399")
+      .set("x-user-role", "dispatcher");
+    expect(legacyGpsList.status).toBe(200);
+    expect(legacyGpsList.body.data[0]).toMatchObject({
+      imei: "359779090012399",
+      vehicleId: createVehicle.body.id,
+      vehicleRegistrationNumber: "TM-930",
+      lifecycleStatus: "assigned",
+      status: "assigned",
+    });
+
+    const unassign = await request(app.getHttpServer())
+      .delete(`/fleet/devices/${createDevice.body.id}/assignment`)
+      .set("x-user-role", "fleet_manager");
+    expect(unassign.status).toBe(200);
+    expect(unassign.body.vehicleId).toBeNull();
+    expect(unassign.body.lifecycleStatus).toBe("assignable");
+
+    const vehicleAfterUnassign = await request(app.getHttpServer())
+      .get(`/fleet/vehicles/${createVehicle.body.id}`)
+      .set("x-user-role", "dispatcher");
+    expect(vehicleAfterUnassign.status).toBe(200);
+    expect(vehicleAfterUnassign.body.gpsDevice).toBeNull();
+
+    const bulkImport = await request(app.getHttpServer())
+      .post("/fleet/devices/import")
+      .set("x-user-role", "fleet_manager")
+      .send({
+        tenantId: "default",
+        items: [
+          {
+            imei: "359779090012400",
+            manufacturer: "Queclink",
+            model: "GV300",
+            firmwareVersion: "1.0.0",
+          },
+        ],
+      });
+    expect(bulkImport.status).toBe(201);
+    expect(bulkImport.body.created).toBe(1);
+
+    const deleteDevice = await request(app.getHttpServer())
+      .delete(`/fleet/devices/${createDevice.body.id}`)
+      .set("x-user-role", "fleet_manager");
+    expect(deleteDevice.status).toBe(200);
+    expect(deleteDevice.body.id).toBe(createDevice.body.id);
   });
 
   it("supports bulk import and dispatcher search over vehicles, drivers, and jobs", async () => {

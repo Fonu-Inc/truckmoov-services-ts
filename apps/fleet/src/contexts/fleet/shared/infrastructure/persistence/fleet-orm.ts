@@ -59,6 +59,24 @@ export class JobRecord {
   updatedAt!: Date;
 }
 
+export class DeviceRecord {
+  id!: string;
+  imei!: string;
+  manufacturer!: string;
+  model!: string;
+  firmwareVersion!: string;
+  tenantId!: string;
+  status!: string;
+  lifecycleStatus!: string;
+  vehicleId?: string | null;
+  signalStrength?: number | null;
+  batteryLevel?: number | null;
+  lastSeen?: Date | null;
+  assignedAt?: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
 export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
   class: VehicleRecord,
   tableName: "fleet_vehicles",
@@ -145,6 +163,38 @@ export const JobRecordSchema = new EntitySchema<JobRecord>({
   indexes: [{ properties: ["tenantId", "status"] }],
 });
 
+export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
+  class: DeviceRecord,
+  tableName: "fleet_devices",
+  properties: {
+    id: { type: "string", primary: true },
+    imei: { type: "string", length: 32 },
+    manufacturer: { type: "string", length: 64 },
+    model: { type: "string", length: 64 },
+    firmwareVersion: { type: "string", length: 32 },
+    tenantId: { type: "string", length: 64 },
+    status: { type: "string", length: 32, defaultRaw: "'registered'" },
+    lifecycleStatus: { type: "string", length: 32, defaultRaw: "'registered'" },
+    vehicleId: { type: "string", length: 64, nullable: true },
+    signalStrength: { type: "integer", nullable: true },
+    batteryLevel: { type: "integer", nullable: true },
+    lastSeen: { type: "datetime", nullable: true },
+    assignedAt: { type: "datetime", nullable: true },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: {
+      type: "datetime",
+      onUpdate: () => new Date(),
+      defaultRaw: "now()",
+    },
+  },
+  indexes: [
+    { properties: ["tenantId", "imei"], options: { unique: true } },
+    { properties: ["tenantId", "status"] },
+    { properties: ["tenantId", "lifecycleStatus"] },
+    { properties: ["vehicleId"] },
+  ],
+});
+
 let ormPromise: Promise<MikroORM> | null = null;
 
 export async function getFleetOrm(cfg: DbConfig) {
@@ -153,7 +203,7 @@ export async function getFleetOrm(cfg: DbConfig) {
   }
 
   ormPromise = MikroORM.init({
-    entities: [VehicleRecordSchema, DriverRecordSchema, JobRecordSchema],
+    entities: [VehicleRecordSchema, DriverRecordSchema, JobRecordSchema, DeviceRecordSchema],
     host: cfg.host,
     port: cfg.port,
     user: cfg.user,

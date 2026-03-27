@@ -34,20 +34,127 @@ export class GpsDeviceSchema {
   @ApiProperty()
   firmwareVersion!: string;
 
-  @ApiProperty()
-  installedAt!: string;
+  @ApiProperty({ nullable: true })
+  installedAt!: string | null;
 
   @ApiProperty()
   tenantId!: string;
 
+  @ApiProperty({ enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
+  status!: "registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned";
+
+  @ApiProperty({ enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
+  lifecycleStatus!: "registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned";
+
+  @ApiProperty({ nullable: true })
+  vehicleId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  vehicleRegistrationNumber!: string | null;
+
+  @ApiProperty({ nullable: true, enum: ["active", "inactive"] })
+  vehicleStatus!: "active" | "inactive" | null;
+
+  @ApiProperty({ nullable: true })
+  signalStrength!: number | null;
+
+  @ApiProperty({ nullable: true })
+  batteryLevel!: number | null;
+
+  @ApiProperty({ nullable: true })
+  lastSeen!: string | null;
+
+  @ApiProperty({ nullable: true })
+  assignedAt!: string | null;
+}
+
+export class DeviceSchema {
   @ApiProperty()
-  vehicleId!: string;
+  id!: string;
 
   @ApiProperty()
-  vehicleRegistrationNumber!: string;
+  imei!: string;
 
-  @ApiProperty({ enum: ["active", "inactive"] })
-  vehicleStatus!: "active" | "inactive";
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty()
+  firmwareVersion!: string;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty({ enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
+  status!: "registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned";
+
+  @ApiProperty({ enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
+  lifecycleStatus!: "registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned";
+
+  @ApiProperty({ nullable: true })
+  vehicleId!: string | null;
+
+  @ApiProperty({ nullable: true })
+  signalStrength!: number | null;
+
+  @ApiProperty({ nullable: true })
+  batteryLevel!: number | null;
+
+  @ApiProperty({ nullable: true })
+  lastSeen!: string | null;
+
+  @ApiProperty({ nullable: true })
+  assignedAt!: string | null;
+
+  @ApiProperty()
+  createdAt!: string;
+
+  @ApiProperty()
+  updatedAt!: string;
+}
+
+export class DeviceResponse extends StandardApiResponse<DeviceSchema> {
+  @ApiProperty({ type: DeviceSchema })
+  data!: DeviceSchema;
+}
+
+export class DeviceListResponse extends StandardApiResponse<DeviceSchema[]> {
+  @ApiProperty({ type: DeviceSchema, isArray: true })
+  data!: DeviceSchema[];
+}
+
+export class DeviceAssignmentValidationSchema {
+  @ApiProperty()
+  canAssign!: boolean;
+
+  @ApiProperty({ nullable: true })
+  reason!: string | null;
+}
+
+export class DeviceAssignmentValidationResponse extends StandardApiResponse<DeviceAssignmentValidationSchema> {
+  @ApiProperty({ type: DeviceAssignmentValidationSchema })
+  data!: DeviceAssignmentValidationSchema;
+}
+
+export class BulkDeviceImportSchema {
+  @ApiProperty()
+  created!: number;
+
+  @ApiProperty()
+  updated!: number;
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: DeviceSchema, isArray: true })
+  records!: DeviceSchema[];
+}
+
+export class BulkDeviceImportResponse extends StandardApiResponse<BulkDeviceImportSchema> {
+  @ApiProperty({ type: BulkDeviceImportSchema })
+  data!: BulkDeviceImportSchema;
 }
 
 /** Vehicle record */

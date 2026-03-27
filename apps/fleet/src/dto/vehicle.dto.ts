@@ -15,6 +15,10 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
+import {
+  DEVICE_LIFECYCLE_STATUSES,
+  DEVICE_STATUSES,
+} from "../contexts/fleet/devices/domain/entities/device.entity";
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
 import { DRIVER_STATUS_INPUTS } from "../contexts/fleet/drivers/domain/entities/driver.entity";
 
@@ -131,6 +135,131 @@ export class GpsDeviceListQueryDto {
   @IsOptional()
   @IsIn(FLEET_ASSET_STATUSES)
   vehicleStatus?: "active" | "inactive";
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+}
+
+export class CreateDeviceDto {
+  @IsString()
+  @MinLength(15)
+  @MaxLength(15)
+  @Matches(/^\d+$/)
+  imei!: string;
+
+  @IsString()
+  @MaxLength(50)
+  manufacturer!: string;
+
+  @IsString()
+  @MaxLength(50)
+  model!: string;
+
+  @IsString()
+  @MaxLength(20)
+  firmwareVersion!: string;
+
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @IsOptional()
+  @IsIn(DEVICE_LIFECYCLE_STATUSES)
+  lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
+}
+
+export class UpdateDeviceDto extends PartialType(CreateDeviceDto) {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  signalStrength?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  batteryLevel?: number | null;
+
+  @IsOptional()
+  @IsISO8601()
+  lastSeen?: string | null;
+}
+
+export class SetDeviceLifecycleStatusDto {
+  @IsIn(DEVICE_LIFECYCLE_STATUSES)
+  lifecycleStatus!: typeof DEVICE_LIFECYCLE_STATUSES[number];
+}
+
+export class AssignDeviceToVehicleDto {
+  @IsString()
+  vehicleId!: string;
+}
+
+export class DeviceAssignmentValidationQueryDto {
+  @IsString()
+  vehicleId!: string;
+}
+
+export class DeviceImportItemDto {
+  @IsString()
+  @MinLength(15)
+  @MaxLength(15)
+  @Matches(/^\d+$/)
+  imei!: string;
+
+  @IsString()
+  @MaxLength(50)
+  manufacturer!: string;
+
+  @IsString()
+  @MaxLength(50)
+  model!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  firmwareVersion?: string;
+
+  @IsOptional()
+  @IsIn(DEVICE_LIFECYCLE_STATUSES)
+  lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
+}
+
+export class BulkImportDevicesDto {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DeviceImportItemDto)
+  items!: DeviceImportItemDto[];
+}
+
+export class DeviceListQueryDto {
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
+
+  @IsOptional()
+  @IsIn(DEVICE_STATUSES)
+  status?: typeof DEVICE_STATUSES[number];
+
+  @IsOptional()
+  @IsIn(DEVICE_LIFECYCLE_STATUSES)
+  lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
+
+  @IsOptional()
+  @IsString()
+  assigned?: string;
 
   @IsOptional()
   @IsString()
