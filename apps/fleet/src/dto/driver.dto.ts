@@ -56,11 +56,6 @@ export class CreateDriverDto {
   @IsISO8601()
   licenseExpiryDate?: string;
 
-  /** Tenant scope; defaults to DEFAULT_TENANT env */
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
-
   /** Operational availability status */
   @IsOptional()
   @IsIn(DRIVER_STATUS_INPUTS)
@@ -127,10 +122,6 @@ export class DriverImportItemDto {
   licenseExpiryDate?: string;
 
   @IsOptional()
-  @IsString()
-  tenantId?: string;
-
-  @IsOptional()
   @IsIn(DRIVER_STATUS_INPUTS)
   status?: "active" | "available" | "offline" | "suspended" | "inactive";
 
@@ -145,9 +136,6 @@ export class DriverImportItemDto {
 }
 
 export class BulkImportDriversDto {
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -167,10 +155,6 @@ export class DriverListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export class JobListQueryDto {
@@ -181,8 +165,4 @@ export class JobListQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }

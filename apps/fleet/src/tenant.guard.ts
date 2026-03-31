@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Role, normalizeRole } from "@shared/rbac";
 
@@ -18,25 +18,14 @@ export class TenantGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
-      query: Record<string, string | undefined>;
-      body: Record<string, string | undefined>;
+      user?: { tenantId?: string; role?: string };
     }>();
 
-    const claimedTenant = req.headers["x-tenant-id"];
-    if (!claimedTenant) return true; // No tenant header → single-tenant / unauthenticated dev mode
+    const claimedTenant = req.user?.tenantId ?? req.headers["x-tenant-id"];
+    if (!claimedTenant) return true; // No tenant context → single-tenant / unauthenticated dev mode
 
-    const role = normalizeRole(req.headers["x-user-role"]);
+    const role = normalizeRole(req.user?.role ?? req.headers["x-user-role"]);
     if (role === Role.ENTERPRISE_ADMIN) return true; // Enterprise admins can access any tenant
-
-    const requested =
-      req.query["tenantId"] ??
-      req.query["tenant_id"] ??
-      req.body?.["tenantId"] ??
-      req.body?.["tenant_id"];
-
-    if (requested && requested !== claimedTenant) {
-      throw new ForbiddenException(`Tenant mismatch: you may only access your own tenant`);
-    }
 
     return true;
   }

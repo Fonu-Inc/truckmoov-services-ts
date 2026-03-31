@@ -437,6 +437,9 @@ export class AlertSchema {
   details!: Record<string, unknown>;
 
   @ApiProperty()
+  createdAt!: string;
+
+  @ApiProperty()
   triggeredAt!: string;
 
   @ApiProperty({ nullable: true })

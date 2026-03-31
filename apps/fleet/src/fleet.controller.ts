@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  UnauthorizedException,
   Body,
   Controller,
   Delete,
@@ -131,7 +132,7 @@ import {
   ListAlertsUseCase,
   ResolveAlertUseCase,
 } from "./contexts/fleet/alerts";
-import type { AlertStatus } from "./contexts/fleet/alerts/domain/alert.entity";
+import type { Alert as FleetAlert, AlertStatus } from "./contexts/fleet/alerts/domain/alert.entity";
 import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase, type ExportEntity } from "./contexts/fleet/reports";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import {
@@ -173,6 +174,11 @@ import {
 } from "./contexts/fleet/fuel";
 
 const HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
+
+type FleetRequestContext = {
+  user?: { tenantId?: string; userId?: string };
+  ip?: string;
+};
 
 @ApiTags("Fleet")
 @Controller("fleet")
@@ -264,6 +270,17 @@ export class FleetController {
     @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
   ) {}
 
+  private serializeAlert(alert: FleetAlert) {
+    return {
+      ...alert.toPrimitives(),
+      createdAt: alert.triggeredAt.toISOString(),
+      triggeredAt: alert.triggeredAt.toISOString(),
+      acknowledgedAt: alert.acknowledgedAt?.toISOString() ?? null,
+      resolvedAt: alert.resolvedAt?.toISOString() ?? null,
+      escalatedAt: alert.escalatedAt?.toISOString() ?? null,
+    };
+  }
+
   /** Health check */
   @Get("health")
   health(): FleetHealthResponse {
@@ -349,8 +366,8 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List all last seen statuses" })
   @ApiOkResponse({ type: VehicleHealthListResponse })
-  async listVehicleHealth() {
-    const vehicles = await this.listVehiclesUseCase.execute();
+  async listVehicleHealth(@Req() req: FleetRequestContext) {
+    const vehicles = await this.listVehiclesUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
     const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { imei: string } | null }>)
       .map((v) => this.buildHealth(v));
     return { status: true, data };
@@ -367,12 +384,13 @@ export class FleetController {
     @Query("lat") lat: string,
     @Query("lng") lng: string,
     @Query("limit") limit = "5",
+    @Req() req: FleetRequestContext,
   ): Promise<NearestVehicleListResponse> {
     const originLat = parseFloat(lat);
     const originLng = parseFloat(lng);
     const maxResults = parseInt(limit, 10) || 5;
 
-    const vehicles = await this.listVehiclesUseCase.execute() as unknown as Array<{
+    const vehicles = await this.listVehiclesUseCase.execute({ tenantId: this.tenantIdFromRequest(req) }) as unknown as Array<{
       id: string; plateNumber: string; model: string; assignedDriverId: string | null;
     }>;
 
@@ -407,15 +425,14 @@ export class FleetController {
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "status", required: false, enum: ["active", "inactive"] })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: VehicleListResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
-  async listVehicles(@Query() query: VehicleListQueryDto): Promise<VehicleListResponse> {
+  async listVehicles(@Query() query: VehicleListQueryDto, @Req() req: FleetRequestContext): Promise<VehicleListResponse> {
     return this.listVehiclesUseCase.execute({
       query: query.query,
       status: query.status,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      tenantId: query.tenantId,
+      tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<VehicleListResponse>;
   }
 
@@ -438,16 +455,15 @@ export class FleetController {
   @ApiQuery({ name: "status", required: false, enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
   @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DeviceListResponse })
-  async listDevices(@Query() query: DeviceListQueryDto): Promise<DeviceListResponse> {
+  async listDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext): Promise<DeviceListResponse> {
     return this.listDevicesUseCase.execute({
       query: query.query,
       manufacturer: query.manufacturer,
       status: query.status,
       lifecycleStatus: query.lifecycleStatus,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      tenantId: query.tenantId,
+      tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<DeviceListResponse>;
   }
 
@@ -460,8 +476,8 @@ export class FleetController {
     description: "Registers a standalone GPS/IoT device before it is assigned to a vehicle.",
   })
   @ApiCreatedResponse({ type: DeviceResponse })
-  async createDevice(@Body() payload: CreateDeviceDto): Promise<DeviceResponse> {
-    return this.createDeviceUseCase.execute(payload) as unknown as Promise<DeviceResponse>;
+  async createDevice(@Body() payload: CreateDeviceDto, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
+    return this.createDeviceUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<DeviceResponse>;
   }
 
   @Post("devices/import")
@@ -473,8 +489,8 @@ export class FleetController {
     description: "Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.",
   })
   @ApiCreatedResponse({ type: BulkDeviceImportResponse })
-  async bulkImportDevices(@Body() payload: BulkImportDevicesDto): Promise<BulkDeviceImportResponse> {
-    return this.bulkImportDevicesUseCase.execute(payload) as unknown as Promise<BulkDeviceImportResponse>;
+  async bulkImportDevices(@Body() payload: BulkImportDevicesDto, @Req() req: FleetRequestContext): Promise<BulkDeviceImportResponse> {
+    return this.bulkImportDevicesUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkDeviceImportResponse>;
   }
 
   @Get("devices/:id")
@@ -498,7 +514,10 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update device" })
   @ApiOkResponse({ type: DeviceResponse })
-  async updateDevice(@Param("id") id: string, @Body() payload: UpdateDeviceDto): Promise<DeviceResponse> {
+  async updateDevice(
+    @Param("id") id: string,
+    @Body() payload: UpdateDeviceDto,
+  ): Promise<DeviceResponse> {
     return this.runFleetUseCase(() =>
       this.updateDeviceUseCase.execute({ id, ...payload }),
     ) as unknown as Promise<DeviceResponse>;
@@ -597,16 +616,15 @@ export class FleetController {
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "vehicleStatus", required: false, enum: ["active", "inactive"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: GpsDeviceListResponse })
-  async listGpsDevices(@Query() query: GpsDeviceListQueryDto): Promise<GpsDeviceListResponse> {
+  async listGpsDevices(@Query() query: GpsDeviceListQueryDto, @Req() req: FleetRequestContext): Promise<GpsDeviceListResponse> {
     return {
       status: true,
       message: "success",
       data: await this.listGpsDevicesUseCase.execute({
         query: query.query,
         vehicleStatus: query.vehicleStatus,
-        tenantId: query.tenantId,
+        tenantId: this.tenantIdFromRequest(req),
       }),
     } as GpsDeviceListResponse;
   }
@@ -621,8 +639,8 @@ export class FleetController {
     description: "Epic C (US-C01): create a new fleet vehicle.",
   })
   @ApiCreatedResponse({ type: VehicleResponse })
-  async createVehicle(@Body() payload: CreateVehicleDto): Promise<VehicleResponse> {
-    return this.createVehicleUseCase.execute(payload) as unknown as Promise<VehicleResponse>;
+  async createVehicle(@Body() payload: CreateVehicleDto, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
+    return this.createVehicleUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<VehicleResponse>;
   }
 
   /** Bulk onboarding for fleet inventory imports */
@@ -635,8 +653,8 @@ export class FleetController {
     description: "Epic C (US-C05): bulk upsert vehicles by plate number.",
   })
   @ApiCreatedResponse({ type: BulkVehicleImportResponse })
-  async bulkImportVehicles(@Body() payload: BulkImportVehiclesDto): Promise<BulkVehicleImportResponse> {
-    return this.bulkImportVehiclesUseCase.execute(payload) as unknown as Promise<BulkVehicleImportResponse>;
+  async bulkImportVehicles(@Body() payload: BulkImportVehiclesDto, @Req() req: FleetRequestContext): Promise<BulkVehicleImportResponse> {
+    return this.bulkImportVehiclesUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkVehicleImportResponse>;
   }
 
   /** Retrieve a vehicle by ID */
@@ -655,9 +673,13 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update vehicle" })
   @ApiOkResponse({ type: VehicleResponse })
-  async updateVehicle(@Param("id") id: string, @Body() payload: UpdateVehicleDto): Promise<VehicleResponse> {
+  async updateVehicle(
+    @Param("id") id: string,
+    @Body() payload: UpdateVehicleDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<VehicleResponse> {
     return this.runFleetUseCase(() =>
-      this.updateVehicleUseCase.execute({ id, ...payload }),
+      this.updateVehicleUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
     ) as unknown as Promise<VehicleResponse>;
   }
 
@@ -752,15 +774,14 @@ export class FleetController {
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "status", required: false, enum: DRIVER_STATUS_INPUTS })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DriverListResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
-  async listDrivers(@Query() query: DriverListQueryDto): Promise<DriverListResponse> {
+  async listDrivers(@Query() query: DriverListQueryDto, @Req() req: FleetRequestContext): Promise<DriverListResponse> {
     return this.listDriversUseCase.execute({
       query: query.query,
       status: normalizeDriverStatus(query.status),
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      tenantId: query.tenantId,
+      tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<DriverListResponse>;
   }
 
@@ -774,8 +795,8 @@ export class FleetController {
     description: "Epic C (US-C02): create a new driver record.",
   })
   @ApiCreatedResponse({ type: DriverResponse })
-  async createDriver(@Body() payload: CreateDriverDto): Promise<DriverResponse> {
-    return this.createDriverUseCase.execute(payload) as unknown as Promise<DriverResponse>;
+  async createDriver(@Body() payload: CreateDriverDto, @Req() req: FleetRequestContext): Promise<DriverResponse> {
+    return this.createDriverUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<DriverResponse>;
   }
 
   /** Bulk onboarding for driver records */
@@ -788,8 +809,8 @@ export class FleetController {
     description: "Epic C (US-C05): bulk upsert drivers by license number.",
   })
   @ApiCreatedResponse({ type: BulkDriverImportResponse })
-  async bulkImportDrivers(@Body() payload: BulkImportDriversDto): Promise<BulkDriverImportResponse> {
-    return this.bulkImportDriversUseCase.execute(payload) as unknown as Promise<BulkDriverImportResponse>;
+  async bulkImportDrivers(@Body() payload: BulkImportDriversDto, @Req() req: FleetRequestContext): Promise<BulkDriverImportResponse> {
+    return this.bulkImportDriversUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkDriverImportResponse>;
   }
 
   /** Retrieve a driver by ID */
@@ -808,9 +829,13 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update driver" })
   @ApiOkResponse({ type: DriverResponse })
-  async updateDriver(@Param("id") id: string, @Body() payload: UpdateDriverDto): Promise<DriverResponse> {
+  async updateDriver(
+    @Param("id") id: string,
+    @Body() payload: UpdateDriverDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<DriverResponse> {
     return this.runFleetUseCase(() =>
-      this.updateDriverUseCase.execute({ id, ...payload }),
+      this.updateDriverUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
     ) as unknown as Promise<DriverResponse>;
   }
 
@@ -874,13 +899,12 @@ export class FleetController {
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "status", required: false, type: String })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: JobListResponse })
-  async listJobs(@Query() query: JobListQueryDto): Promise<JobListResponse> {
+  async listJobs(@Query() query: JobListQueryDto, @Req() req: FleetRequestContext): Promise<JobListResponse> {
     return this.listJobsUseCase.execute({
       query: query.query,
       status: query.status,
-      tenantId: query.tenantId,
+      tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<JobListResponse>;
   }
 
@@ -896,10 +920,9 @@ export class FleetController {
   @ApiQuery({ name: "driverStatus", required: false, enum: DRIVER_STATUS_INPUTS })
   @ApiQuery({ name: "jobStatus", required: false, type: String })
   @ApiQuery({ name: "assignedOnly", required: false, enum: ["true", "false"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DispatchSearchResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
-  async searchDispatch(@Query() query: DispatchSearchQueryDto): Promise<DispatchSearchResponse> {
+  async searchDispatch(@Query() query: DispatchSearchQueryDto, @Req() req: FleetRequestContext): Promise<DispatchSearchResponse> {
     const assignedOnly = this.parseOptionalBoolean(query.assignedOnly, "assignedOnly");
 
     // Run in parallel because this endpoint is read-only aggregation across three repositories.
@@ -908,18 +931,18 @@ export class FleetController {
         query: query.query,
         status: query.vehicleStatus,
         assigned: assignedOnly,
-        tenantId: query.tenantId,
+        tenantId: this.tenantIdFromRequest(req),
       }),
       this.listDriversUseCase.execute({
         query: query.query,
         status: normalizeDriverStatus(query.driverStatus),
         assigned: assignedOnly,
-        tenantId: query.tenantId,
+        tenantId: this.tenantIdFromRequest(req),
       }),
       this.listJobsUseCase.execute({
         query: query.query,
         status: query.jobStatus,
-        tenantId: query.tenantId,
+        tenantId: this.tenantIdFromRequest(req),
       }),
     ]);
 
@@ -939,12 +962,12 @@ export class FleetController {
   async publishSampleEvent(
     @Query("jobId") jobId = "demo-job",
     @Query("status") status = "assigned",
-    @Query("tenant") tenant?: string,
+    @Req() req: FleetRequestContext,
   ): Promise<JobStatusResponse> {
     return this.publishJobStatusChangedUseCase.execute({
       jobId,
       status,
-      tenantId: tenant,
+      tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<JobStatusResponse>;
   }
 
@@ -952,8 +975,8 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Alert statistics — H06" })
   @ApiOkResponse({ type: AlertStatsResponse })
-  async getAlertStats(@Query("tenantId") tenantId = "default"): Promise<AlertStatsResponse> {
-    const data = await this.getAlertStatsUseCase.execute(tenantId);
+  async getAlertStats(@Req() req: FleetRequestContext): Promise<AlertStatsResponse> {
+    const data = await this.getAlertStatsUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data } as unknown as AlertStatsResponse;
   }
 
@@ -963,20 +986,19 @@ export class FleetController {
   @ApiQuery({ name: "status", required: false, enum: ["open", "acknowledged", "resolved", "escalated"] })
   @ApiQuery({ name: "type", required: false, type: String })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: AlertListResponse })
   async listAlerts(
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
     @Query("status") status?: string,
     @Query("type") type?: string,
     @Query("vehicleId") vehicleId?: string,
   ): Promise<AlertListResponse> {
-    const alerts = await this.listAlertsUseCase.execute(tenantId, {
+    const alerts = await this.listAlertsUseCase.execute(this.tenantIdFromRequest(req), {
       status: status as AlertStatus | undefined,
       type,
       vehicleId,
     });
-    const data = alerts.map((a) => ({ ...a.toPrimitives(), triggeredAt: a.triggeredAt.toISOString(), acknowledgedAt: a.acknowledgedAt?.toISOString() ?? null, resolvedAt: a.resolvedAt?.toISOString() ?? null, escalatedAt: a.escalatedAt?.toISOString() ?? null }));
+    const data = alerts.map((alert) => this.serializeAlert(alert));
     return { status: true, message: "success", data } as unknown as AlertListResponse;
   }
 
@@ -986,12 +1008,16 @@ export class FleetController {
   @ApiOkResponse({ type: AlertResponse })
   async acknowledgeAlert(
     @Param("id") id: string,
-    @Query("tenantId") tenantId = "default",
     @Query("by") by = "system",
+    @Req() req: FleetRequestContext,
   ): Promise<AlertResponse> {
     try {
-      const alert = await this.acknowledgeAlertUseCase.execute(tenantId, id, by);
-      return { status: true, message: "success", data: alert.toPrimitives() } as unknown as AlertResponse;
+      const alert = await this.acknowledgeAlertUseCase.execute(
+        this.tenantIdFromRequest(req),
+        id,
+        by === "system" ? req.user?.userId ?? "system" : by,
+      );
+      return { status: true, message: "success", data: this.serializeAlert(alert) } as unknown as AlertResponse;
     } catch (e) {
       if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
       throw e;
@@ -1004,12 +1030,16 @@ export class FleetController {
   @ApiOkResponse({ type: AlertResponse })
   async resolveAlert(
     @Param("id") id: string,
-    @Query("tenantId") tenantId = "default",
     @Query("by") by = "system",
+    @Req() req: FleetRequestContext,
   ): Promise<AlertResponse> {
     try {
-      const alert = await this.resolveAlertUseCase.execute(tenantId, id, by);
-      return { status: true, message: "success", data: alert.toPrimitives() } as unknown as AlertResponse;
+      const alert = await this.resolveAlertUseCase.execute(
+        this.tenantIdFromRequest(req),
+        id,
+        by === "system" ? req.user?.userId ?? "system" : by,
+      );
+      return { status: true, message: "success", data: this.serializeAlert(alert) } as unknown as AlertResponse;
     } catch (e) {
       if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
       throw e;
@@ -1019,20 +1049,18 @@ export class FleetController {
   @Get("reports/dashboard")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Operational dashboard — I01" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DashboardResponse })
-  async getDashboard(@Query("tenantId") tenantId = "default"): Promise<DashboardResponse> {
-    const data = await this.dashboardUseCase.execute(tenantId);
+  async getDashboard(@Req() req: FleetRequestContext): Promise<DashboardResponse> {
+    const data = await this.dashboardUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data } as unknown as DashboardResponse;
   }
 
   @Get("reports/delivery-metrics")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delivery metrics — I05" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DeliveryMetricsResponse })
-  async getDeliveryMetrics(@Query("tenantId") tenantId = "default"): Promise<DeliveryMetricsResponse> {
-    const data = await this.deliveryMetricsUseCase.execute(tenantId);
+  async getDeliveryMetrics(@Req() req: FleetRequestContext): Promise<DeliveryMetricsResponse> {
+    const data = await this.deliveryMetricsUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data } as unknown as DeliveryMetricsResponse;
   }
 
@@ -1040,17 +1068,16 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "CSV export — I07" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   async exportCsv(
     @Param("entity") entity: string,
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
     @Res() res: any,
   ): Promise<void> {
     const validEntities: ExportEntity[] = ["jobs", "vehicles", "drivers", "alerts", "fuel"];
     if (!validEntities.includes(entity as ExportEntity)) {
       throw new BadRequestException(`entity must be one of: ${validEntities.join(", ")}`);
     }
-    const csv = await this.exportUseCase.toCsv(entity as ExportEntity, tenantId);
+    const csv = await this.exportUseCase.toCsv(entity as ExportEntity, this.tenantIdFromRequest(req));
     res.setHeader("Content-Disposition", `attachment; filename="${entity}.csv"`);
     res.send(csv);
   }
@@ -1063,10 +1090,11 @@ export class FleetController {
   @ApiCreatedResponse({ type: FuelRecordResponse })
   async recordFuel(
     @Body() dto: RecordFuelDto,
-    @Req() req: { user?: { userId?: string } },
+    @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
     const record = await this.recordFuelUseCase.execute({
       ...dto,
+      tenantId: this.tenantIdFromRequest(req),
       recordedBy: req.user?.userId ?? "system",
     });
     return { status: true, message: "success", data: record.toPrimitives() };
@@ -1076,20 +1104,18 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel consumption chart — N04" })
   @ApiQuery({ name: "period", required: false, enum: ["weekly", "monthly"] })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: FuelConsumptionResponse })
-  async fuelConsumption(@Query() query: FuelMetricsQueryDto): Promise<FuelConsumptionResponse> {
-    const buckets = await this.fuelMetricsUseCase.consumption(query.tenantId, query.period ?? "monthly");
+  async fuelConsumption(@Query() query: FuelMetricsQueryDto, @Req() req: FleetRequestContext): Promise<FuelConsumptionResponse> {
+    const buckets = await this.fuelMetricsUseCase.consumption(this.tenantIdFromRequest(req), query.period ?? "monthly");
     return { status: true, message: "success", data: buckets as ConsumptionBucketSchema[] };
   }
 
   @Get("fuel/efficiency")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle fuel efficiency — N05" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: FuelEfficiencyResponse })
-  async fuelEfficiency(@Query("tenantId") tenantId?: string): Promise<FuelEfficiencyResponse> {
-    const result = await this.fuelMetricsUseCase.efficiency(tenantId);
+  async fuelEfficiency(@Req() req: FleetRequestContext): Promise<FuelEfficiencyResponse> {
+    const result = await this.fuelMetricsUseCase.efficiency(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data: result as VehicleEfficiencySchema[] };
   }
 
@@ -1105,12 +1131,11 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "Export fuel transactions to CSV — N07" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   async exportFuel(
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
     @Res() res: any,
   ): Promise<void> {
-    const csv = await this.exportUseCase.toCsv("fuel", tenantId);
+    const csv = await this.exportUseCase.toCsv("fuel", this.tenantIdFromRequest(req));
     res.setHeader("Content-Disposition", `attachment; filename="fuel.csv"`);
     res.send(csv);
   }
@@ -1118,15 +1143,14 @@ export class FleetController {
   @Get("fuel")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List fuel transactions — N02" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "driverId", required: false, type: String })
   @ApiQuery({ name: "station", required: false, type: String })
   @ApiQuery({ name: "from", required: false, type: String })
   @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ type: FuelRecordListResponse })
-  async listFuel(@Query() query: FuelListQueryDto): Promise<FuelRecordListResponse> {
-    const records = await this.listFuelRecordsUseCase.execute(query);
+  async listFuel(@Query() query: FuelListQueryDto, @Req() req: FleetRequestContext): Promise<FuelRecordListResponse> {
+    const records = await this.listFuelRecordsUseCase.execute({ ...query, tenantId: this.tenantIdFromRequest(req) });
     return { status: true, message: "success", data: records.map((r) => r.toPrimitives()) };
   }
 
@@ -1136,14 +1160,13 @@ export class FleetController {
   @ApiOkResponse({ type: FuelRecordResponse })
   async updateFuel(
     @Param("id") id: string,
-    @Query("tenantId") tenantId = "default",
     @Body() dto: UpdateFuelRecordDto,
-    @Req() req: { user?: { userId?: string } },
+    @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
     try {
       const record = await this.updateFuelRecordUseCase.execute({
         id,
-        tenantId,
+        tenantId: this.tenantIdFromRequest(req),
         updatedBy: req.user?.userId ?? "system",
         ...dto,
       });
@@ -1159,11 +1182,10 @@ export class FleetController {
   @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
   async deleteFuel(
     @Param("id") id: string,
-    @Query("tenantId") tenantId = "default",
-    @Req() req: { user?: { userId?: string } },
+    @Req() req: FleetRequestContext,
   ): Promise<{ status: boolean; message: string }> {
     try {
-      await this.deleteFuelRecordUseCase.execute(id, tenantId, req.user?.userId ?? "system");
+      await this.deleteFuelRecordUseCase.execute(id, this.tenantIdFromRequest(req), req.user?.userId ?? "system");
       return { status: true, message: "deleted" };
     } catch (err) {
       if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
@@ -1194,11 +1216,11 @@ export class FleetController {
   @ApiCreatedResponse({ type: DocumentResponse })
   async uploadDocument(
     @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
-    @Query("tenantId") tenantId = "default",
     @Query("entityType") entityType: string,
     @Query("entityId") entityId: string,
     @Query("docType") docType: string,
     @Query("uploadedBy") uploadedBy = "system",
+    @Req() req: FleetRequestContext,
   ): Promise<DocumentResponse> {
     const validEntityTypes: EntityType[] = ["job", "vehicle", "driver"];
     const validDocTypes: DocumentType[] = ["pod", "invoice", "permit", "other"];
@@ -1207,14 +1229,14 @@ export class FleetController {
     if (!file) throw new BadRequestException("file is required");
 
     const doc = await this.uploadDocumentUseCase.execute({
-      tenantId,
+      tenantId: this.tenantIdFromRequest(req),
       entityType: entityType as EntityType,
       entityId,
       docType: docType as DocumentType,
       filename: file.originalname,
       contentType: file.mimetype,
       buffer: file.buffer,
-      uploadedBy,
+      uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
     });
 
     return { status: true, message: "uploaded", data: { ...doc.toPrimitives(), uploadedAt: doc.uploadedAt.toISOString(), expiresAt: doc.expiresAt?.toISOString() ?? null } } as unknown as DocumentResponse;
@@ -1225,14 +1247,13 @@ export class FleetController {
   @ApiOperation({ summary: "List documents for an entity — J01" })
   @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
   @ApiQuery({ name: "entityId", required: true, type: String })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DocumentListResponse })
   async listDocuments(
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
     @Query("entityType") entityType: string,
     @Query("entityId") entityId: string,
   ): Promise<DocumentListResponse> {
-    const docs = await this.listDocumentsUseCase.execute(tenantId, entityType as EntityType, entityId);
+    const docs = await this.listDocumentsUseCase.execute(this.tenantIdFromRequest(req), entityType as EntityType, entityId);
     const data = docs.map((d) => ({ ...d.toPrimitives(), uploadedAt: d.uploadedAt.toISOString(), expiresAt: d.expiresAt?.toISOString() ?? null }));
     return { status: true, message: "success", data } as unknown as DocumentListResponse;
   }
@@ -1240,28 +1261,30 @@ export class FleetController {
   @Get("documents/:id/download-url")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
   @ApiOperation({ summary: "Get secure download URL — J02" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: DownloadUrlResponse })
   async getDocumentDownloadUrl(
     @Param("id") id: string,
-    @Query("tenantId") tenantId = "default",
     @Query("userId") userId = "system",
-    @Req() req: { ip?: string },
+    @Req() req: FleetRequestContext,
   ): Promise<DownloadUrlResponse> {
-    const result = await this.getDownloadUrlUseCase.execute(tenantId, id, userId, req.ip ?? "unknown");
+    const result = await this.getDownloadUrlUseCase.execute(
+      this.tenantIdFromRequest(req),
+      id,
+      userId == "system" ? req.user?.userId ?? "system" : userId,
+      req.ip ?? "unknown",
+    );
     return { status: true, message: "success", data: result } as unknown as DownloadUrlResponse;
   }
 
   @Get("documents/:id/access-log")
   @Roles(Role.ENTERPRISE_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Document access log — J04" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiOkResponse({ type: AccessLogListResponse })
   async getDocumentAccessLog(
     @Param("id") docId: string,
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
   ): Promise<AccessLogListResponse> {
-    const entries = await this.listAccessLogUseCase.execute(tenantId, docId);
+    const entries = await this.listAccessLogUseCase.execute(this.tenantIdFromRequest(req), docId);
     const data = entries.map((e) => ({ ...e, at: e.at.toISOString() }));
     return { status: true, message: "success", data } as unknown as AccessLogListResponse;
   }
@@ -1269,26 +1292,33 @@ export class FleetController {
   @Get("audit")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Activity/audit log — M06" })
-  @ApiQuery({ name: "tenantId", required: false, type: String })
   @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "alert", "document", "geofence"] })
   @ApiQuery({ name: "entityId", required: false, type: String })
   @ApiQuery({ name: "action", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiOkResponse({ description: "Audit entries (newest first)" })
   getAuditLog(
-    @Query("tenantId") tenantId = "default",
+    @Req() req: FleetRequestContext,
     @Query("entityType") entityType?: string,
     @Query("entityId") entityId?: string,
     @Query("action") action?: string,
     @Query("limit") limit?: string,
   ) {
-    const entries = this.auditLog.query(tenantId, {
+    const entries = this.auditLog.query(this.tenantIdFromRequest(req), {
       entityType: entityType as AuditEntityType | undefined,
       entityId,
       action,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
     return { status: true, message: "success", data: entries };
+  }
+
+  private tenantIdFromRequest(req: FleetRequestContext): string {
+    const tenantId = req.user?.tenantId?.trim();
+    if (!tenantId) {
+      throw new UnauthorizedException("Tenant context is missing from the access token");
+    }
+    return tenantId;
   }
 
   private parseOptionalBoolean(

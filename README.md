@@ -95,11 +95,11 @@ pnpm test
 
 ## Fleet master data endpoints (Epic C)
 - Vehicles
-  - `GET /fleet/vehicles?query=&status=&assigned=&tenantId=`
-  - `GET /fleet/devices?query=&manufacturer=&status=&lifecycleStatus=&assigned=&tenantId=`
+  - `GET /fleet/vehicles?query=&status=&assigned=`
+  - `GET /fleet/devices?query=&manufacturer=&status=&lifecycleStatus=&assigned=`
     Returns the standalone IoT/GPS device inventory used by the Devices page, including lifecycle state, assignment state, and latest signal/heartbeat snapshots when available.
   - `POST /fleet/devices`
-    Registers a standalone device inventory record with `imei`, `manufacturer`, `model`, `firmwareVersion`, and optional `tenantId`.
+    Registers a standalone device inventory record with `imei`, `manufacturer`, `model`, and `firmwareVersion`. Tenant scope is derived from the bearer token.
   - `POST /fleet/devices/import`
   - `GET /fleet/devices/:id`
   - `PATCH /fleet/devices/:id`
@@ -108,10 +108,10 @@ pnpm test
   - `PATCH /fleet/devices/:id/assignment`
   - `DELETE /fleet/devices/:id/assignment`
   - `DELETE /fleet/devices/:id`
-  - `GET /fleet/gps-devices?query=&vehicleStatus=&tenantId=`
+  - `GET /fleet/gps-devices?query=&vehicleStatus=`
     Legacy alias over the standalone device registry that still returns linked vehicle metadata for older consumers.
   - `POST /fleet/vehicles`
-    Accepts the fleet UI vehicle shape: `registrationNumber`, `vin`, `make`, `model`, `year`, `type`, `capacity`, plus `tenantId` and optional `status`. Legacy `plateNumber` is still accepted.
+    Accepts the fleet UI vehicle shape: `registrationNumber`, `vin`, `make`, `model`, `year`, `type`, `capacity`, and optional `status`. Tenant scope is derived from the bearer token. Legacy `plateNumber` is still accepted.
   - `POST /fleet/vehicles/import`
   - `GET /fleet/vehicles/:id`
   - `PATCH /fleet/vehicles/:id`
@@ -122,9 +122,9 @@ pnpm test
     Accepts the fleet UI GPS-device shape: `imei`, `manufacturer`, `model`, and `firmwareVersion`. The backend persists the install timestamp automatically unless `installedAt` is supplied by a back-office client.
   - `DELETE /fleet/vehicles/:id`
 - Drivers
-  - `GET /fleet/drivers?query=&status=&assigned=&tenantId=`
+  - `GET /fleet/drivers?query=&status=&assigned=`
   - `POST /fleet/drivers`
-    Accepts the fleet UI driver shape: `firstName`, `lastName`, `phone`, `email`, `licenseNumber`, `licenseExpiryDate`, `status`, and `communicationPreference`, plus `tenantId`. Legacy `name` and `inactive` status input are still accepted for backward compatibility.
+    Accepts the fleet UI driver shape: `firstName`, `lastName`, `phone`, `email`, `licenseNumber`, `licenseExpiryDate`, `status`, and `communicationPreference`. Tenant scope is derived from the bearer token. Legacy `name` and `inactive` status input are still accepted for backward compatibility.
   - `POST /fleet/drivers/import`
   - `GET /fleet/drivers/:id`
   - `PATCH /fleet/drivers/:id`
@@ -132,9 +132,9 @@ pnpm test
   - `PATCH /fleet/drivers/:id/contact-channels`
   - `DELETE /fleet/drivers/:id`
 - Jobs / Dispatch
-  - `GET /fleet/jobs?query=&status=&tenantId=`
-  - `GET /fleet/dispatch/search?query=&vehicleStatus=&driverStatus=&jobStatus=&assignedOnly=&tenantId=`
-  - `POST /fleet/events/job-status?jobId=&status=&tenant=`
+  - `GET /fleet/jobs?query=&status=`
+  - `GET /fleet/dispatch/search?query=&vehicleStatus=&driverStatus=&jobStatus=&assignedOnly=`
+  - `POST /fleet/events/job-status?jobId=&status=`
 
 ## Through Kong
 With `truckmoov-platform` running:

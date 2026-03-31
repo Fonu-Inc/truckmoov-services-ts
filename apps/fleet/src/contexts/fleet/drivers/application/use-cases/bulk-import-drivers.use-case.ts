@@ -50,7 +50,7 @@ export class BulkImportDriversUseCase {
     const records: ReturnType<Driver["toPrimitives"]>[] = [];
 
     for (const item of command.items) {
-      const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
+      const tenantId = (command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
       const existingDriver = await this.driverRepository.findByLicenseNumber(item.licenseNumber, tenantId);
       const communicationPreference =
         item.communicationPreference

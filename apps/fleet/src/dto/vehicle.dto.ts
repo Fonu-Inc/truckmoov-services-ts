@@ -75,11 +75,6 @@ export class CreateVehicleDto {
   @Max(100)
   capacity?: number;
 
-  /** Tenant scope; defaults to DEFAULT_TENANT env */
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
-
   /** Operational availability status */
   @IsOptional()
   @IsIn(FLEET_ASSET_STATUSES)
@@ -135,10 +130,6 @@ export class GpsDeviceListQueryDto {
   @IsOptional()
   @IsIn(FLEET_ASSET_STATUSES)
   vehicleStatus?: "active" | "inactive";
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export class CreateDeviceDto {
@@ -159,10 +150,6 @@ export class CreateDeviceDto {
   @IsString()
   @MaxLength(20)
   firmwareVersion!: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 
   @IsOptional()
   @IsIn(DEVICE_LIFECYCLE_STATUSES)
@@ -230,9 +217,6 @@ export class DeviceImportItemDto {
 }
 
 export class BulkImportDevicesDto {
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -260,10 +244,6 @@ export class DeviceListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export class VehicleImportItemDto {
@@ -310,18 +290,11 @@ export class VehicleImportItemDto {
   capacity?: number;
 
   @IsOptional()
-  @IsString()
-  tenantId?: string;
-
-  @IsOptional()
   @IsIn(FLEET_ASSET_STATUSES)
   status?: "active" | "inactive";
 }
 
 export class BulkImportVehiclesDto {
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -341,10 +314,6 @@ export class VehicleListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export class DispatchSearchQueryDto {
@@ -367,8 +336,4 @@ export class DispatchSearchQueryDto {
   @IsOptional()
   @IsString()
   assignedOnly?: string;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }

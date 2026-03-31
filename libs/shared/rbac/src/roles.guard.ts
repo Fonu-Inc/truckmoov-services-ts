@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { normalizeRole } from "./role";
@@ -30,11 +31,16 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const roleHeader = request.headers["x-user-role"];
+    const roleFromUser = request.user?.role;
     const role = normalizeRole(
-      (Array.isArray(roleHeader) ? roleHeader[0] : roleHeader) ?? "admin",
+      roleFromUser ?? (Array.isArray(roleHeader) ? roleHeader[0] : roleHeader),
     );
 
-    if (role && requiredRoles.includes(role)) {
+    if (!role) {
+      throw new UnauthorizedException("Authentication is required for this route");
+    }
+
+    if (requiredRoles.includes(role)) {
       return true;
     }
 

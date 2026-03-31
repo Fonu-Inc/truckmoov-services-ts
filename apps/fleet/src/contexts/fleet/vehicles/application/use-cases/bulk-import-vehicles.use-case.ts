@@ -40,7 +40,7 @@ export class BulkImportVehiclesUseCase {
     const records: ReturnType<Vehicle["toPrimitives"]>[] = [];
 
     for (const item of command.items) {
-      const tenantId = (item.tenantId ?? command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
+      const tenantId = (command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
       const plateNumber = item.registrationNumber ?? item.plateNumber ?? "";
       const existingVehicle = await this.vehicleRepository.findByPlateNumber(plateNumber, tenantId);
 

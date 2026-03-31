@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
 import { GeofenceModule } from "@shared/geofence";
@@ -106,6 +106,7 @@ import { TenantGuard } from "./tenant.guard";
 import { AuditLogService } from "./audit-log.service";
 import { AuditEventListener } from "./audit-event.listener";
 import { JobAssignmentNotifier } from "./job-assignment-notifier";
+import { AuthContextMiddleware } from "./auth-context.middleware";
 
 @Module({
   imports: [ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule],
@@ -231,6 +232,7 @@ import { JobAssignmentNotifier } from "./job-assignment-notifier";
       useExisting: EventBusJobStatusEventPublisher,
     },
     PublishJobStatusChangedUseCase,
+    AuthContextMiddleware,
     RolesGuard,
     IdempotencyGuard,
     InMemoryFuelRecordRepository,
@@ -243,4 +245,8 @@ import { JobAssignmentNotifier } from "./job-assignment-notifier";
     FuelMetricsUseCase,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(AuthContextMiddleware).forRoutes(FleetController);
+  }
+}

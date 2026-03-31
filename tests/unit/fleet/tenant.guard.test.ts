@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { TenantGuard } from "../../../apps/fleet/src/tenant.guard";
 
@@ -23,40 +22,32 @@ function makeCtx(opts: {
   if (opts.queryTenantId) query["tenantId"] = opts.queryTenantId;
   const body: Record<string, string | undefined> = {};
   if (opts.bodyTenantId) body["tenantId"] = opts.bodyTenantId;
+  const user = opts.claimedTenant || opts.role
+    ? { tenantId: opts.claimedTenant, role: opts.role }
+    : undefined;
+
   return {
-    switchToHttp: () => ({ getRequest: () => ({ headers, query, body }) }),
+    switchToHttp: () => ({ getRequest: () => ({ headers, query, body, user }) }),
     getHandler: vi.fn(),
     getClass: vi.fn(),
   } as any;
 }
 
 describe("TenantGuard", () => {
-  it("allows when no tenant header (single-tenant mode)", () => {
+  it("allows when no tenant header is present", () => {
     expect(makeGuard().canActivate(makeCtx({}))).toBe(true);
   });
 
-  it("allows admin regardless of tenant mismatch", () => {
-    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "admin", queryTenantId: "t2" }))).toBe(true);
+  it("allows when tenant is supplied by authenticated user context", () => {
+    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER" }))).toBe(true);
   });
 
-  it("allows enterprise admin regardless of tenant mismatch", () => {
+  it("allows enterprise admin regardless of tenant context", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "ENTERPRISE_ADMIN", queryTenantId: "t2" }))).toBe(true);
   });
 
-  it("allows when claimed tenant matches query param", () => {
-    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", queryTenantId: "t1" }))).toBe(true);
-  });
-
-  it("throws 403 when tenant mismatch in query", () => {
-    expect(() => makeGuard().canActivate(makeCtx({ claimedTenant: "t1", queryTenantId: "t2" }))).toThrow(ForbiddenException);
-  });
-
-  it("throws 403 when tenant mismatch in body", () => {
-    expect(() => makeGuard().canActivate(makeCtx({ claimedTenant: "t1", bodyTenantId: "t2" }))).toThrow(ForbiddenException);
-  });
-
-  it("allows when no requested tenant", () => {
-    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1" }))).toBe(true);
+  it("ignores client-supplied tenant mismatch in query and body", () => {
+    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", queryTenantId: "t2", bodyTenantId: "t3" }))).toBe(true);
   });
 
   it("bypasses when SKIP_TENANT_KEY metadata is set", () => {

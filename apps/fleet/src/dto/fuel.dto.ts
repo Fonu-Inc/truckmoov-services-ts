@@ -29,18 +29,11 @@ export class RecordFuelDto {
   @IsNumber()
   @Min(0)
   odometer?: number | null;
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
 
 export class UpdateFuelRecordDto extends PartialType(RecordFuelDto) {}
 
 export class FuelListQueryDto {
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 
   @IsOptional()
   @IsString()
@@ -73,8 +66,4 @@ export class FuelMetricsQueryDto {
   @IsOptional()
   @IsIn(["weekly", "monthly"])
   period?: "weekly" | "monthly";
-
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
 }
