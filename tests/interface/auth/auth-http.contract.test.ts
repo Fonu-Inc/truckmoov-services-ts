@@ -772,6 +772,209 @@ describe('Auth HTTP contract', () => {
 
     expect(forbiddenExportRes.status).toBe(403);
   });
+
+  it('GET /auth/system/subscription-plans returns the hardcoded plan catalog', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+
+    const plansRes = await request(app.getHttpServer())
+      .get('/auth/system/subscription-plans')
+      .set('Authorization', `Bearer ${superadminLoginRes.body.accessToken}`);
+
+    expect(plansRes.status).toBe(200);
+    expect(plansRes.body.status).toBe(true);
+    expect(Array.isArray(plansRes.body.data.plans)).toBe(true);
+    expect(
+      plansRes.body.data.plans.map((plan: { code: string }) => plan.code),
+    ).toEqual(
+      expect.arrayContaining([
+        'FLEET_STARTER',
+        'FLEET_GROWTH',
+        'FLEET_SCALE',
+        'FLEET_ENTERPRISE',
+      ]),
+    );
+    expect(
+      plansRes.body.data.plans.find(
+        (plan: { code: string }) => plan.code === 'FLEET_SCALE',
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        tier: 'enterprise',
+        monthlyPriceNgn: 399900,
+        customPricing: false,
+      }),
+    );
+  });
+
+  it('PATCH /auth/system/tenants/:tenantId updates pending tenant onboarding metadata', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const createRes = await request(app.getHttpServer())
+      .post('/auth/system/tenants')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'Editable Pending Tenant',
+          email: 'editable-pending@contract.com',
+          phoneNumber: '+2348010101010',
+          billingEmail: 'billing-editable@contract.com',
+          businessAddress: '10 Admiralty Way, Lekki',
+          organizationType: 'fleet_provider',
+        },
+        subscription: {
+          planCode: 'FLEET_STARTER',
+          billingCycle: 'monthly',
+        },
+      });
+
+    expect(createRes.status).toBe(201);
+
+    const updateRes = await request(app.getHttpServer())
+      .patch(`/auth/system/tenants/${createRes.body.data.tenantId}`)
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'Edited Pending Tenant',
+          email: 'edited-pending@contract.com',
+          billingEmail: 'finance@editedpending.com',
+          businessAddress: '22 Warehouse Road, Apapa',
+        },
+        subscription: {
+          planCode: 'FLEET_GROWTH',
+          billingCycle: 'yearly',
+        },
+        deviceProvisioning: {
+          provisionNow: true,
+          numberOfDevices: 5,
+          deviceManufacturer: 'Queclink',
+        },
+        simAssignment: {
+          provisionNow: true,
+          numberOfSims: 5,
+          carrier: 'Airtel',
+          dataPackage: '1GB/month',
+        },
+        features: {
+          messaging: false,
+          routeOptimization: true,
+        },
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.message).toBe('Tenant updated successfully');
+    expect(updateRes.body.data.tenant.name).toBe('Edited Pending Tenant');
+    expect(updateRes.body.data.tenant.email).toBe(
+      'edited-pending@contract.com',
+    );
+    expect(updateRes.body.data.tenant.billingEmail).toBe(
+      'finance@editedpending.com',
+    );
+    expect(updateRes.body.data.tenant.plan).toBe('professional');
+    expect(updateRes.body.data.onboarding.company.email).toBe(
+      'edited-pending@contract.com',
+    );
+    expect(updateRes.body.data.onboarding.subscription.billingCycle).toBe(
+      'yearly',
+    );
+    expect(
+      updateRes.body.data.onboarding.deviceProvisioning.deviceManufacturer,
+    ).toBe('Queclink');
+    expect(updateRes.body.data.tenant.features.routeOptimization).toBe(true);
+
+    const onboarding = await tenantOnboardingRepo.findByTenantId(
+      createRes.body.data.tenantId,
+    );
+    expect(onboarding?.invitedEmail).toBe('edited-pending@contract.com');
+
+    const rotatedInvite = await inviteRepo.findByEmail(
+      'edited-pending@contract.com',
+    );
+    expect(rotatedInvite).toBeTruthy();
+  });
+
+  it('DELETE /auth/system/tenants/:tenantId deletes safe pending tenants and rejects active tenants', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const pendingTenantRes = await request(app.getHttpServer())
+      .post('/auth/system/tenants')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'Delete Me Pending',
+          email: 'delete-me-pending@contract.com',
+          phoneNumber: '+2348011111111',
+          billingEmail: 'billing@deletepending.com',
+          businessAddress: '1 Pending Road, Lagos',
+          organizationType: 'fleet_provider',
+        },
+        subscription: {
+          planCode: 'FLEET_STARTER',
+          billingCycle: 'monthly',
+        },
+      });
+
+    expect(pendingTenantRes.status).toBe(201);
+    const pendingTenantId = pendingTenantRes.body.data.tenantId as string;
+
+    const deletePendingRes = await request(app.getHttpServer())
+      .delete(`/auth/system/tenants/${pendingTenantId}`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(deletePendingRes.status).toBe(200);
+    expect(deletePendingRes.body.message).toBe('Tenant deleted successfully');
+    expect(deletePendingRes.body.data).toEqual({
+      tenantId: pendingTenantId,
+      deleted: true,
+    });
+
+    const deletedDetailRes = await request(app.getHttpServer())
+      .get(`/auth/system/tenants/${pendingTenantId}`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(deletedDetailRes.status).toBe(404);
+
+    const activeTenantRes = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(
+        makeRegisterPayload('undeletable-tenant@contract.com', {
+          firstName: 'Undeletable',
+          lastName: 'Tenant',
+          organizationName: 'Undeletable Org',
+        }),
+      );
+
+    expect(activeTenantRes.status).toBe(201);
+
+    const deleteActiveRes = await request(app.getHttpServer())
+      .delete(`/auth/system/tenants/${activeTenantRes.body.user.tenantId}`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(deleteActiveRes.status).toBe(409);
+  });
+
   it('GET /auth/system/reference-data/tenant-onboarding and tenant detail/status endpoints work', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
       .post('/auth/system/login')

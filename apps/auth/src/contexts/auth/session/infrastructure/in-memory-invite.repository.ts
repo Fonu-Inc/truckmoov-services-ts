@@ -1,5 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import type { InviteRepository, StoredInvite } from "../domain/ports/invite-repository.port";
+import { Injectable } from '@nestjs/common';
+import type {
+  InviteRepository,
+  StoredInvite,
+} from '../domain/ports/invite-repository.port';
 
 @Injectable()
 export class InMemoryInviteRepository implements InviteRepository {
@@ -21,7 +24,7 @@ export class InMemoryInviteRepository implements InviteRepository {
 
   async findByEmail(email: string): Promise<StoredInvite | null> {
     for (const invite of this.store.values()) {
-      if (invite.email === email && invite.status === "pending") return invite;
+      if (invite.email === email && invite.status === 'pending') return invite;
     }
     return null;
   }
@@ -31,18 +34,29 @@ export class InMemoryInviteRepository implements InviteRepository {
     email: string,
   ): Promise<StoredInvite | null> {
     const pending = [...this.store.values()]
-      .filter((invite) =>
-        invite.tenantId === tenantId
-        && invite.email === email
-        && invite.status === "pending",
+      .filter(
+        (invite) =>
+          invite.tenantId === tenantId &&
+          invite.email === email &&
+          invite.status === 'pending',
       )
-      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+      .sort(
+        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+      );
 
     return pending[0] ?? null;
   }
 
   async markAccepted(token: string): Promise<void> {
     const invite = this.store.get(token);
-    if (invite) this.store.set(token, { ...invite, status: "accepted" });
+    if (invite) this.store.set(token, { ...invite, status: 'accepted' });
+  }
+
+  async deleteByTenantId(tenantId: string): Promise<void> {
+    for (const [token, invite] of this.store.entries()) {
+      if (invite.tenantId === tenantId) {
+        this.store.delete(token);
+      }
+    }
   }
 }

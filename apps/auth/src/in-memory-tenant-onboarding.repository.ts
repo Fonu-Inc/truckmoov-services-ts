@@ -1,8 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
 import {
   type StoredTenantOnboarding,
   type TenantOnboardingRepository,
-} from "./tenant-onboarding.repository";
+} from './tenant-onboarding.repository';
 
 @Injectable()
 export class InMemoryTenantOnboardingRepository implements TenantOnboardingRepository {
@@ -12,7 +12,9 @@ export class InMemoryTenantOnboardingRepository implements TenantOnboardingRepos
     this.store.set(onboarding.tenantId, onboarding);
   }
 
-  async findByTenantId(tenantId: string): Promise<StoredTenantOnboarding | null> {
+  async findByTenantId(
+    tenantId: string,
+  ): Promise<StoredTenantOnboarding | null> {
     return this.store.get(tenantId) ?? null;
   }
 
@@ -20,5 +22,9 @@ export class InMemoryTenantOnboardingRepository implements TenantOnboardingRepos
     return [...this.store.values()].sort(
       (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
     );
+  }
+
+  async deleteByTenantId(tenantId: string): Promise<void> {
+    this.store.delete(tenantId);
   }
 }

@@ -5,7 +5,7 @@ export type StoredInvite = {
   tenantId: string;
   token: string;
   invitedBy: string;
-  status: "pending" | "accepted" | "expired";
+  status: 'pending' | 'accepted' | 'expired';
   expiresAt: Date;
   createdAt: Date;
 };
@@ -19,6 +19,7 @@ export interface InviteRepository {
     email: string,
   ): Promise<StoredInvite | null>;
   markAccepted(token: string): Promise<void>;
+  deleteByTenantId(tenantId: string): Promise<void>;
 }
 
-export const INVITE_REPOSITORY = Symbol("INVITE_REPOSITORY");
+export const INVITE_REPOSITORY = Symbol('INVITE_REPOSITORY');

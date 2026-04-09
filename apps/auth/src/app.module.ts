@@ -71,9 +71,11 @@ import { ActivityLogListener } from './activity-log.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
+import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
+import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
 import { GetSystemActivityLogUseCase } from './get-system-activity-log.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
@@ -83,6 +85,7 @@ import { InMemoryTenantOnboardingRepository } from './in-memory-tenant-onboardin
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
 import { MikroTenantOnboardingRepository } from './mikro-tenant-onboarding.repository';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
+import { UpdateSystemTenantUseCase } from './update-system-tenant.use-case';
 import { UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { SuperAdminBootstrapService } from './superadmin-bootstrap.service';
 import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
@@ -246,6 +249,7 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ChangeSystemPasswordUseCase,
     CreateSystemAdminUseCase,
     CreateSystemTenantUseCase,
+    DeleteSystemTenantUseCase,
     ExportSystemTenantsUseCase,
     RefreshUseCase,
     GetMeUseCase,
@@ -280,11 +284,13 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ActivityLogListener,
     GetActivityLogUseCase,
     GetSystemDashboardUseCase,
+    GetSystemSubscriptionPlansUseCase,
     GetSystemActivityLogUseCase,
     ListSystemTenantsUseCase,
     GetSystemTenantsSummaryUseCase,
     GetSystemTenantUseCase,
     GetSystemTenantOnboardingReferenceDataUseCase,
+    UpdateSystemTenantUseCase,
     UpdateSystemTenantStatusUseCase,
     SuperAdminBootstrapService,
   ],

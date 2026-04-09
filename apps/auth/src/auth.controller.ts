@@ -89,6 +89,7 @@ import { LoginDto } from './dto/login.dto';
 import { ChangeSystemPasswordDto } from './dto/change-system-password.dto';
 import { CreateSystemAdminDto } from './dto/create-system-admin.dto';
 import { CreateSystemTenantDto } from './dto/create-system-tenant.dto';
+import { UpdateSystemTenantDto } from './dto/update-system-tenant.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
@@ -106,8 +107,10 @@ import {
   SystemDashboardResponse,
   SystemTenantDetailResponse,
   SystemTenantOnboardingReferenceDataResponse,
+  SystemSubscriptionPlansResponse,
   SystemTenantsListResponse,
   SystemTenantsSummaryResponse,
+  SystemTenantDeleteResponse,
   DispatcherPreferencesResponse,
   HealthResponse,
   InviteActionResponse,
@@ -136,6 +139,7 @@ import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
+import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
 import { GetSystemActivityLogUseCase } from './get-system-activity-log.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
 import {
@@ -148,6 +152,14 @@ import {
   SystemTenantStatusConflictError,
   UpdateSystemTenantStatusUseCase,
 } from './update-system-tenant-status.use-case';
+import {
+  SystemTenantUpdateConflictError,
+  UpdateSystemTenantUseCase,
+} from './update-system-tenant.use-case';
+import {
+  DeleteSystemTenantUseCase,
+  SystemTenantDeleteConflictError,
+} from './delete-system-tenant.use-case';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -219,6 +231,8 @@ export class AuthController {
     private readonly getActivityLogUseCase: GetActivityLogUseCase,
     @Inject(GetSystemDashboardUseCase)
     private readonly getSystemDashboardUseCase: GetSystemDashboardUseCase,
+    @Inject(GetSystemSubscriptionPlansUseCase)
+    private readonly getSystemSubscriptionPlansUseCase: GetSystemSubscriptionPlansUseCase,
     @Inject(GetSystemActivityLogUseCase)
     private readonly getSystemActivityLogUseCase: GetSystemActivityLogUseCase,
     @Inject(GetSystemTenantsSummaryUseCase)
@@ -231,6 +245,10 @@ export class AuthController {
     private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
     @Inject(UpdateSystemTenantStatusUseCase)
     private readonly updateSystemTenantStatusUseCase: UpdateSystemTenantStatusUseCase,
+    @Inject(UpdateSystemTenantUseCase)
+    private readonly updateSystemTenantUseCase: UpdateSystemTenantUseCase,
+    @Inject(DeleteSystemTenantUseCase)
+    private readonly deleteSystemTenantUseCase: DeleteSystemTenantUseCase,
     @Inject(ResendPendingInviteUseCase)
     private readonly resendPendingInviteUseCase: ResendPendingInviteUseCase,
     @Inject(RemoveOrganizationUserUseCase)
@@ -1513,6 +1531,36 @@ export class AuthController {
     }
   }
 
+  @Get('system/subscription-plans')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get system subscription plans',
+    description:
+      'Returns the hardcoded subscription plan catalog used by the system admin and super admin tenant onboarding flow.',
+  })
+  @ApiOkResponse({ type: SystemSubscriptionPlansResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view subscription plans',
+  })
+  async getSystemSubscriptionPlans(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemSubscriptionPlansUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
   @Get('system/tenants/summary')
   @ApiBearerAuth()
   @ApiOperation({
@@ -1734,6 +1782,76 @@ export class AuthController {
     }
   }
 
+  @Patch('system/tenants/:tenantId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update system tenant',
+    description:
+      'Allows a super admin or system admin to update tenant onboarding metadata and branding. For activated tenants, login identity fields remain immutable.',
+  })
+  @ApiOkResponse({ type: SystemTenantDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to update tenants',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  @ApiConflictResponse({
+    description:
+      'Requested changes are incompatible with the tenant current activation state',
+  })
+  async updateSystemTenant(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: UpdateSystemTenantDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.updateSystemTenantUseCase.execute({
+        accessToken,
+        tenantId,
+        company: payload.company,
+        subscription: payload.subscription,
+        deviceProvisioning: payload.deviceProvisioning,
+        simAssignment: payload.simAssignment,
+        features: payload.features,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.updated',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Tenant updated',
+        metadata: {
+          updatedSections: {
+            company: Boolean(payload.company),
+            subscription: Boolean(payload.subscription),
+            deviceProvisioning: Boolean(payload.deviceProvisioning),
+            simAssignment: Boolean(payload.simAssignment),
+            features: Boolean(payload.features),
+          },
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError)
+        throw new NotFoundException(error.message);
+      if (
+        error instanceof SystemTenantUpdateConflictError ||
+        error instanceof EmailTakenError
+      ) {
+        throw new ConflictException(error.message);
+      }
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
   @Patch('system/tenants/:tenantId/status')
   @ApiBearerAuth()
   @ApiOperation({
@@ -1790,6 +1908,59 @@ export class AuthController {
       if (error instanceof SystemTenantNotFoundError)
         throw new NotFoundException(error.message);
       if (error instanceof SystemTenantStatusConflictError)
+        throw new ConflictException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('system/tenants/:tenantId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete system tenant',
+    description:
+      'Deletes a tenant shell only when no tenant user accounts or operational fleet records exist.',
+  })
+  @ApiOkResponse({ type: SystemTenantDeleteResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to delete tenants',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  @ApiConflictResponse({
+    description: 'Tenant cannot be deleted while it still owns platform data',
+  })
+  async deleteSystemTenant(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.deleteSystemTenantUseCase.execute(
+        accessToken,
+        tenantId,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.deleted',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Tenant deleted',
+        metadata: {
+          deleted: true,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof SystemTenantDeleteConflictError)
         throw new ConflictException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);

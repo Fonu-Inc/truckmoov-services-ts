@@ -1,26 +1,26 @@
 export const TENANT_ORGANIZATION_TYPES = [
-  "fleet_provider",
-  "enterprise",
-  "aggregator",
-  "owner_operator",
+  'fleet_provider',
+  'enterprise',
+  'aggregator',
+  'owner_operator',
 ] as const;
 
-export const TENANT_BILLING_CYCLES = ["monthly", "yearly"] as const;
+export const TENANT_BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
 export const DEVICE_MANUFACTURERS = [
-  "Teltonika",
-  "Queclink",
-  "Meitrack",
-  "CalAmp",
+  'Teltonika',
+  'Queclink',
+  'Meitrack',
+  'CalAmp',
 ] as const;
 
-export const SIM_CARRIERS = ["MTN", "Airtel", "Glo", "9mobile"] as const;
+export const SIM_CARRIERS = ['MTN', 'Airtel', 'Glo', '9mobile'] as const;
 
 export const SIM_DATA_PACKAGES = [
-  "250MB/month",
-  "500MB/month",
-  "1GB/month",
-  "2GB/month",
+  '250MB/month',
+  '500MB/month',
+  '1GB/month',
+  '2GB/month',
 ] as const;
 
 export type TenantOrganizationType = (typeof TENANT_ORGANIZATION_TYPES)[number];
@@ -80,7 +80,7 @@ export type StoredTenantOnboarding = {
   invitedEmail: string;
   organizationType: TenantOrganizationType;
   bootstrapRole: string;
-  status: "pending_activation";
+  status: 'pending_activation' | 'managed';
   company: TenantCompanyDetails;
   subscription: TenantSubscriptionSelection;
   deviceProvisioning: TenantDeviceProvisioning;
@@ -95,6 +95,9 @@ export interface TenantOnboardingRepository {
   save(onboarding: StoredTenantOnboarding): Promise<void>;
   findByTenantId(tenantId: string): Promise<StoredTenantOnboarding | null>;
   findAll(): Promise<StoredTenantOnboarding[]>;
+  deleteByTenantId(tenantId: string): Promise<void>;
 }
 
-export const TENANT_ONBOARDING_REPOSITORY = Symbol("TENANT_ONBOARDING_REPOSITORY");
+export const TENANT_ONBOARDING_REPOSITORY = Symbol(
+  'TENANT_ONBOARDING_REPOSITORY',
+);

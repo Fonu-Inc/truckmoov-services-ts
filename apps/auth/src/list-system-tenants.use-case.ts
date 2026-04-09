@@ -1,19 +1,22 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { AppConfigService } from "@shared/config";
-import { Role, roleFromId } from "@shared/rbac";
+import { Inject, Injectable } from '@nestjs/common';
+import { AppConfigService } from '@shared/config';
+import { Role, roleFromId } from '@shared/rbac';
 import {
   ORGANIZATION_SETTINGS_REPOSITORY,
   SESSION_STORE,
   TOKEN_SERVICE,
   USER_REPOSITORY,
   ForbiddenError,
-} from "./contexts/auth/session";
-import { resolveActorUser } from "./contexts/auth/session/application/use-cases/support/resolve-actor-user";
-import type { OrganizationSettingsRepository } from "./contexts/auth/session/domain/ports/organization-settings.repository.port";
-import type { SessionStore } from "./contexts/auth/session/domain/ports/session-store.port";
-import type { TokenService } from "./contexts/auth/session/domain/ports/token-service.port";
-import type { StoredUser, UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
-import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
+} from './contexts/auth/session';
+import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
+import type { OrganizationSettingsRepository } from './contexts/auth/session/domain/ports/organization-settings.repository.port';
+import type { SessionStore } from './contexts/auth/session/domain/ports/session-store.port';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import type {
+  StoredUser,
+  UserRepository,
+} from './contexts/auth/session/domain/ports/user-repository.port';
+import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
@@ -21,19 +24,31 @@ import {
   type TenantFeatureFlags,
   type TenantOnboardingRepository,
   type TenantOrganizationType,
-} from "./tenant-onboarding.repository";
+} from './tenant-onboarding.repository';
 
-const SYSTEM_TENANT_ID = "system";
-const SYSTEM_VIEWER_ROLES = new Set<string>([Role.SUPER_ADMIN, Role.SYSTEM_ADMIN]);
+const SYSTEM_TENANT_ID = 'system';
+const SYSTEM_VIEWER_ROLES = new Set<string>([
+  Role.SUPER_ADMIN,
+  Role.SYSTEM_ADMIN,
+]);
 const KYC_STATUSES = [
-  "not_submitted",
-  "pending",
-  "under_review",
-  "verified",
-  "rejected",
+  'not_submitted',
+  'pending',
+  'under_review',
+  'verified',
+  'rejected',
 ] as const;
-const SYSTEM_TENANT_STATUS_VALUES = ["active", "pending", "suspended", "inactive"] as const;
-const SYSTEM_TENANT_PLAN_VALUES = ["starter", "professional", "enterprise"] as const;
+const SYSTEM_TENANT_STATUS_VALUES = [
+  'active',
+  'pending',
+  'suspended',
+  'inactive',
+] as const;
+const SYSTEM_TENANT_PLAN_VALUES = [
+  'starter',
+  'professional',
+  'enterprise',
+] as const;
 
 type SystemTenantStatus = (typeof SYSTEM_TENANT_STATUS_VALUES)[number];
 type SystemTenantPlan = (typeof SYSTEM_TENANT_PLAN_VALUES)[number];
@@ -139,100 +154,128 @@ type OrganizationTypesRow = {
 };
 
 function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "tenant";
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'tenant'
+  );
 }
 
-function parseJsonRecord<T extends Record<string, unknown>>(value: unknown): T | null {
+function parseJsonRecord<T extends Record<string, unknown>>(
+  value: unknown,
+): T | null {
   if (!value) {
     return null;
   }
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     try {
       return JSON.parse(value) as T;
     } catch {
       return null;
     }
   }
-  if (typeof value === "object") {
+  if (typeof value === 'object') {
     return value as T;
   }
   return null;
 }
 
-function normalizeOrgType(value?: string | null): TenantOrganizationType | null {
+function normalizeOrgType(
+  value?: string | null,
+): TenantOrganizationType | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
-  if (["fleet_provider", "fleet-provider", "platform_admin", "platform-admin", "fleet provider"].includes(normalized)) {
-    return "fleet_provider";
+  if (
+    [
+      'fleet_provider',
+      'fleet-provider',
+      'platform_admin',
+      'platform-admin',
+      'fleet provider',
+    ].includes(normalized)
+  ) {
+    return 'fleet_provider';
   }
-  if (["enterprise", "enterprise_admin", "enterprise-admin", "cargo_owner", "cargo-owner"].includes(normalized)) {
-    return "enterprise";
+  if (
+    [
+      'enterprise',
+      'enterprise_admin',
+      'enterprise-admin',
+      'cargo_owner',
+      'cargo-owner',
+    ].includes(normalized)
+  ) {
+    return 'enterprise';
   }
-  if (["aggregator", "aggregator_admin", "aggregator-admin"].includes(normalized)) {
-    return "aggregator";
+  if (
+    ['aggregator', 'aggregator_admin', 'aggregator-admin'].includes(normalized)
+  ) {
+    return 'aggregator';
   }
-  if (["owner_operator", "owner-operator", "owner operator"].includes(normalized)) {
-    return "owner_operator";
+  if (
+    ['owner_operator', 'owner-operator', 'owner operator'].includes(normalized)
+  ) {
+    return 'owner_operator';
   }
   return null;
 }
 
-function inferOrgTypeFromRole(role?: string | null): TenantOrganizationType | null {
+function inferOrgTypeFromRole(
+  role?: string | null,
+): TenantOrganizationType | null {
   switch (role) {
     case Role.PLATFORM_ADMIN:
     case Role.FLEET_ADMIN:
     case Role.OPERATIONS_MANAGER:
     case Role.DISPATCHER:
     case Role.FINANCE_VIEWER:
-      return "fleet_provider";
+      return 'fleet_provider';
     case Role.ENTERPRISE_ADMIN:
-      return "enterprise";
+      return 'enterprise';
     case Role.AGGREGATOR_ADMIN:
-      return "aggregator";
+      return 'aggregator';
     case Role.OWNER_OPERATOR:
-      return "owner_operator";
+      return 'owner_operator';
     default:
       return null;
   }
 }
 
 function normalizePlan(planCode?: string | null): SystemTenantPlan {
-  const normalized = planCode?.trim().toLowerCase() ?? "";
+  const normalized = planCode?.trim().toLowerCase() ?? '';
   if (!normalized) {
-    return "starter";
+    return 'starter';
   }
   if (
-    normalized.includes("scale")
-    || normalized.includes("enterprise")
-    || normalized.includes("custom")
-    || normalized.includes("unlimited")
+    normalized.includes('scale') ||
+    normalized.includes('enterprise') ||
+    normalized.includes('custom') ||
+    normalized.includes('unlimited')
   ) {
-    return "enterprise";
+    return 'enterprise';
   }
   if (
-    normalized.includes("growth")
-    || normalized.includes("professional")
-    || normalized.includes("pro")
-    || normalized.includes("plus")
+    normalized.includes('growth') ||
+    normalized.includes('professional') ||
+    normalized.includes('pro') ||
+    normalized.includes('plus')
   ) {
-    return "professional";
+    return 'professional';
   }
-  return "starter";
+  return 'starter';
 }
 
 function normalizeKycStatus(value?: string | null): SystemTenantKycStatus {
-  const normalized = value?.trim().toLowerCase() ?? "not_submitted";
-  if (normalized === "approved") {
-    return "verified";
+  const normalized = value?.trim().toLowerCase() ?? 'not_submitted';
+  if (normalized === 'approved') {
+    return 'verified';
   }
   if ((KYC_STATUSES as readonly string[]).includes(normalized)) {
     return normalized as SystemTenantKycStatus;
   }
-  return "not_submitted";
+  return 'not_submitted';
 }
 
 function deriveTenantStatus(params: {
@@ -240,16 +283,19 @@ function deriveTenantStatus(params: {
   enabledUsersCount: number;
   usersCount: number;
 }): SystemTenantStatus {
-  if (params.onboardingStatus === "pending_activation" && params.enabledUsersCount === 0) {
-    return "pending";
+  if (
+    params.onboardingStatus === 'pending_activation' &&
+    params.enabledUsersCount === 0
+  ) {
+    return 'pending';
   }
   if (params.usersCount > 0 && params.enabledUsersCount === 0) {
-    return "suspended";
+    return 'suspended';
   }
   if (params.enabledUsersCount > 0) {
-    return "active";
+    return 'active';
   }
-  return "inactive";
+  return 'inactive';
 }
 
 function toIsoString(value?: string | Date | null): string | null {
@@ -263,7 +309,13 @@ function toNumber(value: unknown): number {
 }
 
 function toBoolean(value: unknown): boolean {
-  return value === true || value === 1 || value === "1" || value === "t" || value === "true";
+  return (
+    value === true ||
+    value === 1 ||
+    value === '1' ||
+    value === 't' ||
+    value === 'true'
+  );
 }
 
 @Injectable()
@@ -287,7 +339,7 @@ export class ListSystemTenantsUseCase {
     const tenants = await this.list(accessToken, filters);
     return {
       status: true,
-      message: "success",
+      message: 'success',
       data: {
         total: tenants.length,
         tenants,
@@ -296,29 +348,44 @@ export class ListSystemTenantsUseCase {
     };
   }
 
-  async list(accessToken: string, filters: SystemTenantFilters = {}): Promise<SystemTenantRow[]> {
+  async list(
+    accessToken: string,
+    filters: SystemTenantFilters = {},
+  ): Promise<SystemTenantRow[]> {
     await this.ensureSystemViewer(accessToken);
-    const tenants = this.config.persistence.backend === "in-memory"
-      ? await this.listInMemory()
-      : await this.listDatabase();
+    const tenants =
+      this.config.persistence.backend === 'in-memory'
+        ? await this.listInMemory()
+        : await this.listDatabase();
     return this.applyFilters(tenants, filters);
   }
 
   private async ensureSystemViewer(accessToken: string) {
-    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
-    if (actor.tenantId !== SYSTEM_TENANT_ID || !SYSTEM_VIEWER_ROLES.has(actor.role)) {
-      throw new ForbiddenError("You are not permitted to view tenants");
+    const actor = await resolveActorUser(
+      accessToken,
+      this.tokenService,
+      this.userRepository,
+    );
+    if (
+      actor.tenantId !== SYSTEM_TENANT_ID ||
+      !SYSTEM_VIEWER_ROLES.has(actor.role)
+    ) {
+      throw new ForbiddenError('You are not permitted to view tenants');
     }
     return actor;
   }
 
-  private applyFilters(tenants: SystemTenantRow[], filters: SystemTenantFilters) {
+  private applyFilters(
+    tenants: SystemTenantRow[],
+    filters: SystemTenantFilters,
+  ) {
     const search = filters.search?.trim().toLowerCase();
     return tenants.filter((tenant) => {
-      const matchesSearch = !search
-        || tenant.name.toLowerCase().includes(search)
-        || tenant.email.toLowerCase().includes(search)
-        || (tenant.billingEmail?.toLowerCase().includes(search) ?? false);
+      const matchesSearch =
+        !search ||
+        tenant.name.toLowerCase().includes(search) ||
+        tenant.email.toLowerCase().includes(search) ||
+        (tenant.billingEmail?.toLowerCase().includes(search) ?? false);
       const matchesStatus = !filters.status || tenant.status === filters.status;
       const matchesPlan = !filters.plan || tenant.plan === filters.plan;
       return matchesSearch && matchesStatus && matchesPlan;
@@ -337,8 +404,12 @@ export class ListSystemTenantsUseCase {
     ]);
     tenantIds.delete(SYSTEM_TENANT_ID);
 
-    const sessionActivity = await this.sessionStore.listUserActivity(users.map((user) => user.id));
-    const sessionByUserId = new Map(sessionActivity.map((activity) => [activity.userId, activity]));
+    const sessionActivity = await this.sessionStore.listUserActivity(
+      users.map((user) => user.id),
+    );
+    const sessionByUserId = new Map(
+      sessionActivity.map((activity) => [activity.userId, activity]),
+    );
     const usersByTenantId = new Map<string, StoredUser[]>();
     for (const user of users) {
       if (user.tenantId === SYSTEM_TENANT_ID) {
@@ -348,40 +419,56 @@ export class ListSystemTenantsUseCase {
       bucket.push(user);
       usersByTenantId.set(user.tenantId, bucket);
     }
-    const onboardingByTenantId = new Map(onboardings.map((onboarding) => [onboarding.tenantId, onboarding]));
+    const onboardingByTenantId = new Map(
+      onboardings.map((onboarding) => [onboarding.tenantId, onboarding]),
+    );
 
-    const rows = await Promise.all([...tenantIds].map(async (tenantId) => {
-      const tenantUsers = usersByTenantId.get(tenantId) ?? [];
-      const onboarding = onboardingByTenantId.get(tenantId) ?? null;
-      const settings = await this.organizationSettingsRepository.findByTenantId(tenantId);
-      const enabledUsers = tenantUsers.filter((user) => (user.accountStatus ?? "enabled") === "enabled");
-      const primaryUser = tenantUsers[0] ?? null;
-      const acceptedUser = onboarding
-        ? tenantUsers.find((user) => user.email.toLowerCase() === onboarding.invitedEmail.toLowerCase()) ?? null
-        : null;
-      const lastActiveAt = tenantUsers
-        .map((user) => sessionByUserId.get(user.id)?.lastActiveAt ?? null)
-        .filter((value): value is Date => value instanceof Date)
-        .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
+    const rows = await Promise.all(
+      [...tenantIds].map(async (tenantId) => {
+        const tenantUsers = usersByTenantId.get(tenantId) ?? [];
+        const onboarding = onboardingByTenantId.get(tenantId) ?? null;
+        const settings =
+          await this.organizationSettingsRepository.findByTenantId(tenantId);
+        const enabledUsers = tenantUsers.filter(
+          (user) => (user.accountStatus ?? 'enabled') === 'enabled',
+        );
+        const primaryUser = tenantUsers[0] ?? null;
+        const acceptedUser = onboarding
+          ? (tenantUsers.find(
+              (user) =>
+                user.email.toLowerCase() ===
+                onboarding.invitedEmail.toLowerCase(),
+            ) ?? null)
+          : null;
+        const lastActiveAt =
+          tenantUsers
+            .map((user) => sessionByUserId.get(user.id)?.lastActiveAt ?? null)
+            .filter((value): value is Date => value instanceof Date)
+            .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
 
-      return this.composeTenantRow({
-        tenantId,
-        onboarding,
-        users: tenantUsers,
-        enabledUsersCount: enabledUsers.length,
-        settingsBranding: settings?.branding ?? null,
-        vehicleCount: 0,
-        driverCount: 0,
-        deviceCount: 0,
-        businessInfo: null,
-        organizationTypes: onboarding?.company.organizationType ? [onboarding.company.organizationType] : [],
-        lastActiveAt: lastActiveAt?.toISOString() ?? null,
-        createdAt: lastActiveAt?.toISOString() ?? new Date().toISOString(),
-        invitationAccepted: Boolean(acceptedUser),
-      });
-    }));
+        return this.composeTenantRow({
+          tenantId,
+          onboarding,
+          users: tenantUsers,
+          enabledUsersCount: enabledUsers.length,
+          settingsBranding: settings?.branding ?? null,
+          vehicleCount: 0,
+          driverCount: 0,
+          deviceCount: 0,
+          businessInfo: null,
+          organizationTypes: onboarding?.company.organizationType
+            ? [onboarding.company.organizationType]
+            : [],
+          lastActiveAt: lastActiveAt?.toISOString() ?? null,
+          createdAt: lastActiveAt?.toISOString() ?? new Date().toISOString(),
+          invitationAccepted: Boolean(acceptedUser),
+        });
+      }),
+    );
 
-    return rows.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return rows.sort((left, right) =>
+      right.createdAt.localeCompare(left.createdAt),
+    );
   }
 
   private async listDatabase(): Promise<SystemTenantRow[]> {
@@ -400,21 +487,21 @@ export class ListSystemTenantsUseCase {
       organizationTypesRows,
     ] = await Promise.all([
       connection.execute<UserRow[]>(
-        "select id, email, tenant_id, role_id, account_status, profile, created_at from auth_users where tenant_id <> ? order by created_at asc",
+        'select id, email, tenant_id, role_id, account_status, profile, created_at from auth_users where tenant_id <> ? order by created_at asc',
         [SYSTEM_TENANT_ID],
       ),
       connection.execute<SettingsRow[]>(
-        "select tenant_id, branding from auth_organization_settings where tenant_id <> ?",
+        'select tenant_id, branding from auth_organization_settings where tenant_id <> ?',
         [SYSTEM_TENANT_ID],
       ),
       this.selectOnboardings(connection),
       connection.execute<SessionRow[]>(
-        "select tenant_id, max(updated_at) as last_active_at from auth_sessions where tenant_id <> ? group by tenant_id",
+        'select tenant_id, max(updated_at) as last_active_at from auth_sessions where tenant_id <> ? group by tenant_id',
         [SYSTEM_TENANT_ID],
       ),
-      this.countByTenant(connection, "fleet_vehicles"),
-      this.countByTenant(connection, "fleet_drivers"),
-      this.countByTenant(connection, "fleet_devices"),
+      this.countByTenant(connection, 'fleet_vehicles'),
+      this.countByTenant(connection, 'fleet_drivers'),
+      this.countByTenant(connection, 'fleet_devices'),
       this.selectBusinessInfo(connection),
       this.selectOrganizationTypes(connection),
     ]);
@@ -426,60 +513,92 @@ export class ListSystemTenantsUseCase {
       onboardingByTenantId.set(tenantId, {
         id: tenantId,
         tenantId,
-        invitedEmail: row.invited_email?.toString() ?? "",
-        organizationType: normalizeOrgType(row.organization_type?.toString()) ?? "fleet_provider",
-        bootstrapRole: "",
-        status: (row.status?.toString() === "pending_activation" ? "pending_activation" : "pending_activation"),
-        company: (parseJsonRecord(row.company) as StoredTenantOnboarding["company"] | null) ?? {
-          companyName: "Truckmoov Tenant",
-          email: row.invited_email?.toString() ?? "",
+        invitedEmail: row.invited_email?.toString() ?? '',
+        organizationType:
+          normalizeOrgType(row.organization_type?.toString()) ??
+          'fleet_provider',
+        bootstrapRole: '',
+        status:
+          row.status?.toString() === 'managed'
+            ? 'managed'
+            : 'pending_activation',
+        company: (parseJsonRecord(row.company) as
+          | StoredTenantOnboarding['company']
+          | null) ?? {
+          companyName: 'Truckmoov Tenant',
+          email: row.invited_email?.toString() ?? '',
           phoneNumber: null,
           billingEmail: null,
           businessAddress: null,
-          organizationType: normalizeOrgType(row.organization_type?.toString()) ?? "fleet_provider",
+          organizationType:
+            normalizeOrgType(row.organization_type?.toString()) ??
+            'fleet_provider',
         },
-        subscription: (parseJsonRecord(row.subscription) as StoredTenantOnboarding["subscription"] | null) ?? {
-          planCode: "",
-          billingCycle: "monthly",
+        subscription: (parseJsonRecord(row.subscription) as
+          | StoredTenantOnboarding['subscription']
+          | null) ?? {
+          planCode: '',
+          billingCycle: 'monthly',
         },
-        deviceProvisioning: (parseJsonRecord(row.device_provisioning) as StoredTenantOnboarding["deviceProvisioning"] | null) ?? {
+        deviceProvisioning: (parseJsonRecord(row.device_provisioning) as
+          | StoredTenantOnboarding['deviceProvisioning']
+          | null) ?? {
           provisionNow: false,
           numberOfDevices: null,
           deviceManufacturer: null,
         },
-        simAssignment: (parseJsonRecord(row.sim_assignment) as StoredTenantOnboarding["simAssignment"] | null) ?? {
+        simAssignment: (parseJsonRecord(row.sim_assignment) as
+          | StoredTenantOnboarding['simAssignment']
+          | null) ?? {
           provisionNow: false,
           numberOfSims: null,
           carrier: null,
           dataPackage: null,
         },
-        features: (parseJsonRecord(row.features) as StoredTenantOnboarding["features"] | null) ?? DEFAULT_TENANT_FEATURES,
-        createdByUserId: "",
+        features:
+          (parseJsonRecord(row.features) as
+            | StoredTenantOnboarding['features']
+            | null) ?? DEFAULT_TENANT_FEATURES,
+        createdByUserId: '',
         createdAt: new Date(row.created_at ?? new Date().toISOString()),
         updatedAt: new Date(row.created_at ?? new Date().toISOString()),
       });
     }
 
-    const usersByTenantId = new Map<string, Array<StoredUser & { createdAt?: string | Date | null }>>();
+    const usersByTenantId = new Map<
+      string,
+      Array<StoredUser & { createdAt?: string | Date | null }>
+    >();
     for (const row of users) {
       const tenantId = row.tenant_id?.toString();
       const id = row.id?.toString();
       const email = row.email?.toString();
       if (!tenantId || !id || !email || tenantId === SYSTEM_TENANT_ID) continue;
-      const profile = parseJsonRecord<Record<string, unknown>>(row.profile) ?? {};
+      const profile =
+        parseJsonRecord<Record<string, unknown>>(row.profile) ?? {};
       const bucket = usersByTenantId.get(tenantId) ?? [];
       bucket.push({
         id,
         email,
-        passwordHash: "",
+        passwordHash: '',
         role: roleFromId(toNumber(row.role_id)),
         tenantId,
-        accountStatus: row.account_status?.toString() === "disabled" ? "disabled" : "enabled",
+        accountStatus:
+          row.account_status?.toString() === 'disabled'
+            ? 'disabled'
+            : 'enabled',
         profile: {
-          fullName: typeof profile.fullName === "string" ? profile.fullName : null,
-          phoneNumber: typeof profile.phoneNumber === "string" ? profile.phoneNumber : null,
-          address: typeof profile.address === "string" ? profile.address : null,
-          profilePictureUrl: typeof profile.profilePictureUrl === "string" ? profile.profilePictureUrl : null,
+          fullName:
+            typeof profile.fullName === 'string' ? profile.fullName : null,
+          phoneNumber:
+            typeof profile.phoneNumber === 'string'
+              ? profile.phoneNumber
+              : null,
+          address: typeof profile.address === 'string' ? profile.address : null,
+          profilePictureUrl:
+            typeof profile.profilePictureUrl === 'string'
+              ? profile.profilePictureUrl
+              : null,
         },
         createdAt: row.created_at ?? null,
       });
@@ -493,26 +612,55 @@ export class ListSystemTenantsUseCase {
       settingsByTenantId.set(tenantId, parseJsonRecord(row.branding) ?? {});
     }
 
-    const lastActiveAtByTenantId = new Map(sessionRows.map((row) => [row.tenant_id?.toString() ?? "", toIsoString(row.last_active_at)]));
-    const vehicleCountByTenantId = new Map(vehicleCounts.map((row) => [row.tenant_id?.toString() ?? "", toNumber(row.count)]));
-    const driverCountByTenantId = new Map(driverCounts.map((row) => [row.tenant_id?.toString() ?? "", toNumber(row.count)]));
-    const deviceCountByTenantId = new Map(deviceCounts.map((row) => [row.tenant_id?.toString() ?? "", toNumber(row.count)]));
+    const lastActiveAtByTenantId = new Map(
+      sessionRows.map((row) => [
+        row.tenant_id?.toString() ?? '',
+        toIsoString(row.last_active_at),
+      ]),
+    );
+    const vehicleCountByTenantId = new Map(
+      vehicleCounts.map((row) => [
+        row.tenant_id?.toString() ?? '',
+        toNumber(row.count),
+      ]),
+    );
+    const driverCountByTenantId = new Map(
+      driverCounts.map((row) => [
+        row.tenant_id?.toString() ?? '',
+        toNumber(row.count),
+      ]),
+    );
+    const deviceCountByTenantId = new Map(
+      deviceCounts.map((row) => [
+        row.tenant_id?.toString() ?? '',
+        toNumber(row.count),
+      ]),
+    );
     const businessInfoByTenantId = new Map<string, BusinessInfoRow>();
     for (const row of businessInfoRows) {
       const tenantId = row.tenant_id?.toString();
       if (!tenantId || businessInfoByTenantId.has(tenantId)) continue;
       businessInfoByTenantId.set(tenantId, row);
     }
-    const organizationTypesByTenantId = new Map<string, TenantOrganizationType[]>();
+    const organizationTypesByTenantId = new Map<
+      string,
+      TenantOrganizationType[]
+    >();
     for (const row of organizationTypesRows) {
       const tenantId = row.tenant_id?.toString();
       if (!tenantId) continue;
       const values = Array.isArray(row.organization_types)
         ? row.organization_types
-        : typeof row.organization_types === "string"
-          ? row.organization_types.replace(/[{}]/g, "").split(",")
+        : typeof row.organization_types === 'string'
+          ? row.organization_types.replace(/[{}]/g, '').split(',')
           : [];
-      const normalized = [...new Set(values.map((value) => normalizeOrgType(value)).filter((value): value is TenantOrganizationType => Boolean(value)))];
+      const normalized = [
+        ...new Set(
+          values
+            .map((value) => normalizeOrgType(value))
+            .filter((value): value is TenantOrganizationType => Boolean(value)),
+        ),
+      ];
       organizationTypesByTenantId.set(tenantId, normalized);
     }
 
@@ -526,19 +674,26 @@ export class ListSystemTenantsUseCase {
       ...driverCountByTenantId.keys(),
       ...deviceCountByTenantId.keys(),
     ]);
-    tenantIds.delete("");
+    tenantIds.delete('');
 
     const rows = [...tenantIds].map((tenantId) => {
       const tenantUsers = usersByTenantId.get(tenantId) ?? [];
       const onboarding = onboardingByTenantId.get(tenantId) ?? null;
-      const enabledUsers = tenantUsers.filter((user) => (user.accountStatus ?? "enabled") === "enabled");
+      const enabledUsers = tenantUsers.filter(
+        (user) => (user.accountStatus ?? 'enabled') === 'enabled',
+      );
       const acceptedUser = onboarding
-        ? tenantUsers.find((user) => user.email.toLowerCase() === onboarding.invitedEmail.toLowerCase()) ?? null
+        ? (tenantUsers.find(
+            (user) =>
+              user.email.toLowerCase() ===
+              onboarding.invitedEmail.toLowerCase(),
+          ) ?? null)
         : null;
-      const firstUserCreatedAt = tenantUsers
-        .map((user) => toIsoString(user.createdAt ?? null))
-        .filter((value): value is string => Boolean(value))
-        .sort()[0] ?? null;
+      const firstUserCreatedAt =
+        tenantUsers
+          .map((user) => toIsoString(user.createdAt ?? null))
+          .filter((value): value is string => Boolean(value))
+          .sort()[0] ?? null;
 
       return this.composeTenantRow({
         tenantId,
@@ -552,12 +707,17 @@ export class ListSystemTenantsUseCase {
         businessInfo: businessInfoByTenantId.get(tenantId) ?? null,
         organizationTypes: organizationTypesByTenantId.get(tenantId) ?? [],
         lastActiveAt: lastActiveAtByTenantId.get(tenantId) ?? null,
-        createdAt: onboarding?.createdAt.toISOString() ?? firstUserCreatedAt ?? new Date().toISOString(),
+        createdAt:
+          onboarding?.createdAt.toISOString() ??
+          firstUserCreatedAt ??
+          new Date().toISOString(),
         invitationAccepted: Boolean(acceptedUser),
       });
     });
 
-    return rows.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return rows.sort((left, right) =>
+      right.createdAt.localeCompare(left.createdAt),
+    );
   }
 
   private composeTenantRow(params: {
@@ -576,42 +736,64 @@ export class ListSystemTenantsUseCase {
     invitationAccepted: boolean;
   }): SystemTenantRow {
     const primaryUser = params.users[0] ?? null;
-    const organizationType = params.organizationTypes[0]
-      ?? params.onboarding?.company.organizationType
-      ?? inferOrgTypeFromRole(primaryUser?.role ?? null);
+    const organizationType =
+      params.organizationTypes[0] ??
+      params.onboarding?.company.organizationType ??
+      inferOrgTypeFromRole(primaryUser?.role ?? null);
     const organizationTypes = params.organizationTypes.length
       ? params.organizationTypes
-      : organizationType ? [organizationType] : [];
+      : organizationType
+        ? [organizationType]
+        : [];
     const planCode = params.onboarding?.subscription.planCode ?? null;
     const plan = normalizePlan(planCode);
-    const name = params.onboarding?.company.companyName
-      ?? (typeof params.settingsBranding?.organizationName === "string" ? params.settingsBranding.organizationName : null)
-      ?? params.businessInfo?.company_name
-      ?? primaryUser?.profile?.fullName
-      ?? primaryUser?.email?.split("@")[0]?.replace(/[._-]+/g, " ")
-      ?? params.tenantId;
-    const email = params.onboarding?.company.email
-      ?? primaryUser?.email
-      ?? (typeof params.settingsBranding?.contactEmail === "string" ? params.settingsBranding.contactEmail : null)
-      ?? `${slugify(name)}@unknown.local`;
-    const billingEmail = params.onboarding?.company.billingEmail
-      ?? (typeof params.settingsBranding?.contactEmail === "string" ? params.settingsBranding.contactEmail : null)
-      ?? null;
-    const phone = params.onboarding?.company.phoneNumber
-      ?? primaryUser?.profile?.phoneNumber
-      ?? (typeof params.settingsBranding?.phoneNumber === "string" ? params.settingsBranding.phoneNumber : null)
-      ?? null;
-    const address = params.onboarding?.company.businessAddress
-      ?? primaryUser?.profile?.address
-      ?? (typeof params.settingsBranding?.address === "string" ? params.settingsBranding.address : null)
-      ?? null;
+    const name =
+      params.onboarding?.company.companyName ??
+      (typeof params.settingsBranding?.organizationName === 'string'
+        ? params.settingsBranding.organizationName
+        : null) ??
+      params.businessInfo?.company_name ??
+      primaryUser?.profile?.fullName ??
+      primaryUser?.email?.split('@')[0]?.replace(/[._-]+/g, ' ') ??
+      params.tenantId;
+    const email =
+      params.onboarding?.company.email ??
+      primaryUser?.email ??
+      (typeof params.settingsBranding?.contactEmail === 'string'
+        ? params.settingsBranding.contactEmail
+        : null) ??
+      `${slugify(name)}@unknown.local`;
+    const billingEmail =
+      params.onboarding?.company.billingEmail ??
+      (typeof params.settingsBranding?.contactEmail === 'string'
+        ? params.settingsBranding.contactEmail
+        : null) ??
+      null;
+    const phone =
+      params.onboarding?.company.phoneNumber ??
+      primaryUser?.profile?.phoneNumber ??
+      (typeof params.settingsBranding?.phoneNumber === 'string'
+        ? params.settingsBranding.phoneNumber
+        : null) ??
+      null;
+    const address =
+      params.onboarding?.company.businessAddress ??
+      primaryUser?.profile?.address ??
+      (typeof params.settingsBranding?.address === 'string'
+        ? params.settingsBranding.address
+        : null) ??
+      null;
     const status = deriveTenantStatus({
       onboardingStatus: params.onboarding?.status,
       enabledUsersCount: params.enabledUsersCount,
       usersCount: params.users.length,
     });
-    const hasPendingInvitation = params.onboarding?.status === "pending_activation" && !params.invitationAccepted;
-    const verificationStatus = normalizeKycStatus(params.businessInfo?.verification_status ?? null);
+    const hasPendingInvitation =
+      params.onboarding?.status === 'pending_activation' &&
+      !params.invitationAccepted;
+    const verificationStatus = normalizeKycStatus(
+      params.businessInfo?.verification_status ?? null,
+    );
 
     return {
       id: params.tenantId,
@@ -652,15 +834,22 @@ export class ListSystemTenantsUseCase {
         country: params.businessInfo?.country ?? null,
         verificationStatus,
         verifiedAt: toIsoString(params.businessInfo?.verified_at ?? null),
-        yearEstablished: params.businessInfo?.year_established == null ? null : toNumber(params.businessInfo.year_established),
+        yearEstablished:
+          params.businessInfo?.year_established == null
+            ? null
+            : toNumber(params.businessInfo.year_established),
       },
     };
   }
 
   private async selectOnboardings(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+    connection: Awaited<
+      ReturnType<typeof getAuthOrm>
+    >['em']['getConnection'] extends () => infer T
+      ? T
+      : never,
   ) {
-    if (!await this.tableExists(connection, "system_tenant_onboardings")) {
+    if (!(await this.tableExists(connection, 'system_tenant_onboardings'))) {
       return [] as OnboardingRow[];
     }
     return connection.execute<OnboardingRow[]>(
@@ -670,9 +859,13 @@ export class ListSystemTenantsUseCase {
   }
 
   private async selectBusinessInfo(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+    connection: Awaited<
+      ReturnType<typeof getAuthOrm>
+    >['em']['getConnection'] extends () => infer T
+      ? T
+      : never,
   ) {
-    if (!await this.tableExists(connection, "tenant_business_info")) {
+    if (!(await this.tableExists(connection, 'tenant_business_info'))) {
       return [] as BusinessInfoRow[];
     }
     return connection.execute<BusinessInfoRow[]>(
@@ -682,9 +875,13 @@ export class ListSystemTenantsUseCase {
   }
 
   private async selectOrganizationTypes(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+    connection: Awaited<
+      ReturnType<typeof getAuthOrm>
+    >['em']['getConnection'] extends () => infer T
+      ? T
+      : never,
   ) {
-    if (!await this.tableExists(connection, "organizations")) {
+    if (!(await this.tableExists(connection, 'organizations'))) {
       return [] as OrganizationTypesRow[];
     }
     return connection.execute<OrganizationTypesRow[]>(
@@ -695,10 +892,14 @@ export class ListSystemTenantsUseCase {
   }
 
   private async countByTenant(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+    connection: Awaited<
+      ReturnType<typeof getAuthOrm>
+    >['em']['getConnection'] extends () => infer T
+      ? T
+      : never,
     tableName: string,
   ) {
-    if (!await this.tableExists(connection, tableName)) {
+    if (!(await this.tableExists(connection, tableName))) {
       return [] as CountRow[];
     }
     return connection.execute<CountRow[]>(
@@ -707,7 +908,11 @@ export class ListSystemTenantsUseCase {
   }
 
   private async tableExists(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+    connection: Awaited<
+      ReturnType<typeof getAuthOrm>
+    >['em']['getConnection'] extends () => infer T
+      ? T
+      : never,
     tableName: string,
   ) {
     const existsRows = await connection.execute<ExistsRow[]>(

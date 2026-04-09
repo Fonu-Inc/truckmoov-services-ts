@@ -20,8 +20,8 @@ export type OrganizationDefaults = {
   timezone: string;
   language: string;
   currency: string;
-  dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
-  weekStartsOn: "monday" | "sunday";
+  dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  weekStartsOn: 'monday' | 'sunday';
 };
 
 export type OrganizationSettings = {
@@ -36,7 +36,7 @@ export function buildDefaultOrganizationSettings(
   return {
     tenantId,
     branding: {
-      organizationName: "Truckmoov Tenant",
+      organizationName: 'Truckmoov Tenant',
       contactEmail: null,
       phoneNumber: null,
       address: null,
@@ -53,11 +53,11 @@ export function buildDefaultOrganizationSettings(
       sidebarAccent: null,
     },
     defaults: {
-      timezone: "UTC",
-      language: "en",
-      currency: "USD",
-      dateFormat: "YYYY-MM-DD",
-      weekStartsOn: "monday",
+      timezone: 'UTC',
+      language: 'en',
+      currency: 'USD',
+      dateFormat: 'YYYY-MM-DD',
+      weekStartsOn: 'monday',
     },
   };
 }
@@ -65,8 +65,9 @@ export function buildDefaultOrganizationSettings(
 export interface OrganizationSettingsRepository {
   findByTenantId(tenantId: string): Promise<OrganizationSettings | null>;
   save(settings: OrganizationSettings): Promise<void>;
+  deleteByTenantId(tenantId: string): Promise<void>;
 }
 
 export const ORGANIZATION_SETTINGS_REPOSITORY = Symbol(
-  "ORGANIZATION_SETTINGS_REPOSITORY",
+  'ORGANIZATION_SETTINGS_REPOSITORY',
 );

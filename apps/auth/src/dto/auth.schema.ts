@@ -1,12 +1,12 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { StandardApiResponse } from "@shared/openapi";
+import { ApiProperty } from '@nestjs/swagger';
+import { StandardApiResponse } from '@shared/openapi';
 import {
   DEVICE_MANUFACTURERS,
   SIM_CARRIERS,
   SIM_DATA_PACKAGES,
   TENANT_BILLING_CYCLES,
   TENANT_ORGANIZATION_TYPES,
-} from "../tenant-onboarding.repository";
+} from '../tenant-onboarding.repository';
 
 export class SessionSchema {
   /** JWT access token */
@@ -21,27 +21,27 @@ export class AuthResponse extends StandardApiResponse<SessionSchema> {
 }
 
 export class MeResponse extends StandardApiResponse<Record<string, unknown>> {
-  @ApiProperty({ type: "object", additionalProperties: true })
+  @ApiProperty({ type: 'object', additionalProperties: true })
   data!: Record<string, unknown>;
 }
 
 export class HealthResponse extends StandardApiResponse<{
   service: string;
   persistenceBackend: string;
-  database: "up" | "n/a";
+  database: 'up' | 'n/a';
 }> {
   @ApiProperty({
-    type: "object",
+    type: 'object',
     properties: {
-      service: { type: "string" },
-      persistenceBackend: { type: "string" },
-      database: { type: "string", enum: ["up", "n/a"] },
+      service: { type: 'string' },
+      persistenceBackend: { type: 'string' },
+      database: { type: 'string', enum: ['up', 'n/a'] },
     },
   })
   data!: {
     service: string;
     persistenceBackend: string;
-    database: "up" | "n/a";
+    database: 'up' | 'n/a';
   };
 }
 
@@ -94,8 +94,8 @@ export class ProfileDataSchema {
   @ApiProperty()
   role!: string;
 
-  @ApiProperty({ enum: ["enabled", "disabled"] })
-  accountStatus!: "enabled" | "disabled";
+  @ApiProperty({ enum: ['enabled', 'disabled'] })
+  accountStatus!: 'enabled' | 'disabled';
 
   @ApiProperty({ type: UserProfileSchema })
   profile!: UserProfileSchema;
@@ -119,13 +119,13 @@ export class OrganizationUserSchema {
   @ApiProperty()
   role!: string;
 
-  @ApiProperty({ enum: ["enabled", "disabled"] })
-  accountStatus!: "enabled" | "disabled";
+  @ApiProperty({ enum: ['enabled', 'disabled'] })
+  accountStatus!: 'enabled' | 'disabled';
 
-  @ApiProperty({ enum: ["active", "inactive"] })
-  status!: "active" | "inactive";
+  @ApiProperty({ enum: ['active', 'inactive'] })
+  status!: 'active' | 'inactive';
 
-  @ApiProperty({ nullable: true, type: String, format: "date-time" })
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   lastActiveAt!: string | null;
 
   @ApiProperty({ type: UserProfileSchema })
@@ -233,7 +233,7 @@ export class DispatcherPreferencesSchema {
   @ApiProperty()
   shiftEnd!: string;
 
-  @ApiProperty({ type: "number", isArray: true })
+  @ApiProperty({ type: 'number', isArray: true })
   workDays!: number[];
 }
 
@@ -307,11 +307,11 @@ export class OrganizationDefaultsSchema {
   @ApiProperty()
   currency!: string;
 
-  @ApiProperty({ enum: ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"] })
-  dateFormat!: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
+  @ApiProperty({ enum: ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'] })
+  dateFormat!: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 
-  @ApiProperty({ enum: ["monday", "sunday"] })
-  weekStartsOn!: "monday" | "sunday";
+  @ApiProperty({ enum: ['monday', 'sunday'] })
+  weekStartsOn!: 'monday' | 'sunday';
 }
 
 export class OrganizationSettingsSchema {
@@ -358,17 +358,19 @@ export class ActivityLogEntrySchema {
   @ApiProperty({ nullable: true })
   actorRole!: string | null;
 
-  @ApiProperty({ type: "object", additionalProperties: true })
+  @ApiProperty({ type: 'object', additionalProperties: true })
   metadata!: Record<string, unknown>;
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   occurredAt!: string;
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   recordedAt!: string;
 }
 
-export class ActivityLogResponse extends StandardApiResponse<ActivityLogEntrySchema[]> {
+export class ActivityLogResponse extends StandardApiResponse<
+  ActivityLogEntrySchema[]
+> {
   @ApiProperty({ type: ActivityLogEntrySchema, isArray: true })
   data!: ActivityLogEntrySchema[];
 }
@@ -398,7 +400,7 @@ export class SystemDashboardDataSchema {
   @ApiProperty({ type: String, isArray: true })
   unavailableMetrics!: string[];
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   generatedAt!: string;
 }
 
@@ -406,7 +408,6 @@ export class SystemDashboardResponse extends StandardApiResponse<SystemDashboard
   @ApiProperty({ type: SystemDashboardDataSchema })
   data!: SystemDashboardDataSchema;
 }
-
 
 export class SystemTenantCompanySchema {
   @ApiProperty()
@@ -488,8 +489,8 @@ export class SystemTenantOnboardingDataSchema {
   @ApiProperty()
   tenantId!: string;
 
-  @ApiProperty({ enum: ["pending_activation"] })
-  status!: "pending_activation";
+  @ApiProperty({ enum: ['pending_activation', 'managed'] })
+  status!: 'pending_activation' | 'managed';
 
   @ApiProperty()
   bootstrapRole!: string;
@@ -512,7 +513,7 @@ export class SystemTenantOnboardingDataSchema {
   @ApiProperty()
   adminInviteEmail!: string;
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 }
 
@@ -534,7 +535,7 @@ export class SystemTenantsSummaryDataSchema {
   @ApiProperty()
   totalVehicles!: number;
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   generatedAt!: string;
 }
 
@@ -585,10 +586,17 @@ export class SystemTenantBusinessInfoSchema {
   @ApiProperty({ nullable: true })
   country!: string | null;
 
-  @ApiProperty({ enum: ["not_submitted", "pending", "under_review", "verified", "rejected"] })
-  verificationStatus!: "not_submitted" | "pending" | "under_review" | "verified" | "rejected";
+  @ApiProperty({
+    enum: ['not_submitted', 'pending', 'under_review', 'verified', 'rejected'],
+  })
+  verificationStatus!:
+    | 'not_submitted'
+    | 'pending'
+    | 'under_review'
+    | 'verified'
+    | 'rejected';
 
-  @ApiProperty({ nullable: true, type: String, format: "date-time" })
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   verifiedAt!: string | null;
 
   @ApiProperty({ nullable: true, type: Number })
@@ -617,14 +625,14 @@ export class SystemTenantListItemSchema {
   @ApiProperty({ nullable: true })
   billingEmail!: string | null;
 
-  @ApiProperty({ enum: ["starter", "professional", "enterprise"] })
-  plan!: "starter" | "professional" | "enterprise";
+  @ApiProperty({ enum: ['starter', 'professional', 'enterprise'] })
+  plan!: 'starter' | 'professional' | 'enterprise';
 
   @ApiProperty({ nullable: true })
   planCode!: string | null;
 
-  @ApiProperty({ enum: ["active", "pending", "suspended", "inactive"] })
-  status!: "active" | "pending" | "suspended" | "inactive";
+  @ApiProperty({ enum: ['active', 'pending', 'suspended', 'inactive'] })
+  status!: 'active' | 'pending' | 'suspended' | 'inactive';
 
   @ApiProperty({ enum: TENANT_ORGANIZATION_TYPES, nullable: true })
   organizationType!: (typeof TENANT_ORGANIZATION_TYPES)[number] | null;
@@ -647,10 +655,10 @@ export class SystemTenantListItemSchema {
   @ApiProperty()
   monthlyRevenueNgn!: number;
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 
-  @ApiProperty({ nullable: true, type: String, format: "date-time" })
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   lastActiveAt!: string | null;
 
   @ApiProperty({ type: SystemTenantFeaturesSchema })
@@ -670,7 +678,7 @@ export class SystemTenantsListDataSchema {
   @ApiProperty({ type: SystemTenantListItemSchema, isArray: true })
   tenants!: SystemTenantListItemSchema[];
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   generatedAt!: string;
 }
 
@@ -678,7 +686,6 @@ export class SystemTenantsListResponse extends StandardApiResponse<SystemTenants
   @ApiProperty({ type: SystemTenantsListDataSchema })
   data!: SystemTenantsListDataSchema;
 }
-
 
 export class SystemTenantDetailDataSchema {
   @ApiProperty({ type: SystemTenantListItemSchema })
@@ -723,11 +730,17 @@ export class SystemTenantOnboardingReferenceDataSchema {
   @ApiProperty({ enum: SIM_DATA_PACKAGES, isArray: true })
   simDataPackages!: (typeof SIM_DATA_PACKAGES)[number][];
 
-  @ApiProperty({ enum: ["active", "pending", "suspended", "inactive"], isArray: true })
-  tenantStatuses!: Array<"active" | "pending" | "suspended" | "inactive">;
+  @ApiProperty({
+    enum: ['active', 'pending', 'suspended', 'inactive'],
+    isArray: true,
+  })
+  tenantStatuses!: Array<'active' | 'pending' | 'suspended' | 'inactive'>;
 
-  @ApiProperty({ enum: ["starter", "professional", "enterprise"], isArray: true })
-  tenantPlans!: Array<"starter" | "professional" | "enterprise">;
+  @ApiProperty({
+    enum: ['starter', 'professional', 'enterprise'],
+    isArray: true,
+  })
+  tenantPlans!: Array<'starter' | 'professional' | 'enterprise'>;
 
   @ApiProperty({ type: SystemTenantFeaturesSchema })
   featureDefaults!: SystemTenantFeaturesSchema;
@@ -735,11 +748,78 @@ export class SystemTenantOnboardingReferenceDataSchema {
   @ApiProperty({ type: SystemTenantFeatureOptionSchema, isArray: true })
   featureOptions!: SystemTenantFeatureOptionSchema[];
 
-  @ApiProperty({ type: String, format: "date-time" })
+  @ApiProperty({ type: String, format: 'date-time' })
   generatedAt!: string;
 }
 
 export class SystemTenantOnboardingReferenceDataResponse extends StandardApiResponse<SystemTenantOnboardingReferenceDataSchema> {
   @ApiProperty({ type: SystemTenantOnboardingReferenceDataSchema })
   data!: SystemTenantOnboardingReferenceDataSchema;
+}
+
+export class SystemSubscriptionPlanSchema {
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty({ enum: ['starter', 'professional', 'enterprise'] })
+  tier!: 'starter' | 'professional' | 'enterprise';
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty({ nullable: true, type: Number })
+  monthlyPriceNgn!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  yearlyMonthlyEquivalentNgn!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  yearlyDiscountPercent!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  maxActiveVehicles!: number | null;
+
+  @ApiProperty()
+  customPricing!: boolean;
+
+  @ApiProperty({ nullable: true, type: Number })
+  trialDays!: number | null;
+
+  @ApiProperty({ nullable: true })
+  badge!: string | null;
+
+  @ApiProperty()
+  ctaLabel!: string;
+
+  @ApiProperty({ type: String, isArray: true })
+  features!: string[];
+}
+
+export class SystemSubscriptionPlansDataSchema {
+  @ApiProperty({ type: SystemSubscriptionPlanSchema, isArray: true })
+  plans!: SystemSubscriptionPlanSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemSubscriptionPlansResponse extends StandardApiResponse<SystemSubscriptionPlansDataSchema> {
+  @ApiProperty({ type: SystemSubscriptionPlansDataSchema })
+  data!: SystemSubscriptionPlansDataSchema;
+}
+
+export class SystemTenantDeleteDataSchema {
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  deleted!: boolean;
+}
+
+export class SystemTenantDeleteResponse extends StandardApiResponse<SystemTenantDeleteDataSchema> {
+  @ApiProperty({ type: SystemTenantDeleteDataSchema })
+  data!: SystemTenantDeleteDataSchema;
 }
