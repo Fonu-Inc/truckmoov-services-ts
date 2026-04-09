@@ -1,6 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
-export type AuditEntityType = "job" | "vehicle" | "driver" | "alert" | "document" | "geofence";
+export type AuditEntityType =
+  | "job"
+  | "vehicle"
+  | "driver"
+  | "device"
+  | "fuel"
+  | "alert"
+  | "document"
+  | "geofence";
 
 export type AuditEntry = {
   id: string;

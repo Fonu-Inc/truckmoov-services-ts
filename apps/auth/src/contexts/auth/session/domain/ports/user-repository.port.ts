@@ -27,6 +27,7 @@ export type StoredUser = {
   passwordHash: string;
   role: string;
   tenantId: string;
+  accountStatus?: "enabled" | "disabled";
   emailVerificationToken?: string | null;
   profile?: UserProfile;
   notificationPreferences?: NotificationPreferences;
@@ -65,6 +66,7 @@ export function defaultDispatcherPreferences(): DispatcherPreferences {
 export function normalizeStoredUser(user: StoredUser): StoredUser {
   return {
     ...user,
+    accountStatus: user.accountStatus ?? "enabled",
     // Merge with defaults so older JSON payloads still expose the full profile shape.
     profile: { ...defaultUserProfile(), ...(user.profile ?? {}) },
     notificationPreferences:
@@ -77,12 +79,17 @@ export function normalizeStoredUser(user: StoredUser): StoredUser {
 export interface UserRepository {
   findByEmail(email: string): Promise<StoredUser | null>;
   findById(id: string): Promise<StoredUser | null>;
+  findAll(): Promise<StoredUser[]>;
   findAllByTenant(tenantId: string): Promise<StoredUser[]>;
   findByVerificationToken(token: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRole(userId: string, role: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
   updateProfile(userId: string, profile: UserProfile): Promise<void>;
+  updateAccountStatus(
+    userId: string,
+    accountStatus: "enabled" | "disabled",
+  ): Promise<void>;
   deleteById(userId: string): Promise<void>;
   updateNotificationPreferences(
     userId: string,

@@ -46,6 +46,10 @@ describe("TenantGuard", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "ENTERPRISE_ADMIN", queryTenantId: "t2" }))).toBe(true);
   });
 
+  it("allows super admin regardless of tenant context", () => {
+    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "SUPER_ADMIN", queryTenantId: "t2" }))).toBe(true);
+  });
+
   it("ignores client-supplied tenant mismatch in query and body", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", queryTenantId: "t2", bodyTenantId: "t3" }))).toBe(true);
   });

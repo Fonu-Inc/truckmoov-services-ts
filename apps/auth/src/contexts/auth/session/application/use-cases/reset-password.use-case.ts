@@ -26,6 +26,7 @@ export class ResetPasswordUseCase {
   async execute(command: ResetPasswordCommand) {
     const reset = await this.resetStore.findByToken(command.token);
     if (!reset || reset.expiresAt < new Date()) throw new InvalidResetTokenError();
+    const user = await this.userRepo.findById(reset.userId);
 
     const passwordHash = await this.passwordHasher.hash(command.newPassword);
     await this.userRepo.updatePassword(reset.userId, passwordHash);
@@ -33,6 +34,12 @@ export class ResetPasswordUseCase {
 
     await this.sessionStore.deleteAllForUser(reset.userId);
 
-    return { message: "Password has been reset successfully" };
+    return {
+      message: "Password has been reset successfully",
+      userId: reset.userId,
+      tenantId: user?.tenantId ?? "",
+      email: user?.email ?? null,
+      role: user?.role ?? null,
+    };
   }
 }

@@ -25,7 +25,7 @@ export class TenantGuard implements CanActivate {
     if (!claimedTenant) return true; // No tenant context → single-tenant / unauthenticated dev mode
 
     const role = normalizeRole(req.user?.role ?? req.headers["x-user-role"]);
-    if (role === Role.ENTERPRISE_ADMIN) return true; // Enterprise admins can access any tenant
+    if (role === Role.ENTERPRISE_ADMIN || role === Role.SUPER_ADMIN) return true;
 
     return true;
   }

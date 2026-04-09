@@ -1,4 +1,8 @@
 export enum Role {
+  // System Roles
+  SUPER_ADMIN        = "SUPER_ADMIN",
+  SYSTEM_ADMIN       = "SYSTEM_ADMIN",
+
   // Multi-Stakeholder Roles
   ENTERPRISE_ADMIN   = "ENTERPRISE_ADMIN",
   AGGREGATOR_ADMIN   = "AGGREGATOR_ADMIN",
@@ -13,6 +17,8 @@ export enum Role {
 }
 
 export const ROLE_IDS: Record<Role, number> = {
+  [Role.SUPER_ADMIN]: 9,
+  [Role.SYSTEM_ADMIN]: 10,
   [Role.ENTERPRISE_ADMIN]: 1,
   [Role.AGGREGATOR_ADMIN]: 2,
   [Role.OWNER_OPERATOR]: 3,
@@ -69,6 +75,8 @@ export const INVITABLE_ROLES = [
 ] as const;
 
 const LEGACY_ROLE_ALIASES: Record<string, string> = {
+  super_admin: Role.SUPER_ADMIN,
+  system_admin: Role.SYSTEM_ADMIN,
   admin: Role.ENTERPRISE_ADMIN,
   enterprise_admin: Role.ENTERPRISE_ADMIN,
   aggregator_admin: Role.AGGREGATOR_ADMIN,

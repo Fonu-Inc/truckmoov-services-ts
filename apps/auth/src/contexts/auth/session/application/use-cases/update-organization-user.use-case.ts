@@ -17,6 +17,8 @@ import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 import { resolveActorUser } from "./support/resolve-actor-user";
 
+const SYSTEM_TENANT_ID = "system";
+
 export type UpdateOrganizationUserCommand = {
   accessToken: string;
   targetUserId: string;
@@ -47,6 +49,9 @@ export class UpdateOrganizationUserUseCase {
     if (!hasPermission(actor.role as Role, Permission.USER_UPDATE)) {
       throw new ForbiddenError();
     }
+    if (actor.tenantId === SYSTEM_TENANT_ID) {
+      throw new ForbiddenError("System accounts must use the system admin endpoints");
+    }
 
     const target = await this.userRepo.findById(command.targetUserId);
     if (!target) {
@@ -55,6 +60,9 @@ export class UpdateOrganizationUserUseCase {
 
     if (target.tenantId !== actor.tenantId) {
       throw new ForbiddenError("Cannot update users outside your tenant");
+    }
+    if (target.tenantId === SYSTEM_TENANT_ID) {
+      throw new ForbiddenError("System accounts cannot be managed through tenant organization endpoints");
     }
 
     const mergedProfile: UserProfile = {
@@ -86,6 +94,7 @@ export class UpdateOrganizationUserUseCase {
         email: target.email,
         role: target.role,
         tenantId: target.tenantId,
+        accountStatus: target.accountStatus ?? "enabled",
         status: activity?.hasActiveSession ? "active" : "inactive",
         lastActiveAt: activity?.lastActiveAt?.toISOString() ?? null,
         profile: mergedProfile,

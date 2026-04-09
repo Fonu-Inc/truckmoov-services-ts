@@ -60,6 +60,7 @@ export class AuthUserRecord {
   passwordHash!: string;
   roleId!: number;
   tenantId!: string;
+  accountStatus!: string;
   emailVerificationToken?: string | null;
   profile?: {
     fullName: string | null;
@@ -93,6 +94,7 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     passwordHash: { type: "string" },
     roleId: { type: "number" },
     tenantId: { type: "string", length: 64, default: "default" },
+    accountStatus: { type: "string", length: 20, default: "enabled" },
     emailVerificationToken: { type: "string", length: 128, nullable: true },
     profile: { type: "json", nullable: true },
     notificationPreferences: { type: "json", nullable: true },
@@ -147,6 +149,82 @@ export const OrganizationSettingsRecordSchema =
       },
     },
   });
+
+/* ── Activity Log ───────────────────────────────────── */
+
+export class ActivityLogRecord {
+  id!: string;
+  tenantId!: string;
+  service!: string;
+  action!: string;
+  entityType!: string;
+  entityId!: string;
+  summary!: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  metadata!: Record<string, unknown>;
+  occurredAt!: Date;
+  recordedAt!: Date;
+}
+
+export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
+  class: ActivityLogRecord,
+  tableName: "activity_logs",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64, index: true },
+    service: { type: "string", length: 64, index: true },
+    action: { type: "string", length: 128, index: true },
+    entityType: { type: "string", length: 64, index: true },
+    entityId: { type: "string", length: 128, index: true },
+    summary: { type: "string", length: 255 },
+    actorId: { type: "string", length: 128, nullable: true, index: true },
+    actorRole: { type: "string", length: 64, nullable: true },
+    metadata: { type: "json", defaultRaw: "'{}'" },
+    occurredAt: { type: "datetime", index: true },
+    recordedAt: { type: "datetime", defaultRaw: "now()" },
+  },
+});
+
+/* ── System Tenant Onboarding ───────────────────────── */
+
+export class SystemTenantOnboardingRecord {
+  id!: string;
+  tenantId!: string;
+  invitedEmail!: string;
+  organizationType!: string;
+  bootstrapRole!: string;
+  status!: string;
+  company!: Record<string, unknown>;
+  subscription!: Record<string, unknown>;
+  deviceProvisioning!: Record<string, unknown>;
+  simAssignment!: Record<string, unknown>;
+  features!: Record<string, unknown>;
+  createdByUserId!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SystemTenantOnboardingRecordSchema = new EntitySchema<SystemTenantOnboardingRecord>({
+  class: SystemTenantOnboardingRecord,
+  tableName: "system_tenant_onboardings",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { fieldName: "tenant_id", type: "string", length: 64, unique: true, index: true },
+    invitedEmail: { fieldName: "invited_email", type: "string", length: 255, index: true },
+    organizationType: { fieldName: "organization_type", type: "string", length: 64 },
+    bootstrapRole: { fieldName: "bootstrap_role", type: "string", length: 64 },
+    status: { type: "string", length: 32, default: "pending_activation" },
+    company: { type: "json" },
+    subscription: { type: "json" },
+    deviceProvisioning: { fieldName: "device_provisioning", type: "json" },
+    simAssignment: { fieldName: "sim_assignment", type: "json" },
+    features: { type: "json" },
+    createdByUserId: { fieldName: "created_by_user_id", type: "string", length: 64 },
+    createdAt: { fieldName: "created_at", type: "datetime", defaultRaw: "now()" },
+    updatedAt: { fieldName: "updated_at", type: "datetime", defaultRaw: "now()" },
+  },
+});
 
 /* ── Invite ──────────────────────────────────────────── */
 
@@ -303,6 +381,8 @@ export async function getAuthOrm(cfg: DbConfig) {
       InviteRecordSchema,
       PasswordResetRecordSchema,
       OrganizationSettingsRecordSchema,
+      ActivityLogRecordSchema,
+      SystemTenantOnboardingRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

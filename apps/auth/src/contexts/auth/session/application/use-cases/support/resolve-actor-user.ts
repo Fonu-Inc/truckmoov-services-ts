@@ -1,4 +1,5 @@
 import { InvalidAccessTokenError } from "../../../domain/errors/invalid-access-token.error";
+import { ForbiddenError } from "../../../domain/errors/forbidden.error";
 import { UserNotFoundError } from "../../../domain/errors/user-not-found.error";
 import type { TokenService } from "../../../domain/ports/token-service.port";
 import {
@@ -24,6 +25,10 @@ export async function resolveActorUser(
   const storedUser = await userRepo.findById(actor.id);
   if (!storedUser) {
     throw new UserNotFoundError();
+  }
+
+  if (storedUser.accountStatus === "disabled") {
+    throw new ForbiddenError("This account has been disabled");
   }
 
   return normalizeStoredUser(storedUser);

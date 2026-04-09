@@ -19,6 +19,7 @@ function toStoredUser(record: AuthUserRecord): StoredUser {
   return {
     ...record,
     role: mapRoleIdToName(record.roleId),
+    accountStatus: record.accountStatus as "enabled" | "disabled",
     emailVerificationToken: record.emailVerificationToken ?? null,
   };
 }
@@ -39,6 +40,15 @@ export class MikroUserRepository implements UserRepository {
     const em = orm.em.fork();
     const record = await em.findOne(AuthUserRecord, { id });
     return record ? normalizeStoredUser(toStoredUser(record)) : null;
+  }
+
+  async findAll(): Promise<StoredUser[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(AuthUserRecord, {}, {
+      orderBy: { email: "asc" },
+    });
+    return records.map((record) => normalizeStoredUser(toStoredUser(record)));
   }
 
   async findAllByTenant(tenantId: string): Promise<StoredUser[]> {
@@ -67,11 +77,11 @@ export class MikroUserRepository implements UserRepository {
       passwordHash: normalized.passwordHash,
       roleId: mapRoleNameToId(normalized.role),
       tenantId: normalized.tenantId,
+      accountStatus: normalized.accountStatus,
       emailVerificationToken: normalized.emailVerificationToken ?? null,
       profile: normalized.profile,
       notificationPreferences: normalized.notificationPreferences,
       dispatcherPreferences: normalized.dispatcherPreferences,
-      createdAt: new Date(),
     });
   }
 
@@ -93,6 +103,15 @@ export class MikroUserRepository implements UserRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeUpdate(AuthUserRecord, { id: userId }, { profile });
+  }
+
+  async updateAccountStatus(
+    userId: string,
+    accountStatus: "enabled" | "disabled",
+  ): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeUpdate(AuthUserRecord, { id: userId }, { accountStatus });
   }
 
   async deleteById(userId: string): Promise<void> {

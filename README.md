@@ -42,6 +42,8 @@ Auth-specific delivery vars:
 - `MAIL_TRANSPORT`: `smtp`, `ses`, or `null`.
 - `MAIL_FROM`, `AWS_REGION`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`
 - `SMS_TRANSPORT`, `DOTGO_API_URL`, `DOTGO_API_KEY`, `DOTGO_SENDER_ID`
+- `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD`: when set, auth bootstraps a `SUPER_ADMIN` account on startup.
+- `SUPERADMIN_FULL_NAME`, `SUPERADMIN_TENANT_ID`: optional overrides for the seeded superadmin profile. Recommended tenant ID is `system`.
 
 Fleet runtime and webhook vars:
 - `REPORT_INTERVAL_HOURS`, `ALERT_ESCALATION_MINUTES`, `DOCUMENT_RETENTION_DAYS`
@@ -75,6 +77,11 @@ pnpm test
 - `GET http://localhost:3002/docs/fleet`
 
 ## Auth profile/preferences endpoints
+- Bootstrapped superadmin login
+  - Configure `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD`.
+  - Start the auth service once and the account will be created or repaired automatically.
+  - Tenant users continue to use `POST /auth/login`.
+  - The seeded superadmin must use `POST /auth/superadmin/login` and is rejected by the tenant login endpoint.
 - `GET /auth/invite/validate?token=...`
 - `POST /auth/register/invited`
   The invite token is authoritative for the email address. The client should send `inviteToken`, `fullName`, and `password`.
@@ -82,8 +89,10 @@ pnpm test
 - `GET /auth/profile`
 - `PATCH /auth/profile`
 - `GET /auth/organization/users`
-  Returns each tenant user with `status` (`active` or `inactive`) and `lastActiveAt`, derived from auth session activity.
+  Returns each tenant user with `accountStatus` (`enabled` or `disabled`), plus `status` (`active` or `inactive`) and `lastActiveAt`, derived from auth session activity.
 - `PATCH /auth/organization/users/:userId`
+- `PATCH /auth/organization/users/:userId/status`
+  Enterprise-admin-only account enable/disable endpoint. Disabling revokes active sessions immediately and blocks further login.
 - `DELETE /auth/organization/users/:userId`
 - `POST /auth/organization/invites/resend`
 - `GET /auth/preferences/notifications`

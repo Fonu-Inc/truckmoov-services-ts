@@ -60,6 +60,7 @@ export class UpdateProfileUseCase {
       email: actor.email,
       tenantId: actor.tenantId,
       role: actor.role,
+      accountStatus: actor.accountStatus,
       profile: mergedProfile,
     };
   }

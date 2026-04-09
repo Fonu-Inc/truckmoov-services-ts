@@ -18,7 +18,13 @@ export class CompleteProfileUseCase {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async execute(command: CompleteProfileCommand): Promise<{ message: string }> {
+  async execute(command: CompleteProfileCommand): Promise<{
+    message: string;
+    userId: string;
+    tenantId: string;
+    email: string;
+    role: string;
+  }> {
     const user = await this.userRepo.findByVerificationToken(command.token);
     if (!user) throw new InvalidVerificationTokenError();
 
@@ -37,6 +43,12 @@ export class CompleteProfileUseCase {
       },
     });
 
-    return { message: "Profile completed successfully" };
+    return {
+      message: "Profile completed successfully",
+      userId: user.id,
+      tenantId: user.tenantId,
+      email: user.email,
+      role: user.role,
+    };
   }
 }

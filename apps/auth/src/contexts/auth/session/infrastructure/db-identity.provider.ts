@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuthUser } from "../domain/entities/auth-user.entity";
+import { ForbiddenError } from "../domain/errors/forbidden.error";
 import { InvalidCredentialsError } from "../domain/errors/invalid-credentials.error";
 import type { IdentityProvider } from "../domain/ports/identity-provider.port";
 import {
@@ -20,6 +21,9 @@ export class DbIdentityProvider implements IdentityProvider {
   async verifyCredentials(email: string, password: string): Promise<AuthUser> {
     const stored = await this.userRepo.findByEmail(email);
     if (!stored) throw new InvalidCredentialsError();
+    if (stored.accountStatus === "disabled") {
+      throw new ForbiddenError("This account has been disabled");
+    }
 
     const valid = await this.passwordHasher.verify(password, stored.passwordHash);
     if (!valid) throw new InvalidCredentialsError();

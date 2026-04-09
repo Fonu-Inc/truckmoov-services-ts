@@ -17,11 +17,14 @@ import {
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { resolveActorUser } from "./support/resolve-actor-user";
 
+const SYSTEM_TENANT_ID = "system";
+
 type OrganizationUserView = {
   userId: string;
   email: string;
   role: string;
   tenantId: string;
+  accountStatus: "enabled" | "disabled";
   status: "active" | "inactive";
   lastActiveAt: string | null;
   profile: StoredUser["profile"];
@@ -47,6 +50,9 @@ export class ListOrganizationUsersUseCase {
 
     if (!hasPermission(actor.role as Role, Permission.USER_READ)) {
       throw new ForbiddenError();
+    }
+    if (actor.tenantId === SYSTEM_TENANT_ID) {
+      throw new ForbiddenError("System accounts must use the system admin endpoints");
     }
 
     const users = await this.userRepo.findAllByTenant(actor.tenantId);
@@ -75,6 +81,7 @@ export class ListOrganizationUsersUseCase {
       email: user.email,
       role: user.role,
       tenantId: user.tenantId,
+      accountStatus: user.accountStatus ?? "enabled",
       status: activity?.hasActiveSession ? "active" : "inactive",
       lastActiveAt: activity?.lastActiveAt?.toISOString() ?? null,
       profile: user.profile,

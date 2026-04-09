@@ -30,6 +30,7 @@ export class GetProfileUseCase {
       email: actor.email,
       tenantId: actor.tenantId,
       role: actor.role,
+      accountStatus: actor.accountStatus,
       profile: actor.profile,
     };
   }

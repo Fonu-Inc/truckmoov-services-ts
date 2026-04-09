@@ -45,6 +45,11 @@ export class ForgotPasswordUseCase {
       resetToken: token,
     });
 
-    return { message: "Password reset link sent to your email" };
+    return {
+      message: "Password reset link sent to your email",
+      userId: user.id,
+      tenantId: user.tenantId,
+      email: user.email,
+    };
   }
 }

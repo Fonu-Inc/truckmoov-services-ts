@@ -105,6 +105,15 @@ export class AppConfigService {
     };
   }
 
+  get superadmin() {
+    return {
+      email: this.config.get<string>("SUPERADMIN_EMAIL", ""),
+      password: this.config.get<string>("SUPERADMIN_PASSWORD", ""),
+      fullName: this.config.get<string>("SUPERADMIN_FULL_NAME", "Truckmoov Super Admin"),
+      tenantId: this.config.get<string>("SUPERADMIN_TENANT_ID", "system"),
+    };
+  }
+
   get sentry() {
     return {
       dsn: this.config.get<string>("SENTRY_DSN", ""),

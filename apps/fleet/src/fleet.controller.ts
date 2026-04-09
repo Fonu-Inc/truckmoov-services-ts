@@ -29,8 +29,10 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
+import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { GeofenceService } from "@shared/geofence";
 import { IdempotencyGuard, RequireIdempotency, Role, Roles, RolesGuard } from "@shared/rbac";
+import { randomUUID } from "node:crypto";
 import {
   BulkImportDriversDto,
   CreateDriverDto,
@@ -176,7 +178,7 @@ import {
 const HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
 
 type FleetRequestContext = {
-  user?: { tenantId?: string; userId?: string };
+  user?: { tenantId?: string; userId?: string; role?: string; email?: string };
   ip?: string;
 };
 
@@ -268,6 +270,7 @@ export class FleetController {
     @Inject(DeleteFuelRecordUseCase) private readonly deleteFuelRecordUseCase: DeleteFuelRecordUseCase,
     @Inject(FuelMetricsUseCase) private readonly fuelMetricsUseCase: FuelMetricsUseCase,
     @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
+    @Inject(EVENT_BUS) private readonly bus: EventBus,
   ) {}
 
   private serializeAlert(alert: FleetAlert) {
@@ -313,10 +316,21 @@ export class FleetController {
   async setGeofence(
     @Param("vehicleId") vehicleId: string,
     @Body() payload: SetGeofenceDto,
+    @Req() req: FleetRequestContext,
   ) {
     this.geofenceService.set(vehicleId, {
       northeast: { lat: payload.northeast.lat, lng: payload.northeast.lng },
       southwest: { lat: payload.southwest.lat, lng: payload.southwest.lng },
+    });
+    await this.recordActivity(req, {
+      entityType: "geofence",
+      entityId: vehicleId,
+      action: "vehicle.geofence.updated",
+      summary: "Vehicle geofence updated",
+      metadata: {
+        northeast: payload.northeast,
+        southwest: payload.southwest,
+      },
     });
     return { status: true, message: "geofence registered" };
   }
@@ -477,7 +491,23 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: DeviceResponse })
   async createDevice(@Body() payload: CreateDeviceDto, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
-    return this.createDeviceUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<DeviceResponse>;
+    const result = await this.createDeviceUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: result.id,
+      action: "device.created",
+      summary: "Device registered",
+      metadata: {
+        imei: result.imei,
+        manufacturer: result.manufacturer,
+        model: result.model,
+        lifecycleStatus: result.lifecycleStatus,
+      },
+    });
+    return result as unknown as DeviceResponse;
   }
 
   @Post("devices/import")
@@ -490,7 +520,22 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: BulkDeviceImportResponse })
   async bulkImportDevices(@Body() payload: BulkImportDevicesDto, @Req() req: FleetRequestContext): Promise<BulkDeviceImportResponse> {
-    return this.bulkImportDevicesUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkDeviceImportResponse>;
+    const result = await this.bulkImportDevicesUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: randomUUID(),
+      action: "device.bulk_imported",
+      summary: "Device bulk import completed",
+      metadata: {
+        created: result.created,
+        updated: result.updated,
+        total: result.total,
+      },
+    });
+    return result as unknown as BulkDeviceImportResponse;
   }
 
   @Get("devices/:id")
@@ -517,10 +562,19 @@ export class FleetController {
   async updateDevice(
     @Param("id") id: string,
     @Body() payload: UpdateDeviceDto,
+    @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.updateDeviceUseCase.execute({ id, ...payload }),
-    ) as unknown as Promise<DeviceResponse>;
+    ) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.updated",
+      summary: "Device updated",
+      metadata: payload as Record<string, unknown>,
+    });
+    return result;
   }
 
   @Patch("devices/:id/lifecycle")
@@ -535,10 +589,19 @@ export class FleetController {
   async setDeviceLifecycleStatus(
     @Param("id") id: string,
     @Body() payload: SetDeviceLifecycleStatusDto,
+    @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.setDeviceLifecycleStatusUseCase.execute({ id, lifecycleStatus: payload.lifecycleStatus }),
-    ) as unknown as Promise<DeviceResponse>;
+    ) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.lifecycle.updated",
+      summary: "Device lifecycle status updated",
+      metadata: { lifecycleStatus: payload.lifecycleStatus },
+    });
+    return result;
   }
 
   @Get("devices/:id/assignment/validate")
@@ -570,10 +633,19 @@ export class FleetController {
   async assignDeviceToVehicle(
     @Param("id") id: string,
     @Body() payload: AssignDeviceToVehicleDto,
+    @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.assignDeviceToVehicleUseCase.execute({ deviceId: id, vehicleId: payload.vehicleId }),
-    ) as unknown as Promise<DeviceResponse>;
+    ) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.assigned",
+      summary: "Device assigned to vehicle",
+      metadata: { vehicleId: payload.vehicleId },
+    });
+    return result;
   }
 
   @Delete("devices/:id/assignment")
@@ -582,10 +654,17 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign device from vehicle" })
   @ApiOkResponse({ type: DeviceResponse })
-  async unassignDeviceFromVehicle(@Param("id") id: string): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() =>
+  async unassignDeviceFromVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.unassignDeviceFromVehicleUseCase.execute(id),
-    ) as unknown as Promise<DeviceResponse>;
+    ) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.unassigned",
+      summary: "Device unassigned from vehicle",
+    });
+    return result;
   }
 
   @Delete("devices/:id")
@@ -594,10 +673,17 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete device" })
   @ApiOkResponse({ type: DeviceResponse })
-  async deleteDevice(@Param("id") id: string): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() =>
+  async deleteDevice(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.deleteDeviceUseCase.execute(id),
-    ) as unknown as Promise<DeviceResponse>;
+    ) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.deleted",
+      summary: "Device deleted",
+    });
+    return result;
   }
 
   /** Retrieve GPS devices currently registered against fleet vehicles */
@@ -640,7 +726,23 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: VehicleResponse })
   async createVehicle(@Body() payload: CreateVehicleDto, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
-    return this.createVehicleUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<VehicleResponse>;
+    const result = await this.createVehicleUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: result.id,
+      action: "vehicle.created",
+      summary: "Vehicle created",
+      metadata: {
+        plateNumber: result.plateNumber,
+        registrationNumber: result.registrationNumber,
+        model: result.model,
+        status: result.status,
+      },
+    });
+    return result as unknown as VehicleResponse;
   }
 
   /** Bulk onboarding for fleet inventory imports */
@@ -654,7 +756,22 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: BulkVehicleImportResponse })
   async bulkImportVehicles(@Body() payload: BulkImportVehiclesDto, @Req() req: FleetRequestContext): Promise<BulkVehicleImportResponse> {
-    return this.bulkImportVehiclesUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkVehicleImportResponse>;
+    const result = await this.bulkImportVehiclesUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: randomUUID(),
+      action: "vehicle.bulk_imported",
+      summary: "Vehicle bulk import completed",
+      metadata: {
+        created: result.created,
+        updated: result.updated,
+        total: result.total,
+      },
+    });
+    return result as unknown as BulkVehicleImportResponse;
   }
 
   /** Retrieve a vehicle by ID */
@@ -678,9 +795,17 @@ export class FleetController {
     @Body() payload: UpdateVehicleDto,
     @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.updateVehicleUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
-    ) as unknown as Promise<VehicleResponse>;
+    ) as unknown as VehicleResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: id,
+      action: "vehicle.updated",
+      summary: "Vehicle updated",
+      metadata: payload as Record<string, unknown>,
+    });
+    return result;
   }
 
   /** Activate/deactivate vehicle availability for dispatch */
@@ -693,10 +818,22 @@ export class FleetController {
     description: "Epic C (US-C04): activate/deactivate vehicle availability.",
   })
   @ApiOkResponse({ type: VehicleResponse })
-  async setVehicleStatus(@Param("id") id: string, @Body() payload: SetVehicleStatusDto): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() =>
+  async setVehicleStatus(
+    @Param("id") id: string,
+    @Body() payload: SetVehicleStatusDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<VehicleResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.setVehicleStatusUseCase.execute({ id, status: payload.status }),
-    ) as unknown as Promise<VehicleResponse>;
+    ) as unknown as VehicleResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: id,
+      action: "vehicle.status.updated",
+      summary: "Vehicle status updated",
+      metadata: { status: payload.status },
+    });
+    return result;
   }
 
   /** Assign a driver to a vehicle (US-C03) */
@@ -713,10 +850,19 @@ export class FleetController {
   async assignDriverToVehicle(
     @Param("id") vehicleId: string,
     @Body() payload: AssignDriverToVehicleDto,
+    @Req() req: FleetRequestContext,
   ): Promise<VehicleDriverAssignmentResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.assignDriverToVehicleUseCase.execute({ vehicleId, driverId: payload.driverId }),
-    ) as unknown as Promise<VehicleDriverAssignmentResponse>;
+    ) as unknown as VehicleDriverAssignmentResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: vehicleId,
+      action: "vehicle.driver.assigned",
+      summary: "Driver assigned to vehicle",
+      metadata: { driverId: payload.driverId },
+    });
+    return result;
   }
 
   /** Remove current driver assignment from a vehicle */
@@ -726,10 +872,20 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign driver from vehicle" })
   @ApiOkResponse({ type: VehicleResponse })
-  async unassignDriverFromVehicle(@Param("id") vehicleId: string): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() =>
+  async unassignDriverFromVehicle(
+    @Param("id") vehicleId: string,
+    @Req() req: FleetRequestContext,
+  ): Promise<VehicleResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.unassignDriverFromVehicleUseCase.execute(vehicleId),
-    ) as unknown as Promise<VehicleResponse>;
+    ) as unknown as VehicleResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: vehicleId,
+      action: "vehicle.driver.unassigned",
+      summary: "Driver unassigned from vehicle",
+    });
+    return result;
   }
 
   /** Register or replace GPS hardware mapped to a vehicle */
@@ -745,10 +901,24 @@ export class FleetController {
   async registerGpsDevice(
     @Param("id") vehicleId: string,
     @Body() payload: RegisterGpsDeviceDto,
+    @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.registerVehicleGpsDeviceUseCase.execute({ vehicleId, ...payload }),
-    ) as unknown as Promise<VehicleResponse>;
+    ) as unknown as VehicleResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: vehicleId,
+      action: "vehicle.gps_device.registered",
+      summary: "Vehicle GPS device registered",
+      metadata: {
+        imei: payload.imei,
+        manufacturer: payload.manufacturer,
+        model: payload.model,
+        firmwareVersion: payload.firmwareVersion,
+      },
+    });
+    return result;
   }
 
   /** Remove a vehicle from the fleet */
@@ -758,10 +928,17 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete vehicle" })
   @ApiOkResponse({ type: VehicleResponse })
-  async deleteVehicle(@Param("id") id: string): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() =>
+  async deleteVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.deleteVehicleUseCase.execute(id),
-    ) as unknown as Promise<VehicleResponse>;
+    ) as unknown as VehicleResponse;
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: id,
+      action: "vehicle.deleted",
+      summary: "Vehicle deleted",
+    });
+    return result;
   }
 
   /** Retrieve drivers with optional dispatch-centric filters */
@@ -796,7 +973,22 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: DriverResponse })
   async createDriver(@Body() payload: CreateDriverDto, @Req() req: FleetRequestContext): Promise<DriverResponse> {
-    return this.createDriverUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<DriverResponse>;
+    const result = await this.createDriverUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: result.id,
+      action: "driver.created",
+      summary: "Driver created",
+      metadata: {
+        name: result.name,
+        licenseNumber: result.licenseNumber,
+        status: result.status,
+      },
+    });
+    return result as unknown as DriverResponse;
   }
 
   /** Bulk onboarding for driver records */
@@ -810,7 +1002,22 @@ export class FleetController {
   })
   @ApiCreatedResponse({ type: BulkDriverImportResponse })
   async bulkImportDrivers(@Body() payload: BulkImportDriversDto, @Req() req: FleetRequestContext): Promise<BulkDriverImportResponse> {
-    return this.bulkImportDriversUseCase.execute({ ...payload, tenantId: this.tenantIdFromRequest(req) }) as unknown as Promise<BulkDriverImportResponse>;
+    const result = await this.bulkImportDriversUseCase.execute({
+      ...payload,
+      tenantId: this.tenantIdFromRequest(req),
+    });
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: randomUUID(),
+      action: "driver.bulk_imported",
+      summary: "Driver bulk import completed",
+      metadata: {
+        created: result.created,
+        updated: result.updated,
+        total: result.total,
+      },
+    });
+    return result as unknown as BulkDriverImportResponse;
   }
 
   /** Retrieve a driver by ID */
@@ -834,9 +1041,17 @@ export class FleetController {
     @Body() payload: UpdateDriverDto,
     @Req() req: FleetRequestContext,
   ): Promise<DriverResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.updateDriverUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
-    ) as unknown as Promise<DriverResponse>;
+    ) as unknown as DriverResponse;
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: id,
+      action: "driver.updated",
+      summary: "Driver updated",
+      metadata: payload as Record<string, unknown>,
+    });
+    return result;
   }
 
   /** Activate/deactivate driver availability for dispatch */
@@ -849,13 +1064,27 @@ export class FleetController {
     description: "Epic C (US-C04): activate/deactivate driver availability.",
   })
   @ApiOkResponse({ type: DriverResponse })
-  async setDriverStatus(@Param("id") id: string, @Body() payload: SetDriverStatusDto): Promise<DriverResponse> {
-    return this.runFleetUseCase(() =>
+  async setDriverStatus(
+    @Param("id") id: string,
+    @Body() payload: SetDriverStatusDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<DriverResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.setDriverStatusUseCase.execute({
         id,
         status: normalizeDriverStatus(payload.status) ?? "active",
       }),
-    ) as unknown as Promise<DriverResponse>;
+    ) as unknown as DriverResponse;
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: id,
+      action: "driver.status.updated",
+      summary: "Driver status updated",
+      metadata: {
+        status: normalizeDriverStatus(payload.status) ?? "active",
+      },
+    });
+    return result;
   }
 
   /** Manage WhatsApp/SMS/voice contact channels used for dispatch communication */
@@ -871,10 +1100,19 @@ export class FleetController {
   async updateDriverContactChannels(
     @Param("id") id: string,
     @Body() payload: UpdateDriverContactChannelsDto,
+    @Req() req: FleetRequestContext,
   ): Promise<DriverResponse> {
-    return this.runFleetUseCase(() =>
+    const result = await this.runFleetUseCase(() =>
       this.updateDriverContactChannelsUseCase.execute({ id, channels: payload }),
-    ) as unknown as Promise<DriverResponse>;
+    ) as unknown as DriverResponse;
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: id,
+      action: "driver.contact_channels.updated",
+      summary: "Driver contact channels updated",
+      metadata: payload as Record<string, unknown>,
+    });
+    return result;
   }
 
   /** Remove a driver record */
@@ -884,10 +1122,17 @@ export class FleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete driver" })
   @ApiOkResponse({ type: DriverResponse })
-  async deleteDriver(@Param("id") id: string): Promise<DriverResponse> {
-    return this.runFleetUseCase(() =>
+  async deleteDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DriverResponse> {
+    const result = await this.runFleetUseCase(() =>
       this.deleteDriverUseCase.execute(id),
-    ) as unknown as Promise<DriverResponse>;
+    ) as unknown as DriverResponse;
+    await this.recordActivity(req, {
+      entityType: "driver",
+      entityId: id,
+      action: "driver.deleted",
+      summary: "Driver deleted",
+    });
+    return result;
   }
 
   /** List jobs for dispatch search/filter use-cases */
@@ -964,11 +1209,19 @@ export class FleetController {
     @Query("status") status = "assigned",
     @Req() req: FleetRequestContext,
   ): Promise<JobStatusResponse> {
-    return this.publishJobStatusChangedUseCase.execute({
+    const result = await this.publishJobStatusChangedUseCase.execute({
       jobId,
       status,
       tenantId: this.tenantIdFromRequest(req),
-    }) as unknown as Promise<JobStatusResponse>;
+    }) as unknown as JobStatusResponse;
+    await this.recordActivity(req, {
+      entityType: "job",
+      entityId: jobId,
+      action: "job.status.event.published",
+      summary: "Job status event published",
+      metadata: { status },
+    });
+    return result;
   }
 
   @Get("alerts/stats")
@@ -1017,6 +1270,17 @@ export class FleetController {
         id,
         by === "system" ? req.user?.userId ?? "system" : by,
       );
+      await this.recordActivity(req, {
+        entityType: "alert",
+        entityId: id,
+        action: "alert.acknowledged",
+        summary: "Alert acknowledged",
+        metadata: {
+          status: alert.status,
+          type: alert.type,
+          vehicleId: alert.vehicleId,
+        },
+      });
       return { status: true, message: "success", data: this.serializeAlert(alert) } as unknown as AlertResponse;
     } catch (e) {
       if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
@@ -1039,6 +1303,17 @@ export class FleetController {
         id,
         by === "system" ? req.user?.userId ?? "system" : by,
       );
+      await this.recordActivity(req, {
+        entityType: "alert",
+        entityId: id,
+        action: "alert.resolved",
+        summary: "Alert resolved",
+        metadata: {
+          status: alert.status,
+          type: alert.type,
+          vehicleId: alert.vehicleId,
+        },
+      });
       return { status: true, message: "success", data: this.serializeAlert(alert) } as unknown as AlertResponse;
     } catch (e) {
       if (e instanceof AlertNotFoundError) throw new NotFoundException(e.message);
@@ -1097,6 +1372,20 @@ export class FleetController {
       tenantId: this.tenantIdFromRequest(req),
       recordedBy: req.user?.userId ?? "system",
     });
+    const data = record.toPrimitives();
+      await this.recordActivity(req, {
+        entityType: "fuel",
+        entityId: data.id,
+        action: "fuel.recorded",
+        summary: "Fuel transaction recorded",
+        metadata: {
+          vehicleId: data.vehicleId,
+          driverId: data.driverId,
+          liters: data.liters,
+          totalCost: data.totalCost,
+          station: data.station,
+        },
+      });
     return { status: true, message: "success", data: record.toPrimitives() };
   }
 
@@ -1170,6 +1459,20 @@ export class FleetController {
         updatedBy: req.user?.userId ?? "system",
         ...dto,
       });
+      const data = record.toPrimitives();
+      await this.recordActivity(req, {
+        entityType: "fuel",
+        entityId: id,
+        action: "fuel.updated",
+        summary: "Fuel transaction updated",
+        metadata: {
+          vehicleId: data.vehicleId,
+          driverId: data.driverId,
+          liters: data.liters,
+          totalCost: data.totalCost,
+          station: data.station,
+        },
+      });
       return { status: true, message: "success", data: record.toPrimitives() };
     } catch (err) {
       if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
@@ -1186,6 +1489,12 @@ export class FleetController {
   ): Promise<{ status: boolean; message: string }> {
     try {
       await this.deleteFuelRecordUseCase.execute(id, this.tenantIdFromRequest(req), req.user?.userId ?? "system");
+      await this.recordActivity(req, {
+        entityType: "fuel",
+        entityId: id,
+        action: "fuel.deleted",
+        summary: "Fuel transaction deleted",
+      });
       return { status: true, message: "deleted" };
     } catch (err) {
       if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
@@ -1197,12 +1506,23 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN)
   @ApiOperation({ summary: "Set fuel efficiency threshold by vehicle type — N08" })
   @ApiOkResponse({ type: FuelThresholdResponse })
-  setFuelThreshold(
+  async setFuelThreshold(
     @Param("vehicleType") vehicleType: string,
     @Body() dto: FuelThresholdDto,
-  ): FuelThresholdResponse {
+    @Req() req: FleetRequestContext,
+  ): Promise<FuelThresholdResponse> {
     try {
       const threshold = this.fuelThresholdService.set(vehicleType, dto.minKmPerLiter);
+      await this.recordActivity(req, {
+        entityType: "fuel",
+        entityId: vehicleType,
+        action: "fuel.threshold.updated",
+        summary: "Fuel efficiency threshold updated",
+        metadata: {
+          vehicleType,
+          minKmPerLiter: dto.minKmPerLiter,
+        },
+      });
       return { status: true, message: "success", data: threshold };
     } catch (err) {
       throw new BadRequestException((err as Error).message);
@@ -1237,6 +1557,18 @@ export class FleetController {
       contentType: file.mimetype,
       buffer: file.buffer,
       uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
+    });
+    await this.recordActivity(req, {
+      entityType: "document",
+      entityId: doc.id,
+      action: "document.uploaded",
+      summary: "Document uploaded",
+      metadata: {
+        entityType,
+        entityId,
+        docType,
+        filename: file.originalname,
+      },
     });
 
     return { status: true, message: "uploaded", data: { ...doc.toPrimitives(), uploadedAt: doc.uploadedAt.toISOString(), expiresAt: doc.expiresAt?.toISOString() ?? null } } as unknown as DocumentResponse;
@@ -1292,7 +1624,7 @@ export class FleetController {
   @Get("audit")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Activity/audit log — M06" })
-  @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "alert", "document", "geofence"] })
+  @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "device", "fuel", "alert", "document", "geofence"] })
   @ApiQuery({ name: "entityId", required: false, type: String })
   @ApiQuery({ name: "action", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
@@ -1311,6 +1643,58 @@ export class FleetController {
       limit: limit ? parseInt(limit, 10) : undefined,
     });
     return { status: true, message: "success", data: entries };
+  }
+
+  private async recordActivity(
+    req: FleetRequestContext,
+    activity: {
+      entityType: AuditEntityType;
+      entityId: string;
+      action: string;
+      summary: string;
+      metadata?: Record<string, unknown>;
+      service?: string;
+      occurredAt?: string;
+    },
+  ): Promise<void> {
+    try {
+      const tenantId = this.tenantIdFromRequest(req);
+      const actorId = req.user?.userId ?? "system";
+      const actorRole = req.user?.role ?? "system";
+      const occurredAt = activity.occurredAt ?? new Date().toISOString();
+      const metadata = { ...(activity.metadata ?? {}) };
+
+      this.auditLog.record({
+        tenantId,
+        entityType: activity.entityType,
+        entityId: activity.entityId,
+        action: activity.action,
+        actorId,
+        metadata,
+        occurredAt,
+      });
+
+      await this.bus.publish(`tm.${tenantId}.activity.logged`, {
+        id: randomUUID(),
+        type: "activity.logged",
+        version: 1,
+        occurred_at: occurredAt,
+        tenant_id: tenantId,
+        actor: { id: actorId, role: actorRole },
+        data: {
+          service: activity.service ?? "fleet",
+          action: activity.action,
+          entity_type: activity.entityType,
+          entity_id: activity.entityId,
+          summary: activity.summary,
+          metadata,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `fleet_activity_log_failed:${activity.action}:${(error as Error).message}`,
+      );
+    }
   }
 
   private tenantIdFromRequest(req: FleetRequestContext): string {

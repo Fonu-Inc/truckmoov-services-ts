@@ -36,6 +36,12 @@ describe("RolesGuard", () => {
     );
   });
 
+  it("allows super admin regardless of route role list", () => {
+    expect(makeGuard(["DISPATCHER"]).canActivate(makeCtx("SUPER_ADMIN"))).toBe(
+      true,
+    );
+  });
+
   it("rejects unrelated canonical roles", () => {
     expect(() =>
       makeGuard(["admin"]).canActivate(makeCtx("DISPATCHER")),

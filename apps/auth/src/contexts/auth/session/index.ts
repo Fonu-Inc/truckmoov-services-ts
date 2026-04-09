@@ -43,6 +43,8 @@ export { AuthPersistenceHealthCheck } from "./infrastructure/auth-health-check.a
 
 // Use cases
 export { LoginUseCase } from "./application/use-cases/login.use-case";
+export { ChangeSystemPasswordUseCase } from "./application/use-cases/change-system-password.use-case";
+export { CreateSystemAdminUseCase } from "./application/use-cases/create-system-admin.use-case";
 export { RefreshUseCase } from "./application/use-cases/refresh.use-case";
 export { GetMeUseCase } from "./application/use-cases/get-me.use-case";
 export { GetHealthUseCase } from "./application/use-cases/get-health.use-case";
@@ -61,6 +63,9 @@ export { GetProfileUseCase } from "./application/use-cases/get-profile.use-case"
 export { UpdateProfileUseCase } from "./application/use-cases/update-profile.use-case";
 export { ListOrganizationUsersUseCase } from "./application/use-cases/list-organization-users.use-case";
 export { UpdateOrganizationUserUseCase } from "./application/use-cases/update-organization-user.use-case";
+export { UpdateOrganizationUserStatusUseCase } from "./application/use-cases/update-organization-user-status.use-case";
+export { ListSystemAdminsUseCase } from "./application/use-cases/list-system-admins.use-case";
+export { UpdateSystemAdminStatusUseCase } from "./application/use-cases/update-system-admin-status.use-case";
 export { ResendPendingInviteUseCase } from "./application/use-cases/resend-pending-invite.use-case";
 export { RemoveOrganizationUserUseCase } from "./application/use-cases/remove-organization-user.use-case";
 export { GetNotificationPreferencesUseCase } from "./application/use-cases/get-notification-preferences.use-case";

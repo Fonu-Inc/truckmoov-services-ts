@@ -2,6 +2,8 @@ import { Permission } from "./permission";
 import { Role } from "./role";
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+  [Role.SUPER_ADMIN]: Object.values(Permission),
+  [Role.SYSTEM_ADMIN]: [],
   [Role.ENTERPRISE_ADMIN]: Object.values(Permission),
 
   [Role.AGGREGATOR_ADMIN]: [
