@@ -1,6 +1,7 @@
 # truckmoov-services-ts
 
 NestJS monorepo containing:
+
 - Auth service (`:3001`)
 - Fleet service (`:3002`)
 
@@ -13,10 +14,12 @@ pnpm dev
 ```
 
 Persistence backend selection:
+
 - `PERSISTENCE_BACKEND=mikro-orm` (default, durable adapters)
 - `PERSISTENCE_BACKEND=in-memory` (fast local/test mode)
 
 CORS selection:
+
 - `CORS_ALLOWED_ORIGINS` accepts comma-separated origins.
 - Default local value allows web + Kong dev hosts (`localhost` / `127.0.0.1` on `5173` and `8000`).
 - Default invite email frontend route is `INVITE_ACCEPT_PATH=/auth/invite`.
@@ -24,6 +27,7 @@ CORS selection:
 ## Environment variables
 
 Core vars used by both services:
+
 - `AUTH_PORT`, `FLEET_PORT`: HTTP ports for the two Nest apps.
 - `NODE_ENV`: environment name.
 - `PERSISTENCE_BACKEND`: `mikro-orm` for durable storage, `in-memory` for fast local/demo runs.
@@ -33,10 +37,12 @@ Core vars used by both services:
 - `NATS_URL`, `NATS_STREAM`: event bus connection for fleet and auth integrations. Use a JetStream-safe stream name such as `truckmoov_events`.
 
 Database vars:
+
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - Required whenever `PERSISTENCE_BACKEND=mikro-orm`.
 
 Auth-specific delivery vars:
+
 - `FRONTEND_URL`: base URL used to build invite and verification links. Local default should match the Vite app (`http://localhost:5173`).
 - `EMAIL_VERIFICATION_PATH`, `INVITE_ACCEPT_PATH`: frontend routes appended to `FRONTEND_URL`.
 - `MAIL_TRANSPORT`: `smtp`, `ses`, or `null`.
@@ -46,11 +52,13 @@ Auth-specific delivery vars:
 - `SUPERADMIN_FULL_NAME`, `SUPERADMIN_TENANT_ID`: optional overrides for the seeded superadmin profile. Recommended tenant ID is `system`.
 
 Fleet runtime and webhook vars:
+
 - `REPORT_INTERVAL_HOURS`, `ALERT_ESCALATION_MINUTES`, `DOCUMENT_RETENTION_DAYS`
 - `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST`, `VEHICLE_HEALTH_THRESHOLD_MS`
 - `CPAAS_WEBHOOK_SECRET`, `CPAAS_IP_ALLOWLIST`, `ERP_WEBHOOK_SECRET`
 
 Shared integrations:
+
 - `OBJECT_STORAGE_PROVIDER`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ENDPOINT`
 - `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_PUBLIC_BUCKET`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`
 - `OBJECT_STORAGE_FORCE_PATH_STYLE`, `OBJECT_STORAGE_PUBLIC_BASE_URL`, `OBJECT_STORAGE_PREFIX`
@@ -58,10 +66,12 @@ Shared integrations:
 - `SENTRY_DSN`, `SENTRY_ENVIRONMENT`
 
 Local recommendation:
+
 - use `PERSISTENCE_BACKEND=mikro-orm` when you want the full local stack against Postgres
 - use `MAIL_TRANSPORT=null` and `SMS_TRANSPORT=null` if you only need app behavior without live delivery providers
 
 Run quality checks:
+
 ```bash
 pnpm lint
 pnpm build
@@ -71,17 +81,19 @@ pnpm test
 ```
 
 ## Health endpoints
+
 - `GET http://localhost:3001/auth/health`
 - `GET http://localhost:3002/fleet/health`
 - `GET http://localhost:3001/docs/auth`
 - `GET http://localhost:3002/docs/fleet`
 
 ## Auth profile/preferences endpoints
+
 - Bootstrapped superadmin login
   - Configure `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD`.
   - Start the auth service once and the account will be created or repaired automatically.
   - Tenant users continue to use `POST /auth/login`.
-  - The seeded superadmin must use `POST /auth/superadmin/login` and is rejected by the tenant login endpoint.
+  - Superadmin and system-admin accounts both use `POST /auth/system/login` and are rejected by the tenant login endpoint.
 - `GET /auth/invite/validate?token=...`
 - `POST /auth/register/invited`
   The invite token is authoritative for the email address. The client should send `inviteToken`, `fullName`, and `password`.
@@ -103,6 +115,7 @@ pnpm test
 - `PATCH /auth/organization/settings` (enterprise admin role)
 
 ## Fleet master data endpoints (Epic C)
+
 - Vehicles
   - `GET /fleet/vehicles?query=&status=&assigned=`
   - `GET /fleet/devices?query=&manufacturer=&status=&lifecycleStatus=&assigned=`
@@ -146,7 +159,9 @@ pnpm test
   - `POST /fleet/events/job-status?jobId=&status=`
 
 ## Through Kong
+
 With `truckmoov-platform` running:
+
 - `GET http://localhost:8000/auth/health`
 - `GET http://localhost:8000/fleet/health`
 - `GET http://localhost:8000/docs`
@@ -154,9 +169,11 @@ With `truckmoov-platform` running:
 - `GET http://localhost:8000/docs/fleet`
 
 ## Migration strategy
+
 MikroORM is the chosen migration strategy for this bootstrap.
 
 ## DDD notes
+
 - Bounded contexts: `auth`, `fleet`
 - DDD architecture guide: `docs/ddd-architecture.md`
 - Implemented layered slices:

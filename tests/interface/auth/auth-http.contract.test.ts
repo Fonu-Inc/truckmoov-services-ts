@@ -220,9 +220,9 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(403);
   });
 
-  it('POST /auth/superadmin/login authenticates the bootstrapped superadmin', async () => {
+  it('POST /auth/system/login authenticates the bootstrapped superadmin', async () => {
     const loginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -234,7 +234,7 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.body.user.tenantId).toBe('system');
   });
 
-  it('POST /auth/superadmin/login rejects tenant credentials', async () => {
+  it('POST /auth/system/login rejects tenant credentials', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -246,7 +246,7 @@ describe('Auth HTTP contract', () => {
       );
 
     const loginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'tenant-login-only@contract.com',
         password: 'Str0ngPass!',
@@ -255,20 +255,9 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(403);
   });
 
-  it('POST /auth/admin/login rejects superadmin credentials', async () => {
-    const loginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
-      .send({
-        email: 'superadmin@truckmoov.com',
-        password: 'SuperAdmin123!',
-      });
-
-    expect(loginRes.status).toBe(403);
-  });
-
-  it('POST /auth/superadmin/admins creates a system admin account and GET /auth/superadmin/admins lists it', async () => {
+  it('POST /auth/system/admins creates a system admin account and GET /auth/system/admins lists it', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -278,7 +267,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin One',
@@ -294,7 +283,7 @@ describe('Auth HTTP contract', () => {
     expect(createRes.body.user.accountStatus).toBe('enabled');
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/superadmin/admins')
+      .get('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(listRes.status).toBe(200);
@@ -311,9 +300,9 @@ describe('Auth HTTP contract', () => {
     );
   });
 
-  it('POST /auth/admin/login authenticates a system admin and PATCH /auth/system/change-password rotates credentials', async () => {
+  it('POST /auth/system/login authenticates a system admin and PATCH /auth/system/change-password rotates credentials', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -321,7 +310,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin Two',
@@ -340,7 +329,7 @@ describe('Auth HTTP contract', () => {
     expect(tenantLoginRes.status).toBe(403);
 
     const adminLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!',
@@ -363,7 +352,7 @@ describe('Auth HTTP contract', () => {
     expect(changePasswordRes.body.refreshToken).toBeTypeOf('string');
 
     const oldPasswordLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!',
@@ -372,7 +361,7 @@ describe('Auth HTTP contract', () => {
     expect(oldPasswordLoginRes.status).toBe(401);
 
     const newPasswordLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!Updated',
@@ -381,9 +370,9 @@ describe('Auth HTTP contract', () => {
     expect(newPasswordLoginRes.status).toBe(201);
   });
 
-  it('PATCH /auth/superadmin/admins/:userId/status suspends and reactivates a system admin account', async () => {
+  it('PATCH /auth/system/admins/:userId/status suspends and reactivates a system admin account', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -391,7 +380,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin Three',
@@ -403,7 +392,7 @@ describe('Auth HTTP contract', () => {
     const userId = createRes.body.user.userId as string;
 
     const disableRes = await request(app.getHttpServer())
-      .patch(`/auth/superadmin/admins/${userId}/status`)
+      .patch(`/auth/system/admins/${userId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ accountStatus: 'disabled' });
 
@@ -411,7 +400,7 @@ describe('Auth HTTP contract', () => {
     expect(disableRes.body.user.accountStatus).toBe('disabled');
 
     const disabledLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'sysadmin3@truckmoov.com',
         password: 'Adm1nPass!',
@@ -420,7 +409,7 @@ describe('Auth HTTP contract', () => {
     expect(disabledLoginRes.status).toBe(403);
 
     const enableRes = await request(app.getHttpServer())
-      .patch(`/auth/superadmin/admins/${userId}/status`)
+      .patch(`/auth/system/admins/${userId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ accountStatus: 'enabled' });
 
@@ -428,7 +417,7 @@ describe('Auth HTTP contract', () => {
     expect(enableRes.body.user.accountStatus).toBe('enabled');
 
     const enabledLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'sysadmin3@truckmoov.com',
         password: 'Adm1nPass!',
@@ -439,7 +428,7 @@ describe('Auth HTTP contract', () => {
 
   it('GET /auth/system/activity-log returns system-scoped activity and tenant activity log rejects system accounts', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -449,7 +438,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Audit Admin',
@@ -487,7 +476,7 @@ describe('Auth HTTP contract', () => {
 
   it('POST /auth/system/tenants creates a tenant onboarding record and sends the bootstrap invite', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -559,7 +548,7 @@ describe('Auth HTTP contract', () => {
 
   it('GET /auth/system/tenants/summary and /auth/system/tenants return tenant management data', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -569,7 +558,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Tenant Admin',
@@ -684,7 +673,7 @@ describe('Auth HTTP contract', () => {
     );
 
     const systemAdminLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'system-tenant-admin@truckmoov.com',
         password: 'Adm1nPass!',
@@ -707,7 +696,7 @@ describe('Auth HTTP contract', () => {
 
   it('GET /auth/system/tenants/export returns a CSV export', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -785,7 +774,7 @@ describe('Auth HTTP contract', () => {
   });
   it('GET /auth/system/reference-data/tenant-onboarding and tenant detail/status endpoints work', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -922,7 +911,7 @@ describe('Auth HTTP contract', () => {
     expect(tenantRegisterRes.status).toBe(201);
 
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/login')
+      .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -932,7 +921,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/superadmin/admins')
+      .post('/auth/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Dashboard Admin',
@@ -965,7 +954,7 @@ describe('Auth HTTP contract', () => {
     expect(systemDashboardRes.body.data.generatedAt).toBeTypeOf('string');
 
     const systemAdminLoginRes = await request(app.getHttpServer())
-      .post('/auth/admin/login')
+      .post('/auth/system/login')
       .send({
         email: 'system-dashboard-admin@truckmoov.com',
         password: 'Adm1nPass!',

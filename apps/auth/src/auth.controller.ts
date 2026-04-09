@@ -348,50 +348,33 @@ export class AuthController {
     return result as unknown as AuthResponse;
   }
 
-  /** Authenticate a platform superadmin with email and password */
-  @Post('superadmin/login')
-  async superadminLogin(
+  /** Authenticate a system account with email and password */
+  @Post('system/login')
+  async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
   ): Promise<AuthResponse> {
     const result = await this.runAuthUseCase(() =>
-      this.loginUseCase.executeForAudience(payload, 'superadmin'),
+      this.loginUseCase.executeForAudience(payload, 'system'),
     );
     await this.tryRecordActivity({
       tenantId: result.user.tenantId,
       service: 'auth',
-      action: 'superadmin.logged_in',
+      action:
+        result.user.role === 'SUPER_ADMIN'
+          ? 'superadmin.logged_in'
+          : 'admin.logged_in',
       entityType: 'user',
       entityId: result.user.id,
-      summary: 'Super admin signed in',
+      summary:
+        result.user.role === 'SUPER_ADMIN'
+          ? 'Super admin signed in'
+          : 'System admin signed in',
       actorId: result.user.id,
       actorRole: result.user.role,
       metadata: { email: result.user.email },
     });
     return result as unknown as AuthResponse;
   }
-
-  /** Authenticate a system admin with email and password */
-  @Post('admin/login')
-  async adminLogin(
-    @Body(BodyOrDataPipe) payload: LoginDto,
-  ): Promise<AuthResponse> {
-    const result = await this.runAuthUseCase(() =>
-      this.loginUseCase.executeForAudience(payload, 'admin'),
-    );
-    await this.tryRecordActivity({
-      tenantId: result.user.tenantId,
-      service: 'auth',
-      action: 'admin.logged_in',
-      entityType: 'user',
-      entityId: result.user.id,
-      summary: 'System admin signed in',
-      actorId: result.user.id,
-      actorRole: result.user.role,
-      metadata: { email: result.user.email },
-    });
-    return result as unknown as AuthResponse;
-  }
-
   /** Exchange a refresh token for a new token pair */
   @Post('refresh')
   async refresh(
@@ -503,12 +486,12 @@ export class AuthController {
   }
 
   /** Super admin creates a system admin account */
-  @Post('superadmin/admins')
+  @Post('system/admins')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create system admin',
     description:
-      'Allows the single super admin to create additional system admin accounts.',
+      'Allows the single super admin to create additional system admin accounts using the shared system admin endpoint surface.',
   })
   @ApiCreatedResponse({ type: OrganizationUserResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -609,12 +592,12 @@ export class AuthController {
   }
 
   /** Super admin lists all system admin accounts */
-  @Get('superadmin/admins')
+  @Get('system/admins')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'List system admins',
     description:
-      'Returns all system admin accounts managed by the super admin.',
+      'Returns all system admin accounts through the shared system admin endpoint surface.',
   })
   @ApiOkResponse({ type: OrganizationUsersResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -638,12 +621,12 @@ export class AuthController {
   }
 
   /** Super admin suspends or reactivates a system admin account */
-  @Patch('superadmin/admins/:userId/status')
+  @Patch('system/admins/:userId/status')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update system admin account status',
     description:
-      'Allows the super admin to suspend or reactivate another system admin account.',
+      'Allows the super admin to suspend or reactivate another system admin account through the shared system admin endpoint surface.',
   })
   @ApiOkResponse({ type: OrganizationUserResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
