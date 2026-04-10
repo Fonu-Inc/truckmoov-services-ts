@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   StandardApiResponse,
   TransformResponseInterceptor,
-} from '../../../libs/shared/openapi/src';
+} from '@shared/openapi';
 
 describe('TransformResponseInterceptor', () => {
   const interceptor = new TransformResponseInterceptor();
