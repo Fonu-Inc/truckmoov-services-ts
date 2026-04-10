@@ -1,5 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { Role } from "@shared/rbac";
+import { Inject, Injectable } from '@nestjs/common';
+import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
   ForbiddenError,
@@ -8,16 +8,20 @@ import {
   ORGANIZATION_SETTINGS_REPOSITORY,
   TOKEN_SERVICE,
   USER_REPOSITORY,
-} from "./contexts/auth/session";
-import { resolveActorUser } from "./contexts/auth/session/application/use-cases/support/resolve-actor-user";
-import { EmailTakenError } from "./contexts/auth/session/domain/errors/email-taken.error";
-import type { AuthNotifier } from "./contexts/auth/session/domain/ports/auth-notifier.port";
-import type { IdGenerator } from "./contexts/auth/session/domain/ports/id-generator.port";
-import type { InviteRepository } from "./contexts/auth/session/domain/ports/invite-repository.port";
-import type { OrganizationSettingsRepository } from "./contexts/auth/session/domain/ports/organization-settings.repository.port";
-import type { TokenService } from "./contexts/auth/session/domain/ports/token-service.port";
-import type { UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
-import { buildDefaultOrganizationSettings } from "./contexts/auth/session/domain/ports/organization-settings.repository.port";
+} from './contexts/auth/session';
+import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
+import { EmailTakenError } from './contexts/auth/session/domain/errors/email-taken.error';
+import type { AuthNotifier } from './contexts/auth/session/domain/ports/auth-notifier.port';
+import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+import type { InviteRepository } from './contexts/auth/session/domain/ports/invite-repository.port';
+import type { OrganizationSettingsRepository } from './contexts/auth/session/domain/ports/organization-settings.repository.port';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { buildDefaultOrganizationSettings } from './contexts/auth/session/domain/ports/organization-settings.repository.port';
+import {
+  DEVICE_MODEL_CATALOG_REPOSITORY,
+  type DeviceModelCatalogRepository,
+} from './device-model-catalog.repository';
 import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
@@ -25,10 +29,14 @@ import {
   type TenantFeatureFlags,
   type TenantOnboardingRepository,
   type TenantOrganizationType,
-} from "./tenant-onboarding.repository";
+} from './tenant-onboarding.repository';
+import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
 
-const SYSTEM_TENANT_ID = "system";
-const SYSTEM_CREATOR_ROLES = new Set<string>([Role.SUPER_ADMIN, Role.SYSTEM_ADMIN]);
+const SYSTEM_TENANT_ID = 'system';
+const SYSTEM_CREATOR_ROLES = new Set<string>([
+  Role.SUPER_ADMIN,
+  Role.SYSTEM_ADMIN,
+]);
 const ONBOARDING_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 
 const ORG_TYPE_TO_BOOTSTRAP_ROLE: Record<TenantOrganizationType, Role> = {
@@ -50,12 +58,13 @@ export type CreateSystemTenantCommand = {
   };
   subscription: {
     planCode: string;
-    billingCycle: "monthly" | "yearly";
+    billingCycle: 'monthly' | 'yearly';
   };
   deviceProvisioning?: {
     provisionNow: boolean;
     numberOfDevices?: number;
     deviceManufacturer?: string;
+    deviceModel?: string;
   };
   simAssignment?: {
     provisionNow: boolean;
@@ -81,18 +90,28 @@ export class CreateSystemTenantUseCase {
     private readonly notifier: AuthNotifier,
     @Inject(ID_GENERATOR)
     private readonly idGenerator: IdGenerator,
+    @Inject(DEVICE_MODEL_CATALOG_REPOSITORY)
+    private readonly deviceModelCatalogRepository: DeviceModelCatalogRepository,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
   ) {}
 
   async execute(command: CreateSystemTenantCommand) {
-    const actor = await resolveActorUser(command.accessToken, this.tokenService, this.userRepository);
-    if (actor.tenantId !== SYSTEM_TENANT_ID || !SYSTEM_CREATOR_ROLES.has(actor.role)) {
-      throw new ForbiddenError("Only system admins can onboard tenants");
+    const actor = await resolveActorUser(
+      command.accessToken,
+      this.tokenService,
+      this.userRepository,
+    );
+    if (
+      actor.tenantId !== SYSTEM_TENANT_ID ||
+      !SYSTEM_CREATOR_ROLES.has(actor.role)
+    ) {
+      throw new ForbiddenError('Only system admins can onboard tenants');
     }
 
     const invitedEmail = command.company.email.trim().toLowerCase();
-    const billingEmail = command.company.billingEmail?.trim().toLowerCase() ?? null;
+    const billingEmail =
+      command.company.billingEmail?.trim().toLowerCase() ?? null;
     const pendingInvite = await this.inviteRepository.findByEmail(invitedEmail);
     const existingUser = await this.userRepository.findByEmail(invitedEmail);
     if (pendingInvite || existingUser) {
@@ -102,8 +121,14 @@ export class CreateSystemTenantUseCase {
     const tenantId = this.idGenerator.generate();
     const onboardingId = this.idGenerator.generate();
     const inviteToken = this.idGenerator.generate();
-    const bootstrapRole = ORG_TYPE_TO_BOOTSTRAP_ROLE[command.company.organizationType];
+    const bootstrapRole =
+      ORG_TYPE_TO_BOOTSTRAP_ROLE[command.company.organizationType];
     const now = new Date();
+    const normalizedDeviceProvisioning =
+      await validateTenantDeviceProvisioningSelection(
+        this.deviceModelCatalogRepository,
+        command.deviceProvisioning,
+      );
 
     const features: TenantFeatureFlags = {
       ...DEFAULT_TENANT_FEATURES,
@@ -116,7 +141,7 @@ export class CreateSystemTenantUseCase {
       invitedEmail,
       organizationType: command.company.organizationType,
       bootstrapRole,
-      status: "pending_activation",
+      status: 'pending_activation',
       company: {
         companyName: command.company.companyName.trim(),
         email: invitedEmail,
@@ -132,22 +157,25 @@ export class CreateSystemTenantUseCase {
       deviceProvisioning: {
         provisionNow: command.deviceProvisioning?.provisionNow ?? false,
         numberOfDevices: command.deviceProvisioning?.provisionNow
-          ? command.deviceProvisioning.numberOfDevices ?? null
+          ? (command.deviceProvisioning.numberOfDevices ?? null)
           : null,
-        deviceManufacturer: command.deviceProvisioning?.provisionNow
-          ? (command.deviceProvisioning.deviceManufacturer as StoredTenantOnboarding["deviceProvisioning"]["deviceManufacturer"] ?? null)
-          : null,
+        deviceManufacturer: normalizedDeviceProvisioning.deviceManufacturer,
+        deviceModel: normalizedDeviceProvisioning.deviceModel,
       },
       simAssignment: {
         provisionNow: command.simAssignment?.provisionNow ?? false,
         numberOfSims: command.simAssignment?.provisionNow
-          ? command.simAssignment.numberOfSims ?? null
+          ? (command.simAssignment.numberOfSims ?? null)
           : null,
         carrier: command.simAssignment?.provisionNow
-          ? (command.simAssignment.carrier as StoredTenantOnboarding["simAssignment"]["carrier"] ?? null)
+          ? ((command.simAssignment
+              .carrier as StoredTenantOnboarding['simAssignment']['carrier']) ??
+            null)
           : null,
         dataPackage: command.simAssignment?.provisionNow
-          ? (command.simAssignment.dataPackage as StoredTenantOnboarding["simAssignment"]["dataPackage"] ?? null)
+          ? ((command.simAssignment
+              .dataPackage as StoredTenantOnboarding['simAssignment']['dataPackage']) ??
+            null)
           : null,
       },
       features,
@@ -158,7 +186,8 @@ export class CreateSystemTenantUseCase {
 
     const settings = buildDefaultOrganizationSettings(tenantId);
     settings.branding.organizationName = onboarding.company.companyName;
-    settings.branding.contactEmail = onboarding.company.billingEmail ?? onboarding.company.email;
+    settings.branding.contactEmail =
+      onboarding.company.billingEmail ?? onboarding.company.email;
     settings.branding.phoneNumber = onboarding.company.phoneNumber;
     settings.branding.address = onboarding.company.businessAddress;
 
@@ -171,7 +200,7 @@ export class CreateSystemTenantUseCase {
       tenantId,
       token: inviteToken,
       invitedBy: actor.id,
-      status: "pending",
+      status: 'pending',
       expiresAt: new Date(now.getTime() + ONBOARDING_INVITE_TTL_MS),
       createdAt: now,
     });
@@ -184,7 +213,7 @@ export class CreateSystemTenantUseCase {
 
     return {
       status: true,
-      message: "Tenant onboarding created successfully",
+      message: 'Tenant onboarding created successfully',
       data: {
         onboardingId,
         tenantId,

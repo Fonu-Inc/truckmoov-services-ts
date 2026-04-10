@@ -1,9 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsEmail,
   IsEnum,
+  IsEmail,
   IsInt,
   IsObject,
   IsOptional,
@@ -12,14 +12,13 @@ import {
   Min,
   ValidateIf,
   ValidateNested,
-} from "class-validator";
+} from 'class-validator';
 import {
-  DEVICE_MANUFACTURERS,
   SIM_CARRIERS,
   SIM_DATA_PACKAGES,
   TENANT_BILLING_CYCLES,
   TENANT_ORGANIZATION_TYPES,
-} from "../tenant-onboarding.repository";
+} from '../tenant-onboarding.repository';
 
 export class TenantCompanyDetailsDto {
   @ApiProperty()
@@ -75,10 +74,17 @@ export class TenantDeviceProvisioningDto {
   @Min(1)
   numberOfDevices?: number;
 
-  @ApiPropertyOptional({ enum: DEVICE_MANUFACTURERS, nullable: true })
+  @ApiPropertyOptional({ nullable: true })
   @ValidateIf((value) => value.provisionNow)
-  @IsEnum(DEVICE_MANUFACTURERS)
-  deviceManufacturer?: (typeof DEVICE_MANUFACTURERS)[number];
+  @IsString()
+  @MaxLength(120)
+  deviceManufacturer?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceModel?: string;
 }
 
 export class TenantSimAssignmentDto {

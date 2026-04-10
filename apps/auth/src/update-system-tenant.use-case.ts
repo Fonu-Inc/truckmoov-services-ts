@@ -11,6 +11,10 @@ import {
 } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import { buildDefaultOrganizationSettings } from './contexts/auth/session/domain/ports/organization-settings.repository.port';
+import {
+  DEVICE_MODEL_CATALOG_REPOSITORY,
+  type DeviceModelCatalogRepository,
+} from './device-model-catalog.repository';
 import type { AuthNotifier } from './contexts/auth/session/domain/ports/auth-notifier.port';
 import { ForbiddenError } from './contexts/auth/session/domain/errors/forbidden.error';
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
@@ -28,6 +32,7 @@ import {
 } from './tenant-onboarding.repository';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
 import { defaultPlanCodeForTier } from './system-subscription-plans';
+import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
 
 const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_MUTATOR_ROLES = new Set<string>([
@@ -68,6 +73,7 @@ export type UpdateSystemTenantCommand = {
     provisionNow?: boolean;
     numberOfDevices?: number;
     deviceManufacturer?: string;
+    deviceModel?: string;
   };
   simAssignment?: {
     provisionNow?: boolean;
@@ -93,6 +99,8 @@ export class UpdateSystemTenantUseCase {
     private readonly notifier: AuthNotifier,
     @Inject(ID_GENERATOR)
     private readonly idGenerator: IdGenerator,
+    @Inject(DEVICE_MODEL_CATALOG_REPOSITORY)
+    private readonly deviceModelCatalogRepository: DeviceModelCatalogRepository,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(GetSystemTenantUseCase)
@@ -209,7 +217,7 @@ export class UpdateSystemTenantUseCase {
           existingOnboarding?.subscription.billingCycle ||
           'monthly',
       },
-      deviceProvisioning: this.mergeDeviceProvisioning(
+      deviceProvisioning: await this.mergeDeviceProvisioning(
         existingOnboarding,
         command,
       ),
@@ -279,14 +287,15 @@ export class UpdateSystemTenantUseCase {
     };
   }
 
-  private mergeDeviceProvisioning(
+  private async mergeDeviceProvisioning(
     existingOnboarding: StoredTenantOnboarding | null,
     command: UpdateSystemTenantCommand,
-  ): StoredTenantOnboarding['deviceProvisioning'] {
+  ): Promise<StoredTenantOnboarding['deviceProvisioning']> {
     const current = existingOnboarding?.deviceProvisioning ?? {
       provisionNow: false,
       numberOfDevices: null,
       deviceManufacturer: null,
+      deviceModel: null,
     };
     if (!command.deviceProvisioning) {
       return current;
@@ -296,17 +305,30 @@ export class UpdateSystemTenantUseCase {
         provisionNow: false,
         numberOfDevices: null,
         deviceManufacturer: null,
+        deviceModel: null,
       };
     }
+
+    const normalizedSelection = await validateTenantDeviceProvisioningSelection(
+      this.deviceModelCatalogRepository,
+      {
+        provisionNow:
+          command.deviceProvisioning.provisionNow ?? current.provisionNow,
+        deviceManufacturer:
+          command.deviceProvisioning.deviceManufacturer ??
+          current.deviceManufacturer,
+        deviceModel:
+          command.deviceProvisioning.deviceModel ?? current.deviceModel,
+      },
+    );
+
     return {
       provisionNow:
         command.deviceProvisioning.provisionNow ?? current.provisionNow,
       numberOfDevices:
         command.deviceProvisioning.numberOfDevices ?? current.numberOfDevices,
-      deviceManufacturer:
-        (command.deviceProvisioning.deviceManufacturer as
-          | StoredTenantOnboarding['deviceProvisioning']['deviceManufacturer']
-          | undefined) ?? current.deviceManufacturer,
+      deviceManufacturer: normalizedSelection.deviceManufacturer,
+      deviceModel: normalizedSelection.deviceModel,
     };
   }
 

@@ -1,7 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { StandardApiResponse } from '@shared/openapi';
 import {
-  DEVICE_MANUFACTURERS,
+  SYSTEM_DEVICE_CATALOG_STATUSES,
+  SYSTEM_DEVICE_FEATURE_KEYS,
+  SYSTEM_DEVICE_PROTOCOL_TYPES,
+} from '../device-model-catalog.repository';
+import {
   SIM_CARRIERS,
   SIM_DATA_PACKAGES,
   TENANT_BILLING_CYCLES,
@@ -444,8 +448,11 @@ export class SystemTenantDeviceProvisioningSchema {
   @ApiProperty({ nullable: true, type: Number })
   numberOfDevices!: number | null;
 
-  @ApiProperty({ enum: DEVICE_MANUFACTURERS, nullable: true })
-  deviceManufacturer!: (typeof DEVICE_MANUFACTURERS)[number] | null;
+  @ApiProperty({ nullable: true })
+  deviceManufacturer!: string | null;
+
+  @ApiProperty({ nullable: true })
+  deviceModel!: string | null;
 }
 
 export class SystemTenantSimAssignmentSchema {
@@ -714,6 +721,34 @@ export class SystemTenantFeatureOptionSchema {
   defaultEnabled!: boolean;
 }
 
+export class SystemOnboardingDeviceCatalogModelSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_PROTOCOL_TYPES })
+  protocolType!: (typeof SYSTEM_DEVICE_PROTOCOL_TYPES)[number];
+
+  @ApiProperty({ nullable: true, type: Number })
+  defaultPort!: number | null;
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_FEATURE_KEYS, isArray: true })
+  supportedFeatures!: (typeof SYSTEM_DEVICE_FEATURE_KEYS)[number][];
+}
+
+export class SystemOnboardingDeviceCatalogManufacturerSchema {
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty({
+    type: SystemOnboardingDeviceCatalogModelSchema,
+    isArray: true,
+  })
+  models!: SystemOnboardingDeviceCatalogModelSchema[];
+}
+
 export class SystemTenantOnboardingReferenceDataSchema {
   @ApiProperty({ enum: TENANT_ORGANIZATION_TYPES, isArray: true })
   organizationTypes!: (typeof TENANT_ORGANIZATION_TYPES)[number][];
@@ -721,8 +756,14 @@ export class SystemTenantOnboardingReferenceDataSchema {
   @ApiProperty({ enum: TENANT_BILLING_CYCLES, isArray: true })
   billingCycles!: (typeof TENANT_BILLING_CYCLES)[number][];
 
-  @ApiProperty({ enum: DEVICE_MANUFACTURERS, isArray: true })
-  deviceManufacturers!: (typeof DEVICE_MANUFACTURERS)[number][];
+  @ApiProperty({ type: String, isArray: true })
+  deviceManufacturers!: string[];
+
+  @ApiProperty({
+    type: SystemOnboardingDeviceCatalogManufacturerSchema,
+    isArray: true,
+  })
+  deviceCatalog!: SystemOnboardingDeviceCatalogManufacturerSchema[];
 
   @ApiProperty({ enum: SIM_CARRIERS, isArray: true })
   simCarriers!: (typeof SIM_CARRIERS)[number][];
@@ -822,4 +863,212 @@ export class SystemTenantDeleteDataSchema {
 export class SystemTenantDeleteResponse extends StandardApiResponse<SystemTenantDeleteDataSchema> {
   @ApiProperty({ type: SystemTenantDeleteDataSchema })
   data!: SystemTenantDeleteDataSchema;
+}
+
+export class SystemDeviceCatalogModelSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_PROTOCOL_TYPES })
+  protocolType!: (typeof SYSTEM_DEVICE_PROTOCOL_TYPES)[number];
+
+  @ApiProperty({ nullable: true, type: Number })
+  defaultPort!: number | null;
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_FEATURE_KEYS, isArray: true })
+  supportedFeatures!: (typeof SYSTEM_DEVICE_FEATURE_KEYS)[number][];
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_CATALOG_STATUSES })
+  status!: (typeof SYSTEM_DEVICE_CATALOG_STATUSES)[number];
+
+  @ApiProperty({ nullable: true })
+  configurationInstructions!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class SystemDeviceCatalogListDataSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: SystemDeviceCatalogModelSchema, isArray: true })
+  models!: SystemDeviceCatalogModelSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceCatalogListResponse extends StandardApiResponse<SystemDeviceCatalogListDataSchema> {
+  @ApiProperty({ type: SystemDeviceCatalogListDataSchema })
+  data!: SystemDeviceCatalogListDataSchema;
+}
+
+export class SystemDeviceCatalogModelResponse extends StandardApiResponse<SystemDeviceCatalogModelSchema> {
+  @ApiProperty({ type: SystemDeviceCatalogModelSchema })
+  data!: SystemDeviceCatalogModelSchema;
+}
+
+export class SystemDeviceCatalogDeleteDataSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  deleted!: boolean;
+}
+
+export class SystemDeviceCatalogDeleteResponse extends StandardApiResponse<SystemDeviceCatalogDeleteDataSchema> {
+  @ApiProperty({ type: SystemDeviceCatalogDeleteDataSchema })
+  data!: SystemDeviceCatalogDeleteDataSchema;
+}
+
+export class SystemDeviceCatalogFeatureOptionSchema {
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty()
+  label!: string;
+
+  @ApiProperty()
+  description!: string;
+}
+
+export class SystemDeviceCatalogReferenceDataSchema {
+  @ApiProperty({ enum: SYSTEM_DEVICE_PROTOCOL_TYPES, isArray: true })
+  protocolTypes!: (typeof SYSTEM_DEVICE_PROTOCOL_TYPES)[number][];
+
+  @ApiProperty({ enum: SYSTEM_DEVICE_CATALOG_STATUSES, isArray: true })
+  statuses!: (typeof SYSTEM_DEVICE_CATALOG_STATUSES)[number][];
+
+  @ApiProperty({ type: SystemDeviceCatalogFeatureOptionSchema, isArray: true })
+  featureOptions!: SystemDeviceCatalogFeatureOptionSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceCatalogReferenceDataResponse extends StandardApiResponse<SystemDeviceCatalogReferenceDataSchema> {
+  @ApiProperty({ type: SystemDeviceCatalogReferenceDataSchema })
+  data!: SystemDeviceCatalogReferenceDataSchema;
+}
+
+export class SystemDeviceInventoryItemSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  imei!: string;
+
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  tenantName!: string;
+
+  @ApiProperty()
+  lifecycleStatus!: string;
+
+  @ApiProperty()
+  operationalStatus!: string;
+
+  @ApiProperty({ nullable: true, type: Number })
+  signalStrength!: number | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  lastSeen!: string | null;
+
+  @ApiProperty({ nullable: true })
+  vehicleId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  assignedAt!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class SystemDeviceInventoryListDataSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: SystemDeviceInventoryItemSchema, isArray: true })
+  devices!: SystemDeviceInventoryItemSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceInventoryListResponse extends StandardApiResponse<SystemDeviceInventoryListDataSchema> {
+  @ApiProperty({ type: SystemDeviceInventoryListDataSchema })
+  data!: SystemDeviceInventoryListDataSchema;
+}
+
+export class SystemDeviceSummaryDataSchema {
+  @ApiProperty()
+  totalDevices!: number;
+
+  @ApiProperty()
+  registeredDevices!: number;
+
+  @ApiProperty()
+  configuredDevices!: number;
+
+  @ApiProperty()
+  verifiedActiveDevices!: number;
+
+  @ApiProperty()
+  pendingConfigDevices!: number;
+
+  @ApiProperty()
+  onlineNowDevices!: number;
+
+  @ApiProperty()
+  assignableDevices!: number;
+
+  @ApiProperty()
+  assignedDevices!: number;
+
+  @ApiProperty()
+  activeDevices!: number;
+
+  @ApiProperty()
+  faultyDevices!: number;
+
+  @ApiProperty()
+  totalCatalogModels!: number;
+
+  @ApiProperty()
+  supportedCatalogModels!: number;
+
+  @ApiProperty()
+  deprecatedCatalogModels!: number;
+
+  @ApiProperty()
+  blockedCatalogModels!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceSummaryResponse extends StandardApiResponse<SystemDeviceSummaryDataSchema> {
+  @ApiProperty({ type: SystemDeviceSummaryDataSchema })
+  data!: SystemDeviceSummaryDataSchema;
 }

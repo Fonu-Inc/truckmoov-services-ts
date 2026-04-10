@@ -7,7 +7,7 @@ export const TENANT_ORGANIZATION_TYPES = [
 
 export const TENANT_BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
-export const DEVICE_MANUFACTURERS = [
+export const DEFAULT_DEVICE_MANUFACTURERS = [
   'Teltonika',
   'Queclink',
   'Meitrack',
@@ -25,7 +25,6 @@ export const SIM_DATA_PACKAGES = [
 
 export type TenantOrganizationType = (typeof TENANT_ORGANIZATION_TYPES)[number];
 export type TenantBillingCycle = (typeof TENANT_BILLING_CYCLES)[number];
-export type DeviceManufacturer = (typeof DEVICE_MANUFACTURERS)[number];
 export type SimCarrier = (typeof SIM_CARRIERS)[number];
 export type SimDataPackage = (typeof SIM_DATA_PACKAGES)[number];
 
@@ -46,7 +45,8 @@ export type TenantSubscriptionSelection = {
 export type TenantDeviceProvisioning = {
   provisionNow: boolean;
   numberOfDevices: number | null;
-  deviceManufacturer: DeviceManufacturer | null;
+  deviceManufacturer: string | null;
+  deviceModel: string | null;
 };
 
 export type TenantSimAssignment = {

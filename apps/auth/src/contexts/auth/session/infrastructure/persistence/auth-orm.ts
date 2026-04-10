@@ -1,6 +1,6 @@
-import { EntitySchema } from "@mikro-orm/core";
-import { MikroORM } from "@mikro-orm/postgresql";
-import { ROLE_SEED_ROWS, roleFromId, roleToId } from "@shared/rbac";
+import { EntitySchema } from '@mikro-orm/core';
+import { MikroORM } from '@mikro-orm/postgresql';
+import { ROLE_SEED_ROWS, roleFromId, roleToId } from '@shared/rbac';
 
 export type DbConfig = {
   host: string;
@@ -17,10 +17,10 @@ export class AuthRoleRecord {
 
 export const AuthRoleRecordSchema = new EntitySchema<AuthRoleRecord>({
   class: AuthRoleRecord,
-  tableName: "auth_roles",
+  tableName: 'auth_roles',
   properties: {
-    id: { type: "number", primary: true },
-    name: { type: "string", length: 64, unique: true },
+    id: { type: 'number', primary: true },
+    name: { type: 'string', length: 64, unique: true },
   },
 });
 
@@ -37,17 +37,17 @@ export class AuthSessionRecord {
 
 export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
   class: AuthSessionRecord,
-  tableName: "auth_sessions",
+  tableName: 'auth_sessions',
   properties: {
-    refreshToken: { type: "string", primary: true },
-    userId: { type: "string", length: 64 },
-    email: { type: "string", length: 128 },
-    roleId: { type: "number" },
-    tenantId: { type: "string", length: 64, default: "default" },
+    refreshToken: { type: 'string', primary: true },
+    userId: { type: 'string', length: 64 },
+    email: { type: 'string', length: 128 },
+    roleId: { type: 'number' },
+    tenantId: { type: 'string', length: 64, default: 'default' },
     updatedAt: {
-      type: "datetime",
+      type: 'datetime',
       onUpdate: () => new Date(),
-      defaultRaw: "now()",
+      defaultRaw: 'now()',
     },
   },
 });
@@ -87,19 +87,19 @@ export class AuthUserRecord {
 
 export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
   class: AuthUserRecord,
-  tableName: "auth_users",
+  tableName: 'auth_users',
   properties: {
-    id: { type: "string", primary: true },
-    email: { type: "string", length: 128, unique: true },
-    passwordHash: { type: "string" },
-    roleId: { type: "number" },
-    tenantId: { type: "string", length: 64, default: "default" },
-    accountStatus: { type: "string", length: 20, default: "enabled" },
-    emailVerificationToken: { type: "string", length: 128, nullable: true },
-    profile: { type: "json", nullable: true },
-    notificationPreferences: { type: "json", nullable: true },
-    dispatcherPreferences: { type: "json", nullable: true },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
+    id: { type: 'string', primary: true },
+    email: { type: 'string', length: 128, unique: true },
+    passwordHash: { type: 'string' },
+    roleId: { type: 'number' },
+    tenantId: { type: 'string', length: 64, default: 'default' },
+    accountStatus: { type: 'string', length: 20, default: 'enabled' },
+    emailVerificationToken: { type: 'string', length: 128, nullable: true },
+    profile: { type: 'json', nullable: true },
+    notificationPreferences: { type: 'json', nullable: true },
+    dispatcherPreferences: { type: 'json', nullable: true },
+    createdAt: { type: 'datetime', defaultRaw: 'now()' },
   },
 });
 
@@ -128,8 +128,8 @@ export class OrganizationSettingsRecord {
     timezone: string;
     language: string;
     currency: string;
-    dateFormat: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
-    weekStartsOn: "monday" | "sunday";
+    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+    weekStartsOn: 'monday' | 'sunday';
   };
   updatedAt!: Date;
 }
@@ -137,15 +137,15 @@ export class OrganizationSettingsRecord {
 export const OrganizationSettingsRecordSchema =
   new EntitySchema<OrganizationSettingsRecord>({
     class: OrganizationSettingsRecord,
-    tableName: "auth_organization_settings",
+    tableName: 'auth_organization_settings',
     properties: {
-      tenantId: { type: "string", primary: true },
-      branding: { type: "json" },
-      defaults: { type: "json" },
+      tenantId: { type: 'string', primary: true },
+      branding: { type: 'json' },
+      defaults: { type: 'json' },
       updatedAt: {
-        type: "datetime",
+        type: 'datetime',
         onUpdate: () => new Date(),
-        defaultRaw: "now()",
+        defaultRaw: 'now()',
       },
     },
   });
@@ -169,20 +169,20 @@ export class ActivityLogRecord {
 
 export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
   class: ActivityLogRecord,
-  tableName: "activity_logs",
+  tableName: 'activity_logs',
   properties: {
-    id: { type: "string", primary: true },
-    tenantId: { type: "string", length: 64, index: true },
-    service: { type: "string", length: 64, index: true },
-    action: { type: "string", length: 128, index: true },
-    entityType: { type: "string", length: 64, index: true },
-    entityId: { type: "string", length: 128, index: true },
-    summary: { type: "string", length: 255 },
-    actorId: { type: "string", length: 128, nullable: true, index: true },
-    actorRole: { type: "string", length: 64, nullable: true },
-    metadata: { type: "json", defaultRaw: "'{}'" },
-    occurredAt: { type: "datetime", index: true },
-    recordedAt: { type: "datetime", defaultRaw: "now()" },
+    id: { type: 'string', primary: true },
+    tenantId: { type: 'string', length: 64, index: true },
+    service: { type: 'string', length: 64, index: true },
+    action: { type: 'string', length: 128, index: true },
+    entityType: { type: 'string', length: 64, index: true },
+    entityId: { type: 'string', length: 128, index: true },
+    summary: { type: 'string', length: 255 },
+    actorId: { type: 'string', length: 128, nullable: true, index: true },
+    actorRole: { type: 'string', length: 64, nullable: true },
+    metadata: { type: 'json', defaultRaw: "'{}'" },
+    occurredAt: { type: 'datetime', index: true },
+    recordedAt: { type: 'datetime', defaultRaw: 'now()' },
   },
 });
 
@@ -205,26 +205,125 @@ export class SystemTenantOnboardingRecord {
   updatedAt!: Date;
 }
 
-export const SystemTenantOnboardingRecordSchema = new EntitySchema<SystemTenantOnboardingRecord>({
-  class: SystemTenantOnboardingRecord,
-  tableName: "system_tenant_onboardings",
-  properties: {
-    id: { type: "string", primary: true },
-    tenantId: { fieldName: "tenant_id", type: "string", length: 64, unique: true, index: true },
-    invitedEmail: { fieldName: "invited_email", type: "string", length: 255, index: true },
-    organizationType: { fieldName: "organization_type", type: "string", length: 64 },
-    bootstrapRole: { fieldName: "bootstrap_role", type: "string", length: 64 },
-    status: { type: "string", length: 32, default: "pending_activation" },
-    company: { type: "json" },
-    subscription: { type: "json" },
-    deviceProvisioning: { fieldName: "device_provisioning", type: "json" },
-    simAssignment: { fieldName: "sim_assignment", type: "json" },
-    features: { type: "json" },
-    createdByUserId: { fieldName: "created_by_user_id", type: "string", length: 64 },
-    createdAt: { fieldName: "created_at", type: "datetime", defaultRaw: "now()" },
-    updatedAt: { fieldName: "updated_at", type: "datetime", defaultRaw: "now()" },
-  },
-});
+export const SystemTenantOnboardingRecordSchema =
+  new EntitySchema<SystemTenantOnboardingRecord>({
+    class: SystemTenantOnboardingRecord,
+    tableName: 'system_tenant_onboardings',
+    properties: {
+      id: { type: 'string', primary: true },
+      tenantId: {
+        fieldName: 'tenant_id',
+        type: 'string',
+        length: 64,
+        unique: true,
+        index: true,
+      },
+      invitedEmail: {
+        fieldName: 'invited_email',
+        type: 'string',
+        length: 255,
+        index: true,
+      },
+      organizationType: {
+        fieldName: 'organization_type',
+        type: 'string',
+        length: 64,
+      },
+      bootstrapRole: {
+        fieldName: 'bootstrap_role',
+        type: 'string',
+        length: 64,
+      },
+      status: { type: 'string', length: 32, default: 'pending_activation' },
+      company: { type: 'json' },
+      subscription: { type: 'json' },
+      deviceProvisioning: { fieldName: 'device_provisioning', type: 'json' },
+      simAssignment: { fieldName: 'sim_assignment', type: 'json' },
+      features: { type: 'json' },
+      createdByUserId: {
+        fieldName: 'created_by_user_id',
+        type: 'string',
+        length: 64,
+      },
+      createdAt: {
+        fieldName: 'created_at',
+        type: 'datetime',
+        defaultRaw: 'now()',
+      },
+      updatedAt: {
+        fieldName: 'updated_at',
+        type: 'datetime',
+        defaultRaw: 'now()',
+      },
+    },
+  });
+
+/* ── System Device Catalog ──────────────────────────── */
+
+export class SystemDeviceModelRecord {
+  id!: string;
+  manufacturer!: string;
+  model!: string;
+  protocolType!: string;
+  defaultPort!: number | null;
+  supportedFeatures!: string[];
+  status!: string;
+  configurationInstructions!: string | null;
+  createdByUserId!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SystemDeviceModelRecordSchema =
+  new EntitySchema<SystemDeviceModelRecord>({
+    class: SystemDeviceModelRecord,
+    tableName: 'system_device_models',
+    properties: {
+      id: { type: 'string', primary: true },
+      manufacturer: { type: 'string', length: 120 },
+      model: { type: 'string', length: 120 },
+      protocolType: { fieldName: 'protocol_type', type: 'string', length: 16 },
+      defaultPort: {
+        fieldName: 'default_port',
+        type: 'number',
+        nullable: true,
+      },
+      supportedFeatures: {
+        fieldName: 'supported_features',
+        type: 'json',
+        defaultRaw: "'[]'",
+      },
+      status: { type: 'string', length: 32, default: 'supported' },
+      configurationInstructions: {
+        fieldName: 'configuration_instructions',
+        type: 'text',
+        nullable: true,
+      },
+      createdByUserId: {
+        fieldName: 'created_by_user_id',
+        type: 'string',
+        length: 64,
+      },
+      createdAt: {
+        fieldName: 'created_at',
+        type: 'datetime',
+        defaultRaw: 'now()',
+      },
+      updatedAt: {
+        fieldName: 'updated_at',
+        type: 'datetime',
+        onUpdate: () => new Date(),
+        defaultRaw: 'now()',
+      },
+    },
+    indexes: [
+      { properties: ['manufacturer'] },
+      { properties: ['status'] },
+      { properties: ['createdAt'] },
+      { properties: ['updatedAt'] },
+    ],
+    uniques: [{ properties: ['manufacturer', 'model'] }],
+  });
 
 /* ── Invite ──────────────────────────────────────────── */
 
@@ -242,17 +341,17 @@ export class InviteRecord {
 
 export const InviteRecordSchema = new EntitySchema<InviteRecord>({
   class: InviteRecord,
-  tableName: "auth_invites",
+  tableName: 'auth_invites',
   properties: {
-    id: { type: "string", primary: true },
-    email: { type: "string", length: 255 },
-    roleId: { type: "number" },
-    tenantId: { type: "string", length: 64 },
-    token: { type: "string", length: 255, unique: true },
-    invitedBy: { type: "string", length: 64 },
-    status: { type: "string", length: 20, default: "pending" },
-    expiresAt: { type: "datetime" },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
+    id: { type: 'string', primary: true },
+    email: { type: 'string', length: 255 },
+    roleId: { type: 'number' },
+    tenantId: { type: 'string', length: 64 },
+    token: { type: 'string', length: 255, unique: true },
+    invitedBy: { type: 'string', length: 64 },
+    status: { type: 'string', length: 20, default: 'pending' },
+    expiresAt: { type: 'datetime' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()' },
   },
 });
 
@@ -271,16 +370,16 @@ export class PasswordResetRecord {
 
 export const PasswordResetRecordSchema = new EntitySchema<PasswordResetRecord>({
   class: PasswordResetRecord,
-  tableName: "auth_password_resets",
+  tableName: 'auth_password_resets',
   properties: {
-    id: { type: "string", primary: true },
-    userId: { type: "string", length: 64 },
-    token: { type: "string", length: 255, unique: true },
-    method: { type: "string", length: 10 },
-    code: { type: "string", length: 10, nullable: true },
-    used: { type: "boolean", default: false },
-    expiresAt: { type: "datetime" },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
+    id: { type: 'string', primary: true },
+    userId: { type: 'string', length: 64 },
+    token: { type: 'string', length: 255, unique: true },
+    method: { type: 'string', length: 10 },
+    code: { type: 'string', length: 10, nullable: true },
+    used: { type: 'boolean', default: false },
+    expiresAt: { type: 'datetime' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()' },
   },
 });
 
@@ -298,9 +397,9 @@ export function mapRoleNameToId(role: string): number {
 
 async function hasColumn(orm: MikroORM, tableName: string, columnName: string) {
   const connection = orm.em.getConnection();
-  const rows = await connection.execute(
+  const rows = (await connection.execute(
     `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${columnName}'`,
-  ) as Array<Record<string, unknown>>;
+  )) as Array<Record<string, unknown>>;
   return rows.length > 0;
 }
 
@@ -308,12 +407,16 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
   const connection = orm.em.getConnection();
 
   if (
-    await hasColumn(orm, "auth_users", "roles")
-    && await hasColumn(orm, "auth_users", "role_id")
+    (await hasColumn(orm, 'auth_users', 'roles')) &&
+    (await hasColumn(orm, 'auth_users', 'role_id'))
   ) {
-    const rows = await connection.execute(
-      "SELECT id, roles, role_id FROM auth_users",
-    ) as Array<{ id: string; roles: string | string[] | null; role_id: number | null }>;
+    const rows = (await connection.execute(
+      'SELECT id, roles, role_id FROM auth_users',
+    )) as Array<{
+      id: string;
+      roles: string | string[] | null;
+      role_id: number | null;
+    }>;
 
     for (const row of rows) {
       if (row.role_id || !row.roles) {
@@ -321,7 +424,7 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
       }
       const roles = Array.isArray(row.roles)
         ? row.roles
-        : JSON.parse(row.roles) as string[];
+        : (JSON.parse(row.roles) as string[]);
       await connection.execute(
         `UPDATE auth_users SET role_id = ${mapRoleNameToId(roles[0])} WHERE id = '${row.id}'`,
       );
@@ -329,12 +432,16 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
   }
 
   if (
-    await hasColumn(orm, "auth_sessions", "roles")
-    && await hasColumn(orm, "auth_sessions", "role_id")
+    (await hasColumn(orm, 'auth_sessions', 'roles')) &&
+    (await hasColumn(orm, 'auth_sessions', 'role_id'))
   ) {
-    const rows = await connection.execute(
-      "SELECT refresh_token, roles, role_id FROM auth_sessions",
-    ) as Array<{ refresh_token: string; roles: string | string[] | null; role_id: number | null }>;
+    const rows = (await connection.execute(
+      'SELECT refresh_token, roles, role_id FROM auth_sessions',
+    )) as Array<{
+      refresh_token: string;
+      roles: string | string[] | null;
+      role_id: number | null;
+    }>;
 
     for (const row of rows) {
       if (row.role_id || !row.roles) {
@@ -342,7 +449,7 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
       }
       const roles = Array.isArray(row.roles)
         ? row.roles
-        : JSON.parse(row.roles) as string[];
+        : (JSON.parse(row.roles) as string[]);
       await connection.execute(
         `UPDATE auth_sessions SET role_id = ${mapRoleNameToId(roles[0])} WHERE refresh_token = '${row.refresh_token}'`,
       );
@@ -350,12 +457,12 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
   }
 
   if (
-    await hasColumn(orm, "auth_invites", "role")
-    && await hasColumn(orm, "auth_invites", "role_id")
+    (await hasColumn(orm, 'auth_invites', 'role')) &&
+    (await hasColumn(orm, 'auth_invites', 'role_id'))
   ) {
-    const rows = await connection.execute(
-      "SELECT id, role, role_id FROM auth_invites",
-    ) as Array<{ id: string; role: string | null; role_id: number | null }>;
+    const rows = (await connection.execute(
+      'SELECT id, role, role_id FROM auth_invites',
+    )) as Array<{ id: string; role: string | null; role_id: number | null }>;
 
     for (const row of rows) {
       if (row.role_id || !row.role) {
@@ -383,20 +490,22 @@ export async function getAuthOrm(cfg: DbConfig) {
       OrganizationSettingsRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,
+      SystemDeviceModelRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
-    schema: "public",
+    schema: 'public',
     migrations: {
-      path: process.env.NODE_ENV === "production"
-        ? "dist/apps/auth/src/migrations"
-        : "apps/auth/src/migrations",
-      tableName: "mikro_migrations_auth",
+      path:
+        process.env.NODE_ENV === 'production'
+          ? 'dist/apps/auth/src/migrations'
+          : 'apps/auth/src/migrations',
+      tableName: 'mikro_migrations_auth',
       safe: true,
-      glob: "!(*.d).{js,ts}",
+      glob: '!(*.d).{js,ts}',
     },
   }).then(async (orm) => {
     await orm.getMigrator().up();

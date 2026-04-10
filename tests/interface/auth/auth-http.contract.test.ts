@@ -1179,6 +1179,138 @@ describe('Auth HTTP contract', () => {
     expect(tenantDashboardRes.status).toBe(403);
   });
 
+  it('system device catalog and inventory endpoints work for system admins and drive onboarding device options', async () => {
+    const systemLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(systemLoginRes.status).toBe(201);
+
+    const createCatalogRes = await request(app.getHttpServer())
+      .post('/auth/system/devices/catalog')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`)
+      .send({
+        manufacturer: 'Teltonika',
+        model: 'FMC130',
+        protocolType: 'TCP',
+        defaultPort: 5001,
+        supportedFeatures: ['fuel', 'sos'],
+        status: 'supported',
+        configurationInstructions: 'Configure APN and port in the tracker UI.',
+      });
+
+    expect(createCatalogRes.status).toBe(201);
+    expect(createCatalogRes.body.data.manufacturer).toBe('Teltonika');
+    expect(createCatalogRes.body.data.model).toBe('FMC130');
+
+    const catalogId = createCatalogRes.body.data.id as string;
+
+    const listCatalogRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/catalog')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(listCatalogRes.status).toBe(200);
+    expect(listCatalogRes.body.data.total).toBeGreaterThanOrEqual(1);
+    expect(
+      listCatalogRes.body.data.models.some(
+        (entry: { id: string }) => entry.id === catalogId,
+      ),
+    ).toBe(true);
+
+    const deviceCatalogReferenceRes = await request(app.getHttpServer())
+      .get('/auth/system/reference-data/device-catalog')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(deviceCatalogReferenceRes.status).toBe(200);
+    expect(deviceCatalogReferenceRes.body.data.protocolTypes).toContain('TCP');
+    expect(deviceCatalogReferenceRes.body.data.statuses).toContain('supported');
+
+    const onboardingReferenceRes = await request(app.getHttpServer())
+      .get('/auth/system/reference-data/tenant-onboarding')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(onboardingReferenceRes.status).toBe(200);
+    expect(onboardingReferenceRes.body.data.deviceManufacturers).toContain(
+      'Teltonika',
+    );
+    expect(
+      onboardingReferenceRes.body.data.deviceCatalog.some(
+        (entry: { manufacturer: string; models: Array<{ model: string }> }) =>
+          entry.manufacturer === 'Teltonika' &&
+          entry.models.some((modelEntry) => modelEntry.model === 'FMC130'),
+      ),
+    ).toBe(true);
+
+    const deviceSummaryRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/summary')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(deviceSummaryRes.status).toBe(200);
+    expect(
+      deviceSummaryRes.body.data.totalCatalogModels,
+    ).toBeGreaterThanOrEqual(1);
+    expect(deviceSummaryRes.body.data.supportedCatalogModels).toBeGreaterThan(
+      0,
+    );
+
+    const inventoryRes = await request(app.getHttpServer())
+      .get('/auth/system/devices')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(inventoryRes.status).toBe(200);
+    expect(Array.isArray(inventoryRes.body.data.devices)).toBe(true);
+
+    const exportInventoryRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/export')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(exportInventoryRes.status).toBe(200);
+    expect(exportInventoryRes.headers['content-type']).toContain('text/csv');
+    expect(exportInventoryRes.text).toContain(
+      'id,imei,manufacturer,model,tenantId',
+    );
+
+    const updateCatalogRes = await request(app.getHttpServer())
+      .patch(`/auth/system/devices/catalog/${catalogId}`)
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`)
+      .send({
+        status: 'deprecated',
+        supportedFeatures: ['obd2'],
+      });
+
+    expect(updateCatalogRes.status).toBe(200);
+    expect(updateCatalogRes.body.data.status).toBe('deprecated');
+    expect(updateCatalogRes.body.data.supportedFeatures).toEqual(['obd2']);
+
+    const deleteCatalogRes = await request(app.getHttpServer())
+      .delete(`/auth/system/devices/catalog/${catalogId}`)
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(deleteCatalogRes.status).toBe(200);
+    expect(deleteCatalogRes.body.data.deleted).toBe(true);
+
+    const tenantRegisterRes = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(
+        makeRegisterPayload('tenant-device-route@contract.com', {
+          firstName: 'Tenant',
+          lastName: 'Device',
+          organizationName: 'Tenant Device Org',
+        }),
+      );
+
+    expect(tenantRegisterRes.status).toBe(201);
+
+    const tenantCatalogRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/catalog')
+      .set('Authorization', `Bearer ${tenantRegisterRes.body.accessToken}`);
+
+    expect(tenantCatalogRes.status).toBe(403);
+  });
+
   it('GET /auth/activity-log returns tenant-scoped persisted activity entries', async () => {
     const registerRes = await request(app.getHttpServer())
       .post('/auth/register')

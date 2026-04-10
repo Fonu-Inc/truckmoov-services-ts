@@ -71,9 +71,15 @@ import { ActivityLogListener } from './activity-log.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
+import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use-case';
 import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
+import { DeleteSystemDeviceModelUseCase } from './delete-system-device-model.use-case';
+import { DEVICE_MODEL_CATALOG_REPOSITORY } from './device-model-catalog.repository';
+import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
+import { GetSystemDeviceCatalogReferenceDataUseCase } from './get-system-device-catalog-reference-data.use-case';
+import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
 import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
 import { GetSystemActivityLogUseCase } from './get-system-activity-log.use-case';
@@ -81,10 +87,15 @@ import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
 import { GetSystemTenantOnboardingReferenceDataUseCase } from './get-system-tenant-onboarding-reference-data.use-case';
 import { InMemoryActivityLogRepository } from './in-memory-activity-log.repository';
+import { InMemoryDeviceModelCatalogRepository } from './in-memory-device-model-catalog.repository';
 import { InMemoryTenantOnboardingRepository } from './in-memory-tenant-onboarding.repository';
+import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
+import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
+import { MikroDeviceModelCatalogRepository } from './mikro-device-model-catalog.repository';
 import { MikroTenantOnboardingRepository } from './mikro-tenant-onboarding.repository';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
+import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
 import { UpdateSystemTenantUseCase } from './update-system-tenant.use-case';
 import { UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { SuperAdminBootstrapService } from './superadmin-bootstrap.service';
@@ -243,13 +254,31 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemoryDeviceModelCatalogRepository,
+    MikroDeviceModelCatalogRepository,
+    {
+      provide: DEVICE_MODEL_CATALOG_REPOSITORY,
+      inject: [
+        InMemoryDeviceModelCatalogRepository,
+        MikroDeviceModelCatalogRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryDeviceModelCatalogRepository,
+        mikro: MikroDeviceModelCatalogRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
 
     // Use cases
     LoginUseCase,
     ChangeSystemPasswordUseCase,
     CreateSystemAdminUseCase,
     CreateSystemTenantUseCase,
+    CreateSystemDeviceModelUseCase,
     DeleteSystemTenantUseCase,
+    DeleteSystemDeviceModelUseCase,
+    ExportSystemDeviceInventoryUseCase,
     ExportSystemTenantsUseCase,
     RefreshUseCase,
     GetMeUseCase,
@@ -284,12 +313,17 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ActivityLogListener,
     GetActivityLogUseCase,
     GetSystemDashboardUseCase,
+    GetSystemDeviceCatalogReferenceDataUseCase,
+    GetSystemDeviceSummaryUseCase,
     GetSystemSubscriptionPlansUseCase,
     GetSystemActivityLogUseCase,
+    ListSystemDeviceCatalogUseCase,
+    ListSystemDeviceInventoryUseCase,
     ListSystemTenantsUseCase,
     GetSystemTenantsSummaryUseCase,
     GetSystemTenantUseCase,
     GetSystemTenantOnboardingReferenceDataUseCase,
+    UpdateSystemDeviceModelUseCase,
     UpdateSystemTenantUseCase,
     UpdateSystemTenantStatusUseCase,
     SuperAdminBootstrapService,

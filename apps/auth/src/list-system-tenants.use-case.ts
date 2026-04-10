@@ -546,6 +546,7 @@ export class ListSystemTenantsUseCase {
           provisionNow: false,
           numberOfDevices: null,
           deviceManufacturer: null,
+          deviceModel: null,
         },
         simAssignment: (parseJsonRecord(row.sim_assignment) as
           | StoredTenantOnboarding['simAssignment']
