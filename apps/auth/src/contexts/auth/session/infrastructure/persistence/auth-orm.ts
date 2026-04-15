@@ -782,6 +782,88 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
   }
 }
 
+/* ── Support Tickets ──────────────────────────────────── */
+
+export class SupportTicketRecord {
+  id!: string;
+  tenantId!: string;
+  category!: string;
+  subject!: string;
+  description!: string;
+  status!: string;
+  priority!: string;
+  contextType!: string;
+  contextId!: string | null;
+  contextSnapshot!: Record<string, unknown> | null;
+  escalatedTo!: string | null;
+  escalatedReferenceId!: string | null;
+  escalationNotes!: string | null;
+  escalatedAt!: Date | null;
+  escalatedBy!: string | null;
+  assignedTo!: string | null;
+  createdBy!: string;
+  resolvedAt!: Date | null;
+  closedAt!: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SupportTicketRecordSchema = new EntitySchema<SupportTicketRecord>({
+  class: SupportTicketRecord,
+  tableName: 'support_tickets',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { type: 'string', length: 64, fieldName: 'tenant_id' },
+    category: { type: 'string', length: 32, default: 'other' },
+    subject: { type: 'string', length: 255 },
+    description: { type: 'text' },
+    status: { type: 'string', length: 32, default: 'open' },
+    priority: { type: 'string', length: 16, default: 'medium' },
+    contextType: { type: 'string', length: 16, default: 'none', fieldName: 'context_type' },
+    contextId: { type: 'string', length: 64, nullable: true, fieldName: 'context_id' },
+    contextSnapshot: { type: 'json', nullable: true, fieldName: 'context_snapshot' },
+    escalatedTo: { type: 'string', length: 32, nullable: true, fieldName: 'escalated_to' },
+    escalatedReferenceId: { type: 'string', length: 128, nullable: true, fieldName: 'escalated_reference_id' },
+    escalationNotes: { type: 'text', nullable: true, fieldName: 'escalation_notes' },
+    escalatedAt: { type: 'datetime', nullable: true, fieldName: 'escalated_at' },
+    escalatedBy: { type: 'string', length: 64, nullable: true, fieldName: 'escalated_by' },
+    assignedTo: { type: 'string', length: 64, nullable: true, fieldName: 'assigned_to' },
+    createdBy: { type: 'string', length: 64, fieldName: 'created_by' },
+    resolvedAt: { type: 'datetime', nullable: true, fieldName: 'resolved_at' },
+    closedAt: { type: 'datetime', nullable: true, fieldName: 'closed_at' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'created_at' },
+    updatedAt: { type: 'datetime', defaultRaw: 'now()', onUpdate: () => new Date(), fieldName: 'updated_at' },
+  },
+});
+
+/* ── Support Messages ─────────────────────────────────── */
+
+export class SupportMessageRecord {
+  id!: string;
+  ticketId!: string;
+  senderId!: string;
+  senderName!: string | null;
+  senderRole!: string;
+  message!: string;
+  isInternal!: boolean;
+  createdAt!: Date;
+}
+
+export const SupportMessageRecordSchema = new EntitySchema<SupportMessageRecord>({
+  class: SupportMessageRecord,
+  tableName: 'support_messages',
+  properties: {
+    id: { type: 'string', primary: true },
+    ticketId: { type: 'string', length: 64, fieldName: 'ticket_id' },
+    senderId: { type: 'string', length: 64, fieldName: 'sender_id' },
+    senderName: { type: 'string', length: 160, nullable: true, fieldName: 'sender_name' },
+    senderRole: { type: 'string', length: 32, fieldName: 'sender_role' },
+    message: { type: 'text' },
+    isInternal: { type: 'boolean', default: false, fieldName: 'is_internal' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'created_at' },
+  },
+});
+
 export async function getAuthOrm(cfg: DbConfig) {
   if (ormPromise) {
     return ormPromise;
@@ -803,6 +885,8 @@ export async function getAuthOrm(cfg: DbConfig) {
       IotSimRecordSchema,
       SimProvisioningRequestRecordSchema,
       SimActivationBatchRecordSchema,
+      SupportTicketRecordSchema,
+      SupportMessageRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

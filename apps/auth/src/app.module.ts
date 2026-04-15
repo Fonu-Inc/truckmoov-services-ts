@@ -76,6 +76,8 @@ import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
 import { DeleteSystemDeviceModelUseCase } from './delete-system-device-model.use-case';
 import { DEVICE_MODEL_CATALOG_REPOSITORY } from './device-model-catalog.repository';
 import { SIM_REPOSITORY } from './sim.repository';
+import { SUPPORT_TICKET_REPOSITORY } from './support-ticket.repository';
+import { SUPPORT_MESSAGE_REPOSITORY } from './support-message.repository';
 import { SIM_PROVISIONING_REQUEST_REPOSITORY } from './sim-provisioning-request.repository';
 import { SIM_ACTIVATION_BATCH_REPOSITORY } from './sim-activation-batch.repository';
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
@@ -93,6 +95,8 @@ import { InMemoryActivityLogRepository } from './in-memory-activity-log.reposito
 import { InMemoryDeviceModelCatalogRepository } from './in-memory-device-model-catalog.repository';
 import { InMemoryTenantOnboardingRepository } from './in-memory-tenant-onboarding.repository';
 import { InMemorySimRepository } from './in-memory-sim.repository';
+import { InMemorySupportTicketRepository } from './in-memory-support-ticket.repository';
+import { InMemorySupportMessageRepository } from './in-memory-support-message.repository';
 import { InMemorySimProvisioningRequestRepository } from './in-memory-sim-provisioning-request.repository';
 import { InMemorySimActivationBatchRepository } from './in-memory-sim-activation-batch.repository';
 import { InMemorySystemFeatureFlagRepository } from './in-memory-system-feature-flag.repository';
@@ -104,6 +108,8 @@ import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-c
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
 import { MikroDeviceModelCatalogRepository } from './mikro-device-model-catalog.repository';
 import { MikroSimRepository } from './mikro-sim.repository';
+import { MikroSupportTicketRepository } from './mikro-support-ticket.repository';
+import { MikroSupportMessageRepository } from './mikro-support-message.repository';
 import { MikroSimProvisioningRequestRepository } from './mikro-sim-provisioning-request.repository';
 import { MikroSimActivationBatchRepository } from './mikro-sim-activation-batch.repository';
 import { MikroSystemFeatureFlagRepository } from './mikro-system-feature-flag.repository';
@@ -114,6 +120,13 @@ import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use
 import { CreateSystemAdminInviteUseCase } from './create-system-admin-invite.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
 import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
+import { GetSystemSupportDashboardUseCase } from './get-system-support-dashboard.use-case';
+import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
+import { GetSystemSupportTicketUseCase } from './get-system-support-ticket.use-case';
+import { UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
+import { EscalateSystemSupportTicketUseCase } from './escalate-system-support-ticket.use-case';
+import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ticket-messages.use-case';
+import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
 import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
@@ -375,6 +388,29 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
 
+    InMemorySupportTicketRepository,
+    MikroSupportTicketRepository,
+    {
+      provide: SUPPORT_TICKET_REPOSITORY,
+      inject: [InMemorySupportTicketRepository, MikroSupportTicketRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySupportTicketRepository,
+        mikro: MikroSupportTicketRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemorySupportMessageRepository,
+    MikroSupportMessageRepository,
+    {
+      provide: SUPPORT_MESSAGE_REPOSITORY,
+      inject: [InMemorySupportMessageRepository, MikroSupportMessageRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySupportMessageRepository,
+        mikro: MikroSupportMessageRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+
     // Use cases
     LoginUseCase,
     ChangeSystemPasswordUseCase,
@@ -448,6 +484,13 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ListSystemSimsUseCase,
     RejectSystemSimRequestUseCase,
     RetrySystemSimBatchUseCase,
+    GetSystemSupportDashboardUseCase,
+    ListSystemSupportTicketsUseCase,
+    GetSystemSupportTicketUseCase,
+    UpdateSystemSupportTicketStatusUseCase,
+    EscalateSystemSupportTicketUseCase,
+    ListSystemSupportTicketMessagesUseCase,
+    SendSystemSupportMessageUseCase,
     SuperAdminBootstrapService,
   ],
 })

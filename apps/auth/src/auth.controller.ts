@@ -229,6 +229,20 @@ import {
   SimBatchNotRetryableError,
 } from './retry-system-sim-batch.use-case';
 import { RejectSimRequestDto } from './dto/system-sim.dto';
+import { GetSystemSupportDashboardUseCase } from './get-system-support-dashboard.use-case';
+import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
+import { GetSystemSupportTicketUseCase } from './get-system-support-ticket.use-case';
+import {
+  UpdateSystemSupportTicketStatusUseCase,
+  InvalidTicketStatusError,
+} from './update-system-support-ticket-status.use-case';
+import {
+  EscalateSystemSupportTicketUseCase,
+  InvalidEscalationTargetError,
+} from './escalate-system-support-ticket.use-case';
+import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ticket-messages.use-case';
+import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
+import { UpdateTicketStatusDto, EscalateTicketDto, SendSupportMessageDto } from './dto/support.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -380,6 +394,20 @@ export class AuthController {
     private readonly listSystemSimBatchesUseCase: ListSystemSimBatchesUseCase,
     @Inject(RetrySystemSimBatchUseCase)
     private readonly retrySystemSimBatchUseCase: RetrySystemSimBatchUseCase,
+    @Inject(GetSystemSupportDashboardUseCase)
+    private readonly getSystemSupportDashboardUseCase: GetSystemSupportDashboardUseCase,
+    @Inject(ListSystemSupportTicketsUseCase)
+    private readonly listSystemSupportTicketsUseCase: ListSystemSupportTicketsUseCase,
+    @Inject(GetSystemSupportTicketUseCase)
+    private readonly getSystemSupportTicketUseCase: GetSystemSupportTicketUseCase,
+    @Inject(UpdateSystemSupportTicketStatusUseCase)
+    private readonly updateSystemSupportTicketStatusUseCase: UpdateSystemSupportTicketStatusUseCase,
+    @Inject(EscalateSystemSupportTicketUseCase)
+    private readonly escalateSystemSupportTicketUseCase: EscalateSystemSupportTicketUseCase,
+    @Inject(ListSystemSupportTicketMessagesUseCase)
+    private readonly listSystemSupportTicketMessagesUseCase: ListSystemSupportTicketMessagesUseCase,
+    @Inject(SendSystemSupportMessageUseCase)
+    private readonly sendSystemSupportMessageUseCase: SendSystemSupportMessageUseCase,
   ) {}
 
   @Get('health')
@@ -3162,6 +3190,197 @@ export class AuthController {
         throw new NotFoundException(error.message);
       if (error instanceof InvalidSettingsError)
         throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/dashboard')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Support dashboard stats' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async getSystemSupportDashboard(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemSupportDashboardUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/tickets')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all support tickets' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async listSystemSupportTickets(
+    @Query('status') status?: string,
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemSupportTicketsUseCase.execute(accessToken, { status, category, search });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/tickets/:ticketId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get support ticket detail' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  async getSystemSupportTicket(
+    @Param('ticketId') ticketId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemSupportTicketUseCase.execute(accessToken, ticketId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof NotFoundException) throw error;
+      throw error;
+    }
+  }
+
+  @Patch('system/support/tickets/:ticketId/status')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update ticket status' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system mutator' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  @ApiBadRequestResponse({ description: 'Invalid status' })
+  async updateSystemSupportTicketStatus(
+    @Param('ticketId') ticketId: string,
+    @Body() body: UpdateTicketStatusDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.updateSystemSupportTicketStatusUseCase.execute(accessToken, ticketId, body.status);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.support_ticket.status_updated',
+        entityType: 'support_ticket',
+        entityId: ticketId,
+        summary: `Ticket status updated to ${body.status}`,
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof NotFoundException) throw error;
+      if (error instanceof InvalidTicketStatusError) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/support/tickets/:ticketId/escalate')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Escalate support ticket' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system mutator' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  @ApiBadRequestResponse({ description: 'Invalid escalation target' })
+  async escalateSystemSupportTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() body: EscalateTicketDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.escalateSystemSupportTicketUseCase.execute(
+        accessToken,
+        ticketId,
+        body.escalatedTo,
+        body.referenceId,
+        body.notes,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.support_ticket.escalated',
+        entityType: 'support_ticket',
+        entityId: ticketId,
+        summary: `Ticket escalated to ${body.escalatedTo}`,
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof NotFoundException) throw error;
+      if (error instanceof InvalidEscalationTargetError) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/tickets/:ticketId/messages')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List ticket messages (includes internal notes)' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  async listSystemSupportTicketMessages(
+    @Param('ticketId') ticketId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemSupportTicketMessagesUseCase.execute(accessToken, ticketId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof NotFoundException) throw error;
+      throw error;
+    }
+  }
+
+  @Post('system/support/tickets/:ticketId/messages')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send message or internal note on ticket' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system mutator' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  async sendSystemSupportMessage(
+    @Param('ticketId') ticketId: string,
+    @Body() body: SendSupportMessageDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.sendSystemSupportMessageUseCase.execute(
+        accessToken,
+        ticketId,
+        body.message,
+        body.isInternal ?? false,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: body.isInternal ? 'system.support_ticket.internal_note_added' : 'system.support_ticket.message_sent',
+        entityType: 'support_ticket',
+        entityId: ticketId,
+        summary: body.isInternal ? 'Internal note added to ticket' : 'Message sent on ticket',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof NotFoundException) throw error;
       throw error;
     }
   }
