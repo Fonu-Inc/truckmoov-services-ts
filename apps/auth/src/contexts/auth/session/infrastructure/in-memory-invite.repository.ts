@@ -18,6 +18,15 @@ export class InMemoryInviteRepository implements InviteRepository {
     this.store.set(invite.token, invite);
   }
 
+  async findById(id: string): Promise<StoredInvite | null> {
+    for (const invite of this.store.values()) {
+      if (invite.id === id) {
+        return invite;
+      }
+    }
+    return null;
+  }
+
   async findByToken(token: string): Promise<StoredInvite | null> {
     return this.store.get(token) ?? null;
   }
@@ -47,9 +56,27 @@ export class InMemoryInviteRepository implements InviteRepository {
     return pending[0] ?? null;
   }
 
+  async listPendingByTenant(tenantId: string): Promise<StoredInvite[]> {
+    return [...this.store.values()]
+      .filter(
+        (invite) => invite.tenantId === tenantId && invite.status === 'pending',
+      )
+      .sort(
+        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+      );
+  }
+
   async markAccepted(token: string): Promise<void> {
     const invite = this.store.get(token);
     if (invite) this.store.set(token, { ...invite, status: 'accepted' });
+  }
+
+  async deleteById(id: string): Promise<void> {
+    for (const [token, invite] of this.store.entries()) {
+      if (invite.id === id) {
+        this.store.delete(token);
+      }
+    }
   }
 
   async deleteByTenantId(tenantId: string): Promise<void> {

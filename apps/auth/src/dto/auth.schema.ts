@@ -11,6 +11,12 @@ import {
   TENANT_BILLING_CYCLES,
   TENANT_ORGANIZATION_TYPES,
 } from '../tenant-onboarding.repository';
+import { SYSTEM_BACKUP_FREQUENCIES } from '../system-settings.repository';
+import {
+  SYSTEM_FEATURE_FLAG_CATEGORIES,
+  SYSTEM_FEATURE_FLAG_PHASES,
+  SYSTEM_FEATURE_FLAG_SCOPES,
+} from '../system-feature-flag.repository';
 
 export class SessionSchema {
   /** JWT access token */
@@ -1071,4 +1077,320 @@ export class SystemDeviceSummaryDataSchema {
 export class SystemDeviceSummaryResponse extends StandardApiResponse<SystemDeviceSummaryDataSchema> {
   @ApiProperty({ type: SystemDeviceSummaryDataSchema })
   data!: SystemDeviceSummaryDataSchema;
+}
+
+export class SystemSettingsDefaultsSchema {
+  @ApiProperty()
+  timezone!: string;
+
+  @ApiProperty()
+  language!: string;
+}
+
+export class SystemSettingsFeaturesSchema {
+  @ApiProperty()
+  allowNewTenantRegistration!: boolean;
+
+  @ApiProperty()
+  maintenanceMode!: boolean;
+
+  @ApiProperty()
+  enableBetaFeatures!: boolean;
+}
+
+export class SystemSettingsRetentionSchema {
+  @ApiProperty()
+  gpsDataRetentionDays!: number;
+
+  @ApiProperty()
+  logRetentionDays!: number;
+
+  @ApiProperty({ enum: SYSTEM_BACKUP_FREQUENCIES })
+  backupFrequency!: (typeof SYSTEM_BACKUP_FREQUENCIES)[number];
+}
+
+export class SystemSettingsDataSchema {
+  @ApiProperty()
+  platformName!: string;
+
+  @ApiProperty()
+  supportEmail!: string;
+
+  @ApiProperty({ type: SystemSettingsDefaultsSchema })
+  defaults!: SystemSettingsDefaultsSchema;
+
+  @ApiProperty({ type: SystemSettingsFeaturesSchema })
+  features!: SystemSettingsFeaturesSchema;
+
+  @ApiProperty({ type: SystemSettingsRetentionSchema })
+  retention!: SystemSettingsRetentionSchema;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+
+  @ApiProperty({ nullable: true })
+  updatedByUserId!: string | null;
+}
+
+export class SystemSettingsResponse extends StandardApiResponse<SystemSettingsDataSchema> {
+  @ApiProperty({ type: SystemSettingsDataSchema })
+  data!: SystemSettingsDataSchema;
+}
+
+export class SystemAdminInviteSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  role!: string;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  invitedBy!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  expiresAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
+export class SystemAdminInvitesDataSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: SystemAdminInviteSchema, isArray: true })
+  invites!: SystemAdminInviteSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemAdminInvitesResponse extends StandardApiResponse<SystemAdminInvitesDataSchema> {
+  @ApiProperty({ type: SystemAdminInvitesDataSchema })
+  data!: SystemAdminInvitesDataSchema;
+}
+
+export class SystemAdminInviteResponse extends StandardApiResponse<SystemAdminInviteSchema> {
+  @ApiProperty({ type: SystemAdminInviteSchema })
+  data!: SystemAdminInviteSchema;
+}
+
+export class SystemAdminInviteCancelDataSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  cancelled!: boolean;
+}
+
+export class SystemAdminInviteCancelResponse extends StandardApiResponse<SystemAdminInviteCancelDataSchema> {
+  @ApiProperty({ type: SystemAdminInviteCancelDataSchema })
+  data!: SystemAdminInviteCancelDataSchema;
+}
+
+export class SystemTenantInviteActionDataSchema {
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  role!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  expiresAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+}
+
+export class SystemTenantInviteActionResponse extends StandardApiResponse<SystemTenantInviteActionDataSchema> {
+  @ApiProperty({ type: SystemTenantInviteActionDataSchema })
+  data!: SystemTenantInviteActionDataSchema;
+}
+
+export class SystemFeatureFlagSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: SYSTEM_FEATURE_FLAG_SCOPES })
+  scope!: (typeof SYSTEM_FEATURE_FLAG_SCOPES)[number];
+
+  @ApiProperty({ nullable: true })
+  tenantId!: string | null;
+
+  @ApiProperty()
+  featureKey!: string;
+
+  @ApiProperty()
+  featureName!: string;
+
+  @ApiProperty({ nullable: true })
+  featureDescription!: string | null;
+
+  @ApiProperty()
+  isEnabled!: boolean;
+
+  @ApiProperty()
+  rolloutPercentage!: number;
+
+  @ApiProperty({ enum: SYSTEM_FEATURE_FLAG_CATEGORIES })
+  category!: (typeof SYSTEM_FEATURE_FLAG_CATEGORIES)[number];
+
+  @ApiProperty({ enum: SYSTEM_FEATURE_FLAG_PHASES, nullable: true })
+  phase!: (typeof SYSTEM_FEATURE_FLAG_PHASES)[number] | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class SystemFeatureFlagsDataSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty({ type: SystemFeatureFlagSchema, isArray: true })
+  flags!: SystemFeatureFlagSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemFeatureFlagsResponse extends StandardApiResponse<SystemFeatureFlagsDataSchema> {
+  @ApiProperty({ type: SystemFeatureFlagsDataSchema })
+  data!: SystemFeatureFlagsDataSchema;
+}
+
+export class SystemFeatureFlagResponse extends StandardApiResponse<SystemFeatureFlagSchema> {
+  @ApiProperty({ type: SystemFeatureFlagSchema })
+  data!: SystemFeatureFlagSchema;
+}
+
+/* ── IoT SIM Schemas ───────────────────────────────── */
+
+export class SystemSimSummaryDataSchema {
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  byStatus!: Record<string, number>;
+
+  @ApiProperty()
+  byCarrier!: Record<string, number>;
+
+  @ApiProperty()
+  pendingRequests!: number;
+}
+
+export class SystemSimSummaryResponse extends StandardApiResponse<SystemSimSummaryDataSchema> {
+  @ApiProperty({ type: SystemSimSummaryDataSchema })
+  data!: SystemSimSummaryDataSchema;
+}
+
+export class SystemSimSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() iccid!: string;
+  @ApiProperty({ nullable: true }) imsi!: string | null;
+  @ApiProperty({ nullable: true }) msisdn!: string | null;
+  @ApiProperty() carrier!: string;
+  @ApiProperty() plan!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true }) tenantId!: string | null;
+  @ApiProperty({ nullable: true }) deviceId!: string | null;
+  @ApiProperty() dataUsageMb!: number;
+  @ApiProperty() dataLimitMb!: number;
+  @ApiProperty() smsUsage!: number;
+  @ApiProperty() smsLimit!: number;
+  @ApiProperty() monthlyCostNgn!: number;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) activationDate!: string | null;
+  @ApiProperty({ nullable: true }) signalStrength!: number | null;
+  @ApiProperty({ nullable: true }) networkType!: string | null;
+  @ApiProperty() roaming!: boolean;
+  @ApiProperty({ nullable: true }) fonuStatus!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemSimsListDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemSimSchema, isArray: true }) sims!: SystemSimSchema[];
+}
+
+export class SystemSimsListResponse extends StandardApiResponse<SystemSimsListDataSchema> {
+  @ApiProperty({ type: SystemSimsListDataSchema })
+  data!: SystemSimsListDataSchema;
+}
+
+export class SystemSimRequestSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() tenantName!: string;
+  @ApiProperty() requestType!: string;
+  @ApiProperty() numberOfSims!: number;
+  @ApiProperty() preferredOperator!: string;
+  @ApiProperty() requestedPlan!: string;
+  @ApiProperty() requestedDataLimitMb!: number;
+  @ApiProperty({ nullable: true }) deploymentTimeline!: string | null;
+  @ApiProperty({ nullable: true }) useCase!: string | null;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true }) approvedBy!: string | null;
+  @ApiProperty({ nullable: true }) approvedByName!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) approvedAt!: string | null;
+  @ApiProperty({ nullable: true }) rejectedReason!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemSimRequestsListDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemSimRequestSchema, isArray: true }) requests!: SystemSimRequestSchema[];
+}
+
+export class SystemSimRequestsListResponse extends StandardApiResponse<SystemSimRequestsListDataSchema> {
+  @ApiProperty({ type: SystemSimRequestsListDataSchema })
+  data!: SystemSimRequestsListDataSchema;
+}
+
+export class SystemSimBatchSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ nullable: true }) requestId!: string | null;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() tenantName!: string;
+  @ApiProperty() activationMode!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() operator!: string;
+  @ApiProperty() requestedPlan!: string;
+  @ApiProperty() dataLimitGb!: number;
+  @ApiProperty() status!: string;
+  @ApiProperty() simsActivated!: number;
+  @ApiProperty() simsFailed!: number;
+  @ApiProperty({ nullable: true }) createdBy!: string | null;
+  @ApiProperty({ nullable: true }) createdByName!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) startedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) completedAt!: string | null;
+  @ApiProperty({ nullable: true }) errorMessage!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemSimBatchesListDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemSimBatchSchema, isArray: true }) batches!: SystemSimBatchSchema[];
+}
+
+export class SystemSimBatchesListResponse extends StandardApiResponse<SystemSimBatchesListDataSchema> {
+  @ApiProperty({ type: SystemSimBatchesListDataSchema })
+  data!: SystemSimBatchesListDataSchema;
 }

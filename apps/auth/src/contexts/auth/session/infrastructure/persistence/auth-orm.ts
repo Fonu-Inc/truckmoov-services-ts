@@ -150,6 +150,64 @@ export const OrganizationSettingsRecordSchema =
     },
   });
 
+/* ── System Settings ────────────────────────────────── */
+
+export class SystemSettingsRecord {
+  id!: string;
+  platformName!: string;
+  supportEmail!: string;
+  defaults!: {
+    timezone: string;
+    language: string;
+  };
+  features!: {
+    allowNewTenantRegistration: boolean;
+    maintenanceMode: boolean;
+    enableBetaFeatures: boolean;
+  };
+  retention!: {
+    gpsDataRetentionDays: number;
+    logRetentionDays: number;
+    backupFrequency: 'hourly' | 'daily' | 'weekly';
+  };
+  updatedByUserId!: string | null;
+  updatedAt!: Date;
+}
+
+export const SystemSettingsRecordSchema =
+  new EntitySchema<SystemSettingsRecord>({
+    class: SystemSettingsRecord,
+    tableName: 'system_settings',
+    properties: {
+      id: { type: 'string', primary: true },
+      platformName: {
+        fieldName: 'platform_name',
+        type: 'string',
+        length: 160,
+      },
+      supportEmail: {
+        fieldName: 'support_email',
+        type: 'string',
+        length: 255,
+      },
+      defaults: { type: 'json' },
+      features: { type: 'json' },
+      retention: { type: 'json' },
+      updatedByUserId: {
+        fieldName: 'updated_by_user_id',
+        type: 'string',
+        length: 64,
+        nullable: true,
+      },
+      updatedAt: {
+        fieldName: 'updated_at',
+        type: 'datetime',
+        onUpdate: () => new Date(),
+        defaultRaw: 'now()',
+      },
+    },
+  });
+
 /* ── Activity Log ───────────────────────────────────── */
 
 export class ActivityLogRecord {
@@ -355,6 +413,255 @@ export const InviteRecordSchema = new EntitySchema<InviteRecord>({
   },
 });
 
+/* ── System Feature Flags ───────────────────────────── */
+
+export class SystemFeatureFlagRecord {
+  id!: string;
+  scope!: string;
+  tenantId!: string | null;
+  featureKey!: string;
+  featureName!: string;
+  featureDescription!: string | null;
+  isEnabled!: boolean;
+  rolloutPercentage!: number;
+  category!: string;
+  phase!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SystemFeatureFlagRecordSchema =
+  new EntitySchema<SystemFeatureFlagRecord>({
+    class: SystemFeatureFlagRecord,
+    tableName: 'system_feature_flags',
+    properties: {
+      id: { type: 'string', primary: true },
+      scope: { type: 'string', length: 32, default: 'platform' },
+      tenantId: {
+        fieldName: 'tenant_id',
+        type: 'string',
+        length: 64,
+        nullable: true,
+      },
+      featureKey: {
+        fieldName: 'feature_key',
+        type: 'string',
+        length: 120,
+        unique: true,
+      },
+      featureName: {
+        fieldName: 'feature_name',
+        type: 'string',
+        length: 160,
+      },
+      featureDescription: {
+        fieldName: 'feature_description',
+        type: 'text',
+        nullable: true,
+      },
+      isEnabled: {
+        fieldName: 'is_enabled',
+        type: 'boolean',
+        default: false,
+      },
+      rolloutPercentage: {
+        fieldName: 'rollout_percentage',
+        type: 'number',
+        default: 100,
+      },
+      category: { type: 'string', length: 64 },
+      phase: { type: 'string', length: 32, nullable: true },
+      createdAt: {
+        fieldName: 'created_at',
+        type: 'datetime',
+        defaultRaw: 'now()',
+      },
+      updatedAt: {
+        fieldName: 'updated_at',
+        type: 'datetime',
+        onUpdate: () => new Date(),
+        defaultRaw: 'now()',
+      },
+    },
+    indexes: [
+      { properties: ['scope'] },
+      { properties: ['category'] },
+      { properties: ['phase'] },
+    ],
+  });
+
+/* ── IoT SIMs ──────────────────────────────────────── */
+
+export class IotSimRecord {
+  id!: string;
+  iccid!: string;
+  imsi!: string | null;
+  msisdn!: string | null;
+  carrier!: string;
+  plan!: string;
+  status!: string;
+  tenantId!: string | null;
+  deviceId!: string | null;
+  dataUsageMb!: number;
+  dataLimitMb!: number;
+  smsUsage!: number;
+  smsLimit!: number;
+  monthlyCostNgn!: number;
+  activationDate!: Date | null;
+  expiryDate!: Date | null;
+  lastActivity!: Date | null;
+  signalStrength!: number | null;
+  networkType!: string | null;
+  roaming!: boolean;
+  fonuSimId!: string | null;
+  fonuStatus!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const IotSimRecordSchema = new EntitySchema<IotSimRecord>({
+  class: IotSimRecord,
+  tableName: 'iot_sims',
+  properties: {
+    id: { type: 'string', primary: true },
+    iccid: { type: 'string', length: 32, unique: true },
+    imsi: { type: 'string', length: 32, nullable: true },
+    msisdn: { type: 'string', length: 32, nullable: true },
+    carrier: { type: 'string', length: 64 },
+    plan: { type: 'string', length: 32, default: 'iot_basic' },
+    status: { type: 'string', length: 16, default: 'registered' },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, nullable: true, index: true },
+    deviceId: { fieldName: 'device_id', type: 'string', length: 64, nullable: true },
+    dataUsageMb: { fieldName: 'data_usage_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
+    dataLimitMb: { fieldName: 'data_limit_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
+    smsUsage: { fieldName: 'sms_usage', type: 'number', default: 0 },
+    smsLimit: { fieldName: 'sms_limit', type: 'number', default: 0 },
+    monthlyCostNgn: { fieldName: 'monthly_cost_ngn', type: 'number', columnType: 'numeric(12,2)', default: 0 },
+    activationDate: { fieldName: 'activation_date', type: 'datetime', nullable: true },
+    expiryDate: { fieldName: 'expiry_date', type: 'datetime', nullable: true },
+    lastActivity: { fieldName: 'last_activity', type: 'datetime', nullable: true },
+    signalStrength: { fieldName: 'signal_strength', type: 'number', nullable: true },
+    networkType: { fieldName: 'network_type', type: 'string', length: 16, nullable: true },
+    roaming: { type: 'boolean', default: false },
+    fonuSimId: { fieldName: 'fonu_sim_id', type: 'string', length: 128, nullable: true },
+    fonuStatus: { fieldName: 'fonu_status', type: 'string', length: 32, nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+  indexes: [
+    { properties: ['status'] },
+    { properties: ['carrier'] },
+  ],
+});
+
+/* ── SIM Provisioning Requests ─────────────────────── */
+
+export class SimProvisioningRequestRecord {
+  id!: string;
+  tenantId!: string;
+  tenantName!: string;
+  requestType!: string;
+  numberOfSims!: number;
+  preferredOperator!: string;
+  requestedPlan!: string;
+  requestedDataLimitMb!: number;
+  deploymentTimeline!: string | null;
+  useCase!: string | null;
+  deviceMappingData!: Record<string, unknown>[] | null;
+  status!: string;
+  approvedBy!: string | null;
+  approvedByName!: string | null;
+  approvedAt!: Date | null;
+  rejectedReason!: string | null;
+  fonuRequestId!: string | null;
+  fonuResponse!: Record<string, unknown> | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SimProvisioningRequestRecordSchema =
+  new EntitySchema<SimProvisioningRequestRecord>({
+    class: SimProvisioningRequestRecord,
+    tableName: 'sim_provisioning_requests',
+    properties: {
+      id: { type: 'string', primary: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      tenantName: { fieldName: 'tenant_name', type: 'string', length: 160 },
+      requestType: { fieldName: 'request_type', type: 'string', length: 32, default: 'activation' },
+      numberOfSims: { fieldName: 'number_of_sims', type: 'number' },
+      preferredOperator: { fieldName: 'preferred_operator', type: 'string', length: 64 },
+      requestedPlan: { fieldName: 'requested_plan', type: 'string', length: 32 },
+      requestedDataLimitMb: { fieldName: 'requested_data_limit_mb', type: 'number' },
+      deploymentTimeline: { fieldName: 'deployment_timeline', type: 'string', length: 32, nullable: true },
+      useCase: { fieldName: 'use_case', type: 'text', nullable: true },
+      deviceMappingData: { fieldName: 'device_mapping_data', type: 'json', nullable: true },
+      status: { type: 'string', length: 16, default: 'pending', index: true },
+      approvedBy: { fieldName: 'approved_by', type: 'string', length: 64, nullable: true },
+      approvedByName: { fieldName: 'approved_by_name', type: 'string', length: 160, nullable: true },
+      approvedAt: { fieldName: 'approved_at', type: 'datetime', nullable: true },
+      rejectedReason: { fieldName: 'rejected_reason', type: 'text', nullable: true },
+      fonuRequestId: { fieldName: 'fonu_request_id', type: 'string', length: 128, nullable: true },
+      fonuResponse: { fieldName: 'fonu_response', type: 'json', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()', index: true },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
+/* ── SIM Activation Batches ────────────────────────── */
+
+export class SimActivationBatchRecord {
+  id!: string;
+  requestId!: string | null;
+  tenantId!: string;
+  tenantName!: string;
+  activationMode!: string;
+  quantity!: number;
+  operator!: string;
+  requestedPlan!: string;
+  dataLimitGb!: number;
+  deviceMappingData!: Record<string, unknown>[] | null;
+  status!: string;
+  simsActivated!: number;
+  simsFailed!: number;
+  fonuResponse!: Record<string, unknown> | null;
+  createdBy!: string | null;
+  createdByName!: string | null;
+  startedAt!: Date | null;
+  completedAt!: Date | null;
+  errorMessage!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SimActivationBatchRecordSchema =
+  new EntitySchema<SimActivationBatchRecord>({
+    class: SimActivationBatchRecord,
+    tableName: 'sim_activation_batches',
+    properties: {
+      id: { type: 'string', primary: true },
+      requestId: { fieldName: 'request_id', type: 'string', length: 64, nullable: true, index: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      tenantName: { fieldName: 'tenant_name', type: 'string', length: 160 },
+      activationMode: { fieldName: 'activation_mode', type: 'string', length: 16, default: 'bulk' },
+      quantity: { type: 'number' },
+      operator: { type: 'string', length: 64 },
+      requestedPlan: { fieldName: 'requested_plan', type: 'string', length: 32 },
+      dataLimitGb: { fieldName: 'data_limit_gb', type: 'number', columnType: 'numeric(8,2)', default: 1 },
+      deviceMappingData: { fieldName: 'device_mapping_data', type: 'json', nullable: true },
+      status: { type: 'string', length: 32, default: 'pending', index: true },
+      simsActivated: { fieldName: 'sims_activated', type: 'number', default: 0 },
+      simsFailed: { fieldName: 'sims_failed', type: 'number', default: 0 },
+      fonuResponse: { fieldName: 'fonu_response', type: 'json', nullable: true },
+      createdBy: { fieldName: 'created_by', type: 'string', length: 64, nullable: true },
+      createdByName: { fieldName: 'created_by_name', type: 'string', length: 160, nullable: true },
+      startedAt: { fieldName: 'started_at', type: 'datetime', nullable: true },
+      completedAt: { fieldName: 'completed_at', type: 'datetime', nullable: true },
+      errorMessage: { fieldName: 'error_message', type: 'text', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
 /* ── Password Reset ──────────────────────────────────── */
 
 export class PasswordResetRecord {
@@ -488,9 +795,14 @@ export async function getAuthOrm(cfg: DbConfig) {
       InviteRecordSchema,
       PasswordResetRecordSchema,
       OrganizationSettingsRecordSchema,
+      SystemSettingsRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,
       SystemDeviceModelRecordSchema,
+      SystemFeatureFlagRecordSchema,
+      IotSimRecordSchema,
+      SimProvisioningRequestRecordSchema,
+      SimActivationBatchRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

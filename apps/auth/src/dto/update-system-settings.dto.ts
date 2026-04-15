@@ -1,0 +1,80 @@
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { SYSTEM_BACKUP_FREQUENCIES } from '../system-settings.repository';
+
+class SystemSettingsDefaultsDto {
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  language?: string;
+}
+
+class SystemSettingsFeaturesDto {
+  @IsOptional()
+  @IsBoolean()
+  allowNewTenantRegistration?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  maintenanceMode?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableBetaFeatures?: boolean;
+}
+
+class SystemSettingsRetentionDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  gpsDataRetentionDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  logRetentionDays?: number;
+
+  @IsOptional()
+  @IsIn(SYSTEM_BACKUP_FREQUENCIES)
+  backupFrequency?: (typeof SYSTEM_BACKUP_FREQUENCIES)[number];
+}
+
+export class UpdateSystemSettingsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  platformName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  supportEmail?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsDefaultsDto)
+  defaults?: SystemSettingsDefaultsDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsFeaturesDto)
+  features?: SystemSettingsFeaturesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsRetentionDto)
+  retention?: SystemSettingsRetentionDto;
+}

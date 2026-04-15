@@ -88,9 +88,12 @@ import {
 import { LoginDto } from './dto/login.dto';
 import { ChangeSystemPasswordDto } from './dto/change-system-password.dto';
 import { CreateSystemAdminDto } from './dto/create-system-admin.dto';
+import { CreateSystemAdminInviteDto } from './dto/create-system-admin-invite.dto';
 import { CreateSystemDeviceModelDto } from './dto/create-system-device-model.dto';
 import { CreateSystemTenantDto } from './dto/create-system-tenant.dto';
 import { UpdateSystemDeviceModelDto } from './dto/update-system-device-model.dto';
+import { UpdateSystemFeatureFlagDto } from './dto/update-system-feature-flag.dto';
+import { UpdateSystemSettingsDto } from './dto/update-system-settings.dto';
 import { UpdateSystemTenantDto } from './dto/update-system-tenant.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -124,13 +127,24 @@ import {
   OrganizationUsersResponse,
   ProfileResponse,
   RemoveOrganizationUserResponse,
+  SystemAdminInviteCancelResponse,
+  SystemAdminInviteResponse,
+  SystemAdminInvitesResponse,
   SystemDeviceCatalogDeleteResponse,
   SystemDeviceCatalogListResponse,
   SystemDeviceCatalogModelResponse,
   SystemDeviceCatalogReferenceDataResponse,
   SystemDeviceInventoryListResponse,
   SystemDeviceSummaryResponse,
+  SystemFeatureFlagResponse,
+  SystemFeatureFlagsResponse,
+  SystemSettingsResponse,
   SystemTenantOnboardingResponse,
+  SystemTenantInviteActionResponse,
+  SystemSimSummaryResponse,
+  SystemSimsListResponse,
+  SystemSimRequestsListResponse,
+  SystemSimBatchesListResponse,
   UploadedMediaResponse,
 } from './dto/auth.schema';
 import { ResendInviteDto } from './dto/resend-invite.dto';
@@ -160,15 +174,32 @@ import {
   SystemTenantNotFoundError,
 } from './get-system-tenant.use-case';
 import { GetSystemTenantOnboardingReferenceDataUseCase } from './get-system-tenant-onboarding-reference-data.use-case';
+import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
+import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
+import {
+  CreateSystemAdminInviteUseCase,
+} from './create-system-admin-invite.use-case';
+import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use-case';
+import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
+import {
+  ResendSystemTenantInviteUseCase,
+  SystemTenantInviteResendConflictError,
+} from './resend-system-tenant-invite.use-case';
 import {
   InvalidSystemDeviceProvisioningError,
   SystemDeviceModelConflictError,
   SystemDeviceModelNotFoundError,
 } from './system-device-model.errors';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
+import {
+  SystemFeatureFlagNotFoundError,
+  UpdateSystemFeatureFlagUseCase,
+} from './update-system-feature-flag.use-case';
+import { UpdateSystemSettingsUseCase } from './update-system-settings.use-case';
 import {
   SystemTenantStatusConflictError,
   UpdateSystemTenantStatusUseCase,
@@ -181,6 +212,23 @@ import {
   DeleteSystemTenantUseCase,
   SystemTenantDeleteConflictError,
 } from './delete-system-tenant.use-case';
+import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
+import { ListSystemSimsUseCase } from './list-system-sims.use-case';
+import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
+import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
+import {
+  ApproveSystemSimRequestUseCase,
+  SimRequestNotFoundError,
+  SimRequestAlreadyProcessedError,
+} from './approve-system-sim-request.use-case';
+import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-case';
+import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
+import {
+  RetrySystemSimBatchUseCase,
+  SimBatchNotFoundError,
+  SimBatchNotRetryableError,
+} from './retry-system-sim-batch.use-case';
+import { RejectSimRequestDto } from './dto/system-sim.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -194,10 +242,14 @@ export class AuthController {
     private readonly changeSystemPasswordUseCase: ChangeSystemPasswordUseCase,
     @Inject(CreateSystemAdminUseCase)
     private readonly createSystemAdminUseCase: CreateSystemAdminUseCase,
+    @Inject(CreateSystemAdminInviteUseCase)
+    private readonly createSystemAdminInviteUseCase: CreateSystemAdminInviteUseCase,
     @Inject(CreateSystemTenantUseCase)
     private readonly createSystemTenantUseCase: CreateSystemTenantUseCase,
     @Inject(CreateSystemDeviceModelUseCase)
     private readonly createSystemDeviceModelUseCase: CreateSystemDeviceModelUseCase,
+    @Inject(CancelSystemAdminInviteUseCase)
+    private readonly cancelSystemAdminInviteUseCase: CancelSystemAdminInviteUseCase,
     @Inject(DeleteSystemDeviceModelUseCase)
     private readonly deleteSystemDeviceModelUseCase: DeleteSystemDeviceModelUseCase,
     @Inject(ExportSystemDeviceInventoryUseCase)
@@ -256,6 +308,8 @@ export class AuthController {
     private readonly updateOrganizationSettingsUseCase: UpdateOrganizationSettingsUseCase,
     @Inject(GetActivityLogUseCase)
     private readonly getActivityLogUseCase: GetActivityLogUseCase,
+    @Inject(GetSystemSettingsUseCase)
+    private readonly getSystemSettingsUseCase: GetSystemSettingsUseCase,
     @Inject(GetSystemDeviceCatalogReferenceDataUseCase)
     private readonly getSystemDeviceCatalogReferenceDataUseCase: GetSystemDeviceCatalogReferenceDataUseCase,
     @Inject(GetSystemDeviceSummaryUseCase)
@@ -272,14 +326,26 @@ export class AuthController {
     private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
     @Inject(GetSystemTenantOnboardingReferenceDataUseCase)
     private readonly getSystemTenantOnboardingReferenceDataUseCase: GetSystemTenantOnboardingReferenceDataUseCase,
+    @Inject(ListSystemAdminInvitesUseCase)
+    private readonly listSystemAdminInvitesUseCase: ListSystemAdminInvitesUseCase,
     @Inject(ListSystemDeviceCatalogUseCase)
     private readonly listSystemDeviceCatalogUseCase: ListSystemDeviceCatalogUseCase,
     @Inject(ListSystemDeviceInventoryUseCase)
     private readonly listSystemDeviceInventoryUseCase: ListSystemDeviceInventoryUseCase,
+    @Inject(ListSystemFeatureFlagsUseCase)
+    private readonly listSystemFeatureFlagsUseCase: ListSystemFeatureFlagsUseCase,
     @Inject(ListSystemTenantsUseCase)
     private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
+    @Inject(ResendSystemAdminInviteUseCase)
+    private readonly resendSystemAdminInviteUseCase: ResendSystemAdminInviteUseCase,
+    @Inject(ResendSystemTenantInviteUseCase)
+    private readonly resendSystemTenantInviteUseCase: ResendSystemTenantInviteUseCase,
     @Inject(UpdateSystemDeviceModelUseCase)
     private readonly updateSystemDeviceModelUseCase: UpdateSystemDeviceModelUseCase,
+    @Inject(UpdateSystemFeatureFlagUseCase)
+    private readonly updateSystemFeatureFlagUseCase: UpdateSystemFeatureFlagUseCase,
+    @Inject(UpdateSystemSettingsUseCase)
+    private readonly updateSystemSettingsUseCase: UpdateSystemSettingsUseCase,
     @Inject(UpdateSystemTenantStatusUseCase)
     private readonly updateSystemTenantStatusUseCase: UpdateSystemTenantStatusUseCase,
     @Inject(UpdateSystemTenantUseCase)
@@ -298,6 +364,22 @@ export class AuthController {
     private readonly activityLogService: ActivityLogService,
     @Inject(ObjectStorageService)
     private readonly objectStorageService: ObjectStorageService,
+    @Inject(GetSystemSimSummaryUseCase)
+    private readonly getSystemSimSummaryUseCase: GetSystemSimSummaryUseCase,
+    @Inject(ListSystemSimsUseCase)
+    private readonly listSystemSimsUseCase: ListSystemSimsUseCase,
+    @Inject(ExportSystemSimsUseCase)
+    private readonly exportSystemSimsUseCase: ExportSystemSimsUseCase,
+    @Inject(ListSystemSimRequestsUseCase)
+    private readonly listSystemSimRequestsUseCase: ListSystemSimRequestsUseCase,
+    @Inject(ApproveSystemSimRequestUseCase)
+    private readonly approveSystemSimRequestUseCase: ApproveSystemSimRequestUseCase,
+    @Inject(RejectSystemSimRequestUseCase)
+    private readonly rejectSystemSimRequestUseCase: RejectSystemSimRequestUseCase,
+    @Inject(ListSystemSimBatchesUseCase)
+    private readonly listSystemSimBatchesUseCase: ListSystemSimBatchesUseCase,
+    @Inject(RetrySystemSimBatchUseCase)
+    private readonly retrySystemSimBatchUseCase: RetrySystemSimBatchUseCase,
   ) {}
 
   @Get('health')
@@ -485,6 +567,92 @@ export class AuthController {
       metadata: { email: result.user.email },
     });
     return result as unknown as AuthResponse;
+  }
+
+  @Get('system/settings')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get system settings',
+    description:
+      'Returns global platform settings for the system admin surface.',
+  })
+  @ApiOkResponse({ type: SystemSettingsResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view system settings',
+  })
+  async getSystemSettings(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemSettingsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/settings')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update system settings',
+    description:
+      'Updates the global platform settings used by the system admin surface.',
+  })
+  @ApiOkResponse({ type: SystemSettingsResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to update system settings',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid system settings payload' })
+  async updateSystemSettings(
+    @Body(BodyOrDataPipe) payload: UpdateSystemSettingsDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.updateSystemSettingsUseCase.execute({
+        accessToken,
+        platformName: payload.platformName,
+        supportEmail: payload.supportEmail,
+        defaults: payload.defaults,
+        features: payload.features,
+        retention: payload.retention,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.settings.updated',
+        entityType: 'system_settings',
+        entityId: 'system',
+        summary: 'System settings updated',
+        metadata: {
+          updatedSections: {
+            platformName: payload.platformName !== undefined,
+            supportEmail: payload.supportEmail !== undefined,
+            defaults: Boolean(payload.defaults),
+            features: Boolean(payload.features),
+            retention: Boolean(payload.retention),
+          },
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof InvalidSettingsError)
+        throw new BadRequestException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
   }
 
   /** Decode the bearer token and return the authenticated user's claims */
@@ -1117,6 +1285,184 @@ export class AuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/admin-invites')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List system admin invites',
+    description:
+      'Returns active pending system admin invites for the super admin surface.',
+  })
+  @ApiOkResponse({ type: SystemAdminInvitesResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view system admin invites',
+  })
+  async listSystemAdminInvites(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.listSystemAdminInvitesUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('system/admin-invites')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create system admin invite',
+    description:
+      'Creates and sends a pending invite for a new system admin account.',
+  })
+  @ApiCreatedResponse({ type: SystemAdminInviteResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to invite system admins',
+  })
+  @ApiConflictResponse({
+    description: 'An account or pending invite with this email already exists',
+  })
+  async createSystemAdminInvite(
+    @Body(BodyOrDataPipe) payload: CreateSystemAdminInviteDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.createSystemAdminInviteUseCase.execute({
+        accessToken,
+        email: payload.email,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.admin.invited',
+        entityType: 'invite',
+        entityId: result.data.id,
+        summary: 'System admin invitation sent',
+        metadata: {
+          email: result.data.email,
+          role: result.data.role,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof EmailTakenError)
+        throw new ConflictException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('system/admin-invites/:inviteId/resend')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Resend system admin invite',
+    description:
+      'Resends a pending system admin invite and rotates the invite token.',
+  })
+  @ApiOkResponse({ type: SystemAdminInviteResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to resend system admin invites',
+  })
+  @ApiNotFoundResponse({ description: 'System admin invite not found' })
+  async resendSystemAdminInvite(
+    @Param('inviteId') inviteId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.resendSystemAdminInviteUseCase.execute({
+        accessToken,
+        inviteId,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.admin.invite.resent',
+        entityType: 'invite',
+        entityId: inviteId,
+        summary: 'System admin invitation resent',
+        metadata: {
+          email: result.data.email,
+          role: result.data.role,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof InviteNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('system/admin-invites/:inviteId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cancel system admin invite',
+    description:
+      'Cancels a pending system admin invite so the recipient can no longer join using that link.',
+  })
+  @ApiOkResponse({ type: SystemAdminInviteCancelResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to cancel system admin invites',
+  })
+  @ApiNotFoundResponse({ description: 'System admin invite not found' })
+  async cancelSystemAdminInvite(
+    @Param('inviteId') inviteId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.cancelSystemAdminInviteUseCase.execute(
+        accessToken,
+        inviteId,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.admin.invite.cancelled',
+        entityType: 'invite',
+        entityId: inviteId,
+        summary: 'System admin invitation cancelled',
+        metadata: {
+          email: result.data.email,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof InviteNotFoundError)
+        throw new NotFoundException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
       throw error;
@@ -1990,6 +2336,88 @@ export class AuthController {
     }
   }
 
+  @Get('system/feature-flags')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List system feature flags',
+    description:
+      'Returns platform-scoped feature flags for the system admin surface.',
+  })
+  @ApiOkResponse({ type: SystemFeatureFlagsResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view system feature flags',
+  })
+  async listSystemFeatureFlags(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.listSystemFeatureFlagsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/feature-flags/:featureKey')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update system feature flag',
+    description:
+      'Updates a platform-scoped feature flag for the system admin surface.',
+  })
+  @ApiOkResponse({ type: SystemFeatureFlagResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to update system feature flags',
+  })
+  @ApiNotFoundResponse({ description: 'Feature flag not found' })
+  async updateSystemFeatureFlag(
+    @Param('featureKey') featureKey: string,
+    @Body(BodyOrDataPipe) payload: UpdateSystemFeatureFlagDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.updateSystemFeatureFlagUseCase.execute({
+        accessToken,
+        featureKey,
+        isEnabled: payload.isEnabled,
+        rolloutPercentage: payload.rolloutPercentage,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.feature_flag.updated',
+        entityType: 'feature_flag',
+        entityId: featureKey,
+        summary: 'System feature flag updated',
+        metadata: {
+          isEnabled: result.data.isEnabled,
+          rolloutPercentage: result.data.rolloutPercentage,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof SystemFeatureFlagNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
   @Get('system/tenants/summary')
   @ApiBearerAuth()
   @ApiOperation({
@@ -2283,6 +2711,61 @@ export class AuthController {
     }
   }
 
+  @Post('system/tenants/:tenantId/invite/resend')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Resend tenant onboarding invite',
+    description:
+      'Reissues the bootstrap invite for a tenant that is still pending activation.',
+  })
+  @ApiOkResponse({ type: SystemTenantInviteActionResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to resend tenant onboarding invites',
+  })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  @ApiConflictResponse({
+    description:
+      'Tenant does not have a resendable onboarding invite in its current state',
+  })
+  async resendSystemTenantInvite(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.resendSystemTenantInviteUseCase.execute({
+        accessToken,
+        tenantId,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'tenant.onboarding.invite.resent',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Tenant onboarding invitation resent',
+        metadata: {
+          email: result.data.email,
+          role: result.data.role,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof SystemTenantInviteResendConflictError)
+        throw new ConflictException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
   @Patch('system/tenants/:tenantId/status')
   @ApiBearerAuth()
   @ApiOperation({
@@ -2395,6 +2878,240 @@ export class AuthController {
         throw new ConflictException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /* ── System SIM Management ─────────────────────────── */
+
+  @Get('system/sims/summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get system SIM summary', description: 'Platform-wide SIM metrics.' })
+  @ApiOkResponse({ type: SystemSimSummaryResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM summary' })
+  async getSystemSimSummary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemSimSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/sims')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List system SIM inventory', description: 'Platform-wide SIM inventory.' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'carrier', required: false, type: String })
+  @ApiQuery({ name: 'tenantId', required: false, type: String })
+  @ApiOkResponse({ type: SystemSimsListResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM inventory' })
+  async listSystemSims(
+    @Headers('authorization') authorization?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('carrier') carrier?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemSimsUseCase.execute(accessToken, { search, status, carrier, tenantId });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/sims/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export system SIM inventory', description: 'CSV export of platform SIM inventory.' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'carrier', required: false, type: String })
+  @ApiQuery({ name: 'tenantId', required: false, type: String })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV export', schema: { type: 'string', format: 'binary' } })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to export SIM inventory' })
+  async exportSystemSims(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('search') search: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('carrier') carrier: string | undefined,
+    @Query('tenantId') tenantId: string | undefined,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const exported = await this.exportSystemSimsUseCase.execute(accessToken, { search, status, carrier, tenantId });
+      response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      response.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sims.exported',
+        entityType: 'sim',
+        entityId: 'system-sim-inventory',
+        summary: 'Exported system SIM inventory',
+      });
+      return new StreamableFile(Buffer.from(exported.csv, 'utf8'));
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/sims/requests')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List SIM provisioning requests', description: 'Approval queue for tenant SIM requests.' })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'approved', 'rejected'] })
+  @ApiOkResponse({ type: SystemSimRequestsListResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM requests' })
+  async listSystemSimRequests(
+    @Headers('authorization') authorization?: string,
+    @Query('status') status?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemSimRequestsUseCase.execute(accessToken, { status });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/sims/requests/:requestId/approve')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Approve SIM provisioning request', description: 'Approves and creates an activation batch.' })
+  @ApiOkResponse({ description: 'Request approved' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to approve SIM requests' })
+  @ApiNotFoundResponse({ description: 'Request not found' })
+  @ApiConflictResponse({ description: 'Request already processed' })
+  async approveSystemSimRequest(
+    @Param('requestId') requestId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.approveSystemSimRequestUseCase.execute(accessToken, requestId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sim_request.approved',
+        entityType: 'sim_request',
+        entityId: requestId,
+        summary: 'SIM provisioning request approved',
+        metadata: { batchId: result.data.batchId, quantity: result.data.quantity },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SimRequestNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof SimRequestAlreadyProcessedError) throw new ConflictException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/sims/requests/:requestId/reject')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reject SIM provisioning request', description: 'Rejects with a reason.' })
+  @ApiOkResponse({ description: 'Request rejected' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to reject SIM requests' })
+  @ApiNotFoundResponse({ description: 'Request not found' })
+  @ApiConflictResponse({ description: 'Request already processed' })
+  async rejectSystemSimRequest(
+    @Param('requestId') requestId: string,
+    @Body(BodyOrDataPipe) payload: RejectSimRequestDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.rejectSystemSimRequestUseCase.execute(accessToken, requestId, payload.reason);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sim_request.rejected',
+        entityType: 'sim_request',
+        entityId: requestId,
+        summary: 'SIM provisioning request rejected',
+        metadata: { reason: payload.reason },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SimRequestNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof SimRequestAlreadyProcessedError) throw new ConflictException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/sims/batches')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List SIM activation batches', description: 'Monitor batch activation progress.' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiOkResponse({ type: SystemSimBatchesListResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM batches' })
+  async listSystemSimBatches(
+    @Headers('authorization') authorization?: string,
+    @Query('status') status?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemSimBatchesUseCase.execute(accessToken, { status });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('system/sims/batches/:batchId/retry')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Retry failed SIM activation batch', description: 'Resets a failed batch for retry.' })
+  @ApiOkResponse({ description: 'Batch queued for retry' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to retry SIM batches' })
+  @ApiNotFoundResponse({ description: 'Batch not found' })
+  @ApiConflictResponse({ description: 'Batch cannot be retried in current status' })
+  async retrySystemSimBatch(
+    @Param('batchId') batchId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.retrySystemSimBatchUseCase.execute(accessToken, batchId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sim_batch.retried',
+        entityType: 'sim_batch',
+        entityId: batchId,
+        summary: 'SIM activation batch retried',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SimBatchNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof SimBatchNotRetryableError) throw new ConflictException(error.message);
       throw error;
     }
   }

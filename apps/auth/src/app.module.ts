@@ -75,6 +75,9 @@ import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use
 import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
 import { DeleteSystemDeviceModelUseCase } from './delete-system-device-model.use-case';
 import { DEVICE_MODEL_CATALOG_REPOSITORY } from './device-model-catalog.repository';
+import { SIM_REPOSITORY } from './sim.repository';
+import { SIM_PROVISIONING_REQUEST_REPOSITORY } from './sim-provisioning-request.repository';
+import { SIM_ACTIVATION_BATCH_REPOSITORY } from './sim-activation-batch.repository';
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
@@ -89,13 +92,42 @@ import { GetSystemTenantOnboardingReferenceDataUseCase } from './get-system-tena
 import { InMemoryActivityLogRepository } from './in-memory-activity-log.repository';
 import { InMemoryDeviceModelCatalogRepository } from './in-memory-device-model-catalog.repository';
 import { InMemoryTenantOnboardingRepository } from './in-memory-tenant-onboarding.repository';
+import { InMemorySimRepository } from './in-memory-sim.repository';
+import { InMemorySimProvisioningRequestRepository } from './in-memory-sim-provisioning-request.repository';
+import { InMemorySimActivationBatchRepository } from './in-memory-sim-activation-batch.repository';
+import { InMemorySystemFeatureFlagRepository } from './in-memory-system-feature-flag.repository';
+import { InMemorySystemSettingsRepository } from './in-memory-system-settings.repository';
+import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
 import { MikroDeviceModelCatalogRepository } from './mikro-device-model-catalog.repository';
+import { MikroSimRepository } from './mikro-sim.repository';
+import { MikroSimProvisioningRequestRepository } from './mikro-sim-provisioning-request.repository';
+import { MikroSimActivationBatchRepository } from './mikro-sim-activation-batch.repository';
+import { MikroSystemFeatureFlagRepository } from './mikro-system-feature-flag.repository';
+import { MikroSystemSettingsRepository } from './mikro-system-settings.repository';
 import { MikroTenantOnboardingRepository } from './mikro-tenant-onboarding.repository';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
+import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use-case';
+import { CreateSystemAdminInviteUseCase } from './create-system-admin-invite.use-case';
+import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
+import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
+import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
+import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
+import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
+import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
+import { ListSystemSimsUseCase } from './list-system-sims.use-case';
+import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-case';
+import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
+import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
+import { ResendSystemTenantInviteUseCase } from './resend-system-tenant-invite.use-case';
+import { SYSTEM_FEATURE_FLAG_REPOSITORY } from './system-feature-flag.repository';
+import { SYSTEM_SETTINGS_REPOSITORY } from './system-settings.repository';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
+import { UpdateSystemFeatureFlagUseCase } from './update-system-feature-flag.use-case';
+import { UpdateSystemSettingsUseCase } from './update-system-settings.use-case';
 import { UpdateSystemTenantUseCase } from './update-system-tenant.use-case';
 import { UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { SuperAdminBootstrapService } from './superadmin-bootstrap.service';
@@ -224,6 +256,38 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
 
+    InMemorySystemSettingsRepository,
+    MikroSystemSettingsRepository,
+    {
+      provide: SYSTEM_SETTINGS_REPOSITORY,
+      inject: [
+        InMemorySystemSettingsRepository,
+        MikroSystemSettingsRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemorySystemSettingsRepository,
+        mikro: MikroSystemSettingsRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+
+    InMemorySystemFeatureFlagRepository,
+    MikroSystemFeatureFlagRepository,
+    {
+      provide: SYSTEM_FEATURE_FLAG_REPOSITORY,
+      inject: [
+        InMemorySystemFeatureFlagRepository,
+        MikroSystemFeatureFlagRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemorySystemFeatureFlagRepository,
+        mikro: MikroSystemFeatureFlagRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+
     InMemoryActivityLogRepository,
     MikroActivityLogRepository,
     {
@@ -269,13 +333,56 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemorySimRepository,
+    MikroSimRepository,
+    {
+      provide: SIM_REPOSITORY,
+      inject: [InMemorySimRepository, MikroSimRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySimRepository,
+        mikro: MikroSimRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemorySimProvisioningRequestRepository,
+    MikroSimProvisioningRequestRepository,
+    {
+      provide: SIM_PROVISIONING_REQUEST_REPOSITORY,
+      inject: [
+        InMemorySimProvisioningRequestRepository,
+        MikroSimProvisioningRequestRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemorySimProvisioningRequestRepository,
+        mikro: MikroSimProvisioningRequestRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemorySimActivationBatchRepository,
+    MikroSimActivationBatchRepository,
+    {
+      provide: SIM_ACTIVATION_BATCH_REPOSITORY,
+      inject: [
+        InMemorySimActivationBatchRepository,
+        MikroSimActivationBatchRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemorySimActivationBatchRepository,
+        mikro: MikroSimActivationBatchRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
 
     // Use cases
     LoginUseCase,
     ChangeSystemPasswordUseCase,
     CreateSystemAdminUseCase,
+    CreateSystemAdminInviteUseCase,
     CreateSystemTenantUseCase,
     CreateSystemDeviceModelUseCase,
+    CancelSystemAdminInviteUseCase,
     DeleteSystemTenantUseCase,
     DeleteSystemDeviceModelUseCase,
     ExportSystemDeviceInventoryUseCase,
@@ -312,20 +419,35 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ActivityLogService,
     ActivityLogListener,
     GetActivityLogUseCase,
+    GetSystemSettingsUseCase,
     GetSystemDashboardUseCase,
     GetSystemDeviceCatalogReferenceDataUseCase,
     GetSystemDeviceSummaryUseCase,
     GetSystemSubscriptionPlansUseCase,
     GetSystemActivityLogUseCase,
+    ListSystemAdminInvitesUseCase,
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
+    ListSystemFeatureFlagsUseCase,
     ListSystemTenantsUseCase,
     GetSystemTenantsSummaryUseCase,
     GetSystemTenantUseCase,
     GetSystemTenantOnboardingReferenceDataUseCase,
+    ResendSystemAdminInviteUseCase,
+    ResendSystemTenantInviteUseCase,
     UpdateSystemDeviceModelUseCase,
+    UpdateSystemFeatureFlagUseCase,
+    UpdateSystemSettingsUseCase,
     UpdateSystemTenantUseCase,
     UpdateSystemTenantStatusUseCase,
+    ApproveSystemSimRequestUseCase,
+    ExportSystemSimsUseCase,
+    GetSystemSimSummaryUseCase,
+    ListSystemSimBatchesUseCase,
+    ListSystemSimRequestsUseCase,
+    ListSystemSimsUseCase,
+    RejectSystemSimRequestUseCase,
+    RetrySystemSimBatchUseCase,
     SuperAdminBootstrapService,
   ],
 })

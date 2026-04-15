@@ -29,6 +29,19 @@ export class MikroInviteRepository implements InviteRepository {
     });
   }
 
+  async findById(id: string): Promise<StoredInvite | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(InviteRecord, { id });
+    return record
+      ? {
+          ...record,
+          role: roleFromId(record.roleId),
+          status: record.status as StoredInvite['status'],
+        }
+      : null;
+  }
+
   async findByToken(token: string): Promise<StoredInvite | null> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
@@ -77,10 +90,33 @@ export class MikroInviteRepository implements InviteRepository {
       : null;
   }
 
+  async listPendingByTenant(tenantId: string): Promise<StoredInvite[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(
+      InviteRecord,
+      { tenantId, status: 'pending' },
+      {
+        orderBy: { createdAt: 'desc' },
+      },
+    );
+    return records.map((record) => ({
+      ...record,
+      role: roleFromId(record.roleId),
+      status: record.status as StoredInvite['status'],
+    }));
+  }
+
   async markAccepted(token: string): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeUpdate(InviteRecord, { token }, { status: 'accepted' });
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeDelete(InviteRecord, { id });
   }
 
   async deleteByTenantId(tenantId: string): Promise<void> {

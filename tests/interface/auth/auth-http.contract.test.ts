@@ -426,6 +426,292 @@ describe('Auth HTTP contract', () => {
     expect(enabledLoginRes.status).toBe(201);
   });
 
+  it('GET /auth/system/settings returns defaults and PATCH /auth/system/settings updates them', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const getSettingsRes = await request(app.getHttpServer())
+      .get('/auth/system/settings')
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(getSettingsRes.status).toBe(200);
+    expect(getSettingsRes.body.status).toBe(true);
+    expect(getSettingsRes.body.data.platformName).toBe('Truckmoov');
+    expect(getSettingsRes.body.data.supportEmail).toBe('support@truckmoov.com');
+    expect(getSettingsRes.body.data.defaults.timezone).toBe('Africa/Lagos');
+
+    const patchSettingsRes = await request(app.getHttpServer())
+      .patch('/auth/system/settings')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        platformName: 'Truckmoov Control',
+        supportEmail: 'ops@truckmoov.com',
+        defaults: {
+          timezone: 'africa/johannesburg',
+          language: 'fr',
+        },
+        features: {
+          maintenanceMode: true,
+        },
+        retention: {
+          gpsDataRetentionDays: 180,
+          logRetentionDays: 90,
+          backupFrequency: 'weekly',
+        },
+      });
+
+    expect(patchSettingsRes.status).toBe(200);
+    expect(patchSettingsRes.body.message).toBe(
+      'System settings updated successfully',
+    );
+    expect(patchSettingsRes.body.data.platformName).toBe('Truckmoov Control');
+    expect(patchSettingsRes.body.data.supportEmail).toBe('ops@truckmoov.com');
+    expect(patchSettingsRes.body.data.defaults.timezone).toBe(
+      'Africa/Johannesburg',
+    );
+    expect(patchSettingsRes.body.data.features.maintenanceMode).toBe(true);
+    expect(patchSettingsRes.body.data.retention.backupFrequency).toBe(
+      'weekly',
+    );
+
+    await request(app.getHttpServer())
+      .post('/auth/system/admins')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        fullName: 'System Settings Admin',
+        email: 'system-settings-admin@truckmoov.com',
+        password: 'Adm1nPass!',
+      })
+      .expect(201);
+
+    const systemAdminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'system-settings-admin@truckmoov.com',
+        password: 'Adm1nPass!',
+      });
+
+    expect(systemAdminLoginRes.status).toBe(201);
+
+    const systemAdminGetRes = await request(app.getHttpServer())
+      .get('/auth/system/settings')
+      .set('Authorization', `Bearer ${systemAdminLoginRes.body.accessToken}`);
+
+    expect(systemAdminGetRes.status).toBe(200);
+    expect(systemAdminGetRes.body.data.platformName).toBe('Truckmoov Control');
+  });
+
+  it('system admin invite endpoints create, list, resend, register, and cancel invites', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const createInviteRes = await request(app.getHttpServer())
+      .post('/auth/system/admin-invites')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({ email: 'invited-sysadmin@truckmoov.com' });
+
+    expect(createInviteRes.status).toBe(201);
+    expect(createInviteRes.body.status).toBe(true);
+    expect(createInviteRes.body.data.email).toBe('invited-sysadmin@truckmoov.com');
+    expect(createInviteRes.body.data.role).toBe('SYSTEM_ADMIN');
+    const inviteId = createInviteRes.body.data.id as string;
+
+    const listInvitesRes = await request(app.getHttpServer())
+      .get('/auth/system/admin-invites')
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(listInvitesRes.status).toBe(200);
+    expect(listInvitesRes.body.data.invites).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: inviteId,
+          email: 'invited-sysadmin@truckmoov.com',
+          role: 'SYSTEM_ADMIN',
+        }),
+      ]),
+    );
+
+    const firstInvite = await inviteRepo.findByEmail('invited-sysadmin@truckmoov.com');
+    expect(firstInvite).toBeTruthy();
+
+    const resendInviteRes = await request(app.getHttpServer())
+      .post(`/auth/system/admin-invites/${inviteId}/resend`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(resendInviteRes.status).toBe(201);
+    expect(resendInviteRes.body.message).toBe('System admin invitation resent');
+
+    const resentInvite = await inviteRepo.findByEmail('invited-sysadmin@truckmoov.com');
+    expect(resentInvite).toBeTruthy();
+    expect(resentInvite?.token).not.toBe(firstInvite?.token);
+
+    const registerInvitedRes = await request(app.getHttpServer())
+      .post('/auth/register/invited')
+      .send({
+        inviteToken: resentInvite?.token,
+        fullName: 'Invited System Admin',
+        password: 'Adm1nPass!',
+      });
+
+    expect(registerInvitedRes.status).toBe(201);
+    expect(registerInvitedRes.body.user.role).toBe('SYSTEM_ADMIN');
+    expect(registerInvitedRes.body.user.tenantId).toBe('system');
+
+    const invitedLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'invited-sysadmin@truckmoov.com',
+        password: 'Adm1nPass!',
+      });
+
+    expect(invitedLoginRes.status).toBe(201);
+
+    const createCancelInviteRes = await request(app.getHttpServer())
+      .post('/auth/system/admin-invites')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({ email: 'cancel-sysadmin@truckmoov.com' });
+
+    expect(createCancelInviteRes.status).toBe(201);
+    const cancelInviteId = createCancelInviteRes.body.data.id as string;
+
+    const cancelInviteRes = await request(app.getHttpServer())
+      .delete(`/auth/system/admin-invites/${cancelInviteId}`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(cancelInviteRes.status).toBe(200);
+    expect(cancelInviteRes.body.data).toEqual({
+      id: cancelInviteId,
+      email: 'cancel-sysadmin@truckmoov.com',
+      cancelled: true,
+    });
+  });
+
+  it('POST /auth/system/tenants/:tenantId/invite/resend reissues pending tenant bootstrap invites', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const createTenantRes = await request(app.getHttpServer())
+      .post('/auth/system/tenants')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'Invite Resend Fleet',
+          email: 'tenant-resend@truckmoov.com',
+          phoneNumber: '+2348012345678',
+          billingEmail: 'billing@tenant-resend.com',
+          businessAddress: '14 Admiralty Way, Lekki',
+          organizationType: 'fleet_provider',
+        },
+        subscription: {
+          planCode: 'FLEET_GROWTH',
+          billingCycle: 'monthly',
+        },
+      });
+
+    expect(createTenantRes.status).toBe(201);
+    const tenantId = createTenantRes.body.data.tenantId as string;
+    const firstInvite = await inviteRepo.findByEmail('tenant-resend@truckmoov.com');
+    expect(firstInvite).toBeTruthy();
+
+    const resendRes = await request(app.getHttpServer())
+      .post(`/auth/system/tenants/${tenantId}/invite/resend`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(resendRes.status).toBe(201);
+    expect(resendRes.body.message).toBe('Tenant invitation resent');
+    expect(resendRes.body.data.tenantId).toBe(tenantId);
+    expect(resendRes.body.data.email).toBe('tenant-resend@truckmoov.com');
+
+    const resentInvite = await inviteRepo.findByEmail('tenant-resend@truckmoov.com');
+    expect(resentInvite).toBeTruthy();
+    expect(resentInvite?.token).not.toBe(firstInvite?.token);
+
+    const activeTenantRegisterRes = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(
+        makeRegisterPayload('tenant-resend-conflict@contract.com', {
+          firstName: 'Tenant',
+          lastName: 'Conflict',
+          organizationName: 'Tenant Conflict Org',
+        }),
+      );
+
+    expect(activeTenantRegisterRes.status).toBe(201);
+
+    const activeResendRes = await request(app.getHttpServer())
+      .post(
+        `/auth/system/tenants/${activeTenantRegisterRes.body.user.tenantId}/invite/resend`,
+      )
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(activeResendRes.status).toBe(409);
+  });
+
+  it('GET /auth/system/feature-flags lists platform flags and PATCH updates a flag', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+
+    expect(superadminLoginRes.status).toBe(201);
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const listFlagsRes = await request(app.getHttpServer())
+      .get('/auth/system/feature-flags')
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(listFlagsRes.status).toBe(200);
+    expect(listFlagsRes.body.status).toBe(true);
+    expect(listFlagsRes.body.data.flags.length).toBeGreaterThan(0);
+    expect(listFlagsRes.body.data.flags).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          featureKey: 'enable_multi_stakeholder_model',
+          category: 'architecture',
+        }),
+      ]),
+    );
+
+    const patchFlagRes = await request(app.getHttpServer())
+      .patch('/auth/system/feature-flags/enable_multi_stakeholder_model')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        isEnabled: true,
+        rolloutPercentage: 100,
+      });
+
+    expect(patchFlagRes.status).toBe(200);
+    expect(patchFlagRes.body.message).toBe('Feature flag updated successfully');
+    expect(patchFlagRes.body.data.featureKey).toBe(
+      'enable_multi_stakeholder_model',
+    );
+    expect(patchFlagRes.body.data.isEnabled).toBe(true);
+    expect(patchFlagRes.body.data.rolloutPercentage).toBe(100);
+  });
+
   it('GET /auth/system/activity-log returns system-scoped activity and tenant activity log rejects system accounts', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
       .post('/auth/system/login')

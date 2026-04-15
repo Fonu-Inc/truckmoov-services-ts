@@ -7,8 +7,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createCorsOptions } from "@shared/http";
 
 process.env.PERSISTENCE_BACKEND = "in-memory";
+const TEST_JWT_SECRET = "fleet-contract-test-secret";
 
-function signFleetToken(payload: Record<string, unknown>, secret = "replace-me") {
+function signFleetToken(
+  payload: Record<string, unknown>,
+  secret = TEST_JWT_SECRET,
+) {
   const encodedPayload = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const signature = createHmac("sha256", secret)
     .update(encodedPayload)
@@ -29,9 +33,11 @@ function authToken(role: string, tenantId = "default") {
 describe("Fleet HTTP contract", () => {
   let app: INestApplication;
   const previousBackend = process.env.PERSISTENCE_BACKEND;
+  const previousJwtSecret = process.env.JWT_SECRET;
 
   beforeAll(async () => {
     process.env.PERSISTENCE_BACKEND = "in-memory";
+    process.env.JWT_SECRET = TEST_JWT_SECRET;
     vi.resetModules();
     const { AppModule } = await import("../../../apps/fleet/src/app.module");
 
@@ -55,6 +61,7 @@ describe("Fleet HTTP contract", () => {
   afterAll(async () => {
     await app.close();
     process.env.PERSISTENCE_BACKEND = previousBackend;
+    process.env.JWT_SECRET = previousJwtSecret;
     vi.resetModules();
   });
 
