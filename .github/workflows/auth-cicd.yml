@@ -70,233 +70,66 @@ jobs:
       - name: Build services
         run: pnpm build
 
-  deploy-auth-dev:
+  publish:
     runs-on: ubuntu-latest
     needs: validate
     if: github.ref == 'refs/heads/main'
-    environment:
-      name: dev
     permissions:
       contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth
+            dockerfile: Dockerfile.auth
+          - service: fleet
+            dockerfile: Dockerfile.fleet
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx on runner
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Render service kustomize bundles
-        env:
-          AUTH_IMAGE_NAME: truckmoov-auth
-          FLEET_IMAGE_NAME: truckmoov-fleet
-          IMAGE_TAG: sha-${{ github.sha }}
-        run: |
-          rm -rf deploy/.rendered/auth deploy/.rendered/fleet
-          mkdir -p deploy/.rendered
-          cp -R deploy/k8s/auth deploy/.rendered/auth
-          cp -R deploy/k8s/fleet deploy/.rendered/fleet
-          sed -i "s|newName: .*|newName: ${AUTH_IMAGE_NAME}|" deploy/.rendered/auth/kustomization.yaml
-          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/auth/kustomization.yaml
-          sed -i "s|newName: .*|newName: ${FLEET_IMAGE_NAME}|" deploy/.rendered/fleet/kustomization.yaml
-          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" deploy/.rendered/fleet/kustomization.yaml
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Show rendered service bundles
-        run: find deploy/.rendered -maxdepth 3 -type f | sort
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/fonu-inc/truckmoov-${{ matrix.service }}:sha-${{ github.sha }}
 
-      - name: Prepare SSH access
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_KEY: ${{ secrets.DEV_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$DEV_SSH_KEY" >"$RUNNER_TEMP/dev_ssh_key"
-          chmod 600 "$RUNNER_TEMP/dev_ssh_key"
-          ssh-keyscan -H "$DEV_SSH_HOST" >>"$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/known_hosts"
+  update-gitops:
+    runs-on: ubuntu-latest
+    needs: publish
+    permissions:
+      contents: read
+    env:
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Fonu-Inc/truckmoov-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
 
-      - name: Sync source to deploy host
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          DEPLOY_PATH: /var/www/truckmoov-services-ts
-          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Bump image tags
         run: |
           set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$SOURCE_PATH\" ] || mkdir -p \"$SOURCE_PATH\""
-          git archive --format=tar HEAD | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xf - -C \"$SOURCE_PATH\""
-
-      - name: Copy service manifests to deploy host
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          DEPLOY_PATH: /var/www/truckmoov-services-ts
-          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
-          FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$DEPLOY_PATH\" ] || mkdir -p \"$DEPLOY_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$AUTH_MANIFEST_PATH\" ] || mkdir -p \"$AUTH_MANIFEST_PATH\""
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "[ -d \"$FLEET_MANIFEST_PATH\" ] || mkdir -p \"$FLEET_MANIFEST_PATH\""
-          tar -C deploy/.rendered/auth -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$AUTH_MANIFEST_PATH\""
-          tar -C deploy/.rendered/fleet -czf - . | ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "tar -xzf - -C \"$FLEET_MANIFEST_PATH\""
-
-      - name: Verify deploy host
-        id: verify-host
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          remote_arch=$(ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
-            set -eu
-            kubectl config current-context >/dev/null
-            uname -m
-          ')
-          case "$remote_arch" in
-            x86_64|amd64)
-              echo "platform=linux/amd64" >>"$GITHUB_OUTPUT"
-              ;;
-            aarch64|arm64)
-              echo "platform=linux/arm64" >>"$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Unsupported deploy host architecture: $remote_arch" >&2
-              exit 1
-              ;;
-          esac
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" '
-            set -eu
-            kubectl config current-context
-          '
-
-      - name: Build auth image
-        env:
-          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
-          AUTH_IMAGE_TAR: /tmp/truckmoov-auth-${{ github.sha }}.tar
-          TARGET_PLATFORM: ${{ steps.verify-host.outputs.platform }}
-        run: |
-          set -euo pipefail
-          rm -f "$AUTH_IMAGE_TAR"
-          docker buildx build \
-            --platform "$TARGET_PLATFORM" \
-            --progress plain \
-            --file Dockerfile.auth \
-            --tag "$AUTH_IMAGE" \
-            --output "type=docker,dest=$AUTH_IMAGE_TAR" \
-            .
-
-      - name: Build fleet image
-        env:
-          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
-          FLEET_IMAGE_TAR: /tmp/truckmoov-fleet-${{ github.sha }}.tar
-          TARGET_PLATFORM: ${{ steps.verify-host.outputs.platform }}
-        run: |
-          set -euo pipefail
-          rm -f "$FLEET_IMAGE_TAR"
-          docker buildx build \
-            --platform "$TARGET_PLATFORM" \
-            --progress plain \
-            --file Dockerfile.fleet \
-            --tag "$FLEET_IMAGE" \
-            --output "type=docker,dest=$FLEET_IMAGE_TAR" \
-            .
-
-      - name: Import images into k3s
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          AUTH_IMAGE: truckmoov-auth:sha-${{ github.sha }}
-          FLEET_IMAGE: truckmoov-fleet:sha-${{ github.sha }}
-          AUTH_IMAGE_TAR: /tmp/truckmoov-auth-${{ github.sha }}.tar
-          FLEET_IMAGE_TAR: /tmp/truckmoov-fleet-${{ github.sha }}.tar
-          REMOTE_AUTH_IMAGE_TAR: /tmp/truckmoov-auth-${{ github.sha }}.tar
-          REMOTE_FLEET_IMAGE_TAR: /tmp/truckmoov-fleet-${{ github.sha }}.tar
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat > \"$REMOTE_AUTH_IMAGE_TAR\"" < "$AUTH_IMAGE_TAR"
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "cat > \"$REMOTE_FLEET_IMAGE_TAR\"" < "$FLEET_IMAGE_TAR"
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            set -eu
-            sudo -n k3s ctr images import \"$REMOTE_AUTH_IMAGE_TAR\"
-            sudo -n k3s ctr images import \"$REMOTE_FLEET_IMAGE_TAR\"
-            rm -f \"$REMOTE_AUTH_IMAGE_TAR\" \"$REMOTE_FLEET_IMAGE_TAR\"
-          "
-          rm -f "$AUTH_IMAGE_TAR" "$FLEET_IMAGE_TAR"
-
-      - name: Deploy services
-        env:
-          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
-          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          SOURCE_PATH: /var/www/truckmoov-services-ts/source/${{ github.sha }}
-          AUTH_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/auth
-          FLEET_MANIFEST_PATH: /var/www/truckmoov-services-ts/rendered/${{ github.sha }}/fleet
-          DOPPLER_OVERLAY: stg
-        run: |
-          set -euo pipefail
-          ssh_opts=(
-            -i "$RUNNER_TEMP/dev_ssh_key"
-            -o BatchMode=yes
-            -o IdentitiesOnly=yes
-            -o ServerAliveInterval=30
-            -o ServerAliveCountMax=10
-          )
-          ssh "${ssh_opts[@]}" "$DEV_SSH_USER@$DEV_SSH_HOST" "
-            set -eu
-            kubectl apply --validate=false -k $SOURCE_PATH/deploy/k8s/doppler/overlays/$DOPPLER_OVERLAY
-            for secret_name in truckmoov-auth-secrets truckmoov-fleet-secrets; do
-              for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-                if kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1; then
-                  break
-                fi
-                sleep 3
-              done
-              kubectl get secret \"\$secret_name\" -n truckmoov >/dev/null 2>&1 || {
-                kubectl get dopplersecrets -A
-                kubectl describe dopplersecret \"\$secret_name\" -n doppler-operator-system || true
-                exit 1
-              }
-            done
-            kubectl apply --validate=false -k $AUTH_MANIFEST_PATH
-            kubectl apply --validate=false -k $FLEET_MANIFEST_PATH
-            kubectl rollout status deployment/auth-service -n truckmoov --timeout=300s || {
-              kubectl describe deployment auth-service -n truckmoov
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=auth-service --all-containers --tail=200
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
-              exit 1
-            }
-            kubectl rollout status deployment/fleet-service -n truckmoov --timeout=300s || {
-              kubectl describe deployment fleet-service -n truckmoov
-              kubectl logs -n truckmoov -l app.kubernetes.io/name=fleet-service --all-containers --tail=200
-              kubectl get events -n truckmoov --sort-by=.metadata.creationTimestamp | tail -n 50
-              exit 1
-            }
-          "
+          for service in auth fleet; do
+            (cd gitops/manifests/$service && kustomize edit set image "ghcr.io/fonu-inc/truckmoov-${service}:sha-${GIT_SHA}")
+          done
+          cd gitops
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git diff --quiet && exit 0
+          git commit -am "chore: bump ts services to sha-${GIT_SHA}"
+          git push
