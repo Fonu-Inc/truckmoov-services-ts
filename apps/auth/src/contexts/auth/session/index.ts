@@ -66,6 +66,7 @@ export { UpdateOrganizationUserUseCase } from "./application/use-cases/update-or
 export { UpdateOrganizationUserStatusUseCase } from "./application/use-cases/update-organization-user-status.use-case";
 export { ListSystemAdminsUseCase } from "./application/use-cases/list-system-admins.use-case";
 export { UpdateSystemAdminStatusUseCase } from "./application/use-cases/update-system-admin-status.use-case";
+export { DeleteSystemAdminUseCase } from "./application/use-cases/delete-system-admin.use-case";
 export { ResendPendingInviteUseCase } from "./application/use-cases/resend-pending-invite.use-case";
 export { RemoveOrganizationUserUseCase } from "./application/use-cases/remove-organization-user.use-case";
 export { GetNotificationPreferencesUseCase } from "./application/use-cases/get-notification-preferences.use-case";

@@ -58,6 +58,12 @@ type SystemTenantFilters = {
   search?: string;
   status?: SystemTenantStatus;
   plan?: SystemTenantPlan;
+  organizationType?: TenantOrganizationType;
+  kycStatus?: SystemTenantKycStatus;
+  revenueFrom?: number;
+  revenueTo?: number;
+  lastActiveFrom?: string;
+  lastActiveTo?: string;
 };
 
 type SystemTenantRow = {
@@ -380,6 +386,16 @@ export class ListSystemTenantsUseCase {
     filters: SystemTenantFilters,
   ) {
     const search = filters.search?.trim().toLowerCase();
+    const lastActiveFrom = filters.lastActiveFrom
+      ? new Date(filters.lastActiveFrom).getTime()
+      : null;
+    const lastActiveTo = filters.lastActiveTo
+      ? // Date-only "to" bounds should include the whole day.
+        new Date(filters.lastActiveTo).getTime() +
+        (/^\d{4}-\d{2}-\d{2}$/.test(filters.lastActiveTo.trim())
+          ? 86_400_000 - 1
+          : 0)
+      : null;
     return tenants.filter((tenant) => {
       const matchesSearch =
         !search ||
@@ -388,7 +404,39 @@ export class ListSystemTenantsUseCase {
         (tenant.billingEmail?.toLowerCase().includes(search) ?? false);
       const matchesStatus = !filters.status || tenant.status === filters.status;
       const matchesPlan = !filters.plan || tenant.plan === filters.plan;
-      return matchesSearch && matchesStatus && matchesPlan;
+      const matchesOrganizationType =
+        !filters.organizationType ||
+        tenant.organizationTypes.includes(filters.organizationType) ||
+        tenant.organizationType === filters.organizationType;
+      const matchesKyc =
+        !filters.kycStatus ||
+        tenant.businessInfo.verificationStatus === filters.kycStatus;
+      const matchesRevenueFrom =
+        filters.revenueFrom == null ||
+        tenant.monthlyRevenueNgn >= filters.revenueFrom;
+      const matchesRevenueTo =
+        filters.revenueTo == null ||
+        tenant.monthlyRevenueNgn <= filters.revenueTo;
+      const lastActiveTime = tenant.lastActiveAt
+        ? new Date(tenant.lastActiveAt).getTime()
+        : null;
+      const matchesLastActiveFrom =
+        lastActiveFrom == null ||
+        (lastActiveTime != null && lastActiveTime >= lastActiveFrom);
+      const matchesLastActiveTo =
+        lastActiveTo == null ||
+        (lastActiveTime != null && lastActiveTime <= lastActiveTo);
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPlan &&
+        matchesOrganizationType &&
+        matchesKyc &&
+        matchesRevenueFrom &&
+        matchesRevenueTo &&
+        matchesLastActiveFrom &&
+        matchesLastActiveTo
+      );
     });
   }
 
