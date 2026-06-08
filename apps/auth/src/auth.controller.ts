@@ -72,6 +72,7 @@ import {
   UpdateNotificationPreferencesUseCase,
   UpdateOrganizationUserStatusUseCase,
   UpdateSystemAdminStatusUseCase,
+  DeleteSystemAdminUseCase,
   UpdateOrganizationUserUseCase,
   UpdateOrganizationSettingsUseCase,
   UpdateProfileUseCase,
@@ -308,6 +309,8 @@ export class AuthController {
     private readonly updateOrganizationUserStatusUseCase: UpdateOrganizationUserStatusUseCase,
     @Inject(UpdateSystemAdminStatusUseCase)
     private readonly updateSystemAdminStatusUseCase: UpdateSystemAdminStatusUseCase,
+    @Inject(DeleteSystemAdminUseCase)
+    private readonly deleteSystemAdminUseCase: DeleteSystemAdminUseCase,
     @Inject(GetNotificationPreferencesUseCase)
     private readonly getNotificationPreferencesUseCase: GetNotificationPreferencesUseCase,
     @Inject(UpdateNotificationPreferencesUseCase)
@@ -1306,6 +1309,54 @@ export class AuthController {
         metadata: {
           email: result.user.email,
           accountStatus: payload.accountStatus,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /** Super admin permanently deletes a system admin account */
+  @Delete('system/admins/:userId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete system admin',
+    description:
+      'Allows the super admin to permanently delete another system admin account through the shared system admin endpoint surface.',
+  })
+  @ApiOkResponse({ type: RemoveOrganizationUserResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to delete admin accounts',
+  })
+  @ApiNotFoundResponse({ description: 'Admin account not found' })
+  async deleteSystemAdmin(
+    @Param('userId') userId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.deleteSystemAdminUseCase.execute({
+        accessToken,
+        targetUserId: userId,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.admin.deleted',
+        entityType: 'user',
+        entityId: userId,
+        summary: 'System admin account deleted',
+        metadata: {
+          email: result.email,
+          deleted: true,
         },
       });
       return result;
@@ -2494,6 +2545,20 @@ export class AuthController {
     required: false,
     enum: ['starter', 'professional', 'enterprise'],
   })
+  @ApiQuery({
+    name: 'organizationType',
+    required: false,
+    enum: ['fleet_provider', 'enterprise', 'aggregator', 'owner_operator'],
+  })
+  @ApiQuery({
+    name: 'kycStatus',
+    required: false,
+    enum: ['not_submitted', 'pending', 'under_review', 'verified', 'rejected'],
+  })
+  @ApiQuery({ name: 'revenueFrom', required: false, type: Number })
+  @ApiQuery({ name: 'revenueTo', required: false, type: Number })
+  @ApiQuery({ name: 'lastActiveFrom', required: false, type: String })
+  @ApiQuery({ name: 'lastActiveTo', required: false, type: String })
   @ApiOkResponse({ type: SystemTenantsListResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({
@@ -2504,6 +2569,23 @@ export class AuthController {
     @Query('search') search?: string,
     @Query('status') status?: 'active' | 'pending' | 'suspended' | 'inactive',
     @Query('plan') plan?: 'starter' | 'professional' | 'enterprise',
+    @Query('organizationType')
+    organizationType?:
+      | 'fleet_provider'
+      | 'enterprise'
+      | 'aggregator'
+      | 'owner_operator',
+    @Query('kycStatus')
+    kycStatus?:
+      | 'not_submitted'
+      | 'pending'
+      | 'under_review'
+      | 'verified'
+      | 'rejected',
+    @Query('revenueFrom') revenueFrom?: string,
+    @Query('revenueTo') revenueTo?: string,
+    @Query('lastActiveFrom') lastActiveFrom?: string,
+    @Query('lastActiveTo') lastActiveTo?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -2513,6 +2595,12 @@ export class AuthController {
         search,
         status,
         plan,
+        organizationType,
+        kycStatus,
+        revenueFrom: this.parseNumericQuery(revenueFrom),
+        revenueTo: this.parseNumericQuery(revenueTo),
+        lastActiveFrom,
+        lastActiveTo,
       });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
@@ -2542,6 +2630,20 @@ export class AuthController {
     required: false,
     enum: ['starter', 'professional', 'enterprise'],
   })
+  @ApiQuery({
+    name: 'organizationType',
+    required: false,
+    enum: ['fleet_provider', 'enterprise', 'aggregator', 'owner_operator'],
+  })
+  @ApiQuery({
+    name: 'kycStatus',
+    required: false,
+    enum: ['not_submitted', 'pending', 'under_review', 'verified', 'rejected'],
+  })
+  @ApiQuery({ name: 'revenueFrom', required: false, type: Number })
+  @ApiQuery({ name: 'revenueTo', required: false, type: Number })
+  @ApiQuery({ name: 'lastActiveFrom', required: false, type: String })
+  @ApiQuery({ name: 'lastActiveTo', required: false, type: String })
   @ApiProduces('text/csv')
   @ApiOkResponse({
     description: 'CSV export of system tenants',
@@ -2557,6 +2659,25 @@ export class AuthController {
     @Query('status')
     status: 'active' | 'pending' | 'suspended' | 'inactive' | undefined,
     @Query('plan') plan: 'starter' | 'professional' | 'enterprise' | undefined,
+    @Query('organizationType')
+    organizationType:
+      | 'fleet_provider'
+      | 'enterprise'
+      | 'aggregator'
+      | 'owner_operator'
+      | undefined,
+    @Query('kycStatus')
+    kycStatus:
+      | 'not_submitted'
+      | 'pending'
+      | 'under_review'
+      | 'verified'
+      | 'rejected'
+      | undefined,
+    @Query('revenueFrom') revenueFrom: string | undefined,
+    @Query('revenueTo') revenueTo: string | undefined,
+    @Query('lastActiveFrom') lastActiveFrom: string | undefined,
+    @Query('lastActiveTo') lastActiveTo: string | undefined,
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ) {
@@ -2566,7 +2687,17 @@ export class AuthController {
     try {
       const exported = await this.exportSystemTenantsUseCase.execute(
         accessToken,
-        { search, status, plan },
+        {
+          search,
+          status,
+          plan,
+          organizationType,
+          kycStatus,
+          revenueFrom: this.parseNumericQuery(revenueFrom),
+          revenueTo: this.parseNumericQuery(revenueTo),
+          lastActiveFrom,
+          lastActiveTo,
+        },
       );
       response.setHeader('Content-Type', 'text/csv; charset=utf-8');
       response.setHeader(
@@ -3413,6 +3544,12 @@ export class AuthController {
     const [scheme, token] = header.split(' ');
     if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
     return token;
+  }
+
+  private parseNumericQuery(value?: string): number | undefined {
+    if (value == null || value.trim() === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
 
   private async tryRecordActivity(

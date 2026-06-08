@@ -426,6 +426,54 @@ describe('Auth HTTP contract', () => {
     expect(enabledLoginRes.status).toBe(201);
   });
 
+  it('DELETE /auth/system/admins/:userId permanently removes a system admin account', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'superadmin@truckmoov.com',
+        password: 'SuperAdmin123!',
+      });
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const createRes = await request(app.getHttpServer())
+      .post('/auth/system/admins')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        fullName: 'System Admin Delete',
+        email: 'sysadmin-delete@truckmoov.com',
+        password: 'Adm1nPass!',
+      });
+
+    expect(createRes.status).toBe(201);
+    const userId = createRes.body.user.userId as string;
+
+    const deleteRes = await request(app.getHttpServer())
+      .delete(`/auth/system/admins/${userId}`)
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.userId).toBe(userId);
+    expect(deleteRes.body.email).toBe('sysadmin-delete@truckmoov.com');
+
+    const deletedLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({
+        email: 'sysadmin-delete@truckmoov.com',
+        password: 'Adm1nPass!',
+      });
+
+    expect(deletedLoginRes.status).toBe(401);
+
+    const listRes = await request(app.getHttpServer())
+      .get('/auth/system/admins')
+      .set('Authorization', `Bearer ${superadminToken}`);
+
+    const stillListed = (listRes.body.users as Array<{ userId: string }>).some(
+      (user) => user.userId === userId,
+    );
+    expect(stillListed).toBe(false);
+  });
+
   it('GET /auth/system/settings returns defaults and PATCH /auth/system/settings updates them', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
       .post('/auth/system/login')
