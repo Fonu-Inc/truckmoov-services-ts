@@ -94,6 +94,22 @@ describe('Auth HTTP contract', () => {
     vi.resetModules();
   });
 
+  async function fetchPlanCode(
+    token: string,
+    tier: 'starter' | 'professional' | 'enterprise',
+  ): Promise<string> {
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/subscription-plans')
+      .set('Authorization', `Bearer ${token}`);
+    const plan = (res.body.data.plans as Array<{ code: string; tier: string }>).find(
+      (candidate) => candidate.tier === tier,
+    );
+    if (!plan) {
+      throw new Error(`No seeded plan for tier ${tier}`);
+    }
+    return plan.code;
+  }
+
   // ── Health ────────────────────────────────────────────
 
   it('GET /auth/health returns 200', async () => {
@@ -659,12 +675,14 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
+    const planCode = await fetchPlanCode(superadminToken, 'professional');
     const createTenantRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Invite Resend Fleet',
+          contactName: 'Resend Contact',
           email: 'tenant-resend@truckmoov.com',
           phoneNumber: '+2348012345678',
           billingEmail: 'billing@tenant-resend.com',
@@ -672,7 +690,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_GROWTH',
+          planCode,
           billingCycle: 'monthly',
         },
       });
@@ -819,12 +837,14 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
+    const planCode = await fetchPlanCode(superadminToken, 'enterprise');
     const createRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Swift Logistics Ltd',
+          contactName: 'Swift Contact',
           email: 'tenant-owner@swiftlogistics.com',
           phoneNumber: '+2348012345678',
           billingEmail: 'billing@swiftlogistics.com',
@@ -832,7 +852,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_SCALE',
+          planCode,
           billingCycle: 'monthly',
         },
         deviceProvisioning: {
@@ -861,7 +881,8 @@ describe('Auth HTTP contract', () => {
     expect(createRes.body.data.status).toBe('pending_activation');
     expect(createRes.body.data.bootstrapRole).toBe('PLATFORM_ADMIN');
     expect(createRes.body.data.company.companyName).toBe('Swift Logistics Ltd');
-    expect(createRes.body.data.subscription.planCode).toBe('FLEET_SCALE');
+    expect(createRes.body.data.company.contactName).toBe('Swift Contact');
+    expect(createRes.body.data.subscription.planCode).toBe(planCode);
     expect(createRes.body.data.features.liveTracking).toBe(true);
     expect(createRes.body.data.features.messaging).toBe(false);
     expect(createRes.body.data.features.geofencing).toBe(true);
@@ -878,6 +899,73 @@ describe('Auth HTTP contract', () => {
       'tenant-owner@swiftlogistics.com',
     );
     expect(invite).toBeTruthy();
+  });
+
+  it('POST /auth/system/tenants rejects an unknown subscription plan code', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const res = await request(app.getHttpServer())
+      .post('/auth/system/tenants')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'Bad Plan Co',
+          contactName: 'Bad Plan Contact',
+          email: 'bad-plan@contract.com',
+          organizationType: 'fleet_provider',
+        },
+        subscription: { planCode: 'FLEET_STARTER', billingCycle: 'monthly' },
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /auth/system/tenants requires a contact name', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+    const planCode = await fetchPlanCode(superadminToken, 'starter');
+
+    const res = await request(app.getHttpServer())
+      .post('/auth/system/tenants')
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({
+        company: {
+          companyName: 'No Contact Co',
+          email: 'no-contact@contract.com',
+          organizationType: 'fleet_provider',
+        },
+        subscription: { planCode, billingCycle: 'monthly' },
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /auth/system/devices/:deviceId returns 404 for an unknown device and keeps literal routes resolvable', async () => {
+    const superadminLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
+    const superadminToken = superadminLoginRes.body.accessToken as string;
+
+    const detailRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/does-not-exist')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(detailRes.status).toBe(404);
+
+    // The :deviceId param route must not swallow literal device sub-routes.
+    const exportRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/export')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(exportRes.status).toBe(200);
+
+    const catalogRes = await request(app.getHttpServer())
+      .get('/auth/system/devices/catalog')
+      .set('Authorization', `Bearer ${superadminToken}`);
+    expect(catalogRes.status).toBe(200);
   });
 
   it('GET /auth/system/tenants/summary and /auth/system/tenants return tenant management data', async () => {
@@ -902,12 +990,14 @@ describe('Auth HTTP contract', () => {
 
     expect(createAdminRes.status).toBe(201);
 
+    const pendingPlanCode = await fetchPlanCode(superadminToken, 'enterprise');
     const pendingTenantRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Delta Pending Logistics',
+          contactName: 'Delta Contact',
           email: 'pending-owner@deltalogistics.com',
           phoneNumber: '+2348011112222',
           billingEmail: 'billing@deltalogistics.com',
@@ -915,7 +1005,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_SCALE',
+          planCode: pendingPlanCode,
           billingCycle: 'monthly',
         },
         deviceProvisioning: {
@@ -962,8 +1052,11 @@ describe('Auth HTTP contract', () => {
     expect(summaryRes.body.status).toBe(true);
     expect(summaryRes.body.data.totalTenants).toBeGreaterThanOrEqual(2);
     expect(summaryRes.body.data.activeTenants).toBeGreaterThanOrEqual(1);
+    expect(summaryRes.body.data.suspendedTenants).toBeGreaterThanOrEqual(0);
     expect(summaryRes.body.data.monthlyRevenueNgn).toBe(0);
     expect(summaryRes.body.data.totalVehicles).toBe(0);
+    expect(summaryRes.body.data.totalSims).toBeGreaterThanOrEqual(0);
+    expect(summaryRes.body.data.overdueInvoices).toBeNull();
 
     const listRes = await request(app.getHttpServer())
       .get('/auth/system/tenants')
@@ -1039,12 +1132,14 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
+    const exportPlanCode = await fetchPlanCode(superadminToken, 'professional');
     const onboardRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Export Tenant Logistics',
+          contactName: 'Export Contact',
           email: 'export-tenant@contract.com',
           phoneNumber: '+2348011114444',
           billingEmail: 'billing@exporttenant.com',
@@ -1052,7 +1147,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_GROWTH',
+          planCode: exportPlanCode,
           billingCycle: 'monthly',
         },
         deviceProvisioning: {
@@ -1107,7 +1202,7 @@ describe('Auth HTTP contract', () => {
     expect(forbiddenExportRes.status).toBe(403);
   });
 
-  it('GET /auth/system/subscription-plans returns the hardcoded plan catalog', async () => {
+  it('GET /auth/system/subscription-plans returns the seeded plan catalog with opaque codes', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
       .post('/auth/system/login')
       .send({
@@ -1124,25 +1219,47 @@ describe('Auth HTTP contract', () => {
     expect(plansRes.status).toBe(200);
     expect(plansRes.body.status).toBe(true);
     expect(Array.isArray(plansRes.body.data.plans)).toBe(true);
-    expect(
-      plansRes.body.data.plans.map((plan: { code: string }) => plan.code),
-    ).toEqual(
-      expect.arrayContaining([
-        'FLEET_STARTER',
-        'FLEET_GROWTH',
-        'FLEET_SCALE',
-        'FLEET_ENTERPRISE',
-      ]),
+
+    const plans = plansRes.body.data.plans as Array<{
+      code: string;
+      tier: string;
+      name: string;
+      monthlyPriceNgn: number | null;
+      maxActiveVehicles: number | null;
+      maxUsers: number | null;
+      customPricing: boolean;
+    }>;
+    // Codes are non-guessable and not the retired FLEET_* values.
+    for (const plan of plans) {
+      expect(plan.code).toMatch(/^plan_(starter|professional|enterprise)_[0-9a-f]+$/);
+    }
+    expect(plans.map((plan) => plan.name)).toEqual(
+      expect.arrayContaining(['Starter', 'Professional', 'Enterprise']),
     );
-    expect(
-      plansRes.body.data.plans.find(
-        (plan: { code: string }) => plan.code === 'FLEET_SCALE',
-      ),
-    ).toEqual(
+    expect(plans.find((plan) => plan.name === 'Starter')).toEqual(
+      expect.objectContaining({
+        tier: 'starter',
+        monthlyPriceNgn: 50000,
+        maxActiveVehicles: 25,
+        maxUsers: 2,
+        customPricing: false,
+      }),
+    );
+    expect(plans.find((plan) => plan.name === 'Professional')).toEqual(
+      expect.objectContaining({
+        tier: 'professional',
+        monthlyPriceNgn: 150000,
+        maxActiveVehicles: 100,
+        maxUsers: 10,
+        customPricing: false,
+      }),
+    );
+    expect(plans.find((plan) => plan.name === 'Enterprise')).toEqual(
       expect.objectContaining({
         tier: 'enterprise',
-        monthlyPriceNgn: 399900,
-        customPricing: false,
+        monthlyPriceNgn: null,
+        maxUsers: null,
+        customPricing: true,
       }),
     );
   });
@@ -1158,12 +1275,15 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
+    const starterPlanCode = await fetchPlanCode(superadminToken, 'starter');
+    const growthPlanCode = await fetchPlanCode(superadminToken, 'professional');
     const createRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Editable Pending Tenant',
+          contactName: 'Editable Contact',
           email: 'editable-pending@contract.com',
           phoneNumber: '+2348010101010',
           billingEmail: 'billing-editable@contract.com',
@@ -1171,7 +1291,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_STARTER',
+          planCode: starterPlanCode,
           billingCycle: 'monthly',
         },
       });
@@ -1189,7 +1309,7 @@ describe('Auth HTTP contract', () => {
           businessAddress: '22 Warehouse Road, Apapa',
         },
         subscription: {
-          planCode: 'FLEET_GROWTH',
+          planCode: growthPlanCode,
           billingCycle: 'yearly',
         },
         deviceProvisioning: {
@@ -1252,12 +1372,14 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
+    const deletePlanCode = await fetchPlanCode(superadminToken, 'starter');
     const pendingTenantRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Delete Me Pending',
+          contactName: 'Delete Contact',
           email: 'delete-me-pending@contract.com',
           phoneNumber: '+2348011111111',
           billingEmail: 'billing@deletepending.com',
@@ -1265,7 +1387,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_STARTER',
+          planCode: deletePlanCode,
           billingCycle: 'monthly',
         },
       });
@@ -1398,12 +1520,14 @@ describe('Auth HTTP contract', () => {
 
     expect(restoredLoginRes.status).toBe(201);
 
+    const reactivationPlanCode = await fetchPlanCode(superadminToken, 'starter');
     const pendingTenantRes = await request(app.getHttpServer())
       .post('/auth/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
           companyName: 'Pending Reactivation Logistics',
+          contactName: 'Reactivation Contact',
           email: 'pending-reactivation@contract.com',
           phoneNumber: '+2348099999999',
           billingEmail: 'billing@pendingreactivation.com',
@@ -1411,7 +1535,7 @@ describe('Auth HTTP contract', () => {
           organizationType: 'fleet_provider',
         },
         subscription: {
-          planCode: 'FLEET_STARTER',
+          planCode: reactivationPlanCode,
           billingCycle: 'monthly',
         },
         deviceProvisioning: {

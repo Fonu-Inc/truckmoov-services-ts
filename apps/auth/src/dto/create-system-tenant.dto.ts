@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsEmail,
   IsInt,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -25,6 +26,11 @@ export class TenantCompanyDetailsDto {
   @IsString()
   @MaxLength(160)
   companyName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(160)
+  contactName!: string;
 
   @ApiProperty()
   @IsEmail()
@@ -55,7 +61,8 @@ export class TenantCompanyDetailsDto {
 export class TenantSubscriptionSelectionDto {
   @ApiProperty()
   @IsString()
-  @MaxLength(64)
+  @IsNotEmpty()
+  @MaxLength(80)
   planCode!: string;
 
   @ApiProperty({ enum: TENANT_BILLING_CYCLES })

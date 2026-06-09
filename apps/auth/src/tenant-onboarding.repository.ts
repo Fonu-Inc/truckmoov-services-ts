@@ -30,6 +30,7 @@ export type SimDataPackage = (typeof SIM_DATA_PACKAGES)[number];
 
 export type TenantCompanyDetails = {
   companyName: string;
+  contactName: string | null;
   email: string;
   phoneNumber: string | null;
   billingEmail: string | null;

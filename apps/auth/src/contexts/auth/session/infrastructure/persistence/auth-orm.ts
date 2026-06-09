@@ -383,6 +383,89 @@ export const SystemDeviceModelRecordSchema =
     uniques: [{ properties: ['manufacturer', 'model'] }],
   });
 
+/* ── System Subscription Plans ───────────────────────── */
+
+export class SystemSubscriptionPlanRecord {
+  id!: string;
+  code!: string;
+  tier!: string;
+  name!: string;
+  description!: string;
+  monthlyPriceNgn!: number | null;
+  yearlyMonthlyEquivalentNgn!: number | null;
+  yearlyDiscountPercent!: number | null;
+  maxActiveVehicles!: number | null;
+  maxUsers!: number | null;
+  customPricing!: boolean;
+  trialDays!: number | null;
+  badge!: string | null;
+  ctaLabel!: string;
+  features!: string[];
+  isActive!: boolean;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const SystemSubscriptionPlanRecordSchema =
+  new EntitySchema<SystemSubscriptionPlanRecord>({
+    class: SystemSubscriptionPlanRecord,
+    tableName: 'system_subscription_plans',
+    properties: {
+      id: { type: 'string', primary: true },
+      code: { type: 'string', length: 80, unique: true },
+      tier: { type: 'string', length: 32 },
+      name: { type: 'string', length: 120 },
+      description: { type: 'string', length: 255 },
+      monthlyPriceNgn: {
+        fieldName: 'monthly_price_ngn',
+        type: 'number',
+        nullable: true,
+      },
+      yearlyMonthlyEquivalentNgn: {
+        fieldName: 'yearly_monthly_equivalent_ngn',
+        type: 'number',
+        nullable: true,
+      },
+      yearlyDiscountPercent: {
+        fieldName: 'yearly_discount_percent',
+        type: 'number',
+        nullable: true,
+      },
+      maxActiveVehicles: {
+        fieldName: 'max_active_vehicles',
+        type: 'number',
+        nullable: true,
+      },
+      maxUsers: {
+        fieldName: 'max_users',
+        type: 'number',
+        nullable: true,
+      },
+      customPricing: {
+        fieldName: 'custom_pricing',
+        type: 'boolean',
+        default: false,
+      },
+      trialDays: { fieldName: 'trial_days', type: 'number', nullable: true },
+      badge: { type: 'string', length: 64, nullable: true },
+      ctaLabel: { fieldName: 'cta_label', type: 'string', length: 120 },
+      features: { type: 'json', defaultRaw: "'[]'" },
+      isActive: { fieldName: 'is_active', type: 'boolean', default: true },
+      createdAt: {
+        fieldName: 'created_at',
+        type: 'datetime',
+        defaultRaw: 'now()',
+      },
+      updatedAt: {
+        fieldName: 'updated_at',
+        type: 'datetime',
+        onUpdate: () => new Date(),
+        defaultRaw: 'now()',
+      },
+    },
+    indexes: [{ properties: ['tier'] }, { properties: ['isActive'] }],
+  });
+
 /* ── Invite ──────────────────────────────────────────── */
 
 export class InviteRecord {
@@ -881,6 +964,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,
       SystemDeviceModelRecordSchema,
+      SystemSubscriptionPlanRecordSchema,
       SystemFeatureFlagRecordSchema,
       IotSimRecordSchema,
       SimProvisioningRequestRecordSchema,

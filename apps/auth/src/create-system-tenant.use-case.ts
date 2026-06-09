@@ -23,6 +23,10 @@ import {
   type DeviceModelCatalogRepository,
 } from './device-model-catalog.repository';
 import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from './subscription-plan.repository';
+import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
   type StoredTenantOnboarding,
@@ -46,10 +50,23 @@ const ORG_TYPE_TO_BOOTSTRAP_ROLE: Record<TenantOrganizationType, Role> = {
   owner_operator: Role.OWNER_OPERATOR,
 };
 
+export class InvalidSubscriptionPlanError extends Error {
+  constructor(planCode: string) {
+    super(`Unknown subscription plan code: ${planCode}`);
+  }
+}
+
+export class TenantContactNameRequiredError extends Error {
+  constructor() {
+    super('Company contact name is required');
+  }
+}
+
 export type CreateSystemTenantCommand = {
   accessToken: string;
   company: {
     companyName: string;
+    contactName: string;
     email: string;
     phoneNumber?: string;
     billingEmail?: string;
@@ -94,6 +111,8 @@ export class CreateSystemTenantUseCase {
     private readonly deviceModelCatalogRepository: DeviceModelCatalogRepository,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly planRepository: SubscriptionPlanRepository,
   ) {}
 
   async execute(command: CreateSystemTenantCommand) {
@@ -107,6 +126,20 @@ export class CreateSystemTenantUseCase {
       !SYSTEM_CREATOR_ROLES.has(actor.role)
     ) {
       throw new ForbiddenError('Only system admins can onboard tenants');
+    }
+
+    // NOTE: nested DTO validation (@ValidateNested on company/subscription) does
+    // not fire under @Body(BodyOrDataPipe), so the DTO decorators are not the
+    // real enforcement point — these guards are. Validate here instead.
+    const contactName = command.company.contactName?.trim();
+    if (!contactName) {
+      throw new TenantContactNameRequiredError();
+    }
+
+    const planCode = command.subscription.planCode.trim();
+    const plan = await this.planRepository.findByCode(planCode);
+    if (!plan) {
+      throw new InvalidSubscriptionPlanError(planCode);
     }
 
     const invitedEmail = command.company.email.trim().toLowerCase();
@@ -144,6 +177,7 @@ export class CreateSystemTenantUseCase {
       status: 'pending_activation',
       company: {
         companyName: command.company.companyName.trim(),
+        contactName,
         email: invitedEmail,
         phoneNumber: command.company.phoneNumber?.trim() || null,
         billingEmail,

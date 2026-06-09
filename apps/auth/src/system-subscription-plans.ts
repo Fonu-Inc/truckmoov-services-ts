@@ -1,10 +1,14 @@
-export type SystemSubscriptionPlanTier =
-  | 'starter'
-  | 'professional'
-  | 'enterprise';
+import type { SubscriptionPlanTier } from './subscription-plan.repository';
 
-export type SystemSubscriptionPlan = {
-  code: string;
+export type SystemSubscriptionPlanTier = SubscriptionPlanTier;
+
+/**
+ * Seed definitions for the subscription plan catalog. Codes are generated as
+ * non-guessable values at seed time and persisted in the
+ * `system_subscription_plans` table — these seeds carry no public code. Each
+ * tier appears exactly once, so the tier doubles as a stable seed key.
+ */
+export type SubscriptionPlanSeed = {
   tier: SystemSubscriptionPlanTier;
   name: string;
   description: string;
@@ -12,6 +16,7 @@ export type SystemSubscriptionPlan = {
   yearlyMonthlyEquivalentNgn: number | null;
   yearlyDiscountPercent: number | null;
   maxActiveVehicles: number | null;
+  maxUsers: number | null;
   customPricing: boolean;
   trialDays: number | null;
   badge: string | null;
@@ -19,110 +24,85 @@ export type SystemSubscriptionPlan = {
   features: string[];
 };
 
-export const SYSTEM_SUBSCRIPTION_PLANS: SystemSubscriptionPlan[] = [
+export const SUBSCRIPTION_PLAN_SEEDS: SubscriptionPlanSeed[] = [
   {
-    code: 'FLEET_STARTER',
     tier: 'starter',
     name: 'Starter',
-    description: 'For small fleets',
-    monthlyPriceNgn: 49900,
-    yearlyMonthlyEquivalentNgn: 39920,
-    yearlyDiscountPercent: 20,
-    maxActiveVehicles: 10,
+    description: 'For small fleets getting started.',
+    monthlyPriceNgn: 50000,
+    yearlyMonthlyEquivalentNgn: 45000,
+    yearlyDiscountPercent: 10,
+    maxActiveVehicles: 25,
+    maxUsers: 2,
     customPricing: false,
-    trialDays: 14,
+    trialDays: null,
     badge: null,
-    ctaLabel: 'Start trial with Starter',
+    ctaLabel: 'Select Plan',
     features: [
-      'Live GPS tracking',
-      'Driver management',
-      'Job dispatch (basic)',
-      'WhatsApp driver alerts',
-      'Basic reports',
-      'Email support',
+      'Up to 25 vehicles',
+      'Basic fleet management',
+      '2 user seats',
+      'WhatsApp & email alert and messaging',
+      'Standard support',
     ],
   },
   {
-    code: 'FLEET_GROWTH',
     tier: 'professional',
-    name: 'Growth',
-    description: 'For growing fleets',
-    monthlyPriceNgn: 149900,
-    yearlyMonthlyEquivalentNgn: 119920,
-    yearlyDiscountPercent: 20,
-    maxActiveVehicles: 50,
+    name: 'Professional',
+    description: 'Most popular for growing fleets.',
+    monthlyPriceNgn: 150000,
+    yearlyMonthlyEquivalentNgn: 135000,
+    yearlyDiscountPercent: 10,
+    maxActiveVehicles: 100,
+    maxUsers: 10,
     customPricing: false,
-    trialDays: 14,
-    badge: 'Most Popular',
-    ctaLabel: 'Start trial with Growth',
+    trialDays: null,
+    badge: 'Recommended',
+    ctaLabel: 'Select Plan',
     features: [
-      'Everything in Starter',
-      'Smart dispatch board',
-      'Driver behavior analytics',
-      'Preventive maintenance',
-      'Invoice from waybill',
-      'Fuel monitoring (basic)',
-      'Up to 5 admin users',
+      'Up to 100 vehicles',
+      'Full features',
+      '10 user seats',
+      'AI load matching',
+      'Priority support',
+      'API access',
     ],
   },
   {
-    code: 'FLEET_SCALE',
-    tier: 'enterprise',
-    name: 'Scale',
-    description: 'For large operations',
-    monthlyPriceNgn: 399900,
-    yearlyMonthlyEquivalentNgn: 319920,
-    yearlyDiscountPercent: 20,
-    maxActiveVehicles: 200,
-    customPricing: false,
-    trialDays: 14,
-    badge: 'For large operations',
-    ctaLabel: 'Start trial with Scale',
-    features: [
-      'Everything in Growth',
-      'Financial analytics dashboard',
-      'Multi-branch operations',
-      'API access + webhooks',
-      'Custom reporting exports',
-      'Dedicated onboarding',
-      'Priority support (SLA)',
-    ],
-  },
-  {
-    code: 'FLEET_ENTERPRISE',
     tier: 'enterprise',
     name: 'Enterprise',
-    description: 'Unlimited vehicles + custom integrations',
+    description: 'Unlimited scale & custom workflows.',
     monthlyPriceNgn: null,
     yearlyMonthlyEquivalentNgn: null,
     yearlyDiscountPercent: null,
     maxActiveVehicles: null,
+    maxUsers: null,
     customPricing: true,
     trialDays: null,
-    badge: 'Custom',
-    ctaLabel: 'Talk to Sales',
+    badge: null,
+    ctaLabel: 'Select Plan',
     features: [
-      'Unlimited vehicles',
-      'Dedicated success manager',
-      'Custom integrations (ERP/WMS/TMS)',
-      'Advanced AI optimization',
-      'Private cloud / on-prem option',
-      'Security & compliance reviews',
+      'Up to 100+ vehicles',
+      'Unlimited users',
+      'Custom integrations',
+      'Dedicated account manager',
+      'SLA guarantees',
     ],
   },
 ];
 
-export function defaultPlanCodeForTier(
-  tier: SystemSubscriptionPlanTier,
-): string {
-  switch (tier) {
-    case 'starter':
-      return 'FLEET_STARTER';
-    case 'professional':
-      return 'FLEET_GROWTH';
-    case 'enterprise':
-      return 'FLEET_SCALE';
-    default:
-      return 'FLEET_STARTER';
-  }
-}
+/**
+ * Maps retired hardcoded plan codes to their tier. Used to remap pre-cutover
+ * tenants onto the seeded codes and as a `normalizePlan` fallback. Kept stable
+ * even as the seed list changes (e.g. the old `FLEET_SCALE` tier still resolves
+ * after that plan was folded into Enterprise).
+ */
+export const LEGACY_PLAN_CODE_TO_TIER: Record<
+  string,
+  SystemSubscriptionPlanTier
+> = {
+  FLEET_STARTER: 'starter',
+  FLEET_GROWTH: 'professional',
+  FLEET_SCALE: 'enterprise',
+  FLEET_ENTERPRISE: 'enterprise',
+};

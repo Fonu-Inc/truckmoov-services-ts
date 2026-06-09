@@ -18,6 +18,11 @@ import type {
 } from './contexts/auth/session/domain/ports/user-repository.port';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from './subscription-plan.repository';
+import { LEGACY_PLAN_CODE_TO_TIER } from './system-subscription-plans';
+import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
   type StoredTenantOnboarding,
@@ -339,6 +344,8 @@ export class ListSystemTenantsUseCase {
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(ORGANIZATION_SETTINGS_REPOSITORY)
     private readonly organizationSettingsRepository: OrganizationSettingsRepository,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly planRepository: SubscriptionPlanRepository,
   ) {}
 
   async execute(accessToken: string, filters: SystemTenantFilters) {
@@ -363,7 +370,34 @@ export class ListSystemTenantsUseCase {
       this.config.persistence.backend === 'in-memory'
         ? await this.listInMemory()
         : await this.listDatabase();
+    await this.resolvePlanTiers(tenants);
     return this.applyFilters(tenants, filters);
+  }
+
+  /** Resolves each tenant's plan tier from the DB catalog (codes are opaque). */
+  private async resolvePlanTiers(tenants: SystemTenantRow[]) {
+    if (tenants.length === 0) {
+      return;
+    }
+    const plans = await this.planRepository.findAll();
+    const tierByCode = new Map(plans.map((plan) => [plan.code, plan.tier]));
+    for (const tenant of tenants) {
+      tenant.plan = this.resolvePlanTier(tenant.planCode, tierByCode);
+    }
+  }
+
+  private resolvePlanTier(
+    planCode: string | null,
+    tierByCode: Map<string, SystemTenantPlan>,
+  ): SystemTenantPlan {
+    if (!planCode) {
+      return 'starter';
+    }
+    return (
+      tierByCode.get(planCode) ??
+      LEGACY_PLAN_CODE_TO_TIER[planCode] ??
+      normalizePlan(planCode)
+    );
   }
 
   private async ensureSystemViewer(accessToken: string) {
@@ -574,6 +608,7 @@ export class ListSystemTenantsUseCase {
           | StoredTenantOnboarding['company']
           | null) ?? {
           companyName: 'Truckmoov Tenant',
+          contactName: null,
           email: row.invited_email?.toString() ?? '',
           phoneNumber: null,
           billingEmail: null,
