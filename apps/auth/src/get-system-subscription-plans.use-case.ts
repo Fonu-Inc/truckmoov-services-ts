@@ -8,7 +8,10 @@ import {
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { SYSTEM_SUBSCRIPTION_PLANS } from './system-subscription-plans';
+import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from './subscription-plan.repository';
 
 const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_VIEWER_ROLES = new Set<string>([
@@ -23,6 +26,8 @@ export class GetSystemSubscriptionPlansUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: UserRepository,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly planRepository: SubscriptionPlanRepository,
   ) {}
 
   async execute(accessToken: string) {
@@ -40,14 +45,29 @@ export class GetSystemSubscriptionPlansUseCase {
       );
     }
 
+    const plans = await this.planRepository.findAll();
     return {
       status: true,
       message: 'success',
       data: {
-        plans: SYSTEM_SUBSCRIPTION_PLANS.map((plan) => ({
-          ...plan,
-          features: [...plan.features],
-        })),
+        plans: plans
+          .filter((plan) => plan.isActive)
+          .map((plan) => ({
+            code: plan.code,
+            tier: plan.tier,
+            name: plan.name,
+            description: plan.description,
+            monthlyPriceNgn: plan.monthlyPriceNgn,
+            yearlyMonthlyEquivalentNgn: plan.yearlyMonthlyEquivalentNgn,
+            yearlyDiscountPercent: plan.yearlyDiscountPercent,
+            maxActiveVehicles: plan.maxActiveVehicles,
+            maxUsers: plan.maxUsers,
+            customPricing: plan.customPricing,
+            trialDays: plan.trialDays,
+            badge: plan.badge,
+            ctaLabel: plan.ctaLabel,
+            features: [...plan.features],
+          })),
         generatedAt: new Date().toISOString(),
       },
     };

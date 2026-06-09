@@ -31,7 +31,10 @@ import {
   type TenantOrganizationType,
 } from './tenant-onboarding.repository';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
-import { defaultPlanCodeForTier } from './system-subscription-plans';
+import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from './subscription-plan.repository';
 import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
 
 const SYSTEM_TENANT_ID = 'system';
@@ -105,6 +108,8 @@ export class UpdateSystemTenantUseCase {
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(GetSystemTenantUseCase)
     private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly planRepository: SubscriptionPlanRepository,
   ) {}
 
   async execute(command: UpdateSystemTenantCommand) {
@@ -177,6 +182,9 @@ export class UpdateSystemTenantUseCase {
 
     const now = new Date();
     const bootstrapRole = ORG_TYPE_TO_BOOTSTRAP_ROLE[nextOrganizationType];
+    const fallbackPlan = await this.planRepository.findByTier(
+      currentTenant.plan,
+    );
     const onboarding: StoredTenantOnboarding = {
       id: existingOnboarding?.id ?? this.idGenerator.generate(),
       tenantId: command.tenantId,
@@ -191,6 +199,7 @@ export class UpdateSystemTenantUseCase {
           command.company?.companyName?.trim() ||
           existingOnboarding?.company.companyName ||
           currentTenant.name,
+        contactName: existingOnboarding?.company.contactName ?? null,
         email: nextEmail,
         phoneNumber:
           command.company?.phoneNumber?.trim() ||
@@ -211,7 +220,8 @@ export class UpdateSystemTenantUseCase {
           command.subscription?.planCode?.trim() ||
           existingOnboarding?.subscription.planCode ||
           currentTenant.planCode ||
-          defaultPlanCodeForTier(currentTenant.plan),
+          fallbackPlan?.code ||
+          '',
         billingCycle:
           command.subscription?.billingCycle ||
           existingOnboarding?.subscription.billingCycle ||

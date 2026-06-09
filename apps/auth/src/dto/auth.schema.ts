@@ -543,10 +543,23 @@ export class SystemTenantsSummaryDataSchema {
   activeTenants!: number;
 
   @ApiProperty()
+  suspendedTenants!: number;
+
+  @ApiProperty()
   monthlyRevenueNgn!: number;
 
   @ApiProperty()
   totalVehicles!: number;
+
+  @ApiProperty()
+  totalSims!: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Null until a billing/invoice source is available.',
+  })
+  overdueInvoices!: number | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   generatedAt!: string;
@@ -829,6 +842,9 @@ export class SystemSubscriptionPlanSchema {
   @ApiProperty({ nullable: true, type: Number })
   maxActiveVehicles!: number | null;
 
+  @ApiProperty({ nullable: true, type: Number })
+  maxUsers!: number | null;
+
   @ApiProperty()
   customPricing!: boolean;
 
@@ -1025,6 +1041,64 @@ export class SystemDeviceInventoryListDataSchema {
 export class SystemDeviceInventoryListResponse extends StandardApiResponse<SystemDeviceInventoryListDataSchema> {
   @ApiProperty({ type: SystemDeviceInventoryListDataSchema })
   data!: SystemDeviceInventoryListDataSchema;
+}
+
+export class SystemDeviceDetailSchema {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  imei!: string;
+
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty({ nullable: true })
+  firmwareVersion!: string | null;
+
+  @ApiProperty()
+  tenantId!: string;
+
+  @ApiProperty()
+  tenantName!: string;
+
+  @ApiProperty()
+  lifecycleStatus!: string;
+
+  @ApiProperty()
+  operationalStatus!: string;
+
+  @ApiProperty({ nullable: true })
+  protocol!: string | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  signalStrength!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  batteryLevel!: number | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  lastSeen!: string | null;
+
+  @ApiProperty({ nullable: true })
+  vehicleId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  assignedAt!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class SystemDeviceDetailResponse extends StandardApiResponse<SystemDeviceDetailSchema> {
+  @ApiProperty({ type: SystemDeviceDetailSchema })
+  data!: SystemDeviceDetailSchema;
 }
 
 export class SystemDeviceSummaryDataSchema {

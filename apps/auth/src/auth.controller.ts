@@ -136,6 +136,7 @@ import {
   SystemDeviceCatalogModelResponse,
   SystemDeviceCatalogReferenceDataResponse,
   SystemDeviceInventoryListResponse,
+  SystemDeviceDetailResponse,
   SystemDeviceSummaryResponse,
   SystemFeatureFlagResponse,
   SystemFeatureFlagsResponse,
@@ -159,7 +160,15 @@ import { UpdateOrganizationSettingsDto } from './dto/update-organization-setting
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ActivityLogService } from './activity-log.service';
 import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use-case';
-import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
+import {
+  CreateSystemTenantUseCase,
+  InvalidSubscriptionPlanError,
+  TenantContactNameRequiredError,
+} from './create-system-tenant.use-case';
+import {
+  CheckTenantSeatLimitUseCase,
+  TenantSeatLimitReachedError,
+} from './check-tenant-seat-limit.use-case';
 import { DeleteSystemDeviceModelUseCase } from './delete-system-device-model.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
@@ -179,6 +188,10 @@ import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import {
+  GetSystemDeviceDetailUseCase,
+  SystemDeviceNotFoundError,
+} from './get-system-device-detail.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import {
@@ -279,6 +292,8 @@ export class AuthController {
     private readonly registerUseCase: RegisterUseCase,
     @Inject(InviteUserUseCase)
     private readonly inviteUserUseCase: InviteUserUseCase,
+    @Inject(CheckTenantSeatLimitUseCase)
+    private readonly checkTenantSeatLimitUseCase: CheckTenantSeatLimitUseCase,
     @Inject(ValidateInviteUseCase)
     private readonly validateInviteUseCase: ValidateInviteUseCase,
     @Inject(RegisterInvitedUseCase)
@@ -349,6 +364,8 @@ export class AuthController {
     private readonly listSystemDeviceCatalogUseCase: ListSystemDeviceCatalogUseCase,
     @Inject(ListSystemDeviceInventoryUseCase)
     private readonly listSystemDeviceInventoryUseCase: ListSystemDeviceInventoryUseCase,
+    @Inject(GetSystemDeviceDetailUseCase)
+    private readonly getSystemDeviceDetailUseCase: GetSystemDeviceDetailUseCase,
     @Inject(ListSystemFeatureFlagsUseCase)
     private readonly listSystemFeatureFlagsUseCase: ListSystemFeatureFlagsUseCase,
     @Inject(ListSystemTenantsUseCase)
@@ -717,6 +734,7 @@ export class AuthController {
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
 
     try {
+      await this.checkTenantSeatLimitUseCase.ensureSeatAvailable(accessToken);
       const result = await this.inviteUserUseCase.execute({
         email: payload.email,
         role: payload.role,
@@ -733,6 +751,8 @@ export class AuthController {
       return result;
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
+      if (error instanceof TenantSeatLimitReachedError)
+        throw new ConflictException(error.message);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       throw error;
@@ -841,6 +861,10 @@ export class AuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
+      if (error instanceof InvalidSubscriptionPlanError)
+        throw new BadRequestException(error.message);
+      if (error instanceof TenantContactNameRequiredError)
+        throw new BadRequestException(error.message);
       if (error instanceof EmailTakenError)
         throw new ConflictException(error.message);
       throw error;
@@ -886,8 +910,32 @@ export class AuthController {
   })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'manufacturer', required: false, type: String })
-  @ApiQuery({ name: 'status', required: false, type: String })
-  @ApiQuery({ name: 'lifecycleStatus', required: false, type: String })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [
+      'registered',
+      'configured',
+      'assigned',
+      'active',
+      'faulty',
+      'decommissioned',
+    ],
+  })
+  @ApiQuery({
+    name: 'lifecycleStatus',
+    required: false,
+    enum: [
+      'registered',
+      'config_pending',
+      'configured',
+      'verified_online',
+      'assignable',
+      'assigned',
+      'faulty',
+      'decommissioned',
+    ],
+  })
   @ApiOkResponse({ type: SystemDeviceInventoryListResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({
@@ -929,8 +977,32 @@ export class AuthController {
   })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'manufacturer', required: false, type: String })
-  @ApiQuery({ name: 'status', required: false, type: String })
-  @ApiQuery({ name: 'lifecycleStatus', required: false, type: String })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [
+      'registered',
+      'configured',
+      'assigned',
+      'active',
+      'faulty',
+      'decommissioned',
+    ],
+  })
+  @ApiQuery({
+    name: 'lifecycleStatus',
+    required: false,
+    enum: [
+      'registered',
+      'config_pending',
+      'configured',
+      'verified_online',
+      'assignable',
+      'assigned',
+      'faulty',
+      'decommissioned',
+    ],
+  })
   @ApiProduces('text/csv')
   @ApiOkResponse({
     description: 'CSV export of the system device inventory',
@@ -1197,6 +1269,45 @@ export class AuthController {
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
       if (error instanceof SystemDeviceModelNotFoundError)
+        throw new NotFoundException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  // Declared AFTER every literal system/devices/* route so the :deviceId param
+  // cannot swallow `summary`, `export`, or `catalog`.
+  @Get('system/devices/:deviceId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get system device detail',
+    description:
+      'Returns the full detail record for a single device, including battery, firmware, and protocol.',
+  })
+  @ApiOkResponse({ type: SystemDeviceDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view device inventory',
+  })
+  @ApiNotFoundResponse({ description: 'Device not found' })
+  async getSystemDeviceDetail(
+    @Param('deviceId') deviceId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemDeviceDetailUseCase.execute(
+        accessToken,
+        deviceId,
+      );
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof SystemDeviceNotFoundError)
         throw new NotFoundException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);

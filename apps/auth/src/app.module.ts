@@ -76,6 +76,11 @@ import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use
 import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
 import { DeleteSystemDeviceModelUseCase } from './delete-system-device-model.use-case';
 import { DEVICE_MODEL_CATALOG_REPOSITORY } from './device-model-catalog.repository';
+import { SUBSCRIPTION_PLAN_REPOSITORY } from './subscription-plan.repository';
+import { InMemorySubscriptionPlanRepository } from './in-memory-subscription-plan.repository';
+import { MikroSubscriptionPlanRepository } from './mikro-subscription-plan.repository';
+import { SubscriptionPlansBootstrapService } from './subscription-plans-bootstrap.service';
+import { CheckTenantSeatLimitUseCase } from './check-tenant-seat-limit.use-case';
 import { SIM_REPOSITORY } from './sim.repository';
 import { SUPPORT_TICKET_REPOSITORY } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY } from './support-message.repository';
@@ -105,6 +110,7 @@ import { InMemorySystemSettingsRepository } from './in-memory-system-settings.re
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
 import { MikroDeviceModelCatalogRepository } from './mikro-device-model-catalog.repository';
@@ -347,6 +353,23 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemorySubscriptionPlanRepository,
+    MikroSubscriptionPlanRepository,
+    {
+      provide: SUBSCRIPTION_PLAN_REPOSITORY,
+      inject: [
+        InMemorySubscriptionPlanRepository,
+        MikroSubscriptionPlanRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemorySubscriptionPlanRepository,
+        mikro: MikroSubscriptionPlanRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    SubscriptionPlansBootstrapService,
+    CheckTenantSeatLimitUseCase,
     InMemorySimRepository,
     MikroSimRepository,
     {
@@ -466,6 +489,7 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     ListSystemAdminInvitesUseCase,
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
+    GetSystemDeviceDetailUseCase,
     ListSystemFeatureFlagsUseCase,
     ListSystemTenantsUseCase,
     GetSystemTenantsSummaryUseCase,
