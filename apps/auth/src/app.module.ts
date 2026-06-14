@@ -126,7 +126,6 @@ import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use-case';
 import { CreateSystemAdminInviteUseCase } from './create-system-admin-invite.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
-import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
 import { GetSystemSupportDashboardUseCase } from './get-system-support-dashboard.use-case';
 import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
 import { GetSystemSupportTicketUseCase } from './get-system-support-ticket.use-case';
@@ -139,8 +138,6 @@ import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
 import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
 import { ListSystemSimsUseCase } from './list-system-sims.use-case';
-import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-case';
-import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
 import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
 import { ResendSystemTenantInviteUseCase } from './resend-system-tenant-invite.use-case';
 import { SYSTEM_FEATURE_FLAG_REPOSITORY } from './system-feature-flag.repository';
@@ -152,6 +149,15 @@ import { UpdateSystemTenantUseCase } from './update-system-tenant.use-case';
 import { UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { SuperAdminBootstrapService } from './superadmin-bootstrap.service';
 import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
+import { ExportSystemDeviceCatalogUseCase } from './export-system-device-catalog.use-case';
+import { GetSystemHealthUseCase } from './get-system-health.use-case';
+import { ExportSystemSupportTicketsUseCase } from './export-system-support-tickets.use-case';
+import { ListSystemEscalatedTicketsUseCase } from './list-system-escalated-tickets.use-case';
+import { ListSystemDeviceSetupRequestsUseCase } from './list-system-device-setup-requests.use-case';
+import { ExportSystemDeviceSetupRequestsUseCase } from './export-system-device-setup-requests.use-case';
+import { InMemoryDeviceSetupRequestRepository } from './in-memory-device-setup-request.repository';
+import { MikroDeviceSetupRequestRepository } from './mikro-device-setup-request.repository';
+import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.repository';
 
 @Module({
   imports: [
@@ -502,14 +508,11 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     UpdateSystemSettingsUseCase,
     UpdateSystemTenantUseCase,
     UpdateSystemTenantStatusUseCase,
-    ApproveSystemSimRequestUseCase,
     ExportSystemSimsUseCase,
     GetSystemSimSummaryUseCase,
     ListSystemSimBatchesUseCase,
     ListSystemSimRequestsUseCase,
     ListSystemSimsUseCase,
-    RejectSystemSimRequestUseCase,
-    RetrySystemSimBatchUseCase,
     GetSystemSupportDashboardUseCase,
     ListSystemSupportTicketsUseCase,
     GetSystemSupportTicketUseCase,
@@ -517,6 +520,23 @@ import { TENANT_ONBOARDING_REPOSITORY } from './tenant-onboarding.repository';
     EscalateSystemSupportTicketUseCase,
     ListSystemSupportTicketMessagesUseCase,
     SendSystemSupportMessageUseCase,
+    ExportSystemDeviceCatalogUseCase,
+    GetSystemHealthUseCase,
+    ExportSystemSupportTicketsUseCase,
+    ListSystemEscalatedTicketsUseCase,
+    InMemoryDeviceSetupRequestRepository,
+    MikroDeviceSetupRequestRepository,
+    {
+      provide: DEVICE_SETUP_REQUEST_REPOSITORY,
+      inject: [InMemoryDeviceSetupRequestRepository, MikroDeviceSetupRequestRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryDeviceSetupRequestRepository,
+        mikro: MikroDeviceSetupRequestRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    ListSystemDeviceSetupRequestsUseCase,
+    ExportSystemDeviceSetupRequestsUseCase,
     SuperAdminBootstrapService,
   ],
 })

@@ -147,6 +147,9 @@ import {
   SystemSimsListResponse,
   SystemSimRequestsListResponse,
   SystemSimBatchesListResponse,
+  SystemSupportDashboardResponse,
+  SystemHealthResponse,
+  SystemDeviceSetupRequestsResponse,
   UploadedMediaResponse,
 } from './dto/auth.schema';
 import { ResendInviteDto } from './dto/resend-invite.dto';
@@ -230,19 +233,7 @@ import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
 import { ListSystemSimsUseCase } from './list-system-sims.use-case';
 import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
 import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
-import {
-  ApproveSystemSimRequestUseCase,
-  SimRequestNotFoundError,
-  SimRequestAlreadyProcessedError,
-} from './approve-system-sim-request.use-case';
-import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-case';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
-import {
-  RetrySystemSimBatchUseCase,
-  SimBatchNotFoundError,
-  SimBatchNotRetryableError,
-} from './retry-system-sim-batch.use-case';
-import { RejectSimRequestDto } from './dto/system-sim.dto';
 import { GetSystemSupportDashboardUseCase } from './get-system-support-dashboard.use-case';
 import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
 import { GetSystemSupportTicketUseCase } from './get-system-support-ticket.use-case';
@@ -256,7 +247,13 @@ import {
 } from './escalate-system-support-ticket.use-case';
 import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ticket-messages.use-case';
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
-import { UpdateTicketStatusDto, EscalateTicketDto, SendSupportMessageDto } from './dto/support.dto';
+import { UpdateTicketStatusDto, EscalateTicketDto, SendSupportMessageDto, TICKET_CATEGORIES } from './dto/support.dto';
+import { ExportSystemDeviceCatalogUseCase } from './export-system-device-catalog.use-case';
+import { GetSystemHealthUseCase } from './get-system-health.use-case';
+import { ExportSystemSupportTicketsUseCase } from './export-system-support-tickets.use-case';
+import { ListSystemEscalatedTicketsUseCase } from './list-system-escalated-tickets.use-case';
+import { ListSystemDeviceSetupRequestsUseCase } from './list-system-device-setup-requests.use-case';
+import { ExportSystemDeviceSetupRequestsUseCase } from './export-system-device-setup-requests.use-case';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -406,14 +403,8 @@ export class AuthController {
     private readonly exportSystemSimsUseCase: ExportSystemSimsUseCase,
     @Inject(ListSystemSimRequestsUseCase)
     private readonly listSystemSimRequestsUseCase: ListSystemSimRequestsUseCase,
-    @Inject(ApproveSystemSimRequestUseCase)
-    private readonly approveSystemSimRequestUseCase: ApproveSystemSimRequestUseCase,
-    @Inject(RejectSystemSimRequestUseCase)
-    private readonly rejectSystemSimRequestUseCase: RejectSystemSimRequestUseCase,
     @Inject(ListSystemSimBatchesUseCase)
     private readonly listSystemSimBatchesUseCase: ListSystemSimBatchesUseCase,
-    @Inject(RetrySystemSimBatchUseCase)
-    private readonly retrySystemSimBatchUseCase: RetrySystemSimBatchUseCase,
     @Inject(GetSystemSupportDashboardUseCase)
     private readonly getSystemSupportDashboardUseCase: GetSystemSupportDashboardUseCase,
     @Inject(ListSystemSupportTicketsUseCase)
@@ -428,6 +419,18 @@ export class AuthController {
     private readonly listSystemSupportTicketMessagesUseCase: ListSystemSupportTicketMessagesUseCase,
     @Inject(SendSystemSupportMessageUseCase)
     private readonly sendSystemSupportMessageUseCase: SendSystemSupportMessageUseCase,
+    @Inject(ExportSystemDeviceCatalogUseCase)
+    private readonly exportSystemDeviceCatalogUseCase: ExportSystemDeviceCatalogUseCase,
+    @Inject(GetSystemHealthUseCase)
+    private readonly getSystemHealthUseCase: GetSystemHealthUseCase,
+    @Inject(ExportSystemSupportTicketsUseCase)
+    private readonly exportSystemSupportTicketsUseCase: ExportSystemSupportTicketsUseCase,
+    @Inject(ListSystemEscalatedTicketsUseCase)
+    private readonly listSystemEscalatedTicketsUseCase: ListSystemEscalatedTicketsUseCase,
+    @Inject(ListSystemDeviceSetupRequestsUseCase)
+    private readonly listSystemDeviceSetupRequestsUseCase: ListSystemDeviceSetupRequestsUseCase,
+    @Inject(ExportSystemDeviceSetupRequestsUseCase)
+    private readonly exportSystemDeviceSetupRequestsUseCase: ExportSystemDeviceSetupRequestsUseCase,
   ) {}
 
   @Get('health')
@@ -441,6 +444,24 @@ export class AuthController {
       };
     } catch {
       throw new ServiceUnavailableException('Database unavailable');
+    }
+  }
+
+  @Get('system/health')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get system-wide service health status' })
+  @ApiOkResponse({ type: SystemHealthResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async getSystemHealth(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemHealthUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
     }
   }
 
@@ -1100,6 +1121,35 @@ export class AuthController {
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/devices/catalog/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export device catalog as CSV' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: ['supported', 'deprecated', 'blocked'] })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV export', schema: { type: 'string', format: 'binary' } })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async exportSystemDeviceCatalog(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('search') search: string | undefined,
+    @Query('status') status: 'supported' | 'deprecated' | 'blocked' | undefined,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const exported = await this.exportSystemDeviceCatalogUseCase.execute(accessToken, { search, status });
+      response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      response.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+      return new StreamableFile(Buffer.from(exported.csv, 'utf8'));
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       throw error;
     }
   }
@@ -3262,75 +3312,6 @@ export class AuthController {
     }
   }
 
-  @Patch('system/sims/requests/:requestId/approve')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve SIM provisioning request', description: 'Approves and creates an activation batch.' })
-  @ApiOkResponse({ description: 'Request approved' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Caller is not permitted to approve SIM requests' })
-  @ApiNotFoundResponse({ description: 'Request not found' })
-  @ApiConflictResponse({ description: 'Request already processed' })
-  async approveSystemSimRequest(
-    @Param('requestId') requestId: string,
-    @Headers('authorization') authorization?: string,
-  ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      const result = await this.approveSystemSimRequestUseCase.execute(accessToken, requestId);
-      await this.tryRecordActivityFromAccessToken(accessToken, {
-        service: 'auth',
-        action: 'system.sim_request.approved',
-        entityType: 'sim_request',
-        entityId: requestId,
-        summary: 'SIM provisioning request approved',
-        metadata: { batchId: result.data.batchId, quantity: result.data.quantity },
-      });
-      return result;
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof SimRequestNotFoundError) throw new NotFoundException(error.message);
-      if (error instanceof SimRequestAlreadyProcessedError) throw new ConflictException(error.message);
-      throw error;
-    }
-  }
-
-  @Patch('system/sims/requests/:requestId/reject')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reject SIM provisioning request', description: 'Rejects with a reason.' })
-  @ApiOkResponse({ description: 'Request rejected' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Caller is not permitted to reject SIM requests' })
-  @ApiNotFoundResponse({ description: 'Request not found' })
-  @ApiConflictResponse({ description: 'Request already processed' })
-  async rejectSystemSimRequest(
-    @Param('requestId') requestId: string,
-    @Body(BodyOrDataPipe) payload: RejectSimRequestDto,
-    @Headers('authorization') authorization?: string,
-  ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      const result = await this.rejectSystemSimRequestUseCase.execute(accessToken, requestId, payload.reason);
-      await this.tryRecordActivityFromAccessToken(accessToken, {
-        service: 'auth',
-        action: 'system.sim_request.rejected',
-        entityType: 'sim_request',
-        entityId: requestId,
-        summary: 'SIM provisioning request rejected',
-        metadata: { reason: payload.reason },
-      });
-      return result;
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof SimRequestNotFoundError) throw new NotFoundException(error.message);
-      if (error instanceof SimRequestAlreadyProcessedError) throw new ConflictException(error.message);
-      throw error;
-    }
-  }
-
   @Get('system/sims/batches')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List SIM activation batches', description: 'Monitor batch activation progress.' })
@@ -3349,39 +3330,6 @@ export class AuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      throw error;
-    }
-  }
-
-  @Post('system/sims/batches/:batchId/retry')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Retry failed SIM activation batch', description: 'Resets a failed batch for retry.' })
-  @ApiOkResponse({ description: 'Batch queued for retry' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Caller is not permitted to retry SIM batches' })
-  @ApiNotFoundResponse({ description: 'Batch not found' })
-  @ApiConflictResponse({ description: 'Batch cannot be retried in current status' })
-  async retrySystemSimBatch(
-    @Param('batchId') batchId: string,
-    @Headers('authorization') authorization?: string,
-  ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      const result = await this.retrySystemSimBatchUseCase.execute(accessToken, batchId);
-      await this.tryRecordActivityFromAccessToken(accessToken, {
-        service: 'auth',
-        action: 'system.sim_batch.retried',
-        entityType: 'sim_batch',
-        entityId: batchId,
-        summary: 'SIM activation batch retried',
-      });
-      return result;
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof SimBatchNotFoundError) throw new NotFoundException(error.message);
-      if (error instanceof SimBatchNotRetryableError) throw new ConflictException(error.message);
       throw error;
     }
   }
@@ -3439,6 +3387,7 @@ export class AuthController {
   @Get('system/support/dashboard')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Support dashboard stats' })
+  @ApiOkResponse({ type: SystemSupportDashboardResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system actor' })
   async getSystemSupportDashboard(@Headers('authorization') authorization?: string) {
@@ -3453,9 +3402,131 @@ export class AuthController {
     }
   }
 
+  @Get('system/support/escalated')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List escalated tickets grouped by escalation party' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async listSystemEscalatedTickets(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemEscalatedTicketsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/device-setup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List device setup requests' })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending_review', 'in_progress', 'assigned'] })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiOkResponse({ type: SystemDeviceSetupRequestsResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async listSystemDeviceSetupRequests(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemDeviceSetupRequestsUseCase.execute(accessToken, { status, search });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/device-setup/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export device setup requests as CSV' })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending_review', 'in_progress', 'assigned'] })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV export', schema: { type: 'string', format: 'binary' } })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async exportSystemDeviceSetupRequests(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const exported = await this.exportSystemDeviceSetupRequestsUseCase.execute(accessToken, { status, search });
+      response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      response.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+      return new StreamableFile(Buffer.from(exported.csv, 'utf8'));
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/tickets/summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get support ticket counts summary' })
+  @ApiOkResponse({ type: SystemSupportDashboardResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async getSystemSupportTicketsSummary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemSupportDashboardUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('system/support/tickets/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export support tickets as CSV' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, enum: TICKET_CATEGORIES })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV export', schema: { type: 'string', format: 'binary' } })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system actor' })
+  async exportSystemSupportTickets(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('search') search: string | undefined,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const exported = await this.exportSystemSupportTicketsUseCase.execute(accessToken, { status, category, search });
+      response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      response.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
+      return new StreamableFile(Buffer.from(exported.csv, 'utf8'));
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
   @Get('system/support/tickets')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all support tickets' })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, enum: TICKET_CATEGORIES })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system actor' })
   async listSystemSupportTickets(

@@ -105,4 +105,14 @@ export class MikroSimRepository implements SimRepository {
     for (const row of rows) counts[row.carrier] = Number(row.count);
     return counts;
   }
+
+  async countUnassigned(): Promise<number> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em
+      .getConnection()
+      .execute<Array<{ count: string }>>(
+        'select count(*)::int as count from iot_sims where tenant_id is null',
+      );
+    return Number(rows[0]?.count ?? 0);
+  }
 }

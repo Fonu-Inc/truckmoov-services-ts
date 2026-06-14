@@ -24,10 +24,11 @@ export class GetSystemSimSummaryUseCase {
       forbiddenMessage: 'You are not permitted to view SIM summary data',
     });
 
-    const [byStatus, byCarrier, pendingRequests] = await Promise.all([
+    const [byStatus, byCarrier, pendingRequests, unassigned] = await Promise.all([
       this.simRepo.countByStatus(),
       this.simRepo.countByCarrier(),
       this.requestRepo.findAll({ status: 'pending' }),
+      this.simRepo.countUnassigned(),
     ]);
 
     const total = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
@@ -37,9 +38,12 @@ export class GetSystemSimSummaryUseCase {
       message: 'SIM summary retrieved',
       data: {
         total,
+        active: byStatus['active'] ?? 0,
+        unassigned,
+        pendingRequests: pendingRequests.length,
+        carriers: Object.keys(byCarrier).length,
         byStatus,
         byCarrier,
-        pendingRequests: pendingRequests.length,
       },
     };
   }

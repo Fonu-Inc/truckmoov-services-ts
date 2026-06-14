@@ -1355,17 +1355,13 @@ export class SystemFeatureFlagResponse extends StandardApiResponse<SystemFeature
 /* ── IoT SIM Schemas ───────────────────────────────── */
 
 export class SystemSimSummaryDataSchema {
-  @ApiProperty()
-  total!: number;
-
-  @ApiProperty()
-  byStatus!: Record<string, number>;
-
-  @ApiProperty()
-  byCarrier!: Record<string, number>;
-
-  @ApiProperty()
-  pendingRequests!: number;
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() unassigned!: number;
+  @ApiProperty() pendingRequests!: number;
+  @ApiProperty() carriers!: number;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byStatus!: Record<string, number>;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byCarrier!: Record<string, number>;
 }
 
 export class SystemSimSummaryResponse extends StandardApiResponse<SystemSimSummaryDataSchema> {
@@ -1467,4 +1463,78 @@ export class SystemSimBatchesListDataSchema {
 export class SystemSimBatchesListResponse extends StandardApiResponse<SystemSimBatchesListDataSchema> {
   @ApiProperty({ type: SystemSimBatchesListDataSchema })
   data!: SystemSimBatchesListDataSchema;
+}
+
+/* ── Support Ticket Schemas ───────────────────────────── */
+
+export class SystemSupportTopTenantSchema {
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() count!: number;
+}
+
+export class SystemSupportDashboardDataSchema {
+  @ApiProperty() open!: number;
+  @ApiProperty() inProgress!: number;
+  @ApiProperty() escalated!: number;
+  @ApiProperty() waitingOnTenant!: number;
+  @ApiProperty() resolved!: number;
+  @ApiProperty() closed!: number;
+  @ApiProperty() resolvedToday!: number;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byCategory!: Record<string, number>;
+  @ApiProperty({ type: SystemSupportTopTenantSchema, isArray: true }) topTenants!: SystemSupportTopTenantSchema[];
+}
+
+export class SystemSupportDashboardResponse extends StandardApiResponse<SystemSupportDashboardDataSchema> {
+  @ApiProperty({ type: SystemSupportDashboardDataSchema })
+  data!: SystemSupportDashboardDataSchema;
+}
+
+/* ── System Health Schemas ────────────────────────────── */
+
+export class SystemHealthServiceSchema {
+  @ApiProperty() name!: string;
+  @ApiProperty({ enum: ['healthy', 'degraded', 'down'] }) status!: string;
+  @ApiProperty({ nullable: true }) latencyMs!: number | null;
+  @ApiProperty({ nullable: true }) uptime!: number | null;
+}
+
+export class SystemHealthDataSchema {
+  @ApiProperty({ enum: ['healthy', 'degraded', 'down'] }) overall!: string;
+  @ApiProperty({ type: SystemHealthServiceSchema, isArray: true }) services!: SystemHealthServiceSchema[];
+  @ApiProperty({ type: String, format: 'date-time' }) generatedAt!: string;
+}
+
+export class SystemHealthResponse extends StandardApiResponse<SystemHealthDataSchema> {
+  @ApiProperty({ type: SystemHealthDataSchema })
+  data!: SystemHealthDataSchema;
+}
+
+/* ── Device Setup Request Schemas ────────────────────── */
+
+export class SystemDeviceSetupRequestSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() imei!: string;
+  @ApiProperty() manufacturer!: string;
+  @ApiProperty() model!: string;
+  @ApiProperty() connectionType!: string;
+  @ApiProperty() requesterName!: string;
+  @ApiProperty() needsSim!: boolean;
+  @ApiProperty({ nullable: true }) vehiclePlate!: string | null;
+  @ApiProperty({ nullable: true }) location!: string | null;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: ['pending_review', 'in_progress', 'assigned'] }) status!: string;
+  @ApiProperty({ nullable: true }) assignedTo!: string | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemDeviceSetupRequestsDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemDeviceSetupRequestSchema, isArray: true }) requests!: SystemDeviceSetupRequestSchema[];
+}
+
+export class SystemDeviceSetupRequestsResponse extends StandardApiResponse<SystemDeviceSetupRequestsDataSchema> {
+  @ApiProperty({ type: SystemDeviceSetupRequestsDataSchema })
+  data!: SystemDeviceSetupRequestsDataSchema;
 }

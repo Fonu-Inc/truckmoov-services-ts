@@ -45,4 +45,8 @@ export class InMemorySimRepository implements SimRepository {
     }
     return counts;
   }
+
+  async countUnassigned(): Promise<number> {
+    return [...this.store.values()].filter((s) => s.tenantId === null).length;
+  }
 }

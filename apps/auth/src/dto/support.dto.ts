@@ -3,6 +3,15 @@ import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validato
 
 const TICKET_STATUSES = ['open', 'in_progress', 'waiting_on_tenant', 'escalated', 'resolved', 'closed'] as const;
 const ESCALATION_TARGETS = ['fleetpro_internal', 'fonu_connectivity', 'vendor_installer'] as const;
+export const TICKET_CATEGORIES = [
+  'device_tracking',
+  'billing',
+  'sim_connectivity',
+  'messaging',
+  'compliance',
+  'onboarding',
+  'other',
+] as const;
 
 export class UpdateTicketStatusDto {
   @ApiProperty({ enum: TICKET_STATUSES })
