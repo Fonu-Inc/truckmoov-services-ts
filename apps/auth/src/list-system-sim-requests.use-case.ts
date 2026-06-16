@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor } from './system-authz';
 import {
   SIM_PROVISIONING_REQUEST_REPOSITORY,
+  type SimProvisioningRequestFilters,
   type SimProvisioningRequestRepository,
 } from './sim-provisioning-request.repository';
 
@@ -17,7 +18,7 @@ export class ListSystemSimRequestsUseCase {
     private readonly requestRepo: SimProvisioningRequestRepository,
   ) {}
 
-  async execute(accessToken: string, filters?: { status?: string }) {
+  async execute(accessToken: string, filters?: SimProvisioningRequestFilters) {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
       forbiddenMessage: 'You are not permitted to view SIM provisioning requests',
     });

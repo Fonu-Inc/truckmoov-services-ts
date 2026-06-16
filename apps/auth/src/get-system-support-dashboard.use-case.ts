@@ -18,12 +18,39 @@ export class GetSystemSupportDashboardUseCase {
       forbiddenMessage: 'You are not permitted to view the support dashboard',
     });
 
-    const [byStatus, byCategory, resolvedToday, byTenant] = await Promise.all([
-      this.ticketRepo.countByStatus(),
-      this.ticketRepo.countByCategory(),
-      this.ticketRepo.countResolvedToday(),
-      this.ticketRepo.countByTenant(),
-    ]);
+    const [byStatus, byCategory, resolvedToday, byTenant, openTickets, escalatedTickets, resolvedTickets] =
+      await Promise.all([
+        this.ticketRepo.countByStatus(),
+        this.ticketRepo.countByCategory(),
+        this.ticketRepo.countResolvedToday(),
+        this.ticketRepo.countByTenant(),
+        this.ticketRepo.findAll({ status: 'open' }),
+        this.ticketRepo.findAll({ status: 'escalated' }),
+        this.ticketRepo.findAll({ status: 'resolved' }),
+      ]);
+
+    const needsAttention = [...escalatedTickets, ...openTickets]
+      .slice(0, 5)
+      .map((t) => ({
+        id: t.id,
+        subject: t.subject,
+        tenantId: t.tenantId,
+        category: t.category,
+        status: t.status,
+        priority: t.priority,
+      }));
+
+    const recentlyResolved = resolvedTickets
+      .filter((t) => t.resolvedAt)
+      .sort((a, b) => (b.resolvedAt!.getTime() ?? 0) - (a.resolvedAt!.getTime() ?? 0))
+      .slice(0, 5)
+      .map((t) => ({
+        id: t.id,
+        subject: t.subject,
+        tenantId: t.tenantId,
+        category: t.category,
+        resolvedAt: t.resolvedAt!.toISOString(),
+      }));
 
     return {
       status: true,
@@ -38,6 +65,8 @@ export class GetSystemSupportDashboardUseCase {
         resolvedToday,
         byCategory,
         topTenants: byTenant,
+        needsAttention,
+        recentlyResolved,
       },
     };
   }

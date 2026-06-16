@@ -30,6 +30,10 @@ export class InMemorySimRepository implements SimRepository {
     return this.store.get(id) ?? null;
   }
 
+  async save(sim: StoredSim): Promise<void> {
+    this.store.set(sim.id, sim);
+  }
+
   async countByStatus(): Promise<Record<string, number>> {
     const counts: Record<string, number> = {};
     for (const sim of this.store.values()) {

@@ -8,6 +8,7 @@ import {
   type DeviceSetupRequestFilters,
   type DeviceSetupRequestRepository,
 } from './device-setup-request.repository';
+import { serializeDeviceSetupRequest } from './get-system-device-setup-request.use-case';
 
 @Injectable()
 export class ListSystemDeviceSetupRequestsUseCase {
@@ -27,11 +28,7 @@ export class ListSystemDeviceSetupRequestsUseCase {
       message: 'Device setup requests retrieved',
       data: {
         total: requests.length,
-        requests: requests.map((r) => ({
-          ...r,
-          createdAt: r.createdAt.toISOString(),
-          updatedAt: r.updatedAt.toISOString(),
-        })),
+        requests: requests.map(serializeDeviceSetupRequest),
       },
     };
   }

@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor } from './system-authz';
 import {
   SIM_ACTIVATION_BATCH_REPOSITORY,
+  type SimActivationBatchFilters,
   type SimActivationBatchRepository,
 } from './sim-activation-batch.repository';
 
@@ -17,7 +18,7 @@ export class ListSystemSimBatchesUseCase {
     private readonly batchRepo: SimActivationBatchRepository,
   ) {}
 
-  async execute(accessToken: string, filters?: { status?: string }) {
+  async execute(accessToken: string, filters?: SimActivationBatchFilters) {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
       forbiddenMessage: 'You are not permitted to view SIM activation batches',
     });

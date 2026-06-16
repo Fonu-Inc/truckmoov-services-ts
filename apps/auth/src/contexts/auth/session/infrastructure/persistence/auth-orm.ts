@@ -947,6 +947,53 @@ export const SupportMessageRecordSchema = new EntitySchema<SupportMessageRecord>
   },
 });
 
+/* ── Device Setup Requests ─────────────────────────── */
+
+export class DeviceSetupRequestRecord {
+  id!: string;
+  imei!: string;
+  manufacturer!: string;
+  model!: string;
+  connectionType!: string;
+  requesterName!: string;
+  needsSim!: boolean;
+  vehiclePlate!: string | null;
+  location!: string | null;
+  tenantId!: string;
+  status!: string;
+  assignedTo!: string | null;
+  notes!: string | null;
+  preferredInstallDate!: Date | null;
+  rejectedReason!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const DeviceSetupRequestRecordSchema =
+  new EntitySchema<DeviceSetupRequestRecord>({
+    class: DeviceSetupRequestRecord,
+    tableName: 'device_setup_requests',
+    properties: {
+      id: { type: 'string', primary: true },
+      imei: { type: 'string', length: 32 },
+      manufacturer: { type: 'string', length: 64 },
+      model: { type: 'string', length: 64 },
+      connectionType: { fieldName: 'connection_type', type: 'string', length: 16 },
+      requesterName: { fieldName: 'requester_name', type: 'string', length: 160 },
+      needsSim: { fieldName: 'needs_sim', type: 'boolean', default: false },
+      vehiclePlate: { fieldName: 'vehicle_plate', type: 'string', length: 160, nullable: true },
+      location: { type: 'string', length: 255, nullable: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      status: { type: 'string', length: 16, default: 'pending_review', index: true },
+      assignedTo: { fieldName: 'assigned_to', type: 'string', length: 64, nullable: true },
+      notes: { type: 'text', nullable: true },
+      preferredInstallDate: { fieldName: 'preferred_install_date', type: 'datetime', nullable: true },
+      rejectedReason: { fieldName: 'rejected_reason', type: 'text', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()', index: true },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
 export async function getAuthOrm(cfg: DbConfig) {
   if (ormPromise) {
     return ormPromise;
@@ -971,6 +1018,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       SimActivationBatchRecordSchema,
       SupportTicketRecordSchema,
       SupportMessageRecordSchema,
+      DeviceSetupRequestRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

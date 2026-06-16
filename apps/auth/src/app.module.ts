@@ -155,6 +155,21 @@ import { ExportSystemSupportTicketsUseCase } from './export-system-support-ticke
 import { ListSystemEscalatedTicketsUseCase } from './list-system-escalated-tickets.use-case';
 import { ListSystemDeviceSetupRequestsUseCase } from './list-system-device-setup-requests.use-case';
 import { ExportSystemDeviceSetupRequestsUseCase } from './export-system-device-setup-requests.use-case';
+import { GetSystemSimDetailUseCase } from './get-system-sim-detail.use-case';
+import { UpdateSystemSimUseCase } from './update-system-sim.use-case';
+import { ReassignSystemSimUseCase } from './reassign-system-sim.use-case';
+import { SuspendSystemSimUseCase } from './suspend-system-sim.use-case';
+import { GetSystemSimRequestsSummaryUseCase } from './get-system-sim-requests-summary.use-case';
+import { ExportSystemSimRequestsUseCase } from './export-system-sim-requests.use-case';
+import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
+import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-case';
+import { GetSystemSimBatchesSummaryUseCase } from './get-system-sim-batches-summary.use-case';
+import { GetSystemSimBatchDetailUseCase } from './get-system-sim-batch-detail.use-case';
+import { ExportSystemSimBatchesUseCase } from './export-system-sim-batches.use-case';
+import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
+import { GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-request.use-case';
+import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
+import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-setup-request.use-case';
 import { InMemoryDeviceSetupRequestRepository } from './in-memory-device-setup-request.repository';
 import { MikroDeviceSetupRequestRepository } from './mikro-device-setup-request.repository';
 import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.repository';
@@ -537,6 +552,21 @@ import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.reposito
     },
     ListSystemDeviceSetupRequestsUseCase,
     ExportSystemDeviceSetupRequestsUseCase,
+    GetSystemSimDetailUseCase,
+    UpdateSystemSimUseCase,
+    ReassignSystemSimUseCase,
+    SuspendSystemSimUseCase,
+    GetSystemSimRequestsSummaryUseCase,
+    ExportSystemSimRequestsUseCase,
+    ApproveSystemSimRequestUseCase,
+    RejectSystemSimRequestUseCase,
+    GetSystemSimBatchesSummaryUseCase,
+    GetSystemSimBatchDetailUseCase,
+    ExportSystemSimBatchesUseCase,
+    RetrySystemSimBatchUseCase,
+    GetSystemDeviceSetupRequestUseCase,
+    AssignSystemDeviceSetupRequestUseCase,
+    RejectSystemDeviceSetupRequestUseCase,
     SuperAdminBootstrapService,
   ],
 })

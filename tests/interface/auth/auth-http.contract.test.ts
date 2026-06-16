@@ -2549,6 +2549,109 @@ describe('Auth HTTP contract', () => {
     expect(patchRes.status).toBe(403);
   });
 
+  // ── System SIM + device-setup endpoints ───────────────
+
+  async function systemToken() {
+    const res = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
+    return res.body.accessToken as string;
+  }
+
+  it('GET /auth/system/sims/requests/summary returns approval queue counts', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/sims/requests/summary')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe(true);
+    expect(res.body.data).toHaveProperty('totalRequested');
+    expect(res.body.data).toHaveProperty('pendingApproval');
+  });
+
+  it('GET /auth/system/sims/requests/summary requires a token', async () => {
+    const res = await request(app.getHttpServer()).get('/auth/system/sims/requests/summary');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /auth/system/sims/batches/summary returns batch counts', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/sims/batches/summary')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('pendingActivation');
+    expect(res.body.data).toHaveProperty('needsAttention');
+  });
+
+  it('GET /auth/system/sims/:simId returns 404 for unknown SIM', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/sims/does-not-exist')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /auth/system/support/escalated returns grouped parties', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/support/escalated')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('parties');
+    expect(Array.isArray(res.body.data.parties)).toBe(true);
+  });
+
+  it('GET /auth/system/support/dashboard includes attention + recently-resolved lists', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/support/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('needsAttention');
+    expect(res.body.data).toHaveProperty('recentlyResolved');
+  });
+
+  it('GET /auth/system/support/device-setup/:requestId returns detail with preferredInstallDate', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/support/device-setup/dsr-001')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe('dsr-001');
+    expect(res.body.data).toHaveProperty('preferredInstallDate');
+  });
+
+  it('GET /auth/system/support/device-setup/:requestId returns 404 when missing', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/support/device-setup/nope')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('PATCH /auth/system/support/device-setup/:requestId/assign assigns to the actor', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-002/assign')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('in_progress');
+    expect(res.body.data.assignedTo).toBeTruthy();
+  });
+
+  it('PATCH /auth/system/support/device-setup/:requestId/reject sets a reason', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-003/reject')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: 'Duplicate request' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('rejected');
+    expect(res.body.data.rejectedReason).toBe('Duplicate request');
+  });
+
   // ── CORS ──────────────────────────────────────────────
 
   it('OPTIONS /auth/login exposes CORS preflight headers', async () => {
