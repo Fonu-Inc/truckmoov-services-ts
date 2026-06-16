@@ -20,6 +20,8 @@ const SEED: StoredDeviceSetupRequest[] = [
     status: 'pending_review',
     assignedTo: null,
     notes: null,
+    preferredInstallDate: new Date('2026-03-01'),
+    rejectedReason: null,
     createdAt: new Date('2026-02-18'),
     updatedAt: new Date('2026-02-18'),
   },
@@ -37,6 +39,8 @@ const SEED: StoredDeviceSetupRequest[] = [
     status: 'in_progress',
     assignedTo: null,
     notes: null,
+    preferredInstallDate: new Date('2026-02-25'),
+    rejectedReason: null,
     createdAt: new Date('2026-02-18'),
     updatedAt: new Date('2026-02-19'),
   },
@@ -54,6 +58,8 @@ const SEED: StoredDeviceSetupRequest[] = [
     status: 'assigned',
     assignedTo: 'tech-001',
     notes: null,
+    preferredInstallDate: new Date('2026-03-05'),
+    rejectedReason: null,
     createdAt: new Date('2026-02-19'),
     updatedAt: new Date('2026-02-22'),
   },
@@ -69,6 +75,18 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     let results = [...this.store.values()];
     if (filters?.status) results = results.filter((r) => r.status === filters.status);
     if (filters?.tenantId) results = results.filter((r) => r.tenantId === filters.tenantId);
+    if (filters?.manufacturer) {
+      const m = filters.manufacturer.toLowerCase();
+      results = results.filter((r) => r.manufacturer.toLowerCase() === m);
+    }
+    if (filters?.dateFrom) {
+      const from = new Date(filters.dateFrom).getTime();
+      results = results.filter((r) => r.createdAt.getTime() >= from);
+    }
+    if (filters?.dateTo) {
+      const to = new Date(filters.dateTo).getTime();
+      results = results.filter((r) => r.createdAt.getTime() <= to);
+    }
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       results = results.filter(

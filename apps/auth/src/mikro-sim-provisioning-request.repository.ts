@@ -5,6 +5,7 @@ import {
   SimProvisioningRequestRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import type {
+  SimProvisioningRequestFilters,
   SimProvisioningRequestRepository,
   StoredSimProvisioningRequest,
 } from './sim-provisioning-request.repository';
@@ -44,13 +45,33 @@ export class MikroSimProvisioningRequestRepository
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async findAll(filters?: {
-    status?: string;
-  }): Promise<StoredSimProvisioningRequest[]> {
+  async findAll(
+    filters?: SimProvisioningRequestFilters,
+  ): Promise<StoredSimProvisioningRequest[]> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const where: Record<string, unknown> = {};
     if (filters?.status) where.status = filters.status;
+    if (filters?.carrier) where.preferredOperator = filters.carrier;
+    if (filters?.organisation) {
+      where.$or = [
+        { tenantId: filters.organisation },
+        { tenantName: { $ilike: `%${filters.organisation}%` } },
+      ];
+    }
+    if (filters?.useCase) where.useCase = { $ilike: `%${filters.useCase}%` };
+    if (filters?.search) {
+      const q = `%${filters.search}%`;
+      where.$and = [
+        {
+          $or: [
+            { tenantName: { $ilike: q } },
+            { preferredOperator: { $ilike: q } },
+            { id: { $ilike: q } },
+          ],
+        },
+      ];
+    }
     const records = await em.find(SimProvisioningRequestRecord, where, {
       orderBy: { createdAt: 'desc' },
     });

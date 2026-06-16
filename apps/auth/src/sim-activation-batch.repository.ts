@@ -22,8 +22,17 @@ export type StoredSimActivationBatch = {
   updatedAt: Date;
 };
 
+export type SimActivationBatchFilters = {
+  status?: string;
+  search?: string;
+  operator?: string;
+  mode?: string;
+};
+
 export interface SimActivationBatchRepository {
-  findAll(filters?: { status?: string }): Promise<StoredSimActivationBatch[]>;
+  findAll(
+    filters?: SimActivationBatchFilters,
+  ): Promise<StoredSimActivationBatch[]>;
   findById(id: string): Promise<StoredSimActivationBatch | null>;
   save(batch: StoredSimActivationBatch): Promise<void>;
 }

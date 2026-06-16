@@ -1,4 +1,8 @@
-export type DeviceSetupRequestStatus = 'pending_review' | 'in_progress' | 'assigned';
+export type DeviceSetupRequestStatus =
+  | 'pending_review'
+  | 'in_progress'
+  | 'assigned'
+  | 'rejected';
 
 export type StoredDeviceSetupRequest = {
   id: string;
@@ -14,6 +18,8 @@ export type StoredDeviceSetupRequest = {
   status: DeviceSetupRequestStatus;
   assignedTo: string | null;
   notes: string | null;
+  preferredInstallDate: Date | null;
+  rejectedReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -22,6 +28,9 @@ export type DeviceSetupRequestFilters = {
   status?: string;
   tenantId?: string;
   search?: string;
+  manufacturer?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export interface DeviceSetupRequestRepository {

@@ -55,6 +55,7 @@ export interface SimRepository {
     search?: string;
   }): Promise<StoredSim[]>;
   findById(id: string): Promise<StoredSim | null>;
+  save(sim: StoredSim): Promise<void>;
   countByStatus(): Promise<Record<string, number>>;
   countByCarrier(): Promise<Record<string, number>>;
   countUnassigned(): Promise<number>;

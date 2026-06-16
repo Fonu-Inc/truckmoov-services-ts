@@ -21,8 +21,18 @@ export type StoredSimProvisioningRequest = {
   updatedAt: Date;
 };
 
+export type SimProvisioningRequestFilters = {
+  status?: string;
+  search?: string;
+  organisation?: string;
+  carrier?: string;
+  useCase?: string;
+};
+
 export interface SimProvisioningRequestRepository {
-  findAll(filters?: { status?: string }): Promise<StoredSimProvisioningRequest[]>;
+  findAll(
+    filters?: SimProvisioningRequestFilters,
+  ): Promise<StoredSimProvisioningRequest[]>;
   findById(id: string): Promise<StoredSimProvisioningRequest | null>;
   save(request: StoredSimProvisioningRequest): Promise<void>;
 }

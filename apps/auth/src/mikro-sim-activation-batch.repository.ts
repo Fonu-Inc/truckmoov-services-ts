@@ -5,6 +5,7 @@ import {
   SimActivationBatchRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import type {
+  SimActivationBatchFilters,
   SimActivationBatchRepository,
   StoredSimActivationBatch,
 } from './sim-activation-batch.repository';
@@ -43,13 +44,23 @@ export class MikroSimActivationBatchRepository
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async findAll(filters?: {
-    status?: string;
-  }): Promise<StoredSimActivationBatch[]> {
+  async findAll(
+    filters?: SimActivationBatchFilters,
+  ): Promise<StoredSimActivationBatch[]> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const where: Record<string, unknown> = {};
     if (filters?.status) where.status = filters.status;
+    if (filters?.operator) where.operator = filters.operator;
+    if (filters?.mode) where.activationMode = filters.mode;
+    if (filters?.search) {
+      const q = `%${filters.search}%`;
+      where.$or = [
+        { tenantName: { $ilike: q } },
+        { operator: { $ilike: q } },
+        { id: { $ilike: q } },
+      ];
+    }
     const records = await em.find(SimActivationBatchRecord, where, {
       orderBy: { createdAt: 'desc' },
     });

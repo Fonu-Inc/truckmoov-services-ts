@@ -82,6 +82,12 @@ export class MikroSimRepository implements SimRepository {
     return record ? toStored(record) : null;
   }
 
+  async save(sim: StoredSim): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.upsert(IotSimRecord, { ...sim });
+  }
+
   async countByStatus(): Promise<Record<string, number>> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em

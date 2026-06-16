@@ -1403,6 +1403,11 @@ export class SystemSimsListResponse extends StandardApiResponse<SystemSimsListDa
   data!: SystemSimsListDataSchema;
 }
 
+export class SystemSimDetailResponse extends StandardApiResponse<SystemSimSchema> {
+  @ApiProperty({ type: SystemSimSchema })
+  data!: SystemSimSchema;
+}
+
 export class SystemSimRequestSchema {
   @ApiProperty() id!: string;
   @ApiProperty() tenantId!: string;
@@ -1431,6 +1436,18 @@ export class SystemSimRequestsListDataSchema {
 export class SystemSimRequestsListResponse extends StandardApiResponse<SystemSimRequestsListDataSchema> {
   @ApiProperty({ type: SystemSimRequestsListDataSchema })
   data!: SystemSimRequestsListDataSchema;
+}
+
+export class SystemSimRequestsSummaryDataSchema {
+  @ApiProperty() totalRequested!: number;
+  @ApiProperty() pendingApproval!: number;
+  @ApiProperty() approvedThisMonth!: number;
+  @ApiProperty() rejectedThisMonth!: number;
+}
+
+export class SystemSimRequestsSummaryResponse extends StandardApiResponse<SystemSimRequestsSummaryDataSchema> {
+  @ApiProperty({ type: SystemSimRequestsSummaryDataSchema })
+  data!: SystemSimRequestsSummaryDataSchema;
 }
 
 export class SystemSimBatchSchema {
@@ -1465,11 +1482,45 @@ export class SystemSimBatchesListResponse extends StandardApiResponse<SystemSimB
   data!: SystemSimBatchesListDataSchema;
 }
 
+export class SystemSimBatchDetailResponse extends StandardApiResponse<SystemSimBatchSchema> {
+  @ApiProperty({ type: SystemSimBatchSchema })
+  data!: SystemSimBatchSchema;
+}
+
+export class SystemSimBatchesSummaryDataSchema {
+  @ApiProperty() pendingActivation!: number;
+  @ApiProperty() inProgress!: number;
+  @ApiProperty() totalSimsQueued!: number;
+  @ApiProperty() needsAttention!: number;
+}
+
+export class SystemSimBatchesSummaryResponse extends StandardApiResponse<SystemSimBatchesSummaryDataSchema> {
+  @ApiProperty({ type: SystemSimBatchesSummaryDataSchema })
+  data!: SystemSimBatchesSummaryDataSchema;
+}
+
 /* ── Support Ticket Schemas ───────────────────────────── */
 
 export class SystemSupportTopTenantSchema {
   @ApiProperty() tenantId!: string;
   @ApiProperty() count!: number;
+}
+
+export class SystemSupportNeedsAttentionSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() subject!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() category!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() priority!: string;
+}
+
+export class SystemSupportRecentlyResolvedSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() subject!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() category!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) resolvedAt!: string;
 }
 
 export class SystemSupportDashboardDataSchema {
@@ -1482,11 +1533,46 @@ export class SystemSupportDashboardDataSchema {
   @ApiProperty() resolvedToday!: number;
   @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byCategory!: Record<string, number>;
   @ApiProperty({ type: SystemSupportTopTenantSchema, isArray: true }) topTenants!: SystemSupportTopTenantSchema[];
+  @ApiProperty({ type: SystemSupportNeedsAttentionSchema, isArray: true }) needsAttention!: SystemSupportNeedsAttentionSchema[];
+  @ApiProperty({ type: SystemSupportRecentlyResolvedSchema, isArray: true }) recentlyResolved!: SystemSupportRecentlyResolvedSchema[];
 }
 
 export class SystemSupportDashboardResponse extends StandardApiResponse<SystemSupportDashboardDataSchema> {
   @ApiProperty({ type: SystemSupportDashboardDataSchema })
   data!: SystemSupportDashboardDataSchema;
+}
+
+export class SystemEscalatedTicketSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() category!: string;
+  @ApiProperty() subject!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() priority!: string;
+  @ApiProperty({ nullable: true }) escalatedTo!: string | null;
+  @ApiProperty({ nullable: true }) escalatedReferenceId!: string | null;
+  @ApiProperty({ nullable: true }) escalationNotes!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) escalatedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) resolvedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) closedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemEscalatedPartySchema {
+  @ApiProperty() party!: string;
+  @ApiProperty() count!: number;
+  @ApiProperty({ type: SystemEscalatedTicketSchema, isArray: true }) tickets!: SystemEscalatedTicketSchema[];
+}
+
+export class SystemEscalatedTicketsDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemEscalatedPartySchema, isArray: true }) parties!: SystemEscalatedPartySchema[];
+}
+
+export class SystemEscalatedTicketsResponse extends StandardApiResponse<SystemEscalatedTicketsDataSchema> {
+  @ApiProperty({ type: SystemEscalatedTicketsDataSchema })
+  data!: SystemEscalatedTicketsDataSchema;
 }
 
 /* ── System Health Schemas ────────────────────────────── */
@@ -1522,9 +1608,11 @@ export class SystemDeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) vehiclePlate!: string | null;
   @ApiProperty({ nullable: true }) location!: string | null;
   @ApiProperty() tenantId!: string;
-  @ApiProperty({ enum: ['pending_review', 'in_progress', 'assigned'] }) status!: string;
+  @ApiProperty({ enum: ['pending_review', 'in_progress', 'assigned', 'rejected'] }) status!: string;
   @ApiProperty({ nullable: true }) assignedTo!: string | null;
   @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) preferredInstallDate!: string | null;
+  @ApiProperty({ nullable: true }) rejectedReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
 }
@@ -1537,4 +1625,9 @@ export class SystemDeviceSetupRequestsDataSchema {
 export class SystemDeviceSetupRequestsResponse extends StandardApiResponse<SystemDeviceSetupRequestsDataSchema> {
   @ApiProperty({ type: SystemDeviceSetupRequestsDataSchema })
   data!: SystemDeviceSetupRequestsDataSchema;
+}
+
+export class SystemDeviceSetupRequestDetailResponse extends StandardApiResponse<SystemDeviceSetupRequestSchema> {
+  @ApiProperty({ type: SystemDeviceSetupRequestSchema })
+  data!: SystemDeviceSetupRequestSchema;
 }
