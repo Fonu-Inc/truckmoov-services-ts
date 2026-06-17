@@ -173,6 +173,34 @@ import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-se
 import { InMemoryDeviceSetupRequestRepository } from './in-memory-device-setup-request.repository';
 import { MikroDeviceSetupRequestRepository } from './mikro-device-setup-request.repository';
 import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.repository';
+import { TENANT_BUSINESS_INFO_REPOSITORY } from './tenant-business-info.repository';
+import { InMemoryTenantBusinessInfoRepository } from './in-memory-tenant-business-info.repository';
+import { MikroTenantBusinessInfoRepository } from './mikro-tenant-business-info.repository';
+import { KYC_DOCUMENT_REPOSITORY } from './tenant-kyc-document.repository';
+import { InMemoryKycDocumentRepository } from './in-memory-tenant-kyc-document.repository';
+import { MikroKycDocumentRepository } from './mikro-tenant-kyc-document.repository';
+import { TENANT_DEVICE_PROVISIONING_REQUEST_REPOSITORY } from './tenant-device-provisioning-request.repository';
+import { InMemoryTenantDeviceProvisioningRequestRepository } from './in-memory-tenant-device-provisioning-request.repository';
+import { MikroTenantDeviceProvisioningRequestRepository } from './mikro-tenant-device-provisioning-request.repository';
+import { PaymentEventService } from './payment-event.service';
+import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
+import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
+import { CreatePaymentIntentUseCase } from './create-payment-intent.use-case';
+import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
+import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-case';
+import { SubmitEnterpriseEnquiryUseCase } from './submit-enterprise-enquiry.use-case';
+import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
+import { GetBusinessInfoUseCase } from './get-business-info.use-case';
+import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
+import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
+import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
+import { DeleteKycDocumentUseCase } from './delete-kyc-document.use-case';
+import { SubmitDeviceProvisioningRequestUseCase } from './submit-device-provisioning-request.use-case';
+import { RegisterSimsUseCase } from './register-sims.use-case';
+import { ImportSimsCsvUseCase } from './import-sims-csv.use-case';
+import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-request.use-case';
+import { SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
+import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
 
 @Module({
   imports: [
@@ -568,6 +596,51 @@ import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.reposito
     AssignSystemDeviceSetupRequestUseCase,
     RejectSystemDeviceSetupRequestUseCase,
     SuperAdminBootstrapService,
+    // Onboarding repositories
+    InMemoryTenantBusinessInfoRepository,
+    MikroTenantBusinessInfoRepository,
+    {
+      provide: TENANT_BUSINESS_INFO_REPOSITORY,
+      inject: [InMemoryTenantBusinessInfoRepository, MikroTenantBusinessInfoRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryTenantBusinessInfoRepository, mikro: MikroTenantBusinessInfoRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    InMemoryKycDocumentRepository,
+    MikroKycDocumentRepository,
+    {
+      provide: KYC_DOCUMENT_REPOSITORY,
+      inject: [InMemoryKycDocumentRepository, MikroKycDocumentRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryKycDocumentRepository, mikro: MikroKycDocumentRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    InMemoryTenantDeviceProvisioningRequestRepository,
+    MikroTenantDeviceProvisioningRequestRepository,
+    {
+      provide: TENANT_DEVICE_PROVISIONING_REQUEST_REPOSITORY,
+      inject: [InMemoryTenantDeviceProvisioningRequestRepository, MikroTenantDeviceProvisioningRequestRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryTenantDeviceProvisioningRequestRepository, mikro: MikroTenantDeviceProvisioningRequestRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Onboarding use cases
+    PaymentEventService,
+    GetOnboardingPlansUseCase,
+    GetExchangeRateUseCase,
+    CreatePaymentIntentUseCase,
+    ActivateSubscriptionUseCase,
+    SubscribePaymentEventsUseCase,
+    SubmitEnterpriseEnquiryUseCase,
+    GetSubscriptionCapsUseCase,
+    GetBusinessInfoUseCase,
+    SaveBusinessInfoUseCase,
+    ListKycDocumentsUseCase,
+    SaveKycDocumentUseCase,
+    DeleteKycDocumentUseCase,
+    SubmitDeviceProvisioningRequestUseCase,
+    RegisterSimsUseCase,
+    ImportSimsCsvUseCase,
+    SubmitSimProvisioningRequestUseCase,
+    SaveFeatureTogglesUseCase,
+    CompleteOnboardingUseCase,
   ],
 })
 export class AppModule {}

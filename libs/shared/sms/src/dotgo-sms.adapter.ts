@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import axios from "axios";
 import { AppConfigService } from "@shared/config";
 import type { SmsMessage, SmsTransport } from "./sms.port";
 
@@ -15,21 +16,27 @@ export class DotgoSmsAdapter implements SmsTransport {
   }
 
   async send(message: SmsMessage): Promise<void> {
-    const response = await fetch(this.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
+    const response = await axios.post(
+      this.apiUrl,
+      {
         to: message.to,
         body: message.body,
         sender_id: this.senderId,
-      }),
-    });
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        validateStatus: () => true,
+      },
+    );
 
-    if (!response.ok) {
-      const text = await response.text();
+    if (response.status < 200 || response.status >= 300) {
+      const text =
+        typeof response.data === "string"
+          ? response.data
+          : JSON.stringify(response.data);
       throw new Error(`Dotgo SMS failed (${response.status}): ${text}`);
     }
   }

@@ -14,13 +14,19 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Logger,
   ServiceUnavailableException,
   UnauthorizedException,
   Res,
   StreamableFile,
+  Sse,
+  RawBodyRequest,
+  Req,
 } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { Observable } from 'rxjs';
 import {
   ApiBody,
   ApiBadRequestResponse,
@@ -298,6 +304,48 @@ import {
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
 import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-setup-request.use-case';
 import { RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
+import { AppConfigService } from '@shared/config';
+import {
+  CreatePaymentIntentDto,
+  EnterpriseEnquiryDto,
+  SaveBusinessInfoDto,
+  SubmitDeviceProvisioningRequestDto,
+  RegisterSimsDto,
+  SubmitSimProvisioningRequestDto,
+  SaveFeatureTogglesDto,
+  KYC_DOCUMENT_TYPE_ENUM,
+} from './dto/onboarding.dto';
+import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
+import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
+import {
+  CreatePaymentIntentUseCase,
+  PlanNotFoundError,
+} from './create-payment-intent.use-case';
+import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
+import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-case';
+import { PaymentEventService } from './payment-event.service';
+import { SubmitEnterpriseEnquiryUseCase } from './submit-enterprise-enquiry.use-case';
+import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
+import { GetBusinessInfoUseCase } from './get-business-info.use-case';
+import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
+import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
+import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
+import {
+  DeleteKycDocumentUseCase,
+  KycDocumentNotFoundError,
+} from './delete-kyc-document.use-case';
+import { SubmitDeviceProvisioningRequestUseCase } from './submit-device-provisioning-request.use-case';
+import { RegisterSimsUseCase } from './register-sims.use-case';
+import {
+  ImportSimsCsvUseCase,
+  InvalidCsvError,
+} from './import-sims-csv.use-case';
+import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-request.use-case';
+import {
+  SaveFeatureTogglesUseCase,
+  OnboardingNotFoundForFeaturesError,
+} from './save-feature-toggles.use-case';
+import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -505,6 +553,46 @@ export class AuthController {
     private readonly assignSystemDeviceSetupRequestUseCase: AssignSystemDeviceSetupRequestUseCase,
     @Inject(RejectSystemDeviceSetupRequestUseCase)
     private readonly rejectSystemDeviceSetupRequestUseCase: RejectSystemDeviceSetupRequestUseCase,
+    @Inject(AppConfigService)
+    private readonly appConfig: AppConfigService,
+    @Inject(GetOnboardingPlansUseCase)
+    private readonly getOnboardingPlansUseCase: GetOnboardingPlansUseCase,
+    @Inject(GetExchangeRateUseCase)
+    private readonly getExchangeRateUseCase: GetExchangeRateUseCase,
+    @Inject(CreatePaymentIntentUseCase)
+    private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
+    @Inject(ActivateSubscriptionUseCase)
+    private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
+    @Inject(SubscribePaymentEventsUseCase)
+    private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
+    @Inject(PaymentEventService)
+    private readonly paymentEventService: PaymentEventService,
+    @Inject(SubmitEnterpriseEnquiryUseCase)
+    private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
+    @Inject(GetSubscriptionCapsUseCase)
+    private readonly getSubscriptionCapsUseCase: GetSubscriptionCapsUseCase,
+    @Inject(GetBusinessInfoUseCase)
+    private readonly getBusinessInfoUseCase: GetBusinessInfoUseCase,
+    @Inject(SaveBusinessInfoUseCase)
+    private readonly saveBusinessInfoUseCase: SaveBusinessInfoUseCase,
+    @Inject(ListKycDocumentsUseCase)
+    private readonly listKycDocumentsUseCase: ListKycDocumentsUseCase,
+    @Inject(SaveKycDocumentUseCase)
+    private readonly saveKycDocumentUseCase: SaveKycDocumentUseCase,
+    @Inject(DeleteKycDocumentUseCase)
+    private readonly deleteKycDocumentUseCase: DeleteKycDocumentUseCase,
+    @Inject(SubmitDeviceProvisioningRequestUseCase)
+    private readonly submitDeviceProvisioningRequestUseCase: SubmitDeviceProvisioningRequestUseCase,
+    @Inject(RegisterSimsUseCase)
+    private readonly registerSimsUseCase: RegisterSimsUseCase,
+    @Inject(ImportSimsCsvUseCase)
+    private readonly importSimsCsvUseCase: ImportSimsCsvUseCase,
+    @Inject(SubmitSimProvisioningRequestUseCase)
+    private readonly submitSimProvisioningRequestUseCase: SubmitSimProvisioningRequestUseCase,
+    @Inject(SaveFeatureTogglesUseCase)
+    private readonly saveFeatureTogglesUseCase: SaveFeatureTogglesUseCase,
+    @Inject(CompleteOnboardingUseCase)
+    private readonly completeOnboardingUseCase: CompleteOnboardingUseCase,
   ) {}
 
   @Get('health')
@@ -4324,6 +4412,415 @@ export class AuthController {
       this.logger.warn(
         `activity_log_record_failed:${command.action}:${(error as Error).message}`,
       );
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════
+     TENANT ONBOARDING FLOW
+     ═══════════════════════════════════════════════════ */
+
+  @Get('onboarding/plans')
+  @ApiOperation({ summary: 'List subscription plans', description: 'Returns all active subscription plans with NGN prices and limits.' })
+  @ApiOkResponse()
+  async getOnboardingPlans() {
+    return this.getOnboardingPlansUseCase.execute();
+  }
+
+  @Get('onboarding/exchange-rate')
+  @ApiOperation({ summary: 'Current NGN/USD exchange rate', description: 'Live rate from ExchangeRate-API; cached 30 min.' })
+  @ApiOkResponse()
+  async getExchangeRate() {
+    return this.getExchangeRateUseCase.execute();
+  }
+
+  @Post('onboarding/payment/intent')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create payment intent', description: 'Initialises a Paystack transaction (card) or MoMo USSD push. Returns authorization URL or USSD string.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiBadRequestResponse({ description: 'Plan not found or invalid gateway' })
+  async createPaymentIntent(
+    @Body(BodyOrDataPipe) payload: CreatePaymentIntentDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.createPaymentIntentUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof PlanNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Sse('onboarding/payment/events')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Subscribe to payment confirmation events (SSE)', description: 'Server-sent event stream. Emits once when the Paystack webhook confirms payment and activates the subscription.' })
+  onboardingPaymentEvents(
+    @Headers('authorization') authorization?: string,
+  ): Observable<{ data: unknown }> {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    return this.subscribePaymentEventsUseCase.execute(accessToken);
+  }
+
+  @Post('onboarding/payment/webhook')
+  @ApiOperation({ summary: 'Paystack payment webhook (no auth)', description: 'Receives charge.success events from Paystack. Validates HMAC signature, activates subscription, emits SSE to tenant.' })
+  @ApiCreatedResponse()
+  async paystackWebhook(
+    @Req() req: RawBodyRequest<{ headers: Record<string, string | undefined> }>,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const secretKey = this.appConfig.payment.paystackSecretKey;
+    if (!secretKey) throw new ServiceUnavailableException('Paystack not configured');
+    const sig = req.headers['x-paystack-signature'] as string | undefined;
+    if (!sig) throw new ForbiddenException('Missing signature');
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+    const payload = rawBody ?? Buffer.from(JSON.stringify(body));
+    const hash = createHmac('sha512', secretKey).update(payload).digest('hex');
+    const expected = Buffer.from(hash, 'hex');
+    const provided = Buffer.from(sig, 'hex');
+    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+      throw new ForbiddenException('Invalid webhook signature');
+    }
+
+    if (body['event'] === 'charge.success') {
+      const data = body['data'] as Record<string, unknown> | undefined;
+      const metadata = data?.['metadata'] as Record<string, unknown> | undefined;
+      const tenantId = metadata?.['tenantId'] as string | undefined;
+      const reference = data?.['reference'] as string | undefined;
+      if (tenantId && reference) {
+        try {
+          await this.activateSubscriptionUseCase.execute(tenantId, reference);
+          this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
+        } catch {
+          this.logger.error(`Failed to activate subscription for tenant ${tenantId}`);
+        }
+      }
+    }
+
+    return { received: true };
+  }
+
+  @Post('onboarding/enterprise/enquiry')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit enterprise plan enquiry', description: 'Creates a support ticket of category enterprise_enquiry for the sales team.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async submitEnterpriseEnquiry(
+    @Body(BodyOrDataPipe) payload: EnterpriseEnquiryDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.submitEnterpriseEnquiryUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('onboarding/subscription/caps')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get device & SIM caps for active plan', description: 'Returns maxDevices, maxSims, maxUsers from the tenant\'s active subscription plan.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async getSubscriptionCaps(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSubscriptionCapsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('onboarding/business-info')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get business info', description: 'Returns stored business registration details and verification status for the calling tenant.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async getBusinessInfo(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getBusinessInfoUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Put('onboarding/business-info')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Save/update business info', description: 'Upserts business registration details for the calling tenant. Verification status is managed by the system.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async saveBusinessInfo(
+    @Body(BodyOrDataPipe) payload: SaveBusinessInfoDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.saveBusinessInfoUseCase.execute(accessToken, {
+        companyName: payload.companyName,
+        registrationNumber: payload.registrationNumber ?? null,
+        taxId: payload.taxId ?? null,
+        businessType: payload.businessType ?? null,
+        industry: payload.industry ?? null,
+        addressLine1: payload.addressLine1 ?? null,
+        addressLine2: payload.addressLine2 ?? null,
+        city: payload.city ?? null,
+        state: payload.state ?? null,
+        postalCode: payload.postalCode ?? null,
+        country: payload.country ?? null,
+        phone: payload.phone ?? null,
+        email: payload.email ?? null,
+        billingEmail: payload.billingEmail ?? null,
+        website: payload.website ?? null,
+        yearEstablished: payload.yearEstablished ?? null,
+        numberOfEmployees: payload.numberOfEmployees ?? null,
+      });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('onboarding/kyc/documents')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List KYC documents', description: 'Lists all uploaded KYC documents for the calling tenant with their id, type, name, size, and status.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async listKycDocuments(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listKycDocumentsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/kyc/documents')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload KYC document', description: 'Uploads a KYC document file (stored privately in Wasabi) and records the document metadata.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiBadRequestResponse({ description: 'Missing file or invalid document_type' })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['document_type', 'file'],
+      properties: {
+        document_type: { type: 'string', enum: [...KYC_DOCUMENT_TYPE_ENUM] },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  async uploadKycDocument(
+    @UploadedFile() file?: { originalname: string; mimetype: string; size: number; buffer: Buffer },
+    @Body('document_type') documentType?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!file?.buffer?.length) throw new BadRequestException('Missing upload file');
+    if (!documentType || !KYC_DOCUMENT_TYPE_ENUM.includes(documentType as typeof KYC_DOCUMENT_TYPE_ENUM[number])) {
+      throw new BadRequestException('Invalid or missing document_type');
+    }
+
+    const ext = extname(file.originalname).toLowerCase();
+    const key = `auth/kyc/${randomUUID()}${ext}`;
+    try {
+      await this.objectStorageService.putObject({
+        key,
+        body: file.buffer,
+        contentType: file.mimetype,
+        visibility: 'private',
+      });
+    } catch {
+      throw new ServiceUnavailableException('File upload failed');
+    }
+
+    try {
+      return await this.saveKycDocumentUseCase.execute(accessToken, {
+        documentType: documentType as typeof KYC_DOCUMENT_TYPE_ENUM[number],
+        documentName: file.originalname,
+        fileKey: key,
+        fileSize: file.size,
+      });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('onboarding/kyc/documents/:docId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete KYC document', description: 'Removes a KYC document record by ID. Only the owning tenant can delete their own documents.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiNotFoundResponse({ description: 'Document not found' })
+  async deleteKycDocument(
+    @Param('docId') docId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.deleteKycDocumentUseCase.execute(accessToken, docId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof KycDocumentNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/devices/provision')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit device provisioning request', description: 'Submits a fleet device provisioning request (manufacturer, model, quantity). Reviewed by system team.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async submitDeviceProvisioningRequest(
+    @Body(BodyOrDataPipe) payload: SubmitDeviceProvisioningRequestDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.submitDeviceProvisioningRequestUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/sims/register')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register individual SIMs', description: 'Registers one or more SIMs (by ICCID + mobile number + operator) directly to the tenant in the SIM inventory.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async registerSims(
+    @Body(BodyOrDataPipe) payload: RegisterSimsDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.registerSimsUseCase.execute(accessToken, payload.sims);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/sims/import')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Bulk CSV SIM import', description: 'Accepts a CSV file with columns iccid, msisdn, carrier and bulk-registers the SIMs.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiBadRequestResponse({ description: 'Invalid CSV or missing required column: iccid' })
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary', description: 'CSV with columns: iccid, msisdn, carrier' } },
+    },
+  })
+  async importSimsCsv(
+    @UploadedFile() file?: { buffer: Buffer },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!file?.buffer?.length) throw new BadRequestException('Missing CSV file');
+    try {
+      return await this.importSimsCsvUseCase.execute(accessToken, file.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof InvalidCsvError) throw new BadRequestException(error.message);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/sims/provision')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit SIM provisioning request', description: 'Submits a SIM provisioning request to Fonu. Reviewed and fulfilled by the system team.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async submitSimProvisioningRequest(
+    @Body(BodyOrDataPipe) payload: SubmitSimProvisioningRequestDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.submitSimProvisioningRequestUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Put('onboarding/features')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Save feature toggle preferences', description: 'Updates feature toggles (live_tracking, geofencing, etc.) on the tenant onboarding record.' })
+  @ApiOkResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiNotFoundResponse({ description: 'Onboarding record not found' })
+  async saveFeatureToggles(
+    @Body(BodyOrDataPipe) payload: SaveFeatureTogglesDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.saveFeatureTogglesUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof OnboardingNotFoundForFeaturesError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('onboarding/complete')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark onboarding as complete', description: 'Sets onboarding_completed_at server-side so completion persists across devices and sessions.' })
+  @ApiCreatedResponse()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiConflictResponse({ description: 'Onboarding already completed' })
+  async completeOnboarding(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.completeOnboardingUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
     }
   }
 

@@ -88,6 +88,9 @@ export type StoredTenantOnboarding = {
   simAssignment: TenantSimAssignment;
   features: TenantFeatureFlags;
   createdByUserId: string;
+  onboardingCompletedAt?: Date | null;
+  paymentReference?: string | null;
+  subscriptionActivatedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };

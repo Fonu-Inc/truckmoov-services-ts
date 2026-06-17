@@ -259,6 +259,9 @@ export class SystemTenantOnboardingRecord {
   simAssignment!: Record<string, unknown>;
   features!: Record<string, unknown>;
   createdByUserId!: string;
+  onboardingCompletedAt!: Date | null;
+  paymentReference!: string | null;
+  subscriptionActivatedAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -303,6 +306,22 @@ export const SystemTenantOnboardingRecordSchema =
         type: 'string',
         length: 64,
       },
+      onboardingCompletedAt: {
+        fieldName: 'onboarding_completed_at',
+        type: 'datetime',
+        nullable: true,
+      },
+      paymentReference: {
+        fieldName: 'payment_reference',
+        type: 'string',
+        length: 255,
+        nullable: true,
+      },
+      subscriptionActivatedAt: {
+        fieldName: 'subscription_activated_at',
+        type: 'datetime',
+        nullable: true,
+      },
       createdAt: {
         fieldName: 'created_at',
         type: 'datetime',
@@ -313,6 +332,123 @@ export const SystemTenantOnboardingRecordSchema =
         type: 'datetime',
         defaultRaw: 'now()',
       },
+    },
+  });
+
+/* ── Tenant Business Info ───────────────────────────── */
+
+export class TenantBusinessInfoRecord {
+  tenantId!: string;
+  companyName!: string;
+  registrationNumber!: string | null;
+  taxId!: string | null;
+  businessType!: string | null;
+  industry!: string | null;
+  addressLine1!: string | null;
+  addressLine2!: string | null;
+  city!: string | null;
+  state!: string | null;
+  postalCode!: string | null;
+  country!: string | null;
+  phone!: string | null;
+  email!: string | null;
+  billingEmail!: string | null;
+  website!: string | null;
+  yearEstablished!: number | null;
+  numberOfEmployees!: number | null;
+  verificationStatus!: string;
+  updatedAt!: Date;
+}
+
+export const TenantBusinessInfoRecordSchema =
+  new EntitySchema<TenantBusinessInfoRecord>({
+    class: TenantBusinessInfoRecord,
+    tableName: 'tenant_business_info',
+    properties: {
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+      companyName: { fieldName: 'company_name', type: 'string', length: 255 },
+      registrationNumber: { fieldName: 'registration_number', type: 'string', length: 128, nullable: true },
+      taxId: { fieldName: 'tax_id', type: 'string', length: 128, nullable: true },
+      businessType: { fieldName: 'business_type', type: 'string', length: 64, nullable: true },
+      industry: { type: 'string', length: 128, nullable: true },
+      addressLine1: { fieldName: 'address_line1', type: 'string', length: 255, nullable: true },
+      addressLine2: { fieldName: 'address_line2', type: 'string', length: 255, nullable: true },
+      city: { type: 'string', length: 128, nullable: true },
+      state: { type: 'string', length: 128, nullable: true },
+      postalCode: { fieldName: 'postal_code', type: 'string', length: 32, nullable: true },
+      country: { type: 'string', length: 64, nullable: true },
+      phone: { type: 'string', length: 32, nullable: true },
+      email: { type: 'string', length: 255, nullable: true },
+      billingEmail: { fieldName: 'billing_email', type: 'string', length: 255, nullable: true },
+      website: { type: 'string', length: 255, nullable: true },
+      yearEstablished: { fieldName: 'year_established', type: 'number', nullable: true },
+      numberOfEmployees: { fieldName: 'number_of_employees', type: 'number', nullable: true },
+      verificationStatus: { fieldName: 'verification_status', type: 'string', length: 32, default: 'pending' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
+/* ── Tenant KYC Documents ───────────────────────────── */
+
+export class TenantKycDocumentRecord {
+  id!: string;
+  tenantId!: string;
+  documentType!: string;
+  documentName!: string;
+  fileKey!: string;
+  fileSize!: number;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TenantKycDocumentRecordSchema =
+  new EntitySchema<TenantKycDocumentRecord>({
+    class: TenantKycDocumentRecord,
+    tableName: 'tenant_kyc_documents',
+    properties: {
+      id: { type: 'string', primary: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      documentType: { fieldName: 'document_type', type: 'string', length: 64 },
+      documentName: { fieldName: 'document_name', type: 'string', length: 255 },
+      fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
+      fileSize: { fieldName: 'file_size', type: 'number', default: 0 },
+      status: { type: 'string', length: 32, default: 'pending' },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
+/* ── Tenant Device Provisioning Requests ─────────────── */
+
+export class TenantDeviceProvisioningRequestRecord {
+  id!: string;
+  tenantId!: string;
+  manufacturer!: string;
+  model!: string;
+  quantity!: number;
+  useCase!: string | null;
+  requesterNotes!: string | null;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TenantDeviceProvisioningRequestRecordSchema =
+  new EntitySchema<TenantDeviceProvisioningRequestRecord>({
+    class: TenantDeviceProvisioningRequestRecord,
+    tableName: 'tenant_device_provisioning_requests',
+    properties: {
+      id: { type: 'string', primary: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      manufacturer: { type: 'string', length: 128 },
+      model: { type: 'string', length: 128 },
+      quantity: { type: 'number', default: 1 },
+      useCase: { fieldName: 'use_case', type: 'text', nullable: true },
+      requesterNotes: { fieldName: 'requester_notes', type: 'text', nullable: true },
+      status: { type: 'string', length: 32, default: 'pending' },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()', index: true },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
   });
 
@@ -1019,6 +1155,9 @@ export async function getAuthOrm(cfg: DbConfig) {
       SupportTicketRecordSchema,
       SupportMessageRecordSchema,
       DeviceSetupRequestRecordSchema,
+      TenantBusinessInfoRecordSchema,
+      TenantKycDocumentRecordSchema,
+      TenantDeviceProvisioningRequestRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

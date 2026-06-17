@@ -120,4 +120,12 @@ export class AppConfigService {
       environment: this.config.get<string>("SENTRY_ENVIRONMENT", this.app.env),
     };
   }
+
+  get payment() {
+    return {
+      paystackBaseUrl: this.config.get<string>("PAYSTACK_BASE_URL", "https://api.paystack.co"),
+      paystackSecretKey: this.config.get<string>("PAYSTACK_SECRET_KEY", ""),
+      exchangeRateApiKey: this.config.get<string>("EXCHANGE_RATE_API_KEY", ""),
+    };
+  }
 }
