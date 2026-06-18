@@ -721,6 +721,12 @@ export class IotSimRecord {
   status!: string;
   tenantId!: string | null;
   deviceId!: string | null;
+  deviceName!: string | null;
+  deviceImei!: string | null;
+  deviceType!: string | null;
+  vehicleId!: string | null;
+  suspensionReason!: string | null;
+  notes!: string | null;
   dataUsageMb!: number;
   dataLimitMb!: number;
   smsUsage!: number;
@@ -751,6 +757,12 @@ export const IotSimRecordSchema = new EntitySchema<IotSimRecord>({
     status: { type: 'string', length: 16, default: 'registered' },
     tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, nullable: true, index: true },
     deviceId: { fieldName: 'device_id', type: 'string', length: 64, nullable: true },
+    deviceName: { fieldName: 'device_name', type: 'string', length: 255, nullable: true },
+    deviceImei: { fieldName: 'device_imei', type: 'string', length: 64, nullable: true },
+    deviceType: { fieldName: 'device_type', type: 'string', length: 64, nullable: true },
+    vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64, nullable: true },
+    suspensionReason: { fieldName: 'suspension_reason', type: 'string', length: 255, nullable: true },
+    notes: { type: 'text', nullable: true },
     dataUsageMb: { fieldName: 'data_usage_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
     dataLimitMb: { fieldName: 'data_limit_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
     smsUsage: { fieldName: 'sms_usage', type: 'number', default: 0 },
@@ -1130,6 +1142,256 @@ export const DeviceSetupRequestRecordSchema =
     },
   });
 
+/* ── Bundle Carriers ────────────────────────────────── */
+
+export class BundleCarrierRecord {
+  id!: string;
+  name!: string;
+  displayName!: string;
+  active!: boolean;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const BundleCarrierRecordSchema = new EntitySchema<BundleCarrierRecord>({
+  class: BundleCarrierRecord,
+  tableName: 'bundle_carriers',
+  properties: {
+    id: { type: 'string', length: 64, primary: true },
+    name: { type: 'string', length: 128 },
+    displayName: { fieldName: 'display_name', type: 'string', length: 128 },
+    active: { type: 'boolean', default: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Bundle Catalog ─────────────────────────────────── */
+
+export class BundleCatalogRecord {
+  id!: string;
+  code!: string;
+  name!: string;
+  carrierId!: string;
+  dataAmountGb!: number;
+  validityDays!: number;
+  billingCycle!: string;
+  priceKobo!: number;
+  currency!: string;
+  active!: boolean;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const BundleCatalogRecordSchema = new EntitySchema<BundleCatalogRecord>({
+  class: BundleCatalogRecord,
+  tableName: 'bundle_catalog',
+  properties: {
+    id: { type: 'string', length: 255, primary: true },
+    code: { type: 'string', length: 128, unique: true },
+    name: { type: 'string', length: 255 },
+    carrierId: { fieldName: 'carrier_id', type: 'string', length: 64, index: true },
+    dataAmountGb: { fieldName: 'data_amount_gb', type: 'number', columnType: 'numeric(8,2)', default: 0 },
+    validityDays: { fieldName: 'validity_days', type: 'number', default: 30 },
+    billingCycle: { fieldName: 'billing_cycle', type: 'string', length: 16, default: 'monthly' },
+    priceKobo: { fieldName: 'price_kobo', type: 'bigint', default: 0 },
+    currency: { type: 'string', length: 8, default: 'NGN' },
+    active: { type: 'boolean', default: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Tenant Wallets ─────────────────────────────────── */
+
+export class TenantWalletRecord {
+  tenantId!: string;
+  balanceKobo!: number;
+  currency!: string;
+  updatedAt!: Date;
+}
+
+export const TenantWalletRecordSchema = new EntitySchema<TenantWalletRecord>({
+  class: TenantWalletRecord,
+  tableName: 'tenant_wallets',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    balanceKobo: { fieldName: 'balance_kobo', type: 'bigint', default: 0 },
+    currency: { type: 'string', length: 8, default: 'NGN' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Wallet Top-Ups ─────────────────────────────────── */
+
+export class WalletTopUpRecord {
+  id!: string;
+  tenantId!: string;
+  amountKobo!: number;
+  provider!: string;
+  mobileNumber!: string;
+  status!: string;
+  reference!: string | null;
+  createdAt!: Date;
+}
+
+export const WalletTopUpRecordSchema = new EntitySchema<WalletTopUpRecord>({
+  class: WalletTopUpRecord,
+  tableName: 'wallet_top_ups',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    amountKobo: { fieldName: 'amount_kobo', type: 'bigint' },
+    provider: { type: 'string', length: 64 },
+    mobileNumber: { fieldName: 'mobile_number', type: 'string', length: 32 },
+    status: { type: 'string', length: 32, default: 'pending' },
+    reference: { type: 'string', length: 255, nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
+/* ── Spending Limit Settings ────────────────────────── */
+
+export class SpendingLimitSettingsRecord {
+  tenantId!: string;
+  enabled!: boolean;
+  monthlyLimitKobo!: number;
+  spentThisMonthKobo!: number;
+  resetDayOfMonth!: number;
+  alertEmail!: string | null;
+  notifyAtPercentages!: number[];
+  updatedAt!: Date;
+}
+
+export const SpendingLimitSettingsRecordSchema = new EntitySchema<SpendingLimitSettingsRecord>({
+  class: SpendingLimitSettingsRecord,
+  tableName: 'spending_limit_settings',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    enabled: { type: 'boolean', default: false },
+    monthlyLimitKobo: { fieldName: 'monthly_limit_kobo', type: 'bigint', default: 0 },
+    spentThisMonthKobo: { fieldName: 'spent_this_month_kobo', type: 'bigint', default: 0 },
+    resetDayOfMonth: { fieldName: 'reset_day_of_month', type: 'number', default: 1 },
+    alertEmail: { fieldName: 'alert_email', type: 'string', length: 255, nullable: true },
+    notifyAtPercentages: { fieldName: 'notify_at_percentages', type: 'json' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Auto Top-Up Settings ───────────────────────────── */
+
+export class AutoTopUpSettingsRecord {
+  tenantId!: string;
+  enabled!: boolean;
+  thresholdKobo!: number;
+  topupAmountKobo!: number;
+  paymentProvider!: string;
+  mobileNumber!: string | null;
+  updatedAt!: Date;
+}
+
+export const AutoTopUpSettingsRecordSchema = new EntitySchema<AutoTopUpSettingsRecord>({
+  class: AutoTopUpSettingsRecord,
+  tableName: 'auto_topup_settings',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    enabled: { type: 'boolean', default: false },
+    thresholdKobo: { fieldName: 'threshold_kobo', type: 'bigint', default: 0 },
+    topupAmountKobo: { fieldName: 'topup_amount_kobo', type: 'bigint', default: 0 },
+    paymentProvider: { fieldName: 'payment_provider', type: 'string', length: 64, default: 'MTN_MOMO' },
+    mobileNumber: { fieldName: 'mobile_number', type: 'string', length: 32, nullable: true },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Bundle Allocations ─────────────────────────────── */
+
+export class BundleAllocationRecord {
+  id!: string;
+  tenantId!: string;
+  mobileNumber!: string;
+  bundleId!: string;
+  dataUsedMb!: number;
+  dataTotalMb!: number;
+  activatedAt!: Date | null;
+  expiresAt!: Date | null;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const BundleAllocationRecordSchema = new EntitySchema<BundleAllocationRecord>({
+  class: BundleAllocationRecord,
+  tableName: 'bundle_allocations',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    mobileNumber: { fieldName: 'mobile_number', type: 'string', length: 32 },
+    bundleId: { fieldName: 'bundle_id', type: 'string', length: 255 },
+    dataUsedMb: { fieldName: 'data_used_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
+    dataTotalMb: { fieldName: 'data_total_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
+    activatedAt: { fieldName: 'activated_at', type: 'datetime', nullable: true },
+    expiresAt: { fieldName: 'expires_at', type: 'datetime', nullable: true },
+    status: { type: 'string', length: 32, default: 'pending' },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Bundle Transactions ────────────────────────────── */
+
+export class BundleTransactionRecord {
+  id!: string;
+  tenantId!: string;
+  mobileNumber!: string;
+  bundleId!: string;
+  amountKobo!: number;
+  status!: string;
+  paymentReference!: string | null;
+  failureReason!: string | null;
+  createdAt!: Date;
+}
+
+export const BundleTransactionRecordSchema = new EntitySchema<BundleTransactionRecord>({
+  class: BundleTransactionRecord,
+  tableName: 'bundle_transactions',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    mobileNumber: { fieldName: 'mobile_number', type: 'string', length: 32 },
+    bundleId: { fieldName: 'bundle_id', type: 'string', length: 255 },
+    amountKobo: { fieldName: 'amount_kobo', type: 'bigint' },
+    status: { type: 'string', length: 32, default: 'pending' },
+    paymentReference: { fieldName: 'payment_reference', type: 'string', length: 255, nullable: true },
+    failureReason: { fieldName: 'failure_reason', type: 'text', nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()', index: true },
+  },
+});
+
+/* ── Device Mapping Files ───────────────────────────── */
+
+export class DeviceMappingFileRecord {
+  id!: string;
+  tenantId!: string;
+  fileKey!: string;
+  rowCount!: number;
+  errors!: Array<{ row: number; field?: string; message: string }> | null;
+  createdAt!: Date;
+}
+
+export const DeviceMappingFileRecordSchema = new EntitySchema<DeviceMappingFileRecord>({
+  class: DeviceMappingFileRecord,
+  tableName: 'device_mapping_files',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
+    rowCount: { fieldName: 'row_count', type: 'number', default: 0 },
+    errors: { type: 'json', nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
 export async function getAuthOrm(cfg: DbConfig) {
   if (ormPromise) {
     return ormPromise;
@@ -1158,6 +1420,15 @@ export async function getAuthOrm(cfg: DbConfig) {
       TenantBusinessInfoRecordSchema,
       TenantKycDocumentRecordSchema,
       TenantDeviceProvisioningRequestRecordSchema,
+      BundleCarrierRecordSchema,
+      BundleCatalogRecordSchema,
+      TenantWalletRecordSchema,
+      WalletTopUpRecordSchema,
+      SpendingLimitSettingsRecordSchema,
+      AutoTopUpSettingsRecordSchema,
+      BundleAllocationRecordSchema,
+      BundleTransactionRecordSchema,
+      DeviceMappingFileRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

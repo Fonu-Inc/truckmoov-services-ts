@@ -4,7 +4,7 @@ import {
   getAuthOrm,
   IotSimRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type { SimRepository, StoredSim } from './sim.repository';
+import type { SimFilters, SimRepository, StoredSim } from './sim.repository';
 
 function toStored(record: IotSimRecord): StoredSim {
   return {
@@ -17,6 +17,12 @@ function toStored(record: IotSimRecord): StoredSim {
     status: record.status,
     tenantId: record.tenantId,
     deviceId: record.deviceId,
+    deviceName: record.deviceName,
+    deviceImei: record.deviceImei,
+    deviceType: record.deviceType,
+    vehicleId: record.vehicleId,
+    suspensionReason: record.suspensionReason,
+    notes: record.notes,
     dataUsageMb: Number(record.dataUsageMb),
     dataLimitMb: Number(record.dataLimitMb),
     smsUsage: record.smsUsage,
@@ -41,38 +47,42 @@ export class MikroSimRepository implements SimRepository {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async findAll(filters?: {
-    status?: string;
-    carrier?: string;
-    tenantId?: string;
-    search?: string;
-  }): Promise<StoredSim[]> {
+  async findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }> {
     const orm = await getAuthOrm(this.config.db);
-    const em = orm.em.fork();
-    const where: Record<string, unknown> = {};
-    if (filters?.status) where.status = filters.status;
-    if (filters?.carrier) where.carrier = filters.carrier;
-    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    const conn = orm.em.getConnection();
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
 
     if (filters?.search) {
       const q = `%${filters.search}%`;
-      const rows = await orm.em.getConnection().execute<IotSimRecord[]>(
-        `select * from iot_sims where (iccid ilike ? or msisdn ilike ?) ${filters.status ? 'and status = ?' : ''} ${filters.carrier ? 'and carrier = ?' : ''} ${filters.tenantId ? 'and tenant_id = ?' : ''} order by created_at desc`,
-        [
-          q,
-          q,
-          ...(filters.status ? [filters.status] : []),
-          ...(filters.carrier ? [filters.carrier] : []),
-          ...(filters.tenantId ? [filters.tenantId] : []),
-        ],
-      );
-      return rows.map((r) => toStored(r as unknown as IotSimRecord));
+      conditions.push(`(iccid ilike ? or msisdn ilike ? or carrier ilike ?)`);
+      params.push(q, q, q);
+    }
+    if (filters?.status) { conditions.push(`status = ?`); params.push(filters.status); }
+    if (filters?.carrier) { conditions.push(`carrier = ?`); params.push(filters.carrier); }
+    if (filters?.tenantId) { conditions.push(`tenant_id = ?`); params.push(filters.tenantId); }
+    if (filters?.operators?.length) {
+      conditions.push(`carrier = ANY(?)`);
+      params.push(filters.operators);
     }
 
-    const records = await em.find(IotSimRecord, where, {
-      orderBy: { createdAt: 'desc' },
-    });
-    return records.map(toStored);
+    const where = conditions.length ? `where ${conditions.join(' and ')}` : '';
+    const countRows = await conn.execute<Array<{ count: string }>>(
+      `select count(*)::int as count from iot_sims ${where}`,
+      params,
+    );
+    const total = Number(countRows[0]?.count ?? 0);
+
+    const page = filters?.page ?? 1;
+    const limit = filters?.limit ?? 50;
+    const offset = (page - 1) * limit;
+    const rows = await conn.execute<IotSimRecord[]>(
+      `select * from iot_sims ${where} order by created_at desc limit ? offset ?`,
+      [...params, limit, offset],
+    );
+
+    return { items: rows.map((r) => toStored(r as unknown as IotSimRecord)), total };
   }
 
   async findById(id: string): Promise<StoredSim | null> {
@@ -88,13 +98,16 @@ export class MikroSimRepository implements SimRepository {
     await em.upsert(IotSimRecord, { ...sim });
   }
 
+  async delete(id: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(`delete from iot_sims where id = ?`, [id]);
+  }
+
   async countByStatus(): Promise<Record<string, number>> {
     const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em
-      .getConnection()
-      .execute<Array<{ status: string; count: string }>>(
-        'select status, count(*)::int as count from iot_sims group by status',
-      );
+    const rows = await orm.em.getConnection().execute<Array<{ status: string; count: string }>>(
+      'select status, count(*)::int as count from iot_sims group by status',
+    );
     const counts: Record<string, number> = {};
     for (const row of rows) counts[row.status] = Number(row.count);
     return counts;
@@ -102,11 +115,9 @@ export class MikroSimRepository implements SimRepository {
 
   async countByCarrier(): Promise<Record<string, number>> {
     const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em
-      .getConnection()
-      .execute<Array<{ carrier: string; count: string }>>(
-        'select carrier, count(*)::int as count from iot_sims group by carrier',
-      );
+    const rows = await orm.em.getConnection().execute<Array<{ carrier: string; count: string }>>(
+      'select carrier, count(*)::int as count from iot_sims group by carrier',
+    );
     const counts: Record<string, number> = {};
     for (const row of rows) counts[row.carrier] = Number(row.count);
     return counts;
@@ -114,11 +125,9 @@ export class MikroSimRepository implements SimRepository {
 
   async countUnassigned(): Promise<number> {
     const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em
-      .getConnection()
-      .execute<Array<{ count: string }>>(
-        'select count(*)::int as count from iot_sims where tenant_id is null',
-      );
+    const rows = await orm.em.getConnection().execute<Array<{ count: string }>>(
+      'select count(*)::int as count from iot_sims where tenant_id is null',
+    );
     return Number(rows[0]?.count ?? 0);
   }
 }

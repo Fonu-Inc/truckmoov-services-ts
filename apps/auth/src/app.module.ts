@@ -201,6 +201,92 @@ import { ImportSimsCsvUseCase } from './import-sims-csv.use-case';
 import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-request.use-case';
 import { SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
 import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
+import { SimDeviceInfoListener } from './sim-device-info.listener';
+// Bundle carrier
+import { BUNDLE_CARRIER_REPOSITORY } from './bundle-carrier.repository';
+import { InMemoryBundleCarrierRepository } from './in-memory-bundle-carrier.repository';
+import { MikroBundleCarrierRepository } from './mikro-bundle-carrier.repository';
+// Bundle catalog
+import { BUNDLE_CATALOG_REPOSITORY } from './bundle-catalog.repository';
+import { InMemoryBundleCatalogRepository } from './in-memory-bundle-catalog.repository';
+import { MikroBundleCatalogRepository } from './mikro-bundle-catalog.repository';
+// Tenant wallet
+import { TENANT_WALLET_REPOSITORY } from './tenant-wallet.repository';
+import { InMemoryTenantWalletRepository } from './in-memory-tenant-wallet.repository';
+import { MikroTenantWalletRepository } from './mikro-tenant-wallet.repository';
+// Wallet top-up
+import { WALLET_TOP_UP_REPOSITORY } from './wallet-top-up.repository';
+import { InMemoryWalletTopUpRepository } from './in-memory-wallet-top-up.repository';
+import { MikroWalletTopUpRepository } from './mikro-wallet-top-up.repository';
+// Spending limit
+import { SPENDING_LIMIT_REPOSITORY } from './spending-limit.repository';
+import { InMemorySpendingLimitRepository } from './in-memory-spending-limit.repository';
+import { MikroSpendingLimitRepository } from './mikro-spending-limit.repository';
+// Auto top-up
+import { AUTO_TOP_UP_REPOSITORY } from './auto-topup.repository';
+import { InMemoryAutoTopUpRepository } from './in-memory-auto-topup.repository';
+import { MikroAutoTopUpRepository } from './mikro-auto-topup.repository';
+// Bundle allocation
+import { BUNDLE_ALLOCATION_REPOSITORY } from './bundle-allocation.repository';
+import { InMemoryBundleAllocationRepository } from './in-memory-bundle-allocation.repository';
+import { MikroBundleAllocationRepository } from './mikro-bundle-allocation.repository';
+// Bundle transaction
+import { BUNDLE_TRANSACTION_REPOSITORY } from './bundle-transaction.repository';
+import { InMemoryBundleTransactionRepository } from './in-memory-bundle-transaction.repository';
+import { MikroBundleTransactionRepository } from './mikro-bundle-transaction.repository';
+// Device mapping file
+import { DEVICE_MAPPING_FILE_REPOSITORY } from './device-mapping-file.repository';
+import { InMemoryDeviceMappingFileRepository } from './in-memory-device-mapping-file.repository';
+import { MikroDeviceMappingFileRepository } from './mikro-device-mapping-file.repository';
+// SIM inventory use cases
+import { ListTenantSimsUseCase } from './list-tenant-sims.use-case';
+import { GetTenantSimUseCase } from './get-tenant-sim.use-case';
+import { RegisterTenantSimUseCase } from './register-tenant-sim.use-case';
+import { UpdateTenantSimUseCase } from './update-tenant-sim.use-case';
+import { SuspendTenantSimUseCase } from './suspend-tenant-sim.use-case';
+import { ReactivateTenantSimUseCase } from './reactivate-tenant-sim.use-case';
+import { UnassignDeviceFromSimUseCase } from './unassign-device-from-sim.use-case';
+import { DeleteTenantSimUseCase } from './delete-tenant-sim.use-case';
+import { ExportTenantSimsUseCase } from './export-tenant-sims.use-case';
+import { GetSimImportTemplateUseCase } from './get-sim-import-template.use-case';
+import { ImportTenantSimsCsvUseCase } from './import-tenant-sims-csv.use-case';
+// SIM request use cases
+import { ListTenantSimRequestsUseCase } from './list-tenant-sim-requests.use-case';
+import { GetTenantSimRequestUseCase } from './get-tenant-sim-request.use-case';
+import { SubmitTenantSimRequestUseCase } from './submit-tenant-sim-request.use-case';
+import { GetDeviceMappingTemplateUseCase } from './get-device-mapping-template.use-case';
+import { UploadDeviceMappingCsvUseCase } from './upload-device-mapping-csv.use-case';
+// Carrier / bundle catalog use cases
+import { ListCarriersUseCase } from './list-carriers.use-case';
+import { CreateSystemCarrierUseCase } from './create-system-carrier.use-case';
+import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
+import { ListBundleCatalogUseCase } from './list-bundle-catalog.use-case';
+import { CreateSystemBundleUseCase } from './create-system-bundle.use-case';
+import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
+import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
+// Data bundle dashboard use cases
+import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
+import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
+import { TopupWalletUseCase } from './topup-wallet.use-case';
+import { GetSpendingLimitUseCase } from './get-spending-limit.use-case';
+import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
+import { DisableSpendingLimitUseCase } from './disable-spending-limit.use-case';
+import { GetAutoTopupUseCase } from './get-auto-topup.use-case';
+import { SaveAutoTopupUseCase } from './save-auto-topup.use-case';
+import { DisableAutoTopupUseCase } from './disable-auto-topup.use-case';
+import { ListBundleAllocationsUseCase } from './list-bundle-allocations.use-case';
+import { GetBundleAllocationUseCase } from './get-bundle-allocation.use-case';
+import { ExportBundleAllocationsUseCase } from './export-bundle-allocations.use-case';
+import { AllocateBundleUseCase } from './allocate-bundle.use-case';
+import { ListSimsForAllocationUseCase } from './list-sims-for-allocation.use-case';
+import { ListBundleTransactionsUseCase } from './list-bundle-transactions.use-case';
+import { ExportBundleTransactionsUseCase } from './export-bundle-transactions.use-case';
+import { GetSpendTrendUseCase } from './get-spend-trend.use-case';
+import { GetSpendBreakdownUseCase } from './get-spend-breakdown.use-case';
+import { GetCarrierDistributionUseCase } from './get-carrier-distribution.use-case';
+import { GetSubscriptionUsageUseCase } from './get-subscription-usage.use-case';
+import { ListBundleRatesUseCase } from './list-bundle-rates.use-case';
+import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
 
 @Module({
   imports: [
@@ -641,6 +727,138 @@ import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
     SubmitSimProvisioningRequestUseCase,
     SaveFeatureTogglesUseCase,
     CompleteOnboardingUseCase,
+    // SIM device info listener
+    SimDeviceInfoListener,
+    // Bundle carrier repository
+    InMemoryBundleCarrierRepository,
+    MikroBundleCarrierRepository,
+    {
+      provide: BUNDLE_CARRIER_REPOSITORY,
+      inject: [InMemoryBundleCarrierRepository, MikroBundleCarrierRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryBundleCarrierRepository, mikro: MikroBundleCarrierRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Bundle catalog repository
+    InMemoryBundleCatalogRepository,
+    MikroBundleCatalogRepository,
+    {
+      provide: BUNDLE_CATALOG_REPOSITORY,
+      inject: [InMemoryBundleCatalogRepository, MikroBundleCatalogRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryBundleCatalogRepository, mikro: MikroBundleCatalogRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Tenant wallet repository
+    InMemoryTenantWalletRepository,
+    MikroTenantWalletRepository,
+    {
+      provide: TENANT_WALLET_REPOSITORY,
+      inject: [InMemoryTenantWalletRepository, MikroTenantWalletRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryTenantWalletRepository, mikro: MikroTenantWalletRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Wallet top-up repository
+    InMemoryWalletTopUpRepository,
+    MikroWalletTopUpRepository,
+    {
+      provide: WALLET_TOP_UP_REPOSITORY,
+      inject: [InMemoryWalletTopUpRepository, MikroWalletTopUpRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryWalletTopUpRepository, mikro: MikroWalletTopUpRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Spending limit repository
+    InMemorySpendingLimitRepository,
+    MikroSpendingLimitRepository,
+    {
+      provide: SPENDING_LIMIT_REPOSITORY,
+      inject: [InMemorySpendingLimitRepository, MikroSpendingLimitRepository, AppConfigService],
+      useFactory: (inMemory: InMemorySpendingLimitRepository, mikro: MikroSpendingLimitRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Auto top-up repository
+    InMemoryAutoTopUpRepository,
+    MikroAutoTopUpRepository,
+    {
+      provide: AUTO_TOP_UP_REPOSITORY,
+      inject: [InMemoryAutoTopUpRepository, MikroAutoTopUpRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryAutoTopUpRepository, mikro: MikroAutoTopUpRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Bundle allocation repository
+    InMemoryBundleAllocationRepository,
+    MikroBundleAllocationRepository,
+    {
+      provide: BUNDLE_ALLOCATION_REPOSITORY,
+      inject: [InMemoryBundleAllocationRepository, MikroBundleAllocationRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryBundleAllocationRepository, mikro: MikroBundleAllocationRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Bundle transaction repository
+    InMemoryBundleTransactionRepository,
+    MikroBundleTransactionRepository,
+    {
+      provide: BUNDLE_TRANSACTION_REPOSITORY,
+      inject: [InMemoryBundleTransactionRepository, MikroBundleTransactionRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryBundleTransactionRepository, mikro: MikroBundleTransactionRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // Device mapping file repository
+    InMemoryDeviceMappingFileRepository,
+    MikroDeviceMappingFileRepository,
+    {
+      provide: DEVICE_MAPPING_FILE_REPOSITORY,
+      inject: [InMemoryDeviceMappingFileRepository, MikroDeviceMappingFileRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryDeviceMappingFileRepository, mikro: MikroDeviceMappingFileRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    // SIM inventory use cases
+    ListTenantSimsUseCase,
+    GetTenantSimUseCase,
+    RegisterTenantSimUseCase,
+    UpdateTenantSimUseCase,
+    SuspendTenantSimUseCase,
+    ReactivateTenantSimUseCase,
+    UnassignDeviceFromSimUseCase,
+    DeleteTenantSimUseCase,
+    ExportTenantSimsUseCase,
+    GetSimImportTemplateUseCase,
+    ImportTenantSimsCsvUseCase,
+    // SIM request use cases
+    ListTenantSimRequestsUseCase,
+    GetTenantSimRequestUseCase,
+    SubmitTenantSimRequestUseCase,
+    GetDeviceMappingTemplateUseCase,
+    UploadDeviceMappingCsvUseCase,
+    // Carrier / bundle catalog
+    ListCarriersUseCase,
+    CreateSystemCarrierUseCase,
+    UpdateSystemCarrierUseCase,
+    ListBundleCatalogUseCase,
+    CreateSystemBundleUseCase,
+    UpdateSystemBundleUseCase,
+    DeleteSystemBundleUseCase,
+    // Data bundle dashboard
+    GetBundleSummaryUseCase,
+    GetWalletBalanceUseCase,
+    TopupWalletUseCase,
+    GetSpendingLimitUseCase,
+    SaveSpendingLimitUseCase,
+    DisableSpendingLimitUseCase,
+    GetAutoTopupUseCase,
+    SaveAutoTopupUseCase,
+    DisableAutoTopupUseCase,
+    ListBundleAllocationsUseCase,
+    GetBundleAllocationUseCase,
+    ExportBundleAllocationsUseCase,
+    AllocateBundleUseCase,
+    ListSimsForAllocationUseCase,
+    ListBundleTransactionsUseCase,
+    ExportBundleTransactionsUseCase,
+    GetSpendTrendUseCase,
+    GetSpendBreakdownUseCase,
+    GetCarrierDistributionUseCase,
+    GetSubscriptionUsageUseCase,
+    ListBundleRatesUseCase,
+    ExportBundleRatesUseCase,
   ],
 })
 export class AppModule {}

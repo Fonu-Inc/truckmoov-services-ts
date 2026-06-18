@@ -346,6 +346,75 @@ import {
   OnboardingNotFoundForFeaturesError,
 } from './save-feature-toggles.use-case';
 import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
+import {
+  ListTenantSimsUseCase,
+  SimNotFoundError as TenantSimNotFoundError,
+} from './list-tenant-sims.use-case';
+import { GetTenantSimUseCase } from './get-tenant-sim.use-case';
+import { RegisterTenantSimUseCase } from './register-tenant-sim.use-case';
+import { UpdateTenantSimUseCase } from './update-tenant-sim.use-case';
+import { SuspendTenantSimUseCase } from './suspend-tenant-sim.use-case';
+import { ReactivateTenantSimUseCase } from './reactivate-tenant-sim.use-case';
+import { UnassignDeviceFromSimUseCase } from './unassign-device-from-sim.use-case';
+import { DeleteTenantSimUseCase } from './delete-tenant-sim.use-case';
+import { ExportTenantSimsUseCase } from './export-tenant-sims.use-case';
+import { GetSimImportTemplateUseCase } from './get-sim-import-template.use-case';
+import { ImportTenantSimsCsvUseCase, CsvParseError } from './import-tenant-sims-csv.use-case';
+import { ListTenantSimRequestsUseCase } from './list-tenant-sim-requests.use-case';
+import { GetTenantSimRequestUseCase } from './get-tenant-sim-request.use-case';
+import { SubmitTenantSimRequestUseCase } from './submit-tenant-sim-request.use-case';
+import { GetDeviceMappingTemplateUseCase } from './get-device-mapping-template.use-case';
+import { UploadDeviceMappingCsvUseCase } from './upload-device-mapping-csv.use-case';
+import { ListCarriersUseCase } from './list-carriers.use-case';
+import { CreateSystemCarrierUseCase } from './create-system-carrier.use-case';
+import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
+import { ListBundleCatalogUseCase } from './list-bundle-catalog.use-case';
+import { CreateSystemBundleUseCase } from './create-system-bundle.use-case';
+import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
+import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
+import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
+import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
+import { TopupWalletUseCase } from './topup-wallet.use-case';
+import { GetSpendingLimitUseCase } from './get-spending-limit.use-case';
+import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
+import { DisableSpendingLimitUseCase } from './disable-spending-limit.use-case';
+import { GetAutoTopupUseCase } from './get-auto-topup.use-case';
+import { SaveAutoTopupUseCase } from './save-auto-topup.use-case';
+import { DisableAutoTopupUseCase } from './disable-auto-topup.use-case';
+import { ListBundleAllocationsUseCase } from './list-bundle-allocations.use-case';
+import { GetBundleAllocationUseCase } from './get-bundle-allocation.use-case';
+import { ExportBundleAllocationsUseCase } from './export-bundle-allocations.use-case';
+import { AllocateBundleUseCase } from './allocate-bundle.use-case';
+import { ListSimsForAllocationUseCase } from './list-sims-for-allocation.use-case';
+import { ListBundleTransactionsUseCase } from './list-bundle-transactions.use-case';
+import { ExportBundleTransactionsUseCase } from './export-bundle-transactions.use-case';
+import { GetSpendTrendUseCase } from './get-spend-trend.use-case';
+import { GetSpendBreakdownUseCase } from './get-spend-breakdown.use-case';
+import { GetCarrierDistributionUseCase } from './get-carrier-distribution.use-case';
+import { GetSubscriptionUsageUseCase } from './get-subscription-usage.use-case';
+import { ListBundleRatesUseCase } from './list-bundle-rates.use-case';
+import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
+import {
+  RegisterTenantSimDto,
+  UpdateTenantSimDto,
+  SuspendSimDto,
+  ListSimsQueryDto,
+  SubmitSimRequestDto,
+  CreateCarrierDto,
+  UpdateCarrierDto,
+  CreateBundleDto,
+  UpdateBundleDto,
+} from './dto/sim-management.dto';
+import {
+  TopUpWalletDto,
+  SaveSpendingLimitDto,
+  SaveAutoTopUpDto,
+  AllocateBundleDto,
+  ListAllocationsQueryDto,
+  ListTransactionsQueryDto,
+  AnalyticsRangeDto,
+  ListBundleRatesQueryDto,
+} from './dto/data-bundle.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -593,6 +662,51 @@ export class AuthController {
     private readonly saveFeatureTogglesUseCase: SaveFeatureTogglesUseCase,
     @Inject(CompleteOnboardingUseCase)
     private readonly completeOnboardingUseCase: CompleteOnboardingUseCase,
+    @Inject(ListTenantSimsUseCase) private readonly listTenantSimsUseCase: ListTenantSimsUseCase,
+    @Inject(GetTenantSimUseCase) private readonly getTenantSimUseCase: GetTenantSimUseCase,
+    @Inject(RegisterTenantSimUseCase) private readonly registerTenantSimUseCase: RegisterTenantSimUseCase,
+    @Inject(UpdateTenantSimUseCase) private readonly updateTenantSimUseCase: UpdateTenantSimUseCase,
+    @Inject(SuspendTenantSimUseCase) private readonly suspendTenantSimUseCase: SuspendTenantSimUseCase,
+    @Inject(ReactivateTenantSimUseCase) private readonly reactivateTenantSimUseCase: ReactivateTenantSimUseCase,
+    @Inject(UnassignDeviceFromSimUseCase) private readonly unassignDeviceFromSimUseCase: UnassignDeviceFromSimUseCase,
+    @Inject(DeleteTenantSimUseCase) private readonly deleteTenantSimUseCase: DeleteTenantSimUseCase,
+    @Inject(ExportTenantSimsUseCase) private readonly exportTenantSimsUseCase: ExportTenantSimsUseCase,
+    @Inject(GetSimImportTemplateUseCase) private readonly getSimImportTemplateUseCase: GetSimImportTemplateUseCase,
+    @Inject(ImportTenantSimsCsvUseCase) private readonly importTenantSimsCsvUseCase: ImportTenantSimsCsvUseCase,
+    @Inject(ListTenantSimRequestsUseCase) private readonly listTenantSimRequestsUseCase: ListTenantSimRequestsUseCase,
+    @Inject(GetTenantSimRequestUseCase) private readonly getTenantSimRequestUseCase: GetTenantSimRequestUseCase,
+    @Inject(SubmitTenantSimRequestUseCase) private readonly submitTenantSimRequestUseCase: SubmitTenantSimRequestUseCase,
+    @Inject(GetDeviceMappingTemplateUseCase) private readonly getDeviceMappingTemplateUseCase: GetDeviceMappingTemplateUseCase,
+    @Inject(UploadDeviceMappingCsvUseCase) private readonly uploadDeviceMappingCsvUseCase: UploadDeviceMappingCsvUseCase,
+    @Inject(ListCarriersUseCase) private readonly listCarriersUseCase: ListCarriersUseCase,
+    @Inject(CreateSystemCarrierUseCase) private readonly createSystemCarrierUseCase: CreateSystemCarrierUseCase,
+    @Inject(UpdateSystemCarrierUseCase) private readonly updateSystemCarrierUseCase: UpdateSystemCarrierUseCase,
+    @Inject(ListBundleCatalogUseCase) private readonly listBundleCatalogUseCase: ListBundleCatalogUseCase,
+    @Inject(CreateSystemBundleUseCase) private readonly createSystemBundleUseCase: CreateSystemBundleUseCase,
+    @Inject(UpdateSystemBundleUseCase) private readonly updateSystemBundleUseCase: UpdateSystemBundleUseCase,
+    @Inject(DeleteSystemBundleUseCase) private readonly deleteSystemBundleUseCase: DeleteSystemBundleUseCase,
+    @Inject(GetBundleSummaryUseCase) private readonly getBundleSummaryUseCase: GetBundleSummaryUseCase,
+    @Inject(GetWalletBalanceUseCase) private readonly getWalletBalanceUseCase: GetWalletBalanceUseCase,
+    @Inject(TopupWalletUseCase) private readonly topUpWalletUseCase: TopupWalletUseCase,
+    @Inject(GetSpendingLimitUseCase) private readonly getSpendingLimitUseCase: GetSpendingLimitUseCase,
+    @Inject(SaveSpendingLimitUseCase) private readonly saveSpendingLimitUseCase: SaveSpendingLimitUseCase,
+    @Inject(DisableSpendingLimitUseCase) private readonly disableSpendingLimitUseCase: DisableSpendingLimitUseCase,
+    @Inject(GetAutoTopupUseCase) private readonly getAutoTopUpUseCase: GetAutoTopupUseCase,
+    @Inject(SaveAutoTopupUseCase) private readonly saveAutoTopUpUseCase: SaveAutoTopupUseCase,
+    @Inject(DisableAutoTopupUseCase) private readonly disableAutoTopUpUseCase: DisableAutoTopupUseCase,
+    @Inject(ListBundleAllocationsUseCase) private readonly listBundleAllocationsUseCase: ListBundleAllocationsUseCase,
+    @Inject(GetBundleAllocationUseCase) private readonly getBundleAllocationUseCase: GetBundleAllocationUseCase,
+    @Inject(ExportBundleAllocationsUseCase) private readonly exportBundleAllocationsUseCase: ExportBundleAllocationsUseCase,
+    @Inject(AllocateBundleUseCase) private readonly allocateBundleUseCase: AllocateBundleUseCase,
+    @Inject(ListSimsForAllocationUseCase) private readonly listSimsForAllocationUseCase: ListSimsForAllocationUseCase,
+    @Inject(ListBundleTransactionsUseCase) private readonly listBundleTransactionsUseCase: ListBundleTransactionsUseCase,
+    @Inject(ExportBundleTransactionsUseCase) private readonly exportBundleTransactionsUseCase: ExportBundleTransactionsUseCase,
+    @Inject(GetSpendTrendUseCase) private readonly getSpendTrendUseCase: GetSpendTrendUseCase,
+    @Inject(GetSpendBreakdownUseCase) private readonly getSpendBreakdownUseCase: GetSpendBreakdownUseCase,
+    @Inject(GetCarrierDistributionUseCase) private readonly getCarrierDistributionUseCase: GetCarrierDistributionUseCase,
+    @Inject(GetSubscriptionUsageUseCase) private readonly getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase,
+    @Inject(ListBundleRatesUseCase) private readonly listBundleRatesUseCase: ListBundleRatesUseCase,
+    @Inject(ExportBundleRatesUseCase) private readonly exportBundleRatesUseCase: ExportBundleRatesUseCase,
   ) {}
 
   @Get('health')
@@ -4820,6 +4934,726 @@ export class AuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  // ─── SIM Inventory (tenant) ───────────────────────────────────────────────
+
+  @Get('sims')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List tenant SIMs' })
+  @ApiOkResponse()
+  async listTenantSims(@Query() query: ListSimsQueryDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listTenantSimsUseCase.execute(accessToken, query);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export tenant SIMs' })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportTenantSims(@Query() query: ListSimsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.exportTenantSimsUseCase.execute(accessToken, query);
+      (res as any).set({ 'Content-Type': result.contentType, 'Content-Disposition': `attachment; filename="sims-export.${result.ext}"` });
+      return new StreamableFile(result.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/import/template')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download SIM import CSV template' })
+  @ApiProduces('text/csv')
+  getSimImportTemplate(@Res({ passthrough: true }) res?: Response) {
+    const { csv, filename } = this.getSimImportTemplateUseCase.execute();
+    (res as any).set({ 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${filename}"` });
+    return new StreamableFile(Buffer.from(csv));
+  }
+
+  @Post('sims/import')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Import SIMs from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async importTenantSimsCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!file?.buffer) throw new BadRequestException('Missing file');
+    try {
+      return await this.importTenantSimsCsvUseCase.execute(accessToken, file.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof CsvParseError) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/carriers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List active carriers for tenants' })
+  async listSimCarriers(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listCarriersUseCase.execute(accessToken, true);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      throw error;
+    }
+  }
+
+  @Get('sims/data-bundles')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bundle plans for tenants' })
+  async listSimDataBundles(@Query('carrierId') carrierId?: string, @Query('billingCycle') billingCycle?: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listBundleCatalogUseCase.execute(accessToken, { carrierId, billingCycle, activeOnly: true });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      throw error;
+    }
+  }
+
+  @Get('sims/requests')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List tenant SIM requests' })
+  async listTenantSimRequests(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listTenantSimRequestsUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/requests/device-mapping/template')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download device mapping CSV template' })
+  @ApiProduces('text/csv')
+  getDeviceMappingTemplate(@Res({ passthrough: true }) res?: Response) {
+    const { csv, filename } = this.getDeviceMappingTemplateUseCase.execute();
+    (res as any).set({ 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${filename}"` });
+    return new StreamableFile(Buffer.from(csv));
+  }
+
+  @Post('sims/requests/device-mapping')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload device mapping CSV' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadDeviceMappingCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!file?.buffer) throw new BadRequestException('Missing file');
+    try {
+      return await this.uploadDeviceMappingCsvUseCase.execute(accessToken, file.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('sims/requests')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit SIM provisioning request' })
+  @ApiCreatedResponse()
+  async submitTenantSimRequest(@Body() payload: SubmitSimRequestDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.submitTenantSimRequestUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/requests/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get tenant SIM request detail' })
+  async getTenantSimRequest(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getTenantSimRequestUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('sims')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register a SIM' })
+  @ApiCreatedResponse()
+  async registerTenantSim(@Body() payload: RegisterTenantSimDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.registerTenantSimUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('sims/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get SIM detail' })
+  async getTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getTenantSimUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('sims/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update SIM' })
+  async updateTenantSim(@Param('id') id: string, @Body() payload: UpdateTenantSimDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.updateTenantSimUseCase.execute(accessToken, id, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('sims/:id/suspend')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Suspend SIM' })
+  async suspendTenantSim(@Param('id') id: string, @Body() payload: SuspendSimDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.suspendTenantSimUseCase.execute(accessToken, id, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('sims/:id/reactivate')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reactivate SIM' })
+  async reactivateTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.reactivateTenantSimUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('sims/:id/device')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unassign device from SIM' })
+  async unassignDeviceFromSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.unassignDeviceFromSimUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('sims/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete SIM' })
+  async deleteTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.deleteTenantSimUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  // ─── System: Carriers & Bundle Catalog ────────────────────────────────────
+
+  @Post('system/carriers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create carrier (system admin)' })
+  @ApiCreatedResponse()
+  async createSystemCarrier(@Body() payload: CreateCarrierDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.createSystemCarrierUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/carriers/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update carrier (system admin)' })
+  async updateSystemCarrier(@Param('id') id: string, @Body() payload: UpdateCarrierDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.updateSystemCarrierUseCase.execute(accessToken, id, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('system/bundle-catalog')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create bundle plan (system admin)' })
+  @ApiCreatedResponse()
+  async createSystemBundle(@Body() payload: CreateBundleDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.createSystemBundleUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('system/bundle-catalog/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update bundle plan (system admin)' })
+  async updateSystemBundle(@Param('id') id: string, @Body() payload: UpdateBundleDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.updateSystemBundleUseCase.execute(accessToken, id, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('system/bundle-catalog/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete bundle plan (system admin)' })
+  async deleteSystemBundle(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.deleteSystemBundleUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  // ─── Data Bundle Dashboard ─────────────────────────────────────────────────
+
+  @Get('data-bundles/summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get data bundle dashboard summary' })
+  async getBundleSummary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getBundleSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/wallet/balance')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get wallet balance' })
+  async getWalletBalance(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getWalletBalanceUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('data-bundles/wallet/topup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Top up wallet via mobile money (stub)' })
+  @ApiCreatedResponse()
+  async topUpWallet(@Body() payload: TopUpWalletDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.topUpWalletUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/spending-limit')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get spending limit settings' })
+  async getSpendingLimit(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSpendingLimitUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('data-bundles/spending-limit')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Save spending limit settings' })
+  @ApiCreatedResponse()
+  async saveSpendingLimit(@Body() payload: SaveSpendingLimitDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.saveSpendingLimitUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('data-bundles/spending-limit')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable spending limit' })
+  async disableSpendingLimit(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.disableSpendingLimitUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/auto-topup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get auto top-up settings' })
+  async getAutoTopUp(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getAutoTopUpUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('data-bundles/auto-topup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Save auto top-up settings' })
+  @ApiCreatedResponse()
+  async saveAutoTopUp(@Body() payload: SaveAutoTopUpDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.saveAutoTopUpUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Delete('data-bundles/auto-topup')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable auto top-up' })
+  async disableAutoTopUp(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.disableAutoTopUpUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/allocations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bundle allocations' })
+  async listBundleAllocations(@Query() query: ListAllocationsQueryDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listBundleAllocationsUseCase.execute(accessToken, query);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/allocations/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export bundle allocations' })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportBundleAllocations(@Query() query: ListAllocationsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.exportBundleAllocationsUseCase.execute(accessToken, query);
+      (res as any).set({ 'Content-Type': result.contentType, 'Content-Disposition': `attachment; filename="${result.filename}"` });
+      return new StreamableFile(result.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/allocations/sims')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List SIMs available for bundle allocation' })
+  async listSimsForAllocation(@Query('search') search?: string, @Query('carrierId') carrierId?: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSimsForAllocationUseCase.execute(accessToken, { search, carrierId });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('data-bundles/allocations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Allocate bundle to SIMs' })
+  @ApiCreatedResponse()
+  async allocateBundle(@Body() payload: AllocateBundleDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.allocateBundleUseCase.execute(accessToken, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof Error && error.message.includes('Insufficient')) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/allocations/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get bundle allocation detail' })
+  async getBundleAllocation(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getBundleAllocationUseCase.execute(accessToken, id);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/transactions')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bundle transactions' })
+  async listBundleTransactions(@Query() query: ListTransactionsQueryDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listBundleTransactionsUseCase.execute(accessToken, query);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/transactions/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export bundle transactions' })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportBundleTransactions(@Query() query: ListTransactionsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.exportBundleTransactionsUseCase.execute(accessToken, query);
+      (res as any).set({ 'Content-Type': result.contentType, 'Content-Disposition': `attachment; filename="${result.filename}"` });
+      return new StreamableFile(result.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/analytics/spend-trend')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get spend trend analytics' })
+  async getSpendTrend(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSpendTrendUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/analytics/spend-breakdown')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get spend breakdown analytics' })
+  async getSpendBreakdown(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSpendBreakdownUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/analytics/carrier-distribution')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get carrier distribution analytics' })
+  async getCarrierDistribution(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getCarrierDistributionUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/analytics/subscription-usage')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get subscription usage analytics' })
+  async getSubscriptionUsage(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSubscriptionUsageUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/rates')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bundle rates' })
+  async listBundleRates(@Query() query: ListBundleRatesQueryDto, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listBundleRatesUseCase.execute(accessToken, query);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/rates/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export bundle rates' })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportBundleRates(@Query() query: ListBundleRatesQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.exportBundleRatesUseCase.execute(accessToken, query);
+      (res as any).set({ 'Content-Type': result.contentType, 'Content-Disposition': `attachment; filename="${result.filename}"` });
+      return new StreamableFile(result.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('data-bundles/carriers')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List carriers for data bundles' })
+  async listDataBundleCarriers(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listCarriersUseCase.execute(accessToken, true);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       throw error;
     }
   }

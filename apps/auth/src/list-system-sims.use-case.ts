@@ -26,13 +26,13 @@ export class ListSystemSimsUseCase {
       forbiddenMessage: 'You are not permitted to view SIM inventory',
     });
 
-    const sims = await this.simRepo.findAll(filters);
+    const { items: sims, total } = await this.simRepo.findAll(filters);
 
     return {
       status: true,
       message: 'SIM inventory retrieved',
       data: {
-        total: sims.length,
+        total,
         sims: sims.map((s) => ({
           ...s,
           activationDate: s.activationDate?.toISOString() ?? null,
@@ -57,6 +57,6 @@ export class ListSystemSimsUseCase {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
       forbiddenMessage: 'You are not permitted to view SIM inventory',
     });
-    return this.simRepo.findAll(filters);
+    return (await this.simRepo.findAll(filters)).items;
   }
 }

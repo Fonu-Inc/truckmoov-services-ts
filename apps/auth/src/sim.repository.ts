@@ -2,6 +2,7 @@ export const SIM_STATUSES = [
   'registered',
   'active',
   'assigned',
+  'unassigned',
   'suspended',
   'deactivated',
 ] as const;
@@ -30,6 +31,12 @@ export type StoredSim = {
   status: string;
   tenantId: string | null;
   deviceId: string | null;
+  deviceName: string | null;
+  deviceImei: string | null;
+  deviceType: string | null;
+  vehicleId: string | null;
+  suspensionReason: string | null;
+  notes: string | null;
   dataUsageMb: number;
   dataLimitMb: number;
   smsUsage: number;
@@ -47,15 +54,21 @@ export type StoredSim = {
   updatedAt: Date;
 };
 
+export type SimFilters = {
+  status?: string;
+  carrier?: string;
+  tenantId?: string;
+  search?: string;
+  operators?: string[];
+  page?: number;
+  limit?: number;
+};
+
 export interface SimRepository {
-  findAll(filters?: {
-    status?: string;
-    carrier?: string;
-    tenantId?: string;
-    search?: string;
-  }): Promise<StoredSim[]>;
+  findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }>;
   findById(id: string): Promise<StoredSim | null>;
   save(sim: StoredSim): Promise<void>;
+  delete(id: string): Promise<void>;
   countByStatus(): Promise<Record<string, number>>;
   countByCarrier(): Promise<Record<string, number>>;
   countUnassigned(): Promise<number>;

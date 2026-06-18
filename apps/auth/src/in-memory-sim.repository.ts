@@ -1,29 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import type { SimRepository, StoredSim } from './sim.repository';
+import type { SimFilters, SimRepository, StoredSim } from './sim.repository';
 
 @Injectable()
 export class InMemorySimRepository implements SimRepository {
   private readonly store = new Map<string, StoredSim>();
 
-  async findAll(filters?: {
-    status?: string;
-    carrier?: string;
-    tenantId?: string;
-    search?: string;
-  }): Promise<StoredSim[]> {
+  async findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }> {
     let sims = [...this.store.values()];
     if (filters?.status) sims = sims.filter((s) => s.status === filters.status);
     if (filters?.carrier) sims = sims.filter((s) => s.carrier === filters.carrier);
     if (filters?.tenantId) sims = sims.filter((s) => s.tenantId === filters.tenantId);
+    if (filters?.operators?.length) sims = sims.filter((s) => filters.operators!.includes(s.carrier));
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       sims = sims.filter(
         (s) =>
           s.iccid.toLowerCase().includes(q) ||
-          (s.msisdn && s.msisdn.toLowerCase().includes(q)),
+          (s.msisdn && s.msisdn.toLowerCase().includes(q)) ||
+          s.carrier.toLowerCase().includes(q),
       );
     }
-    return sims.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    sims = sims.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const total = sims.length;
+    if (filters?.page !== undefined && filters?.limit !== undefined) {
+      const offset = (filters.page - 1) * filters.limit;
+      sims = sims.slice(offset, offset + filters.limit);
+    } else if (filters?.limit !== undefined) {
+      sims = sims.slice(0, filters.limit);
+    }
+    return { items: sims, total };
   }
 
   async findById(id: string): Promise<StoredSim | null> {
@@ -34,19 +39,19 @@ export class InMemorySimRepository implements SimRepository {
     this.store.set(sim.id, sim);
   }
 
+  async delete(id: string): Promise<void> {
+    this.store.delete(id);
+  }
+
   async countByStatus(): Promise<Record<string, number>> {
     const counts: Record<string, number> = {};
-    for (const sim of this.store.values()) {
-      counts[sim.status] = (counts[sim.status] || 0) + 1;
-    }
+    for (const sim of this.store.values()) counts[sim.status] = (counts[sim.status] || 0) + 1;
     return counts;
   }
 
   async countByCarrier(): Promise<Record<string, number>> {
     const counts: Record<string, number> = {};
-    for (const sim of this.store.values()) {
-      counts[sim.carrier] = (counts[sim.carrier] || 0) + 1;
-    }
+    for (const sim of this.store.values()) counts[sim.carrier] = (counts[sim.carrier] || 0) + 1;
     return counts;
   }
 

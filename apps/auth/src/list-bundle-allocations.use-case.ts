@@ -1,0 +1,65 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
+import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
+import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository, type StoredBundleCatalog } from './bundle-catalog.repository';
+
+type Filters = { search?: string; status?: string; billingCycles?: string[]; page?: number; limit?: number };
+
+function mapAllocation(alloc: any, b: StoredBundleCatalog | null) {
+  const now = Date.now();
+  return {
+    id: alloc.id,
+    mobileNumber: alloc.mobileNumber,
+    bundle: b
+      ? { id: b.id, code: b.code, name: b.name, carrier: b.carrierId, dataAmountGb: b.dataAmountGb, billingCycle: b.billingCycle, price: b.priceKobo / 100 }
+      : null,
+    dataUsedMb: alloc.dataUsedMb,
+    dataTotalMb: alloc.dataTotalMb,
+    dataUsedGb: alloc.dataUsedMb / 1024,
+    dataTotalGb: alloc.dataTotalMb / 1024,
+    usagePercentage: alloc.dataTotalMb > 0 ? Math.round((alloc.dataUsedMb / alloc.dataTotalMb) * 100 * 10) / 10 : 0,
+    activatedAt: alloc.activatedAt?.toISOString() ?? null,
+    expiresAt: alloc.expiresAt?.toISOString() ?? null,
+    daysLeft: Math.max(0, Math.ceil((alloc.expiresAt ? alloc.expiresAt.getTime() - now : 0) / 86400000)),
+    status: alloc.status,
+  };
+}
+
+@Injectable()
+export class ListBundleAllocationsUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(BUNDLE_ALLOCATION_REPOSITORY) private readonly bundleAllocationRepository: BundleAllocationRepository,
+    @Inject(BUNDLE_CATALOG_REPOSITORY) private readonly bundleCatalogRepository: BundleCatalogRepository,
+  ) {}
+
+  async execute(accessToken: string, filters?: Filters) {
+    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
+    if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot access tenant allocations');
+
+    const { items, total } = await this.bundleAllocationRepository.findAll({
+      tenantId: actor.tenantId!,
+      ...filters,
+    });
+
+    const bundleCache = new Map<string, StoredBundleCatalog | null>();
+    for (const alloc of items) {
+      if (!bundleCache.has(alloc.bundleId)) {
+        bundleCache.set(alloc.bundleId, await this.bundleCatalogRepository.findById(alloc.bundleId));
+      }
+    }
+
+    return {
+      status: true,
+      message: 'success',
+      data: {
+        items: items.map((alloc) => mapAllocation(alloc, bundleCache.get(alloc.bundleId) ?? null)),
+        total,
+      },
+    };
+  }
+}
