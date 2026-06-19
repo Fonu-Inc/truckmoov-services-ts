@@ -163,6 +163,9 @@ import {
   SystemDeviceSetupRequestsResponse,
   SystemDeviceSetupRequestDetailResponse,
   UploadedMediaResponse,
+  BusinessInfoResponse,
+  KycDocumentsResponse,
+  OnboardingStatusResponse,
 } from './dto/auth.schema';
 import { ResendInviteDto } from './dto/resend-invite.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
@@ -329,6 +332,7 @@ import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
 import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
 import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
+import { GetOnboardingStatusUseCase } from './get-onboarding-status.use-case';
 import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
 import {
   DeleteKycDocumentUseCase,
@@ -646,6 +650,8 @@ export class AuthController {
     private readonly saveBusinessInfoUseCase: SaveBusinessInfoUseCase,
     @Inject(ListKycDocumentsUseCase)
     private readonly listKycDocumentsUseCase: ListKycDocumentsUseCase,
+    @Inject(GetOnboardingStatusUseCase)
+    private readonly getOnboardingStatusUseCase: GetOnboardingStatusUseCase,
     @Inject(SaveKycDocumentUseCase)
     private readonly saveKycDocumentUseCase: SaveKycDocumentUseCase,
     @Inject(DeleteKycDocumentUseCase)
@@ -2369,12 +2375,15 @@ export class AuthController {
     try {
       const result = await this.updateNotificationPreferencesUseCase.execute({
         accessToken,
-        emailAlerts: payload.emailAlerts,
         smsAlerts: payload.smsAlerts,
         pushAlerts: payload.pushAlerts,
         incidentAlerts: payload.incidentAlerts,
-        jobUpdates: payload.jobUpdates,
-        marketingAnnouncements: payload.marketingAnnouncements,
+        jobAssignment: payload.jobAssignment,
+        jobCompletion: payload.jobCompletion,
+        maintenanceReminders: payload.maintenanceReminders,
+        fuelAlerts: payload.fuelAlerts,
+        geofenceAlerts: payload.geofenceAlerts,
+        emailDigest: payload.emailDigest,
       });
       await this.tryRecordActivityFromAccessToken(accessToken, {
         service: 'auth',
@@ -2382,14 +2391,7 @@ export class AuthController {
         entityType: 'user',
         entityId: result.userId,
         summary: 'Notification preferences updated',
-        metadata: {
-          emailAlerts: payload.emailAlerts,
-          smsAlerts: payload.smsAlerts,
-          pushAlerts: payload.pushAlerts,
-          incidentAlerts: payload.incidentAlerts,
-          jobUpdates: payload.jobUpdates,
-          marketingAnnouncements: payload.marketingAnnouncements,
-        },
+        metadata: result.notificationPreferences,
       });
       return result;
     } catch (error) {
@@ -2488,34 +2490,34 @@ export class AuthController {
     }
   }
 
-  /** Lists accepted users for the current tenant */
+  /** Lists users (accepted + invited) for the current tenant */
   @Get('organization/users')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'List organization users',
-    description:
-      "Admin user management: fetch all accepted users that belong to the caller's tenant.",
+    description: "Admin user management: fetch users and pending invitations for the caller's tenant.",
   })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'role', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, description: 'active | inactive | invited' })
   @ApiOkResponse({ type: OrganizationUsersResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiNotFoundResponse({ description: 'User not found' })
-  @ApiForbiddenResponse({
-    description: 'Caller is not permitted to read users',
-  })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to read users' })
   async listOrganizationUsers(
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
 
     try {
-      return await this.listOrganizationUsersUseCase.execute(accessToken);
+      return await this.listOrganizationUsersUseCase.execute(accessToken, { search, role, status });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
-      if (error instanceof UserNotFoundError)
-        throw new NotFoundException(error.message);
       throw error;
     }
   }
@@ -4655,10 +4657,27 @@ export class AuthController {
     }
   }
 
+  @Get('onboarding/status')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get onboarding status', description: 'Returns the onboarding completion status and active subscription info for the calling tenant.' })
+  @ApiOkResponse({ type: OnboardingStatusResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async getOnboardingStatus(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getOnboardingStatusUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
   @Get('onboarding/business-info')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get business info', description: 'Returns stored business registration details and verification status for the calling tenant.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: BusinessInfoResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async getBusinessInfo(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
@@ -4713,7 +4732,7 @@ export class AuthController {
   @Get('onboarding/kyc/documents')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List KYC documents', description: 'Lists all uploaded KYC documents for the calling tenant with their id, type, name, size, and status.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: KycDocumentsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async listKycDocuments(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);

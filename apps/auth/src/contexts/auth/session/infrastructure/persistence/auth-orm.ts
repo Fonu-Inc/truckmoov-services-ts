@@ -110,6 +110,7 @@ export class OrganizationSettingsRecord {
   branding!: {
     organizationName: string;
     contactEmail: string | null;
+    billingEmail: string | null;
     phoneNumber: string | null;
     address: string | null;
     logoUrl: string | null;

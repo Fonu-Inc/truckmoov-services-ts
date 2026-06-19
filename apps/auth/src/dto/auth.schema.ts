@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StandardApiResponse } from '@shared/openapi';
 import {
   SYSTEM_DEVICE_CATALOG_STATUSES,
@@ -117,8 +117,8 @@ export class ProfileResponse extends StandardApiResponse<ProfileDataSchema> {
 }
 
 export class OrganizationUserSchema {
-  @ApiProperty()
-  userId!: string;
+  @ApiProperty({ nullable: true })
+  userId!: string | null;
 
   @ApiProperty()
   email!: string;
@@ -129,17 +129,23 @@ export class OrganizationUserSchema {
   @ApiProperty()
   role!: string;
 
-  @ApiProperty({ enum: ['enabled', 'disabled'] })
-  accountStatus!: 'enabled' | 'disabled';
+  @ApiProperty({ nullable: true, enum: ['enabled', 'disabled'] })
+  accountStatus!: 'enabled' | 'disabled' | null;
 
-  @ApiProperty({ enum: ['active', 'inactive'] })
-  status!: 'active' | 'inactive';
+  @ApiProperty({ enum: ['active', 'inactive', 'invited'] })
+  status!: 'active' | 'inactive' | 'invited';
 
   @ApiProperty({ nullable: true, type: String, format: 'date-time' })
   lastActiveAt!: string | null;
 
-  @ApiProperty({ type: UserProfileSchema })
-  profile!: UserProfileSchema;
+  @ApiProperty({ nullable: true, type: UserProfileSchema })
+  profile!: UserProfileSchema | null;
+
+  @ApiProperty({ enum: ['accepted', 'invited'] })
+  inviteStatus!: 'accepted' | 'invited';
+
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' })
+  invitedAt?: string;
 }
 
 export class OrganizationUsersDataSchema {
@@ -202,9 +208,6 @@ export class RemoveOrganizationUserResponse extends StandardApiResponse<RemoveOr
 
 export class NotificationPreferencesSchema {
   @ApiProperty()
-  emailAlerts!: boolean;
-
-  @ApiProperty()
   smsAlerts!: boolean;
 
   @ApiProperty()
@@ -214,10 +217,22 @@ export class NotificationPreferencesSchema {
   incidentAlerts!: boolean;
 
   @ApiProperty()
-  jobUpdates!: boolean;
+  jobAssignment!: boolean;
 
   @ApiProperty()
-  marketingAnnouncements!: boolean;
+  jobCompletion!: boolean;
+
+  @ApiProperty()
+  maintenanceReminders!: boolean;
+
+  @ApiProperty()
+  fuelAlerts!: boolean;
+
+  @ApiProperty()
+  geofenceAlerts!: boolean;
+
+  @ApiProperty()
+  emailDigest!: boolean;
 }
 
 export class NotificationPreferencesDataSchema {
@@ -1630,4 +1645,69 @@ export class SystemDeviceSetupRequestsResponse extends StandardApiResponse<Syste
 export class SystemDeviceSetupRequestDetailResponse extends StandardApiResponse<SystemDeviceSetupRequestSchema> {
   @ApiProperty({ type: SystemDeviceSetupRequestSchema })
   data!: SystemDeviceSetupRequestSchema;
+}
+
+/* ── Onboarding: Business Info ──────────────────────────────────────────── */
+
+export class BusinessInfoSchema {
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() companyName!: string;
+  @ApiPropertyOptional({ nullable: true }) registrationNumber!: string | null;
+  @ApiPropertyOptional({ nullable: true }) taxId!: string | null;
+  @ApiPropertyOptional({ nullable: true }) businessType!: string | null;
+  @ApiPropertyOptional({ nullable: true }) industry!: string | null;
+  @ApiPropertyOptional({ nullable: true }) addressLine1!: string | null;
+  @ApiPropertyOptional({ nullable: true }) addressLine2!: string | null;
+  @ApiPropertyOptional({ nullable: true }) city!: string | null;
+  @ApiPropertyOptional({ nullable: true }) state!: string | null;
+  @ApiPropertyOptional({ nullable: true }) postalCode!: string | null;
+  @ApiPropertyOptional({ nullable: true }) country!: string | null;
+  @ApiPropertyOptional({ nullable: true }) phone!: string | null;
+  @ApiPropertyOptional({ nullable: true }) email!: string | null;
+  @ApiPropertyOptional({ nullable: true }) billingEmail!: string | null;
+  @ApiPropertyOptional({ nullable: true }) website!: string | null;
+  @ApiPropertyOptional({ nullable: true }) yearEstablished!: number | null;
+  @ApiPropertyOptional({ nullable: true }) numberOfEmployees!: number | null;
+  @ApiProperty({ enum: ['pending', 'under_review', 'verified', 'rejected'] }) verificationStatus!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class BusinessInfoResponse extends StandardApiResponse<BusinessInfoSchema | null> {
+  @ApiProperty({ nullable: true, type: BusinessInfoSchema })
+  data!: BusinessInfoSchema | null;
+}
+
+/* ── Onboarding: KYC Documents ─────────────────────────────────────────── */
+
+export class KycDocumentSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() documentType!: string;
+  @ApiProperty() documentName!: string;
+  @ApiProperty() fileSize!: number;
+  @ApiProperty({ enum: ['pending', 'under_review', 'verified', 'rejected'] }) status!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+}
+
+export class KycDocumentsDataSchema {
+  @ApiProperty({ type: KycDocumentSchema, isArray: true }) documents!: KycDocumentSchema[];
+}
+
+export class KycDocumentsResponse extends StandardApiResponse<KycDocumentsDataSchema> {
+  @ApiProperty({ type: KycDocumentsDataSchema })
+  data!: KycDocumentsDataSchema;
+}
+
+/* ── Onboarding: Status ─────────────────────────────────────────────────── */
+
+export class OnboardingStatusSchema {
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() isOnboarded!: boolean;
+  @ApiProperty({ enum: ['pending', 'in_progress', 'completed', 'rejected'] }) onboardingStatus!: string;
+  @ApiPropertyOptional({ nullable: true }) planCode!: string | null;
+  @ApiPropertyOptional({ nullable: true }) subscriptionStatus!: string | null;
+}
+
+export class OnboardingStatusResponse extends StandardApiResponse<OnboardingStatusSchema> {
+  @ApiProperty({ type: OnboardingStatusSchema })
+  data!: OnboardingStatusSchema;
 }

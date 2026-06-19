@@ -75,6 +75,20 @@ import {
   TriggerAlertUseCase,
 } from "./contexts/fleet/alerts";
 import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase } from "./contexts/fleet/reports";
+import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
+import { MaintenanceProfilesUseCase } from "./maintenance-profiles.use-case";
+import { MikroMaintenanceProfileRepository } from "./mikro-maintenance-profile.repository";
+import { MAINTENANCE_PROFILE_REPOSITORY } from "./maintenance-profile.repository";
+import { GeofenceZonesUseCase } from "./geofence-zones.use-case";
+import { MikroGeofenceZoneRepository } from "./mikro-geofence-zone.repository";
+import { GEOFENCE_ZONE_REPOSITORY } from "./geofence-zone.repository";
+import { MaintenanceRecordsUseCase } from "./maintenance-records.use-case";
+import { MikroMaintenanceRecordRepository } from "./mikro-maintenance-record.repository";
+import { MAINTENANCE_RECORD_REPOSITORY } from "./maintenance-record.repository";
+import { ComplianceDocumentsUseCase } from "./compliance-documents.use-case";
+import { MikroComplianceDocumentRepository } from "./mikro-compliance-document.repository";
+import { COMPLIANCE_DOCUMENT_REPOSITORY } from "./compliance-document.repository";
+import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import {
   DeleteFuelRecordUseCase,
   FUEL_RECORD_REPOSITORY,
@@ -119,6 +133,20 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     JobSyncListener,
     ScheduledReportService,
     DashboardUseCase,
+    FleetAnalyticsUseCase,
+    MikroMaintenanceProfileRepository,
+    { provide: MAINTENANCE_PROFILE_REPOSITORY, useExisting: MikroMaintenanceProfileRepository },
+    MaintenanceProfilesUseCase,
+    MikroGeofenceZoneRepository,
+    { provide: GEOFENCE_ZONE_REPOSITORY, useExisting: MikroGeofenceZoneRepository },
+    GeofenceZonesUseCase,
+    MikroMaintenanceRecordRepository,
+    { provide: MAINTENANCE_RECORD_REPOSITORY, useExisting: MikroMaintenanceRecordRepository },
+    MaintenanceRecordsUseCase,
+    MikroComplianceDocumentRepository,
+    { provide: COMPLIANCE_DOCUMENT_REPOSITORY, useExisting: MikroComplianceDocumentRepository },
+    ComplianceDocumentsUseCase,
+    FleetFinancialsUseCase,
     DeliveryMetricsUseCase,
     ExportUseCase,
     InMemoryDocumentRepository,

@@ -65,6 +65,10 @@ export class UpdateOrganizationSettingsUseCase {
           command.branding?.contactEmail === undefined
             ? current.branding.contactEmail
             : command.branding.contactEmail,
+        billingEmail:
+          command.branding?.billingEmail === undefined
+            ? (current.branding.billingEmail ?? null)
+            : command.branding.billingEmail,
         phoneNumber:
           command.branding?.phoneNumber === undefined
             ? current.branding.phoneNumber

@@ -1,0 +1,60 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
+import { getFleetOrm, MaintenanceRecordOrmRecord } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
+import type {
+  MaintenanceRecordFilters,
+  MaintenanceRecordRepository,
+  StoredMaintenanceRecord,
+} from "./maintenance-record.repository";
+
+@Injectable()
+export class MikroMaintenanceRecordRepository implements MaintenanceRecordRepository {
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+
+  async save(record: StoredMaintenanceRecord): Promise<void> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.upsert(MaintenanceRecordOrmRecord, record as unknown as MaintenanceRecordOrmRecord);
+  }
+
+  async findById(id: string): Promise<StoredMaintenanceRecord | null> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const rec = await em.findOne(MaintenanceRecordOrmRecord, { id });
+    return rec ? (rec as unknown as StoredMaintenanceRecord) : null;
+  }
+
+  async findAllByTenant(tenantId: string, filters?: MaintenanceRecordFilters): Promise<StoredMaintenanceRecord[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const where: Record<string, unknown> = { tenantId };
+    if (filters?.vehicleId) where.vehicleId = filters.vehicleId;
+    if (filters?.priority) where.priority = filters.priority;
+    if (filters?.maintenanceType) where.maintenanceType = filters.maintenanceType;
+    const isOverdueFilter = filters?.status === "overdue";
+    if (filters?.status && !isOverdueFilter) where.status = filters.status;
+    const records = await em.find(MaintenanceRecordOrmRecord, where as any);
+    let result = records as unknown as StoredMaintenanceRecord[];
+    const today = new Date().toISOString().slice(0, 10);
+    if (isOverdueFilter) {
+      result = result.filter((r) => (r.scheduledDate ?? "") < today && r.status === "scheduled");
+    }
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      result = result.filter((r) =>
+        r.maintenanceType.toLowerCase().includes(q) ||
+        (r.description ?? "").toLowerCase().includes(q) ||
+        (r.technician ?? "").toLowerCase().includes(q),
+      );
+    }
+    if (filters?.costMin != null) result = result.filter((r) => (r.cost ?? 0) >= filters.costMin!);
+    if (filters?.costMax != null) result = result.filter((r) => (r.cost ?? 0) <= filters.costMax!);
+    return result;
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeDelete(MaintenanceRecordOrmRecord, { id });
+  }
+}

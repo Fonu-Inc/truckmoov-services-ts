@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { StandardApiResponse } from "@shared/openapi";
 
 export class VehicleGpsDeviceSchema {
@@ -159,31 +159,35 @@ export class BulkDeviceImportResponse extends StandardApiResponse<BulkDeviceImpo
 
 /** Vehicle record */
 export class VehicleSchema {
-  /** UUID */
+  @ApiProperty()
   id!: string;
-  /** Registration number used by the UI */
+  @ApiProperty()
   registrationNumber!: string;
-  /** License plate */
+  @ApiProperty()
   plateNumber!: string;
-  /** 17-character vehicle identification number */
+  @ApiProperty({ nullable: true })
   vin!: string | null;
-  /** Manufacturer */
+  @ApiProperty({ nullable: true })
   make!: string | null;
-  /** Make and model */
+  @ApiProperty()
   model!: string;
-  /** Manufacture year */
+  @ApiProperty({ nullable: true })
   year!: number | null;
-  /** Vehicle body type */
+  @ApiProperty({ enum: ["truck", "van", "trailer"], nullable: true })
   type!: "truck" | "van" | "trailer" | null;
-  /** Carrying capacity in tons */
+  @ApiProperty({ nullable: true })
   capacity!: number | null;
-  /** Tenant scope */
+  @ApiProperty()
   tenantId!: string;
-  /** Operational availability */
-  status!: "active" | "inactive";
-  /** Assigned driver ID, if any */
+  @ApiProperty({ enum: ["active", "inactive", "maintenance", "decommissioned"] })
+  status!: "active" | "inactive" | "maintenance" | "decommissioned";
+  @ApiProperty({ nullable: true })
   assignedDriverId!: string | null;
-  /** Mapped GPS device */
+  @ApiPropertyOptional({ nullable: true })
+  assignedDriverName?: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  fuelLevelPercent?: number | null;
+  @ApiProperty({ type: VehicleGpsDeviceSchema, nullable: true })
   gpsDevice!: VehicleGpsDeviceSchema | null;
 }
 
@@ -195,6 +199,19 @@ export class VehicleResponse extends StandardApiResponse<VehicleSchema> {
 export class VehicleListResponse extends StandardApiResponse<VehicleSchema[]> {
   @ApiProperty({ type: VehicleSchema, isArray: true })
   data!: VehicleSchema[];
+}
+
+export class VehicleSummarySchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+  @ApiProperty() maintenance!: number;
+  @ApiProperty() decommissioned!: number;
+}
+
+export class VehicleSummaryResponse extends StandardApiResponse<VehicleSummarySchema> {
+  @ApiProperty({ type: VehicleSummarySchema })
+  data!: VehicleSummarySchema;
 }
 
 export class GpsDeviceListResponse extends StandardApiResponse<GpsDeviceSchema[]> {

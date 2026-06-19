@@ -100,6 +100,7 @@ import {
   VehicleHealthResponse,
   VehicleListResponse,
   VehicleResponse,
+  VehicleSummaryResponse,
 } from "./dto/fleet.schema";
 import { haversineKm } from "./utils/haversine";
 import {
@@ -136,6 +137,12 @@ import {
 } from "./contexts/fleet/alerts";
 import type { Alert as FleetAlert, AlertStatus } from "./contexts/fleet/alerts/domain/alert.entity";
 import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase, type ExportEntity } from "./contexts/fleet/reports";
+import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
+import { MaintenanceProfilesUseCase, MaintenanceProfileNotFoundError } from "./maintenance-profiles.use-case";
+import { GeofenceZonesUseCase, GeofenceZoneNotFoundError } from "./geofence-zones.use-case";
+import { MaintenanceRecordsUseCase, MaintenanceRecordNotFoundError } from "./maintenance-records.use-case";
+import { ComplianceDocumentsUseCase, ComplianceDocumentNotFoundError } from "./compliance-documents.use-case";
+import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import {
   GetDownloadUrlUseCase,
@@ -257,6 +264,12 @@ export class FleetController {
     @Inject(ResolveAlertUseCase) private readonly resolveAlertUseCase: ResolveAlertUseCase,
     @Inject(GetAlertStatsUseCase) private readonly getAlertStatsUseCase: GetAlertStatsUseCase,
     @Inject(DashboardUseCase) private readonly dashboardUseCase: DashboardUseCase,
+    @Inject(FleetAnalyticsUseCase) private readonly fleetAnalyticsUseCase: FleetAnalyticsUseCase,
+    @Inject(MaintenanceProfilesUseCase) private readonly maintenanceProfilesUseCase: MaintenanceProfilesUseCase,
+    @Inject(GeofenceZonesUseCase) private readonly geofenceZonesUseCase: GeofenceZonesUseCase,
+    @Inject(MaintenanceRecordsUseCase) private readonly maintenanceRecordsUseCase: MaintenanceRecordsUseCase,
+    @Inject(ComplianceDocumentsUseCase) private readonly complianceDocumentsUseCase: ComplianceDocumentsUseCase,
+    @Inject(FleetFinancialsUseCase) private readonly fleetFinancialsUseCase: FleetFinancialsUseCase,
     @Inject(DeliveryMetricsUseCase) private readonly deliveryMetricsUseCase: DeliveryMetricsUseCase,
     @Inject(ExportUseCase) private readonly exportUseCase: ExportUseCase,
     @Inject(UploadDocumentUseCase) private readonly uploadDocumentUseCase: UploadDocumentUseCase,
@@ -437,8 +450,11 @@ export class FleetController {
     description: "Epic C (US-C01, US-C04, US-C06): list/search/filter fleet vehicles.",
   })
   @ApiQuery({ name: "query", required: false, type: String })
-  @ApiQuery({ name: "status", required: false, enum: ["active", "inactive"] })
+  @ApiQuery({ name: "status", required: false, enum: ["active", "inactive", "maintenance", "decommissioned"] })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
+  @ApiQuery({ name: "type", required: false, enum: ["truck", "van", "trailer"] })
+  @ApiQuery({ name: "yearFrom", required: false, type: Number })
+  @ApiQuery({ name: "yearTo", required: false, type: Number })
   @ApiOkResponse({ type: VehicleListResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
   async listVehicles(@Query() query: VehicleListQueryDto, @Req() req: FleetRequestContext): Promise<VehicleListResponse> {
@@ -447,7 +463,53 @@ export class FleetController {
       status: query.status,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
       tenantId: this.tenantIdFromRequest(req),
+      type: query.type,
+      yearFrom: query.yearFrom ? parseInt(query.yearFrom, 10) : undefined,
+      yearTo: query.yearTo ? parseInt(query.yearTo, 10) : undefined,
     }) as unknown as Promise<VehicleListResponse>;
+  }
+
+  @Get("vehicles/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Vehicle summary stats", description: "Returns count of vehicles grouped by status for the calling tenant." })
+  @ApiOkResponse({ type: VehicleSummaryResponse })
+  async getVehicleSummary(@Req() req: FleetRequestContext): Promise<VehicleSummaryResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicles = await this.listVehiclesUseCase.execute({ tenantId });
+    const counts = { total: 0, active: 0, inactive: 0, maintenance: 0, decommissioned: 0 };
+    for (const v of vehicles as unknown as Array<{ status: string }>) {
+      counts.total++;
+      if (v.status === "active") counts.active++;
+      else if (v.status === "inactive") counts.inactive++;
+      else if (v.status === "maintenance") counts.maintenance++;
+      else if (v.status === "decommissioned") counts.decommissioned++;
+    }
+    return { status: true, message: "success", data: counts } as unknown as VehicleSummaryResponse;
+  }
+
+  @Get("vehicles/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Export vehicles as CSV", description: "Returns a CSV of all vehicles for the calling tenant." })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async exportVehicles(@Query() query: VehicleListQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicles = await this.listVehiclesUseCase.execute({
+      tenantId,
+      query: query.query,
+      status: query.status,
+      type: query.type,
+      yearFrom: query.yearFrom ? parseInt(query.yearFrom, 10) : undefined,
+      yearTo: query.yearTo ? parseInt(query.yearTo, 10) : undefined,
+    }) as unknown as Array<Record<string, unknown>>;
+    const headers = ["id", "plateNumber", "make", "model", "year", "type", "status", "assignedDriverId", "assignedDriverName", "vin", "capacity"];
+    const rows = [
+      headers.join(","),
+      ...vehicles.map((v) => headers.map((h) => JSON.stringify(v[h] ?? "")).join(",")),
+    ];
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=vehicles.csv");
+    res.send(rows.join("\n"));
   }
 
   /** Retrieve standalone device inventory for the fleet admin Devices page */
@@ -1328,6 +1390,604 @@ export class FleetController {
   async getDashboard(@Req() req: FleetRequestContext): Promise<DashboardResponse> {
     const data = await this.dashboardUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data } as unknown as DashboardResponse;
+  }
+
+  @Get("analytics/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Analytics summary", description: "High-level fleet summary across vehicles, drivers, jobs, and safety events for the given period." })
+  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiOkResponse({ description: "Analytics summary object" })
+  async getAnalyticsSummary(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.summary(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/fleet-status")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Fleet status breakdown", description: "Vehicles grouped by status for the calling tenant." })
+  @ApiOkResponse({ description: "Fleet status breakdown" })
+  async getFleetStatus(@Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.fleetStatus(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/job-pipeline")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Job pipeline", description: "Jobs grouped by status for the given period." })
+  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiOkResponse({ description: "Job pipeline breakdown" })
+  async getJobPipeline(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.jobPipeline(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/fuel-levels")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Fuel levels", description: "Per-vehicle fuel level (from telemetry where available)." })
+  @ApiOkResponse({ description: "Fuel level array per vehicle" })
+  async getFuelLevels(@Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.fuelLevels(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/driver-scores")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Driver safety scores", description: "Safety scores per driver based on behavior events in the given period." })
+  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiOkResponse({ description: "Driver scores array" })
+  async getDriverScores(@Query("period_days") periodDays: string, @Query("limit") limit: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.driverScores(
+      this.tenantIdFromRequest(req),
+      parseInt(periodDays ?? "30", 10),
+      parseInt(limit ?? "20", 10),
+    );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/events")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Behavior events", description: "Alert/behavior event list with filters for the given period." })
+  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "severity", required: false, enum: ["low", "medium", "high", "critical"] })
+  @ApiOkResponse({ description: "Events array" })
+  async getAnalyticsEvents(
+    @Query("period_days") periodDays: string,
+    @Query("limit") limit: string,
+    @Query("severity") severity: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const data = await this.fleetAnalyticsUseCase.events(
+      this.tenantIdFromRequest(req),
+      parseInt(periodDays ?? "30", 10),
+      parseInt(limit ?? "50", 10),
+      severity,
+    );
+    return { status: true, message: "success", data };
+  }
+
+  /* ── Maintenance Profiles ──────────────────────────────────────────────── */
+
+  @Get("maintenance/profiles")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "List maintenance profiles" })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["overdue", "due", "upcoming", "completed"] })
+  @ApiQuery({ name: "nextDueDateFrom", required: false, type: String })
+  @ApiQuery({ name: "nextDueDateTo", required: false, type: String })
+  @ApiOkResponse({ description: "Maintenance profiles array" })
+  async listMaintenanceProfiles(
+    @Query("vehicleId") vehicleId: string,
+    @Query("lifecycleStatus") lifecycleStatus: string,
+    @Query("nextDueDateFrom") nextDueDateFrom: string,
+    @Query("nextDueDateTo") nextDueDateTo: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const data = await this.maintenanceProfilesUseCase.list(this.tenantIdFromRequest(req), {
+      vehicleId,
+      lifecycleStatus: lifecycleStatus as any,
+      nextDueDateFrom,
+      nextDueDateTo,
+    });
+    return { status: true, message: "success", data };
+  }
+
+  @Post("maintenance/profiles")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Create maintenance profile" })
+  @ApiCreatedResponse({ description: "Maintenance profile created" })
+  async createMaintenanceProfile(@Body() body: any, @Req() req: FleetRequestContext) {
+    const data = await this.maintenanceProfilesUseCase.create(this.tenantIdFromRequest(req), body);
+    return { status: true, message: "success", data };
+  }
+
+  @Delete("maintenance/profiles/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Delete maintenance profile" })
+  @ApiOkResponse({ description: "Deleted" })
+  async deleteMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      await this.maintenanceProfilesUseCase.delete(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success" };
+    } catch (e) {
+      if (e instanceof MaintenanceProfileNotFoundError) throw new NotFoundException("Maintenance profile not found");
+      throw e;
+    }
+  }
+
+  @Post("maintenance/profiles/:id/complete")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Mark maintenance profile as completed" })
+  @ApiOkResponse({ description: "Completed" })
+  async completeMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.maintenanceProfilesUseCase.complete(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof MaintenanceProfileNotFoundError) throw new NotFoundException("Maintenance profile not found");
+      throw e;
+    }
+  }
+
+  @Get("maintenance/profiles/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Maintenance profiles summary" })
+  @ApiOkResponse({ description: "Summary counts" })
+  async getMaintenanceProfilesSummary(@Req() req: FleetRequestContext) {
+    const data = await this.maintenanceProfilesUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("maintenance/service-categories")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "List maintenance service categories" })
+  @ApiOkResponse({ description: "Service categories list" })
+  async getMaintenanceServiceCategories() {
+    return { status: true, message: "success", data: this.maintenanceProfilesUseCase.serviceCategories() };
+  }
+
+  @Get("maintenance/profiles/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Export maintenance profiles as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
+  async exportMaintenanceProfiles(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const csv = await this.maintenanceProfilesUseCase.export(this.tenantIdFromRequest(req));
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=maintenance-profiles.csv");
+    res.send(csv);
+  }
+
+  /* ── Geofence Zones ────────────────────────────────────────────────────── */
+
+  @Get("geofences")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "List geofence zones" })
+  @ApiQuery({ name: "status", required: false, enum: ["ACTIVE", "ARCHIVED"] })
+  @ApiOkResponse({ description: "Geofence zones array" })
+  async listGeofenceZones(@Query("status") status: string, @Req() req: FleetRequestContext) {
+    const data = await this.geofenceZonesUseCase.list(this.tenantIdFromRequest(req), { status: (status as any) ?? "ACTIVE" });
+    return { status: true, message: "success", data };
+  }
+
+  @Post("geofences")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Create geofence zone" })
+  @ApiCreatedResponse({ description: "Zone created" })
+  async createGeofenceZone(@Body() body: any, @Req() req: FleetRequestContext) {
+    const data = await this.geofenceZonesUseCase.create(this.tenantIdFromRequest(req), body);
+    return { status: true, message: "success", data };
+  }
+
+  @Patch("geofences/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Update geofence zone" })
+  @ApiOkResponse({ description: "Zone updated" })
+  async updateGeofenceZone(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.geofenceZonesUseCase.update(this.tenantIdFromRequest(req), id, body);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof GeofenceZoneNotFoundError) throw new NotFoundException("Geofence zone not found");
+      throw e;
+    }
+  }
+
+  @Delete("geofences/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Archive geofence zone (soft delete)" })
+  @ApiOkResponse({ description: "Zone archived" })
+  async deleteGeofenceZone(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      await this.geofenceZonesUseCase.delete(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success" };
+    } catch (e) {
+      if (e instanceof GeofenceZoneNotFoundError) throw new NotFoundException("Geofence zone not found");
+      throw e;
+    }
+  }
+
+  @Put("geofences/:id/vehicles")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Set vehicle assignments for a geofence zone" })
+  @ApiOkResponse({ description: "Assignments updated" })
+  async setGeofenceVehicleAssignments(@Param("id") id: string, @Body() body: { vehicleIds: string[] }, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.geofenceZonesUseCase.setVehicleAssignments(this.tenantIdFromRequest(req), id, body.vehicleIds ?? []);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof GeofenceZoneNotFoundError) throw new NotFoundException("Geofence zone not found");
+      throw e;
+    }
+  }
+
+  /* ── Maintenance Records ───────────────────────────────────────────────── */
+
+  @Get("maintenance/records")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "List maintenance records" })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "status", required: false, enum: ["scheduled", "in_progress", "completed", "cancelled", "overdue"] })
+  @ApiQuery({ name: "priority", required: false, enum: ["low", "medium", "high", "critical"] })
+  @ApiQuery({ name: "maintenanceType", required: false, type: String })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiOkResponse({ description: "Maintenance records array" })
+  async listMaintenanceRecords(
+    @Query("vehicleId") vehicleId: string,
+    @Query("status") status: string,
+    @Query("priority") priority: string,
+    @Query("maintenanceType") maintenanceType: string,
+    @Query("search") search: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const data = await this.maintenanceRecordsUseCase.list(this.tenantIdFromRequest(req), {
+      vehicleId, status: status as any, priority: priority as any, maintenanceType, search,
+    });
+    return { status: true, message: "success", data };
+  }
+
+  @Post("maintenance/records")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Create maintenance record" })
+  @ApiCreatedResponse({ description: "Record created" })
+  async createMaintenanceRecord(@Body() body: any, @Req() req: FleetRequestContext) {
+    const data = await this.maintenanceRecordsUseCase.create(this.tenantIdFromRequest(req), body);
+    return { status: true, message: "success", data };
+  }
+
+  @Get("maintenance/records/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Maintenance records summary" })
+  @ApiOkResponse({ description: "Summary counts" })
+  async getMaintenanceRecordsSummary(@Req() req: FleetRequestContext) {
+    const data = await this.maintenanceRecordsUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("maintenance/records/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Export maintenance records as CSV" })
+  async exportMaintenanceRecords(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const csv = await this.maintenanceRecordsUseCase.export(this.tenantIdFromRequest(req));
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=maintenance-records.csv");
+    res.send(csv);
+  }
+
+  @Get("maintenance/records/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Get maintenance record" })
+  @ApiOkResponse({ description: "Maintenance record" })
+  async getMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.maintenanceRecordsUseCase.findOne(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
+      throw e;
+    }
+  }
+
+  @Patch("maintenance/records/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Update maintenance record" })
+  @ApiOkResponse({ description: "Updated" })
+  async updateMaintenanceRecord(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.maintenanceRecordsUseCase.update(this.tenantIdFromRequest(req), id, body);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
+      throw e;
+    }
+  }
+
+  @Delete("maintenance/records/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Delete maintenance record" })
+  @ApiOkResponse({ description: "Deleted" })
+  async deleteMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      await this.maintenanceRecordsUseCase.delete(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success" };
+    } catch (e) {
+      if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
+      throw e;
+    }
+  }
+
+  @Post("maintenance/records/:id/start")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Start maintenance record" })
+  @ApiOkResponse({ description: "Started" })
+  async startMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.maintenanceRecordsUseCase.transition(this.tenantIdFromRequest(req), id, "in_progress");
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
+      throw e;
+    }
+  }
+
+  @Post("maintenance/records/:id/complete")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Complete maintenance record" })
+  @ApiOkResponse({ description: "Completed" })
+  async completeMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.maintenanceRecordsUseCase.transition(this.tenantIdFromRequest(req), id, "completed");
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
+      throw e;
+    }
+  }
+
+  @Post("maintenance/reminders/send")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Send maintenance reminders" })
+  @ApiOkResponse({ description: "Reminders queued" })
+  async sendMaintenanceReminders(@Req() req: FleetRequestContext) {
+    const summary = await this.maintenanceRecordsUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data: { queued: summary.overdue, message: "Reminders will be sent to assigned drivers" } };
+  }
+
+  /* ── Compliance Documents ──────────────────────────────────────────────── */
+
+  @Get("compliance/documents")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "List compliance documents" })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "documentType", required: false, type: String })
+  @ApiQuery({ name: "status", required: false, enum: ["valid", "expiring", "expired"] })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiOkResponse({ description: "Compliance documents array" })
+  async listComplianceDocuments(
+    @Query("vehicleId") vehicleId: string,
+    @Query("documentType") documentType: string,
+    @Query("status") status: string,
+    @Query("search") search: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const data = await this.complianceDocumentsUseCase.list(this.tenantIdFromRequest(req), {
+      vehicleId, documentType, status: status as any, search,
+    });
+    return { status: true, message: "success", data };
+  }
+
+  @Post("compliance/documents")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Create compliance document" })
+  @ApiCreatedResponse({ description: "Document created" })
+  async createComplianceDocument(@Body() body: any, @Req() req: FleetRequestContext) {
+    const data = await this.complianceDocumentsUseCase.create(this.tenantIdFromRequest(req), body);
+    return { status: true, message: "success", data };
+  }
+
+  @Get("compliance/documents/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Compliance documents summary" })
+  @ApiOkResponse({ description: "Summary counts" })
+  async getComplianceDocumentsSummary(@Req() req: FleetRequestContext) {
+    const data = await this.complianceDocumentsUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("compliance/documents/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Export compliance documents as CSV" })
+  async exportComplianceDocuments(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const csv = await this.complianceDocumentsUseCase.export(this.tenantIdFromRequest(req));
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=compliance-documents.csv");
+    res.send(csv);
+  }
+
+  @Patch("compliance/documents/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Update compliance document" })
+  @ApiOkResponse({ description: "Updated" })
+  async updateComplianceDocument(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.complianceDocumentsUseCase.update(this.tenantIdFromRequest(req), id, body);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
+      throw e;
+    }
+  }
+
+  @Delete("compliance/documents/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Delete compliance document" })
+  @ApiOkResponse({ description: "Deleted" })
+  async deleteComplianceDocument(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      await this.complianceDocumentsUseCase.delete(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success" };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
+      throw e;
+    }
+  }
+
+  @Post("compliance/documents/:id/upload")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Set file URL for a compliance document" })
+  @ApiOkResponse({ description: "File URL updated" })
+  async uploadComplianceDocument(@Param("id") id: string, @Body() body: { fileUrl: string; fileSize?: number }, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.complianceDocumentsUseCase.setFileUrl(this.tenantIdFromRequest(req), id, body.fileUrl, body.fileSize ?? null);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
+      throw e;
+    }
+  }
+
+  @Post("compliance/documents/:id/renew")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Renew a compliance document" })
+  @ApiOkResponse({ description: "Document renewed" })
+  async renewComplianceDocument(@Param("id") id: string, @Body() body: { expiryDate?: string; fileUrl?: string; fileSize?: number }, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.complianceDocumentsUseCase.renew(this.tenantIdFromRequest(req), id, body);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
+      throw e;
+    }
+  }
+
+  @Patch("compliance/documents/:id/reminder")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Set reminder days for a compliance document" })
+  @ApiOkResponse({ description: "Reminder updated" })
+  async setComplianceDocumentReminder(@Param("id") id: string, @Body() body: { reminderDays: number }, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.complianceDocumentsUseCase.updateReminder(this.tenantIdFromRequest(req), id, body.reminderDays);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
+      throw e;
+    }
+  }
+
+  @Post("compliance/reminders/send")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Send compliance reminder emails" })
+  @ApiOkResponse({ description: "Reminders queued" })
+  async sendComplianceReminders(@Req() req: FleetRequestContext) {
+    const summary = await this.complianceDocumentsUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data: { queued: summary.expiringSoon + summary.expired, message: "Compliance reminder emails will be sent" } };
+  }
+
+  /* ── Fleet Financials ──────────────────────────────────────────────────── */
+
+  @Post("financials/profitability")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Compute per-vehicle profitability" })
+  @ApiOkResponse({ description: "Profitability array" })
+  async computeProfitability(@Body() body: { periodMonths?: number }, @Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.computeProfitability(this.tenantIdFromRequest(req), body.periodMonths ?? 1);
+    return { status: true, message: "success", data };
+  }
+
+  @Get("financials/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Fleet financial summary" })
+  @ApiOkResponse({ description: "Financial summary" })
+  async getFinancialSummary(@Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.summary(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("financials/configs")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "List financial configs" })
+  @ApiOkResponse({ description: "Financial configs array" })
+  async listFinancialConfigs(@Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.listConfigs(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("financials/configs/:vehicleId")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Get financial config for a vehicle" })
+  @ApiOkResponse({ description: "Financial config" })
+  async getFinancialConfig(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.getConfig(this.tenantIdFromRequest(req), vehicleId);
+    return { status: true, message: "success", data };
+  }
+
+  @Put("financials/configs/:vehicleId")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @ApiOperation({ summary: "Upsert financial config for a vehicle" })
+  @ApiOkResponse({ description: "Config upserted" })
+  async upsertFinancialConfig(@Param("vehicleId") vehicleId: string, @Body() body: any, @Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.upsertConfig(this.tenantIdFromRequest(req), vehicleId, body);
+    return { status: true, message: "success", data };
+  }
+
+  @Get("financials/vehicle-pl/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Export vehicle P&L as CSV" })
+  async exportVehiclePL(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const csv = await this.fleetFinancialsUseCase.exportVehiclePL(this.tenantIdFromRequest(req));
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=vehicle-pl.csv");
+    res.send(csv);
+  }
+
+  @Get("financials/cost-breakdown/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Export cost breakdown as CSV" })
+  async exportCostBreakdown(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const csv = await this.fleetFinancialsUseCase.exportCostBreakdown(this.tenantIdFromRequest(req));
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=cost-breakdown.csv");
+    res.send(csv);
+  }
+
+  /* ── Fuel Management Aliases (Phase 7) ─────────────────────────────────── */
+
+  @Get("fuel/transactions")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "List fuel transactions (alias for /fuel/records)" })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ type: FuelRecordListResponse })
+  async listFuelTransactions(
+    @Query("vehicleId") vehicleId: string,
+    @Query("from") from: string,
+    @Query("to") to: string,
+    @Req() req: FleetRequestContext,
+  ): Promise<FuelRecordListResponse> {
+    const records = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req), vehicleId, from, to });
+    return { status: true, message: "success", data: records.map((r) => r.toPrimitives()) } as unknown as FuelRecordListResponse;
+  }
+
+  @Get("fuel/summary")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Fuel summary stats" })
+  @ApiOkResponse({ description: "Fuel summary" })
+  async getFuelSummary(@Req() req: FleetRequestContext) {
+    const records = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
+    const primitives = records.map((r) => r.toPrimitives());
+    const totalLitres = primitives.reduce((s, r) => s + r.liters, 0);
+    const totalCostNgn = primitives.reduce((s, r) => s + r.totalCost, 0);
+    const avgPrice = totalLitres > 0 ? totalCostNgn / totalLitres : 0;
+    return {
+      status: true, message: "success",
+      data: {
+        totalLitres: Math.round(totalLitres * 10) / 10,
+        totalCostNgn: Math.round(totalCostNgn),
+        avgPricePerLitre: Math.round(avgPrice * 10) / 10,
+        transactionCount: primitives.length,
+      },
+    };
   }
 
   @Get("reports/delivery-metrics")

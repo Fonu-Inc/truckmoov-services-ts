@@ -193,6 +193,7 @@ import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
 import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
 import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
+import { GetOnboardingStatusUseCase } from './get-onboarding-status.use-case';
 import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
 import { DeleteKycDocumentUseCase } from './delete-kyc-document.use-case';
 import { SubmitDeviceProvisioningRequestUseCase } from './submit-device-provisioning-request.use-case';
@@ -719,6 +720,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetBusinessInfoUseCase,
     SaveBusinessInfoUseCase,
     ListKycDocumentsUseCase,
+    GetOnboardingStatusUseCase,
     SaveKycDocumentUseCase,
     DeleteKycDocumentUseCase,
     SubmitDeviceProvisioningRequestUseCase,

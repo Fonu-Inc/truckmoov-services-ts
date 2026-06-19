@@ -6,12 +6,15 @@ export type UserProfile = {
 };
 
 export type NotificationPreferences = {
-  emailAlerts: boolean;
   smsAlerts: boolean;
   pushAlerts: boolean;
   incidentAlerts: boolean;
-  jobUpdates: boolean;
-  marketingAnnouncements: boolean;
+  jobAssignment: boolean;
+  jobCompletion: boolean;
+  maintenanceReminders: boolean;
+  fuelAlerts: boolean;
+  geofenceAlerts: boolean;
+  emailDigest: boolean;
 };
 
 export type DispatcherPreferences = {
@@ -45,12 +48,15 @@ export function defaultUserProfile(): UserProfile {
 
 export function defaultNotificationPreferences(): NotificationPreferences {
   return {
-    emailAlerts: true,
     smsAlerts: false,
     pushAlerts: true,
     incidentAlerts: true,
-    jobUpdates: true,
-    marketingAnnouncements: false,
+    jobAssignment: true,
+    jobCompletion: true,
+    maintenanceReminders: true,
+    fuelAlerts: true,
+    geofenceAlerts: true,
+    emailDigest: false,
   };
 }
 
@@ -64,13 +70,28 @@ export function defaultDispatcherPreferences(): DispatcherPreferences {
 }
 
 export function normalizeStoredUser(user: StoredUser): StoredUser {
+  const raw = user.notificationPreferences as Record<string, unknown> | undefined;
+  let prefs: NotificationPreferences;
+  if (!raw) {
+    prefs = defaultNotificationPreferences();
+  } else {
+    prefs = {
+      smsAlerts: (raw.smsAlerts as boolean) ?? false,
+      pushAlerts: (raw.pushAlerts as boolean) ?? true,
+      incidentAlerts: (raw.incidentAlerts as boolean) ?? true,
+      jobAssignment: (raw.jobAssignment as boolean) ?? (raw.jobUpdates as boolean) ?? true,
+      jobCompletion: (raw.jobCompletion as boolean) ?? (raw.jobUpdates as boolean) ?? true,
+      maintenanceReminders: (raw.maintenanceReminders as boolean) ?? true,
+      fuelAlerts: (raw.fuelAlerts as boolean) ?? true,
+      geofenceAlerts: (raw.geofenceAlerts as boolean) ?? true,
+      emailDigest: (raw.emailDigest as boolean) ?? (raw.emailAlerts as boolean) ?? false,
+    };
+  }
   return {
     ...user,
     accountStatus: user.accountStatus ?? "enabled",
-    // Merge with defaults so older JSON payloads still expose the full profile shape.
     profile: { ...defaultUserProfile(), ...(user.profile ?? {}) },
-    notificationPreferences:
-      user.notificationPreferences ?? defaultNotificationPreferences(),
+    notificationPreferences: prefs,
     dispatcherPreferences:
       user.dispatcherPreferences ?? defaultDispatcherPreferences(),
   };
@@ -81,6 +102,10 @@ export interface UserRepository {
   findById(id: string): Promise<StoredUser | null>;
   findAll(): Promise<StoredUser[]>;
   findAllByTenant(tenantId: string): Promise<StoredUser[]>;
+  findAllByTenantFiltered(
+    tenantId: string,
+    filters: { search?: string; role?: string; accountStatus?: string },
+  ): Promise<StoredUser[]>;
   findByVerificationToken(token: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRole(userId: string, role: string): Promise<void>;

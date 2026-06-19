@@ -5,19 +5,22 @@ import {
 } from "../../domain/ports/token-service.port";
 import {
   USER_REPOSITORY,
-  type UserRepository,
   type NotificationPreferences,
+  type UserRepository,
 } from "../../domain/ports/user-repository.port";
 import { resolveActorUser } from "./support/resolve-actor-user";
 
 export type UpdateNotificationPreferencesCommand = {
   accessToken: string;
-  emailAlerts?: boolean;
   smsAlerts?: boolean;
   pushAlerts?: boolean;
   incidentAlerts?: boolean;
-  jobUpdates?: boolean;
-  marketingAnnouncements?: boolean;
+  jobAssignment?: boolean;
+  jobCompletion?: boolean;
+  maintenanceReminders?: boolean;
+  fuelAlerts?: boolean;
+  geofenceAlerts?: boolean;
+  emailDigest?: boolean;
 };
 
 @Injectable()
@@ -30,28 +33,23 @@ export class UpdateNotificationPreferencesUseCase {
   ) {}
 
   async execute(command: UpdateNotificationPreferencesCommand) {
-    const actor = await resolveActorUser(
-      command.accessToken,
-      this.tokenService,
-      this.userRepo,
-    );
+    const actor = await resolveActorUser(command.accessToken, this.tokenService, this.userRepo);
 
     const current = actor.notificationPreferences!;
     const merged: NotificationPreferences = {
-      emailAlerts: command.emailAlerts ?? current.emailAlerts,
       smsAlerts: command.smsAlerts ?? current.smsAlerts,
       pushAlerts: command.pushAlerts ?? current.pushAlerts,
       incidentAlerts: command.incidentAlerts ?? current.incidentAlerts,
-      jobUpdates: command.jobUpdates ?? current.jobUpdates,
-      marketingAnnouncements:
-        command.marketingAnnouncements ?? current.marketingAnnouncements,
+      jobAssignment: command.jobAssignment ?? current.jobAssignment,
+      jobCompletion: command.jobCompletion ?? current.jobCompletion,
+      maintenanceReminders: command.maintenanceReminders ?? current.maintenanceReminders,
+      fuelAlerts: command.fuelAlerts ?? current.fuelAlerts,
+      geofenceAlerts: command.geofenceAlerts ?? current.geofenceAlerts,
+      emailDigest: command.emailDigest ?? current.emailDigest,
     };
 
     await this.userRepo.updateNotificationPreferences(actor.id, merged);
 
-    return {
-      userId: actor.id,
-      notificationPreferences: merged,
-    };
+    return { userId: actor.id, notificationPreferences: merged };
   }
 }

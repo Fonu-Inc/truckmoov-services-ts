@@ -22,6 +22,10 @@ class BrandingDto {
   contactEmail?: string | null;
 
   @IsOptional()
+  @IsEmail()
+  billingEmail?: string | null;
+
+  @IsOptional()
   @IsString()
   @MaxLength(32)
   phoneNumber?: string | null;

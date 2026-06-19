@@ -1,4 +1,4 @@
-export const FLEET_ASSET_STATUSES = ["active", "inactive"] as const;
+export const FLEET_ASSET_STATUSES = ["active", "inactive", "maintenance", "decommissioned"] as const;
 
 export type FleetAssetStatus = (typeof FLEET_ASSET_STATUSES)[number];
 

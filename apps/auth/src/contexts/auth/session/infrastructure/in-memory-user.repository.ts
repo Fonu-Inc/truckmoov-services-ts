@@ -37,8 +37,26 @@ export class InMemoryUserRepository implements UserRepository {
         users.push(normalizeStoredUser(user));
       }
     }
+    return users.sort((a, b) => a.email.localeCompare(b.email));
+  }
 
-    return users.sort((left, right) => left.email.localeCompare(right.email));
+  async findAllByTenantFiltered(
+    tenantId: string,
+    filters: { search?: string; role?: string; accountStatus?: string },
+  ): Promise<StoredUser[]> {
+    const q = filters.search?.toLowerCase();
+    const results: StoredUser[] = [];
+    for (const user of this.store.values()) {
+      if (user.tenantId !== tenantId) continue;
+      if (filters.role && user.role !== filters.role) continue;
+      if (filters.accountStatus && (user.accountStatus ?? 'enabled') !== filters.accountStatus) continue;
+      if (q) {
+        const name = user.profile?.fullName?.toLowerCase() ?? '';
+        if (!user.email.toLowerCase().includes(q) && !name.includes(q)) continue;
+      }
+      results.push(normalizeStoredUser(user));
+    }
+    return results.sort((a, b) => a.email.localeCompare(b.email));
   }
 
   async findByVerificationToken(token: string): Promise<StoredUser | null> {

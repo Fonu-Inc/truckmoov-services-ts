@@ -167,6 +167,19 @@ class FakeUserRepository {
       .sort((left, right) => left.email.localeCompare(right.email));
   }
 
+  async findAllByTenantFiltered(tenantId: string, filters?: { search?: string; role?: string; accountStatus?: string }) {
+    let users = [...this.byId.values()]
+      .filter((user) => user.tenantId === tenantId)
+      .map((user) => normalizeStoredUser(user));
+    if (filters?.role) users = users.filter((u) => u.role === filters.role);
+    if (filters?.accountStatus) users = users.filter((u) => u.accountStatus === filters.accountStatus);
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      users = users.filter((u) => u.email.toLowerCase().includes(q) || (u.profile?.fullName ?? "").toLowerCase().includes(q));
+    }
+    return users.sort((a, b) => a.email.localeCompare(b.email));
+  }
+
   async save(user: StoredUser) {
     const normalized = normalizeStoredUser(user);
     this.byEmail.set(normalized.email, normalized);
@@ -824,7 +837,8 @@ describe("Organization user management use cases", () => {
     const tokenService = new FakeTokenService();
     const userRepo = new FakeUserRepository();
     const sessionStore = new FakeSessionStore();
-    const uc = new ListOrganizationUsersUseCase(tokenService, userRepo, sessionStore);
+    const inviteRepo = { listPendingByTenant: async () => [] } as any;
+    const uc = new ListOrganizationUsersUseCase(tokenService, userRepo, sessionStore, inviteRepo);
 
     await userRepo.save({
       id: "admin-1", email: "admin@co.com", passwordHash: "hash",

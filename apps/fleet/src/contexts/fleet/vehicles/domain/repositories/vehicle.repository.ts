@@ -6,6 +6,9 @@ export type VehicleFilters = {
   query?: string;
   status?: FleetAssetStatus;
   assigned?: boolean;
+  type?: string;
+  yearFrom?: number;
+  yearTo?: number;
 };
 
 export interface VehicleRepository {

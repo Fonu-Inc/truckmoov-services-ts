@@ -48,6 +48,7 @@ export class CreatePaymentIntentUseCase {
       billingCycle: 'monthly' | 'yearly';
       gateway: 'paystack' | 'momo';
       phone?: string;
+      redirectUrl?: string;
     },
   ) {
     const actor = await resolveActorUser(
@@ -114,6 +115,7 @@ export class CreatePaymentIntentUseCase {
         email: actor.email,
         amount: amountKobo,
         reference,
+        ...(payload.redirectUrl ? { callback_url: payload.redirectUrl } : {}),
         metadata: {
           tenantId: actor.tenantId,
           planCode: payload.planCode,

@@ -50,6 +50,7 @@ export class MikroVehicleRepository implements VehicleRepository {
       {
         ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.type ? { type: filters.type } : {}),
         ...(filters?.assigned === undefined
           ? {}
           : filters.assigned
@@ -60,22 +61,26 @@ export class MikroVehicleRepository implements VehicleRepository {
     );
 
     const query = filters?.query?.trim().toLowerCase();
-    const filtered = !query
-      ? records
-      : records.filter((record) =>
-          [
-            record.id,
-            record.plateNumber,
-            record.vin ?? "",
-            record.make ?? "",
-            record.model,
-            record.type ?? "",
-            record.gpsImei ?? record.gpsDeviceId ?? "",
-            record.gpsManufacturer ?? record.gpsProvider ?? "",
-            record.gpsModel ?? "",
-            record.gpsFirmwareVersion ?? "",
-          ].some((value) => value.toLowerCase().includes(query)),
-        );
+    const yearFrom = filters?.yearFrom;
+    const yearTo = filters?.yearTo;
+
+    const filtered = records.filter((record) => {
+      if (yearFrom && (record.year == null || record.year < yearFrom)) return false;
+      if (yearTo && (record.year == null || record.year > yearTo)) return false;
+      if (!query) return true;
+      return [
+        record.id,
+        record.plateNumber,
+        record.vin ?? "",
+        record.make ?? "",
+        record.model,
+        record.type ?? "",
+        record.gpsImei ?? record.gpsDeviceId ?? "",
+        record.gpsManufacturer ?? record.gpsProvider ?? "",
+        record.gpsModel ?? "",
+        record.gpsFirmwareVersion ?? "",
+      ].some((value) => value.toLowerCase().includes(query));
+    });
 
     return filtered.map((record) => this.toDomain(record));
   }
@@ -127,7 +132,9 @@ export class MikroVehicleRepository implements VehicleRepository {
           : null,
       capacity: record.capacity ?? null,
       tenantId: record.tenantId,
-      status: record.status === "inactive" ? "inactive" : "active",
+      status: (["active", "inactive", "maintenance", "decommissioned"].includes(record.status)
+        ? record.status
+        : "active") as import("../../../shared/domain/fleet-status").FleetAssetStatus,
       assignedDriverId: record.assignedDriverId ?? null,
       gpsDevice:
         (record.gpsImei ?? record.gpsDeviceId)

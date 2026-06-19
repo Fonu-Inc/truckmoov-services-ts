@@ -309,11 +309,23 @@ export class VehicleListQueryDto {
 
   @IsOptional()
   @IsIn(FLEET_ASSET_STATUSES)
-  status?: "active" | "inactive";
+  status?: "active" | "inactive" | "maintenance" | "decommissioned";
 
   @IsOptional()
   @IsString()
   assigned?: string;
+
+  @IsOptional()
+  @IsIn(["truck", "van", "trailer"])
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  yearFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  yearTo?: string;
 }
 
 export class DispatchSearchQueryDto {

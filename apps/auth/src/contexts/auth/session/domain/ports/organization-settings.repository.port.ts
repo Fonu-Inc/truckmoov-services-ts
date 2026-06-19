@@ -1,6 +1,7 @@
 export type OrganizationBranding = {
   organizationName: string;
   contactEmail: string | null;
+  billingEmail: string | null;
   phoneNumber: string | null;
   address: string | null;
   logoUrl: string | null;
@@ -38,6 +39,7 @@ export function buildDefaultOrganizationSettings(
     branding: {
       organizationName: 'Truckmoov Tenant',
       contactEmail: null,
+      billingEmail: null,
       phoneNumber: null,
       address: null,
       logoUrl: null,

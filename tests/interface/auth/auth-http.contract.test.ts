@@ -2368,12 +2368,12 @@ describe('Auth HTTP contract', () => {
       .patch('/auth/preferences/notifications')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        emailAlerts: true,
+        emailDigest: true,
         smsAlerts: true,
         pushAlerts: false,
         incidentAlerts: true,
-        jobUpdates: false,
-        marketingAnnouncements: true,
+        jobAssignment: false,
+        fuelAlerts: true,
       });
 
     expect(patchRes.status).toBe(200);
@@ -2385,10 +2385,8 @@ describe('Auth HTTP contract', () => {
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.notificationPreferences.marketingAnnouncements).toBe(
-      true,
-    );
-    expect(getRes.body.notificationPreferences.jobUpdates).toBe(false);
+    expect(getRes.body.notificationPreferences.emailDigest).toBe(true);
+    expect(getRes.body.notificationPreferences.jobAssignment).toBe(false);
   });
 
   it('PATCH /auth/preferences/dispatch allows dispatcher to set working hours/timezone', async () => {

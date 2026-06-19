@@ -30,6 +30,11 @@ export class CreatePaymentIntentDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ description: 'URL to redirect to after Paystack payment completes' })
+  @IsOptional()
+  @IsString()
+  redirectUrl?: string;
 }
 
 export class EnterpriseEnquiryDto {
