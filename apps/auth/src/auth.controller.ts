@@ -166,6 +166,39 @@ import {
   BusinessInfoResponse,
   KycDocumentsResponse,
   OnboardingStatusResponse,
+  MessageResponse,
+  ValidateInviteResponse,
+  ChangeRoleResponse,
+  SystemSimRequestActionResponse,
+  SimBatchRetryResponse,
+  SystemSupportTicketsListResponse,
+  SystemSupportTicketDetailResponse,
+  SystemSupportTicketActionResponse,
+  SystemSupportMessagesResponse,
+  SystemSupportMessageActionResponse,
+  TenantSimsListResponse,
+  ImportSimsResponse,
+  CarriersListResponse,
+  BundlePlansListResponse,
+  TenantSimRequestsListResponse,
+  DeviceMappingUploadResponse,
+  TenantSimRequestDetailResponse,
+  TenantSimDetailResponse,
+  TenantSimActionResponse,
+  SystemCarrierActionResponse,
+  SystemBundleActionResponse,
+  BundleSummaryResponse,
+  WalletBalanceResponse,
+  SpendingLimitResponse,
+  AutoTopUpResponse,
+  BundleAllocationsListResponse,
+  BundleAllocationDetailResponse,
+  BundleTransactionsListResponse,
+  SpendTrendResponse,
+  SpendBreakdownResponse,
+  CarrierDistributionResponse,
+  SubscriptionUsageResponse,
+  BundleRatesListResponse,
 } from './dto/auth.schema';
 import { ResendInviteDto } from './dto/resend-invite.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
@@ -716,6 +749,7 @@ export class AuthController {
   ) {}
 
   @Get('health')
+  @ApiOkResponse({ type: HealthResponse })
   async health(): Promise<HealthResponse> {
     try {
       const data = await this.getHealthUseCase.execute();
@@ -792,6 +826,7 @@ export class AuthController {
 
   /** Register an enterprise admin (creates new tenant) */
   @Post('register')
+  @ApiCreatedResponse({ type: AuthResponse })
   async register(
     @Body(BodyOrDataPipe) payload: RegisterDto,
   ): Promise<AuthResponse> {
@@ -818,6 +853,7 @@ export class AuthController {
 
   /** Authenticate with email and password */
   @Post('login')
+  @ApiOkResponse({ type: AuthResponse })
   async login(@Body(BodyOrDataPipe) payload: LoginDto): Promise<AuthResponse> {
     const result = await this.runAuthUseCase(() =>
       this.loginUseCase.execute(payload),
@@ -838,6 +874,7 @@ export class AuthController {
 
   /** Authenticate a system account with email and password */
   @Post('system/login')
+  @ApiOkResponse({ type: AuthResponse })
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
   ): Promise<AuthResponse> {
@@ -865,6 +902,7 @@ export class AuthController {
   }
   /** Exchange a refresh token for a new token pair */
   @Post('refresh')
+  @ApiOkResponse({ type: AuthResponse })
   async refresh(
     @Body(BodyOrDataPipe) payload: RefreshDto,
   ): Promise<AuthResponse> {
@@ -1008,6 +1046,7 @@ export class AuthController {
 
   /** Decode the bearer token and return the authenticated user's claims */
   @Get('me')
+  @ApiOkResponse({ type: MeResponse })
   async me(
     @Headers('authorization') authorization?: string,
   ): Promise<MeResponse> {
@@ -1029,6 +1068,7 @@ export class AuthController {
 
   /** Enterprise admin invites a user via email */
   @Post('invite')
+  @ApiCreatedResponse({ type: InviteActionResponse })
   async inviteUser(
     @Body(BodyOrDataPipe) payload: InviteUserDto,
     @Headers('authorization') authorization?: string,
@@ -2038,6 +2078,7 @@ export class AuthController {
 
   /** Validate an invite token (called when user clicks the invite link) */
   @Get('invite/validate')
+  @ApiOkResponse({ type: ValidateInviteResponse })
   async validateInvite(@Query() query: ValidateInviteDto) {
     try {
       return await this.validateInviteUseCase.execute(query.token);
@@ -2050,6 +2091,7 @@ export class AuthController {
 
   /** Register from an invitation link */
   @Post('register/invited')
+  @ApiCreatedResponse({ type: AuthResponse })
   async registerInvited(
     @Body(BodyOrDataPipe) payload: RegisterInvitedDto,
   ): Promise<AuthResponse> {
@@ -2080,6 +2122,7 @@ export class AuthController {
 
   /** Request a password reset via email or SMS */
   @Post('forgot-password')
+  @ApiOkResponse({ type: MessageResponse })
   async forgotPassword(@Body(BodyOrDataPipe) payload: ForgotPasswordDto) {
     try {
       const result = await this.forgotPasswordUseCase.execute(payload);
@@ -2102,6 +2145,7 @@ export class AuthController {
 
   /** Verify a password reset token */
   @Post('verify-reset')
+  @ApiOkResponse({ type: MessageResponse })
   async verifyReset(@Body(BodyOrDataPipe) payload: VerifyResetDto) {
     try {
       return await this.verifyResetUseCase.execute({ token: payload.token });
@@ -2114,6 +2158,7 @@ export class AuthController {
 
   /** Verify new-user email token */
   @Post('verify-email')
+  @ApiOkResponse({ type: MessageResponse })
   async verifyEmail(@Body(BodyOrDataPipe) payload: VerifyEmailDto) {
     try {
       const result = await this.verifyEmailUseCase.execute({
@@ -2140,6 +2185,7 @@ export class AuthController {
 
   /** Complete invited-user profile (fullName + password) */
   @Post('complete-profile')
+  @ApiOkResponse({ type: MessageResponse })
   async completeProfile(@Body(BodyOrDataPipe) payload: CompleteProfileDto) {
     try {
       const result = await this.completeProfileUseCase.execute(payload);
@@ -2164,6 +2210,7 @@ export class AuthController {
 
   /** Reset password using a verified token */
   @Post('reset-password')
+  @ApiOkResponse({ type: MessageResponse })
   async resetPassword(@Body(BodyOrDataPipe) payload: ResetPasswordDto) {
     try {
       const result = await this.resetPasswordUseCase.execute(payload);
@@ -2190,6 +2237,7 @@ export class AuthController {
 
   /** Change a user's role (enterprise admin only) */
   @Post('change-role')
+  @ApiOkResponse({ type: ChangeRoleResponse })
   async changeRole(
     @Body(BodyOrDataPipe) payload: ChangeRoleDto,
     @Headers('authorization') authorization?: string,
@@ -2224,6 +2272,7 @@ export class AuthController {
 
   /** Logout – invalidate the refresh token (and access token if possible) */
   @Post('logout')
+  @ApiOkResponse({ type: MessageResponse })
   async logout(
     @Body(BodyOrDataPipe) payload: LogoutDto,
     @Headers('authorization') authorization?: string,
@@ -3666,6 +3715,7 @@ export class AuthController {
   @Post('system/sims/requests/:requestId/approve')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Approve SIM provisioning request', description: 'Approves a pending request and queues an activation batch.' })
+  @ApiOkResponse({ type: SystemSimRequestActionResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to approve SIM requests' })
   @ApiNotFoundResponse({ description: 'SIM request not found' })
@@ -3699,6 +3749,7 @@ export class AuthController {
   @Post('system/sims/requests/:requestId/reject')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reject SIM provisioning request', description: 'Rejects a pending request with a reason.' })
+  @ApiOkResponse({ type: SystemSimRequestActionResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to reject SIM requests' })
   @ApiNotFoundResponse({ description: 'SIM request not found' })
@@ -3836,6 +3887,7 @@ export class AuthController {
   @Post('system/sims/batches/:batchId/retry')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Retry SIM activation batch', description: 'Re-queues a failed or partially completed batch.' })
+  @ApiOkResponse({ type: SimBatchRetryResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to retry SIM batches' })
   @ApiNotFoundResponse({ description: 'SIM batch not found' })
@@ -4296,6 +4348,7 @@ export class AuthController {
   @Get('system/support/tickets')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all support tickets' })
+  @ApiOkResponse({ type: SystemSupportTicketsListResponse })
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'category', required: false, enum: TICKET_CATEGORIES })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -4321,6 +4374,7 @@ export class AuthController {
   @Get('system/support/tickets/:ticketId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get support ticket detail' })
+  @ApiOkResponse({ type: SystemSupportTicketDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system actor' })
   @ApiNotFoundResponse({ description: 'Ticket not found' })
@@ -4343,6 +4397,7 @@ export class AuthController {
   @Patch('system/support/tickets/:ticketId/status')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update ticket status' })
+  @ApiOkResponse({ type: SystemSupportTicketActionResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system mutator' })
   @ApiNotFoundResponse({ description: 'Ticket not found' })
@@ -4376,6 +4431,7 @@ export class AuthController {
   @Patch('system/support/tickets/:ticketId/escalate')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Escalate support ticket' })
+  @ApiOkResponse({ type: SystemSupportTicketActionResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system mutator' })
   @ApiNotFoundResponse({ description: 'Ticket not found' })
@@ -4415,6 +4471,7 @@ export class AuthController {
   @Get('system/support/tickets/:ticketId/messages')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List ticket messages (includes internal notes)' })
+  @ApiOkResponse({ type: SystemSupportMessagesResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system actor' })
   @ApiNotFoundResponse({ description: 'Ticket not found' })
@@ -4437,6 +4494,7 @@ export class AuthController {
   @Post('system/support/tickets/:ticketId/messages')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send message or internal note on ticket' })
+  @ApiCreatedResponse({ type: SystemSupportMessageActionResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system mutator' })
   @ApiNotFoundResponse({ description: 'Ticket not found' })
@@ -4537,14 +4595,14 @@ export class AuthController {
 
   @Get('onboarding/plans')
   @ApiOperation({ summary: 'List subscription plans', description: 'Returns all active subscription plans with NGN prices and limits.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: SystemSubscriptionPlansResponse })
   async getOnboardingPlans() {
     return this.getOnboardingPlansUseCase.execute();
   }
 
   @Get('onboarding/exchange-rate')
   @ApiOperation({ summary: 'Current NGN/USD exchange rate', description: 'Live rate from ExchangeRate-API; cached 30 min.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ description: 'Exchange rate data' })
   async getExchangeRate() {
     return this.getExchangeRateUseCase.execute();
   }
@@ -4643,7 +4701,7 @@ export class AuthController {
   @Get('onboarding/subscription/caps')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get device & SIM caps for active plan', description: 'Returns maxDevices, maxSims, maxUsers from the tenant\'s active subscription plan.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ description: 'Subscription capability limits' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async getSubscriptionCaps(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
@@ -4694,7 +4752,7 @@ export class AuthController {
   @Put('onboarding/business-info')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Save/update business info', description: 'Upserts business registration details for the calling tenant. Verification status is managed by the system.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: BusinessInfoResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async saveBusinessInfo(
     @Body(BodyOrDataPipe) payload: SaveBusinessInfoDto,
@@ -4750,7 +4808,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload KYC document', description: 'Uploads a KYC document file (stored privately in Wasabi) and records the document metadata.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: KycDocumentsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiBadRequestResponse({ description: 'Missing file or invalid document_type' })
   @UseInterceptors(FileInterceptor('file'))
@@ -4806,7 +4864,7 @@ export class AuthController {
   @Delete('onboarding/kyc/documents/:docId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete KYC document', description: 'Removes a KYC document record by ID. Only the owning tenant can delete their own documents.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: MessageResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiNotFoundResponse({ description: 'Document not found' })
   async deleteKycDocument(
@@ -4869,7 +4927,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Bulk CSV SIM import', description: 'Accepts a CSV file with columns iccid, msisdn, carrier and bulk-registers the SIMs.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: ImportSimsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiBadRequestResponse({ description: 'Invalid CSV or missing required column: iccid' })
   @UseInterceptors(FileInterceptor('file'))
@@ -4962,7 +5020,7 @@ export class AuthController {
   @Get('sims')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List tenant SIMs' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: TenantSimsListResponse })
   async listTenantSims(@Query() query: ListSimsQueryDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -4978,6 +5036,7 @@ export class AuthController {
   @Get('sims/export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export tenant SIMs' })
+  @ApiOkResponse({ description: 'CSV/xlsx file', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   async exportTenantSims(@Query() query: ListSimsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
     const accessToken = this.extractBearerToken(authorization);
@@ -4996,6 +5055,7 @@ export class AuthController {
   @Get('sims/import/template')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download SIM import CSV template' })
+  @ApiOkResponse({ description: 'CSV template file', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv')
   getSimImportTemplate(@Res({ passthrough: true }) res?: Response) {
     const { csv, filename } = this.getSimImportTemplateUseCase.execute();
@@ -5006,6 +5066,7 @@ export class AuthController {
   @Post('sims/import')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Import SIMs from CSV' })
+  @ApiCreatedResponse({ type: ImportSimsResponse })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
   async importTenantSimsCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
@@ -5025,6 +5086,7 @@ export class AuthController {
   @Get('sims/carriers')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List active carriers for tenants' })
+  @ApiOkResponse({ type: CarriersListResponse })
   async listSimCarriers(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5039,6 +5101,7 @@ export class AuthController {
   @Get('sims/data-bundles')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List bundle plans for tenants' })
+  @ApiOkResponse({ type: BundlePlansListResponse })
   async listSimDataBundles(@Query('carrierId') carrierId?: string, @Query('billingCycle') billingCycle?: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5053,6 +5116,7 @@ export class AuthController {
   @Get('sims/requests')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List tenant SIM requests' })
+  @ApiOkResponse({ type: TenantSimRequestsListResponse })
   async listTenantSimRequests(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5068,6 +5132,7 @@ export class AuthController {
   @Get('sims/requests/device-mapping/template')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Download device mapping CSV template' })
+  @ApiOkResponse({ description: 'CSV template', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv')
   getDeviceMappingTemplate(@Res({ passthrough: true }) res?: Response) {
     const { csv, filename } = this.getDeviceMappingTemplateUseCase.execute();
@@ -5078,6 +5143,7 @@ export class AuthController {
   @Post('sims/requests/device-mapping')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Upload device mapping CSV' })
+  @ApiCreatedResponse({ type: DeviceMappingUploadResponse })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDeviceMappingCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
@@ -5112,6 +5178,7 @@ export class AuthController {
   @Get('sims/requests/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get tenant SIM request detail' })
+  @ApiOkResponse({ type: TenantSimRequestDetailResponse })
   async getTenantSimRequest(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5144,6 +5211,7 @@ export class AuthController {
   @Get('sims/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get SIM detail' })
+  @ApiOkResponse({ type: TenantSimDetailResponse })
   async getTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5160,6 +5228,7 @@ export class AuthController {
   @Patch('sims/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update SIM' })
+  @ApiOkResponse({ type: TenantSimDetailResponse })
   async updateTenantSim(@Param('id') id: string, @Body() payload: UpdateTenantSimDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5176,6 +5245,7 @@ export class AuthController {
   @Post('sims/:id/suspend')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Suspend SIM' })
+  @ApiOkResponse({ type: TenantSimActionResponse })
   async suspendTenantSim(@Param('id') id: string, @Body() payload: SuspendSimDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5192,6 +5262,7 @@ export class AuthController {
   @Post('sims/:id/reactivate')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reactivate SIM' })
+  @ApiOkResponse({ type: TenantSimActionResponse })
   async reactivateTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5208,6 +5279,7 @@ export class AuthController {
   @Delete('sims/:id/device')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Unassign device from SIM' })
+  @ApiOkResponse({ type: TenantSimActionResponse })
   async unassignDeviceFromSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5224,6 +5296,7 @@ export class AuthController {
   @Delete('sims/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete SIM' })
+  @ApiOkResponse({ type: TenantSimActionResponse })
   async deleteTenantSim(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5258,6 +5331,7 @@ export class AuthController {
   @Patch('system/carriers/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update carrier (system admin)' })
+  @ApiOkResponse({ type: SystemCarrierActionResponse })
   async updateSystemCarrier(@Param('id') id: string, @Body() payload: UpdateCarrierDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5289,6 +5363,7 @@ export class AuthController {
   @Patch('system/bundle-catalog/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update bundle plan (system admin)' })
+  @ApiOkResponse({ type: SystemBundleActionResponse })
   async updateSystemBundle(@Param('id') id: string, @Body() payload: UpdateBundleDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5304,6 +5379,7 @@ export class AuthController {
   @Delete('system/bundle-catalog/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete bundle plan (system admin)' })
+  @ApiOkResponse({ type: MessageResponse })
   async deleteSystemBundle(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5321,6 +5397,7 @@ export class AuthController {
   @Get('data-bundles/summary')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get data bundle dashboard summary' })
+  @ApiOkResponse({ type: BundleSummaryResponse })
   async getBundleSummary(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5336,6 +5413,7 @@ export class AuthController {
   @Get('data-bundles/wallet/balance')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get wallet balance' })
+  @ApiOkResponse({ type: WalletBalanceResponse })
   async getWalletBalance(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5367,6 +5445,7 @@ export class AuthController {
   @Get('data-bundles/spending-limit')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get spending limit settings' })
+  @ApiOkResponse({ type: SpendingLimitResponse })
   async getSpendingLimit(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5398,6 +5477,7 @@ export class AuthController {
   @Delete('data-bundles/spending-limit')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Disable spending limit' })
+  @ApiOkResponse({ type: MessageResponse })
   async disableSpendingLimit(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5413,6 +5493,7 @@ export class AuthController {
   @Get('data-bundles/auto-topup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get auto top-up settings' })
+  @ApiOkResponse({ type: AutoTopUpResponse })
   async getAutoTopUp(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5444,6 +5525,7 @@ export class AuthController {
   @Delete('data-bundles/auto-topup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Disable auto top-up' })
+  @ApiOkResponse({ type: MessageResponse })
   async disableAutoTopUp(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5459,6 +5541,7 @@ export class AuthController {
   @Get('data-bundles/allocations')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List bundle allocations' })
+  @ApiOkResponse({ type: BundleAllocationsListResponse })
   async listBundleAllocations(@Query() query: ListAllocationsQueryDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5474,6 +5557,7 @@ export class AuthController {
   @Get('data-bundles/allocations/export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export bundle allocations' })
+  @ApiOkResponse({ description: 'CSV/xlsx export', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   async exportBundleAllocations(@Query() query: ListAllocationsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
     const accessToken = this.extractBearerToken(authorization);
@@ -5492,6 +5576,7 @@ export class AuthController {
   @Get('data-bundles/allocations/sims')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List SIMs available for bundle allocation' })
+  @ApiOkResponse({ type: TenantSimsListResponse })
   async listSimsForAllocation(@Query('search') search?: string, @Query('carrierId') carrierId?: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5524,6 +5609,7 @@ export class AuthController {
   @Get('data-bundles/allocations/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get bundle allocation detail' })
+  @ApiOkResponse({ type: BundleAllocationDetailResponse })
   async getBundleAllocation(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5540,6 +5626,7 @@ export class AuthController {
   @Get('data-bundles/transactions')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List bundle transactions' })
+  @ApiOkResponse({ type: BundleTransactionsListResponse })
   async listBundleTransactions(@Query() query: ListTransactionsQueryDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5555,6 +5642,7 @@ export class AuthController {
   @Get('data-bundles/transactions/export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export bundle transactions' })
+  @ApiOkResponse({ description: 'CSV/xlsx export', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   async exportBundleTransactions(@Query() query: ListTransactionsQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
     const accessToken = this.extractBearerToken(authorization);
@@ -5573,6 +5661,7 @@ export class AuthController {
   @Get('data-bundles/analytics/spend-trend')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get spend trend analytics' })
+  @ApiOkResponse({ type: SpendTrendResponse })
   async getSpendTrend(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5588,6 +5677,7 @@ export class AuthController {
   @Get('data-bundles/analytics/spend-breakdown')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get spend breakdown analytics' })
+  @ApiOkResponse({ type: SpendBreakdownResponse })
   async getSpendBreakdown(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5603,6 +5693,7 @@ export class AuthController {
   @Get('data-bundles/analytics/carrier-distribution')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get carrier distribution analytics' })
+  @ApiOkResponse({ type: CarrierDistributionResponse })
   async getCarrierDistribution(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5618,6 +5709,7 @@ export class AuthController {
   @Get('data-bundles/analytics/subscription-usage')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get subscription usage analytics' })
+  @ApiOkResponse({ type: SubscriptionUsageResponse })
   async getSubscriptionUsage(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5633,6 +5725,7 @@ export class AuthController {
   @Get('data-bundles/rates')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List bundle rates' })
+  @ApiOkResponse({ type: BundleRatesListResponse })
   async listBundleRates(@Query() query: ListBundleRatesQueryDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5648,6 +5741,7 @@ export class AuthController {
   @Get('data-bundles/rates/export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export bundle rates' })
+  @ApiOkResponse({ description: 'CSV/xlsx export', schema: { type: 'string', format: 'binary' } })
   @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   async exportBundleRates(@Query() query: ListBundleRatesQueryDto, @Headers('authorization') authorization?: string, @Res({ passthrough: true }) res?: Response) {
     const accessToken = this.extractBearerToken(authorization);
@@ -5666,6 +5760,7 @@ export class AuthController {
   @Get('data-bundles/carriers')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List carriers for data bundles' })
+  @ApiOkResponse({ type: CarriersListResponse })
   async listDataBundleCarriers(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');

@@ -1711,3 +1711,597 @@ export class OnboardingStatusResponse extends StandardApiResponse<OnboardingStat
   @ApiProperty({ type: OnboardingStatusSchema })
   data!: OnboardingStatusSchema;
 }
+
+/* ── Session / Auth Action Schemas ─────────────────────────────────────── */
+
+export class MessageDataSchema {
+  @ApiProperty() message!: string;
+}
+
+export class MessageResponse extends StandardApiResponse<MessageDataSchema> {
+  @ApiProperty({ type: MessageDataSchema })
+  data!: MessageDataSchema;
+}
+
+export class ValidateInviteDataSchema {
+  @ApiProperty() email!: string;
+  @ApiProperty() role!: string;
+  @ApiProperty() tenantId!: string;
+}
+
+export class ValidateInviteResponse extends StandardApiResponse<ValidateInviteDataSchema> {
+  @ApiProperty({ type: ValidateInviteDataSchema })
+  data!: ValidateInviteDataSchema;
+}
+
+export class ChangeRoleDataSchema {
+  @ApiProperty() message!: string;
+  @ApiProperty() userId!: string;
+  @ApiProperty() newRole!: string;
+}
+
+export class ChangeRoleResponse extends StandardApiResponse<ChangeRoleDataSchema> {
+  @ApiProperty({ type: ChangeRoleDataSchema })
+  data!: ChangeRoleDataSchema;
+}
+
+export class LogoutDataSchema {
+  @ApiProperty() message!: string;
+  @ApiProperty({ nullable: true, type: String }) userId!: string | null;
+}
+
+export class LogoutResponse extends StandardApiResponse<LogoutDataSchema> {
+  @ApiProperty({ type: LogoutDataSchema })
+  data!: LogoutDataSchema;
+}
+
+/* ── System SIM Action Schemas ──────────────────────────────────────────── */
+
+export class SystemSimRequestApproveDataSchema {
+  @ApiProperty() requestId!: string;
+  @ApiProperty() batchId!: string;
+  @ApiProperty() tenantName!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() operator!: string;
+}
+
+export class SystemSimRequestActionResponse extends StandardApiResponse<SystemSimRequestApproveDataSchema> {
+  @ApiProperty({ type: SystemSimRequestApproveDataSchema })
+  data!: SystemSimRequestApproveDataSchema;
+}
+
+export class SystemSimRequestRejectDataSchema {
+  @ApiProperty() requestId!: string;
+  @ApiProperty() tenantName!: string;
+  @ApiProperty() reason!: string;
+}
+
+export class SystemSimRejectActionResponse extends StandardApiResponse<SystemSimRequestRejectDataSchema> {
+  @ApiProperty({ type: SystemSimRequestRejectDataSchema })
+  data!: SystemSimRequestRejectDataSchema;
+}
+
+export class SimBatchRetryDataSchema {
+  @ApiProperty() batchId!: string;
+  @ApiProperty() tenantName!: string;
+  @ApiProperty() quantity!: number;
+}
+
+export class SimBatchRetryResponse extends StandardApiResponse<SimBatchRetryDataSchema> {
+  @ApiProperty({ type: SimBatchRetryDataSchema })
+  data!: SimBatchRetryDataSchema;
+}
+
+/* ── System Support Ticket Schemas ──────────────────────────────────────── */
+
+export class SystemSupportTicketSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() subject!: string;
+  @ApiProperty() category!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() priority!: string;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) escalatedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) resolvedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) closedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class SystemSupportTicketsListDataSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemSupportTicketSchema, isArray: true }) tickets!: SystemSupportTicketSchema[];
+}
+
+export class SystemSupportTicketsListResponse extends StandardApiResponse<SystemSupportTicketsListDataSchema> {
+  @ApiProperty({ type: SystemSupportTicketsListDataSchema })
+  data!: SystemSupportTicketsListDataSchema;
+}
+
+export class SystemSupportMessageSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() ticketId!: string;
+  @ApiProperty() senderId!: string;
+  @ApiProperty() senderName!: string;
+  @ApiProperty() senderRole!: string;
+  @ApiProperty() message!: string;
+  @ApiProperty() isInternal!: boolean;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+}
+
+export class SystemSupportTicketDetailDataSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() subject!: string;
+  @ApiProperty() category!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() priority!: string;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) escalatedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) resolvedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) closedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+  @ApiProperty({ type: SystemSupportMessageSchema, isArray: true }) messages!: SystemSupportMessageSchema[];
+}
+
+export class SystemSupportTicketDetailResponse extends StandardApiResponse<SystemSupportTicketDetailDataSchema> {
+  @ApiProperty({ type: SystemSupportTicketDetailDataSchema })
+  data!: SystemSupportTicketDetailDataSchema;
+}
+
+export class SystemSupportTicketStatusUpdateDataSchema {
+  @ApiProperty() ticketId!: string;
+  @ApiProperty() status!: string;
+}
+
+export class SystemSupportTicketActionResponse extends StandardApiResponse<SystemSupportTicketStatusUpdateDataSchema> {
+  @ApiProperty({ type: SystemSupportTicketStatusUpdateDataSchema })
+  data!: SystemSupportTicketStatusUpdateDataSchema;
+}
+
+export class SystemSupportTicketEscalateDataSchema {
+  @ApiProperty() ticketId!: string;
+  @ApiProperty() escalatedTo!: string;
+  @ApiProperty() escalatedBy!: string;
+}
+
+export class SystemSupportTicketEscalateResponse extends StandardApiResponse<SystemSupportTicketEscalateDataSchema> {
+  @ApiProperty({ type: SystemSupportTicketEscalateDataSchema })
+  data!: SystemSupportTicketEscalateDataSchema;
+}
+
+export class SystemSupportMessagesDataSchema {
+  @ApiProperty() ticketId!: string;
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: SystemSupportMessageSchema, isArray: true }) messages!: SystemSupportMessageSchema[];
+}
+
+export class SystemSupportMessagesResponse extends StandardApiResponse<SystemSupportMessagesDataSchema> {
+  @ApiProperty({ type: SystemSupportMessagesDataSchema })
+  data!: SystemSupportMessagesDataSchema;
+}
+
+export class SystemSupportMessageActionResponse extends StandardApiResponse<SystemSupportMessageSchema> {
+  @ApiProperty({ type: SystemSupportMessageSchema })
+  data!: SystemSupportMessageSchema;
+}
+
+/* ── Tenant SIM Schemas ─────────────────────────────────────────────────── */
+
+export class TenantSimAssignedDeviceSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() type!: string;
+  @ApiProperty() imei!: string;
+  @ApiProperty({ nullable: true, type: String }) vehicleId!: string | null;
+}
+
+export class TenantSimSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() iccid!: string;
+  @ApiProperty() imsi!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty() operator!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() simType!: string;
+  @ApiProperty() dataLimitGb!: number;
+  @ApiProperty() dataUsedGb!: number;
+  @ApiProperty() monthlyRentalNaira!: number;
+  @ApiProperty({ nullable: true, type: TenantSimAssignedDeviceSchema }) assignedDevice!: TenantSimAssignedDeviceSchema | null;
+}
+
+export class TenantSimsListDataSchema {
+  @ApiProperty({ type: TenantSimSchema, isArray: true }) items!: TenantSimSchema[];
+  @ApiProperty() total!: number;
+  @ApiProperty() page!: number;
+  @ApiProperty() limit!: number;
+}
+
+export class TenantSimsListResponse extends StandardApiResponse<TenantSimsListDataSchema> {
+  @ApiProperty({ type: TenantSimsListDataSchema })
+  data!: TenantSimsListDataSchema;
+}
+
+export class TenantSimDetailDataSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() iccid!: string;
+  @ApiProperty() imsi!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty() operator!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() simType!: string;
+  @ApiProperty() dataLimitGb!: number;
+  @ApiProperty() dataUsedGb!: number;
+  @ApiProperty() monthlyRentalNaira!: number;
+  @ApiProperty({ nullable: true, type: TenantSimAssignedDeviceSchema }) assignedDevice!: TenantSimAssignedDeviceSchema | null;
+  @ApiProperty({ nullable: true, type: String }) notes!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
+}
+
+export class TenantSimDetailResponse extends StandardApiResponse<TenantSimDetailDataSchema> {
+  @ApiProperty({ type: TenantSimDetailDataSchema })
+  data!: TenantSimDetailDataSchema;
+}
+
+export class TenantSimIdDataSchema {
+  @ApiProperty() id!: string;
+}
+
+export class TenantSimActionResponse extends StandardApiResponse<TenantSimIdDataSchema> {
+  @ApiProperty({ type: TenantSimIdDataSchema })
+  data!: TenantSimIdDataSchema;
+}
+
+/* ── Tenant SIM Request Schemas ─────────────────────────────────────────── */
+
+export class TenantSimRequestDataBundlePlanSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() dataLimitGb!: number;
+}
+
+export class TenantSimRequestTimelineEntrySchema {
+  @ApiProperty() label!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) at!: string;
+  @ApiProperty({ nullable: true, type: String }) by!: string | undefined;
+}
+
+export class TenantSimRequestSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() organizationName!: string;
+  @ApiProperty() requestingEmail!: string;
+  @ApiProperty() carrier!: string;
+  @ApiProperty() planType!: string;
+  @ApiProperty({ type: TenantSimRequestDataBundlePlanSchema }) dataBundlePlan!: TenantSimRequestDataBundlePlanSchema;
+  @ApiProperty() useCase!: string;
+  @ApiProperty({ enum: ['pending_review', 'approved', 'rejected', 'fulfilled'] }) status!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: TenantSimRequestTimelineEntrySchema, isArray: true }) timeline!: TenantSimRequestTimelineEntrySchema[];
+}
+
+export class TenantSimRequestsListDataSchema {
+  @ApiProperty({ type: TenantSimRequestSchema, isArray: true }) items!: TenantSimRequestSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class TenantSimRequestsListResponse extends StandardApiResponse<TenantSimRequestsListDataSchema> {
+  @ApiProperty({ type: TenantSimRequestsListDataSchema })
+  data!: TenantSimRequestsListDataSchema;
+}
+
+export class TenantSimRequestDetailResponse extends StandardApiResponse<TenantSimRequestSchema> {
+  @ApiProperty({ type: TenantSimRequestSchema })
+  data!: TenantSimRequestSchema;
+}
+
+/* ── Carrier & Bundle Catalog Schemas ───────────────────────────────────── */
+
+export class CarrierSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() displayName!: string;
+  @ApiProperty() active!: boolean;
+}
+
+export class CarriersListDataSchema {
+  @ApiProperty({ type: CarrierSchema, isArray: true }) carriers!: CarrierSchema[];
+}
+
+export class CarriersListResponse extends StandardApiResponse<CarriersListDataSchema> {
+  @ApiProperty({ type: CarriersListDataSchema })
+  data!: CarriersListDataSchema;
+}
+
+export class BundlePlanSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() carrier!: string;
+  @ApiProperty() dataAmountGb!: number;
+  @ApiProperty() validityDays!: number;
+  @ApiProperty() billingCycle!: string;
+  @ApiProperty() price!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty() active!: boolean;
+}
+
+export class BundlePlansListDataSchema {
+  @ApiProperty({ type: BundlePlanSchema, isArray: true }) items!: BundlePlanSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class BundlePlansListResponse extends StandardApiResponse<BundlePlansListDataSchema> {
+  @ApiProperty({ type: BundlePlansListDataSchema })
+  data!: BundlePlansListDataSchema;
+}
+
+export class SystemCarrierIdDataSchema {
+  @ApiProperty() id!: string;
+}
+
+export class SystemCarrierActionResponse extends StandardApiResponse<SystemCarrierIdDataSchema> {
+  @ApiProperty({ type: SystemCarrierIdDataSchema })
+  data!: SystemCarrierIdDataSchema;
+}
+
+export class SystemBundleIdDataSchema {
+  @ApiProperty() id!: string;
+}
+
+export class SystemBundleActionResponse extends StandardApiResponse<SystemBundleIdDataSchema> {
+  @ApiProperty({ type: SystemBundleIdDataSchema })
+  data!: SystemBundleIdDataSchema;
+}
+
+/* ── Data Bundle Dashboard Schemas ──────────────────────────────────────── */
+
+export class BundleSummaryDataSchema {
+  @ApiProperty() walletBalance!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty() totalAmountToppedUp!: number;
+  @ApiProperty() successfulTopUpTransactions!: number;
+  @ApiProperty() activeAllocations!: number;
+  @ApiProperty() expiredAllocations!: number;
+  @ApiProperty() expiringWithinSevenDays!: number;
+  @ApiProperty() monthlySpend!: number;
+  @ApiProperty() topUpsThisMonth!: number;
+  @ApiProperty() totalDataUsedGb!: number;
+}
+
+export class BundleSummaryResponse extends StandardApiResponse<BundleSummaryDataSchema> {
+  @ApiProperty({ type: BundleSummaryDataSchema })
+  data!: BundleSummaryDataSchema;
+}
+
+export class WalletBalanceDataSchema {
+  @ApiProperty() balance!: number;
+  @ApiProperty() currency!: string;
+}
+
+export class WalletBalanceResponse extends StandardApiResponse<WalletBalanceDataSchema> {
+  @ApiProperty({ type: WalletBalanceDataSchema })
+  data!: WalletBalanceDataSchema;
+}
+
+export class SpendingLimitDataSchema {
+  @ApiProperty() enabled!: boolean;
+  @ApiProperty() monthlyLimit!: number;
+  @ApiProperty() spentThisMonth!: number;
+  @ApiProperty() resetDayOfMonth!: number;
+  @ApiProperty({ nullable: true, type: String }) alertEmail!: string | null;
+  @ApiProperty({ type: 'number', isArray: true }) notifyAtPercentages!: number[];
+}
+
+export class SpendingLimitResponse extends StandardApiResponse<SpendingLimitDataSchema> {
+  @ApiProperty({ type: SpendingLimitDataSchema })
+  data!: SpendingLimitDataSchema;
+}
+
+export class AutoTopUpDataSchema {
+  @ApiProperty() enabled!: boolean;
+  @ApiProperty() thresholdAmount!: number;
+  @ApiProperty() topUpAmount!: number;
+  @ApiProperty() paymentProvider!: string;
+  @ApiProperty({ nullable: true, type: String }) mobileNumber!: string | null;
+}
+
+export class AutoTopUpResponse extends StandardApiResponse<AutoTopUpDataSchema> {
+  @ApiProperty({ type: AutoTopUpDataSchema })
+  data!: AutoTopUpDataSchema;
+}
+
+export class BundleAllocationBundleSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() carrier!: string;
+  @ApiProperty() dataAmountGb!: number;
+  @ApiProperty() billingCycle!: string;
+  @ApiProperty() price!: number;
+}
+
+export class BundleAllocationSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty({ nullable: true, type: BundleAllocationBundleSchema }) bundle!: BundleAllocationBundleSchema | null;
+  @ApiProperty() dataUsedMb!: number;
+  @ApiProperty() dataTotalMb!: number;
+  @ApiProperty() dataUsedGb!: number;
+  @ApiProperty() dataTotalGb!: number;
+  @ApiProperty() usagePercentage!: number;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) activatedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) expiresAt!: string | null;
+  @ApiProperty() daysLeft!: number;
+  @ApiProperty() status!: string;
+}
+
+export class BundleAllocationsListDataSchema {
+  @ApiProperty({ type: BundleAllocationSchema, isArray: true }) items!: BundleAllocationSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class BundleAllocationsListResponse extends StandardApiResponse<BundleAllocationsListDataSchema> {
+  @ApiProperty({ type: BundleAllocationsListDataSchema })
+  data!: BundleAllocationsListDataSchema;
+}
+
+export class BundleAllocationDetailDataSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty({ nullable: true, type: BundleAllocationBundleSchema }) bundle!: BundleAllocationBundleSchema | null;
+  @ApiProperty() dataUsedMb!: number;
+  @ApiProperty() dataTotalMb!: number;
+  @ApiProperty() dataUsedGb!: number;
+  @ApiProperty() dataTotalGb!: number;
+  @ApiProperty() dataRemainingMb!: number;
+  @ApiProperty() dataRemainingGb!: number;
+  @ApiProperty() usagePercentage!: number;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) activatedAt!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) expiresAt!: string | null;
+  @ApiProperty() daysLeft!: number;
+  @ApiProperty() status!: string;
+}
+
+export class BundleAllocationDetailResponse extends StandardApiResponse<BundleAllocationDetailDataSchema> {
+  @ApiProperty({ type: BundleAllocationDetailDataSchema })
+  data!: BundleAllocationDetailDataSchema;
+}
+
+export class BundleTransactionBundleRefSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() carrier!: string;
+}
+
+export class BundleTransactionSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) date!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty({ type: BundleTransactionBundleRefSchema }) bundle!: BundleTransactionBundleRefSchema;
+  @ApiProperty() amount!: number;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true, type: String }) paymentReference!: string | null;
+  @ApiProperty({ nullable: true, type: String }) failureReason!: string | null;
+}
+
+export class BundleTransactionsListDataSchema {
+  @ApiProperty({ type: BundleTransactionSchema, isArray: true }) items!: BundleTransactionSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class BundleTransactionsListResponse extends StandardApiResponse<BundleTransactionsListDataSchema> {
+  @ApiProperty({ type: BundleTransactionsListDataSchema })
+  data!: BundleTransactionsListDataSchema;
+}
+
+export class SpendTrendEntrySchema {
+  @ApiProperty() date!: string;
+  @ApiProperty() amount!: number;
+}
+
+export class SpendTrendDataSchema {
+  @ApiProperty({ type: SpendTrendEntrySchema, isArray: true }) trend!: SpendTrendEntrySchema[];
+}
+
+export class SpendTrendResponse extends StandardApiResponse<SpendTrendDataSchema> {
+  @ApiProperty({ type: SpendTrendDataSchema })
+  data!: SpendTrendDataSchema;
+}
+
+export class SpendBreakdownEntrySchema {
+  @ApiProperty() bundleId!: string;
+  @ApiProperty() bundleName!: string;
+  @ApiProperty() bundleCode!: string;
+  @ApiProperty() amount!: number;
+  @ApiProperty() percentage!: number;
+}
+
+export class SpendBreakdownDataSchema {
+  @ApiProperty({ type: SpendBreakdownEntrySchema, isArray: true }) breakdown!: SpendBreakdownEntrySchema[];
+}
+
+export class SpendBreakdownResponse extends StandardApiResponse<SpendBreakdownDataSchema> {
+  @ApiProperty({ type: SpendBreakdownDataSchema })
+  data!: SpendBreakdownDataSchema;
+}
+
+export class CarrierDistributionEntrySchema {
+  @ApiProperty() carrierId!: string;
+  @ApiProperty() amount!: number;
+  @ApiProperty() percentage!: number;
+}
+
+export class CarrierDistributionDataSchema {
+  @ApiProperty({ type: CarrierDistributionEntrySchema, isArray: true }) distribution!: CarrierDistributionEntrySchema[];
+}
+
+export class CarrierDistributionResponse extends StandardApiResponse<CarrierDistributionDataSchema> {
+  @ApiProperty({ type: CarrierDistributionDataSchema })
+  data!: CarrierDistributionDataSchema;
+}
+
+export class SubscriptionUsageEntrySchema {
+  @ApiProperty() bundleId!: string;
+  @ApiProperty() bundleCode!: string;
+  @ApiProperty() usedMb!: number;
+  @ApiProperty() totalMb!: number;
+}
+
+export class SubscriptionUsageDataSchema {
+  @ApiProperty({ type: SubscriptionUsageEntrySchema, isArray: true }) usage!: SubscriptionUsageEntrySchema[];
+}
+
+export class SubscriptionUsageResponse extends StandardApiResponse<SubscriptionUsageDataSchema> {
+  @ApiProperty({ type: SubscriptionUsageDataSchema })
+  data!: SubscriptionUsageDataSchema;
+}
+
+export class BundleRateSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() carrier!: string;
+  @ApiProperty() dataAmountGb!: number;
+  @ApiProperty() validityDays!: number;
+  @ApiProperty() billingCycle!: string;
+  @ApiProperty() price!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty() active!: boolean;
+}
+
+export class BundleRatesListDataSchema {
+  @ApiProperty({ type: BundleRateSchema, isArray: true }) items!: BundleRateSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class BundleRatesListResponse extends StandardApiResponse<BundleRatesListDataSchema> {
+  @ApiProperty({ type: BundleRatesListDataSchema })
+  data!: BundleRatesListDataSchema;
+}
+
+/* ── SIM Import / Device Mapping Schemas ────────────────────────────────── */
+
+export class ImportSimsDataSchema {
+  @ApiProperty() imported!: number;
+  @ApiProperty() skipped!: number;
+  @ApiProperty() failed!: number;
+}
+
+export class ImportSimsResponse extends StandardApiResponse<ImportSimsDataSchema> {
+  @ApiProperty({ type: ImportSimsDataSchema })
+  data!: ImportSimsDataSchema;
+}
+
+export class DeviceMappingUploadDataSchema {
+  @ApiProperty() processed!: number;
+  @ApiProperty() mapped!: number;
+  @ApiProperty() failed!: number;
+}
+
+export class DeviceMappingUploadResponse extends StandardApiResponse<DeviceMappingUploadDataSchema> {
+  @ApiProperty({ type: DeviceMappingUploadDataSchema })
+  data!: DeviceMappingUploadDataSchema;
+}

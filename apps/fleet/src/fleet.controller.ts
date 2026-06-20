@@ -299,6 +299,7 @@ export class FleetController {
 
   /** Health check */
   @Get("health")
+  @ApiOkResponse({ type: FleetHealthResponse })
   health(): FleetHealthResponse {
     return { status: true, message: "success", data: { service: "fleet" } };
   }
@@ -306,6 +307,7 @@ export class FleetController {
   /** Readiness probe — L14 */
   @Get("ready")
   @ApiOperation({ summary: "Readiness probe" })
+  @ApiOkResponse({ description: "Service readiness status" })
   ready(): { ready: boolean } {
     return { ready: true };
   }
@@ -315,6 +317,7 @@ export class FleetController {
     summary: "Trigger a test Sentry error",
     description: "Throws an unhandled error so Sentry capture can be verified.",
   })
+  @ApiOkResponse({ description: "Never returns — always throws" })
   testSentry(): never {
     throw new Error("Sentry test error from fleet service");
   }
@@ -1667,6 +1670,7 @@ export class FleetController {
   @Get("maintenance/records/export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Export maintenance records as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportMaintenanceRecords(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
     const csv = await this.maintenanceRecordsUseCase.export(this.tenantIdFromRequest(req));
     res.setHeader("Content-Type", "text/csv");
@@ -1797,6 +1801,7 @@ export class FleetController {
   @Get("compliance/documents/export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Export compliance documents as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportComplianceDocuments(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
     const csv = await this.complianceDocumentsUseCase.export(this.tenantIdFromRequest(req));
     res.setHeader("Content-Type", "text/csv");
@@ -1933,6 +1938,7 @@ export class FleetController {
   @Get("financials/vehicle-pl/export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Export vehicle P&L as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportVehiclePL(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
     const csv = await this.fleetFinancialsUseCase.exportVehiclePL(this.tenantIdFromRequest(req));
     res.setHeader("Content-Type", "text/csv");
@@ -1943,6 +1949,7 @@ export class FleetController {
   @Get("financials/cost-breakdown/export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Export cost breakdown as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportCostBreakdown(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
     const csv = await this.fleetFinancialsUseCase.exportCostBreakdown(this.tenantIdFromRequest(req));
     res.setHeader("Content-Type", "text/csv");
@@ -2003,6 +2010,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "CSV export — I07" })
+  @ApiOkResponse({ description: "CSV file", schema: { type: "string", format: "binary" } })
   async exportCsv(
     @Param("entity") entity: string,
     @Req() req: FleetRequestContext,
@@ -2080,6 +2088,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "Export fuel transactions to CSV — N07" })
+  @ApiOkResponse({ description: "CSV file", schema: { type: "string", format: "binary" } })
   async exportFuel(
     @Req() req: FleetRequestContext,
     @Res() res: any,
@@ -2143,6 +2152,7 @@ export class FleetController {
   @Delete("fuel/:id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
+  @ApiOkResponse({ description: "Deleted successfully" })
   async deleteFuel(
     @Param("id") id: string,
     @Req() req: FleetRequestContext,
