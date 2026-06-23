@@ -742,3 +742,407 @@ export class IntegrationHealthResponse extends StandardApiResponse<IntegrationHe
   @ApiProperty({ type: IntegrationHealthSchema, isArray: true })
   data!: IntegrationHealthSchema[];
 }
+
+/* ── Shared message-only response ─────────────────────────────────────── */
+
+export class MessageResponse extends StandardApiResponse<null> {
+  @ApiProperty({ nullable: true, type: "object" })
+  data!: null;
+}
+
+/* ── Analytics ────────────────────────────────────────────────────────── */
+
+export class AnalyticsVehiclesSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+  @ApiProperty() maintenance!: number;
+  @ApiProperty() decommissioned!: number;
+}
+
+export class AnalyticsDriversSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+}
+
+export class AnalyticsJobsSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() completed!: number;
+  @ApiProperty() inProgress!: number;
+  @ApiProperty() pending!: number;
+}
+
+export class AnalyticsSafetySchema {
+  @ApiProperty() totalEvents!: number;
+  @ApiProperty() open!: number;
+  @ApiProperty() critical!: number;
+}
+
+export class AnalyticsSummarySchema {
+  @ApiProperty({ type: AnalyticsVehiclesSchema }) vehicles!: AnalyticsVehiclesSchema;
+  @ApiProperty({ type: AnalyticsDriversSchema }) drivers!: AnalyticsDriversSchema;
+  @ApiProperty({ type: AnalyticsJobsSchema }) jobs!: AnalyticsJobsSchema;
+  @ApiProperty({ type: AnalyticsSafetySchema }) safety!: AnalyticsSafetySchema;
+  @ApiProperty() periodDays!: number;
+}
+
+export class AnalyticsSummaryResponse extends StandardApiResponse<AnalyticsSummarySchema> {
+  @ApiProperty({ type: AnalyticsSummarySchema })
+  data!: AnalyticsSummarySchema;
+}
+
+export class FleetStatusBreakdownSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() plateNumber!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty() type!: string;
+  @ApiProperty({ nullable: true }) assignedDriverId!: string | null;
+}
+
+export class FleetStatusSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: "object" }) byStatus!: Record<string, number>;
+  @ApiProperty({ type: FleetStatusBreakdownSchema, isArray: true }) breakdown!: FleetStatusBreakdownSchema[];
+  @ApiProperty() periodDays!: number;
+}
+
+export class FleetStatusResponse extends StandardApiResponse<FleetStatusSchema> {
+  @ApiProperty({ type: FleetStatusSchema })
+  data!: FleetStatusSchema;
+}
+
+export class JobPipelineSchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: "object" }) byStatus!: Record<string, number>;
+  @ApiProperty() periodDays!: number;
+}
+
+export class JobPipelineResponse extends StandardApiResponse<JobPipelineSchema> {
+  @ApiProperty({ type: JobPipelineSchema })
+  data!: JobPipelineSchema;
+}
+
+export class FuelLevelVehicleSchema {
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty() plateNumber!: string;
+  @ApiProperty({ nullable: true }) fuelLevelPercent!: number | null;
+  @ApiProperty({ nullable: true }) lastUpdated!: string | null;
+}
+
+export class FuelLevelsSchema {
+  @ApiProperty() periodDays!: number;
+  @ApiProperty({ type: FuelLevelVehicleSchema, isArray: true }) vehicles!: FuelLevelVehicleSchema[];
+}
+
+export class FuelLevelsResponse extends StandardApiResponse<FuelLevelsSchema> {
+  @ApiProperty({ type: FuelLevelsSchema })
+  data!: FuelLevelsSchema;
+}
+
+export class DriverScoreSchema {
+  @ApiProperty() driverId!: string;
+  @ApiProperty() driverName!: string;
+  @ApiProperty() incidents!: number;
+  @ApiProperty() harshBraking!: number;
+  @ApiProperty() overspeeding!: number;
+  @ApiProperty() safetyScore!: number;
+}
+
+export class DriverScoreListResponse extends StandardApiResponse<DriverScoreSchema[]> {
+  @ApiProperty({ type: DriverScoreSchema, isArray: true })
+  data!: DriverScoreSchema[];
+}
+
+export class AnalyticsEventSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() type!: string;
+  @ApiProperty() severity!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true }) vehicleId!: string | null;
+  @ApiProperty({ nullable: true }) jobId!: string | null;
+  @ApiProperty({ type: "object" }) details!: Record<string, unknown>;
+  @ApiProperty() triggeredAt!: string;
+}
+
+export class AnalyticsEventListResponse extends StandardApiResponse<AnalyticsEventSchema[]> {
+  @ApiProperty({ type: AnalyticsEventSchema, isArray: true })
+  data!: AnalyticsEventSchema[];
+}
+
+/* ── Maintenance profiles ─────────────────────────────────────────────── */
+
+export class MaintenanceProfileSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty() serviceType!: string;
+  @ApiProperty() serviceLabel!: string;
+  @ApiProperty({ enum: ["date", "mileage", "both", "months"] })
+  intervalType!: "date" | "mileage" | "both" | "months";
+  @ApiProperty({ nullable: true }) intervalDays!: number | null;
+  @ApiProperty({ nullable: true }) intervalMonths!: number | null;
+  @ApiProperty({ nullable: true }) intervalKm!: number | null;
+  @ApiProperty({ nullable: true }) lastServiceDate!: string | null;
+  @ApiProperty({ nullable: true }) lastServiceMileage!: number | null;
+  @ApiProperty({ nullable: true }) currentMileage!: number | null;
+  @ApiProperty({ enum: ["telemetry", "manual"] })
+  mileageSource!: "telemetry" | "manual";
+  @ApiProperty({ nullable: true }) nextDueDate!: string | null;
+  @ApiProperty({ nullable: true }) nextDueMileage!: number | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+  @ApiProperty({ enum: ["overdue", "due", "upcoming", "completed"] })
+  lifecycleStatus!: "overdue" | "due" | "upcoming" | "completed";
+}
+
+export class MaintenanceProfileResponse extends StandardApiResponse<MaintenanceProfileSchema> {
+  @ApiProperty({ type: MaintenanceProfileSchema })
+  data!: MaintenanceProfileSchema;
+}
+
+export class MaintenanceProfileListResponse extends StandardApiResponse<MaintenanceProfileSchema[]> {
+  @ApiProperty({ type: MaintenanceProfileSchema, isArray: true })
+  data!: MaintenanceProfileSchema[];
+}
+
+export class MaintenanceProfilesSummarySchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() overdue!: number;
+  @ApiProperty() due!: number;
+  @ApiProperty() upcoming!: number;
+  @ApiProperty() completed!: number;
+}
+
+export class MaintenanceProfilesSummaryResponse extends StandardApiResponse<MaintenanceProfilesSummarySchema> {
+  @ApiProperty({ type: MaintenanceProfilesSummarySchema })
+  data!: MaintenanceProfilesSummarySchema;
+}
+
+/* ── Maintenance records ──────────────────────────────────────────────── */
+
+export class MaintenanceRecordSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty() maintenanceType!: string;
+  @ApiProperty({ nullable: true }) description!: string | null;
+  @ApiProperty({ enum: ["scheduled", "in_progress", "completed", "cancelled"] })
+  status!: "scheduled" | "in_progress" | "completed" | "cancelled";
+  @ApiProperty({ enum: ["low", "medium", "high", "critical"] })
+  priority!: "low" | "medium" | "high" | "critical";
+  @ApiProperty({ nullable: true }) scheduledDate!: string | null;
+  @ApiProperty({ nullable: true }) completedDate!: string | null;
+  @ApiProperty({ nullable: true }) cost!: number | null;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ nullable: true }) technician!: string | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class MaintenanceRecordResponse extends StandardApiResponse<MaintenanceRecordSchema> {
+  @ApiProperty({ type: MaintenanceRecordSchema })
+  data!: MaintenanceRecordSchema;
+}
+
+export class MaintenanceRecordListResponse extends StandardApiResponse<MaintenanceRecordSchema[]> {
+  @ApiProperty({ type: MaintenanceRecordSchema, isArray: true })
+  data!: MaintenanceRecordSchema[];
+}
+
+export class MaintenanceRecordsSummarySchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() scheduled!: number;
+  @ApiProperty() inProgress!: number;
+  @ApiProperty() completed!: number;
+  @ApiProperty() overdue!: number;
+  @ApiProperty() totalCostNgn!: number;
+}
+
+export class MaintenanceRecordsSummaryResponse extends StandardApiResponse<MaintenanceRecordsSummarySchema> {
+  @ApiProperty({ type: MaintenanceRecordsSummarySchema })
+  data!: MaintenanceRecordsSummarySchema;
+}
+
+export class ReminderQueuedSchema {
+  @ApiProperty() queued!: number;
+  @ApiProperty() message!: string;
+}
+
+export class ReminderQueuedResponse extends StandardApiResponse<ReminderQueuedSchema> {
+  @ApiProperty({ type: ReminderQueuedSchema })
+  data!: ReminderQueuedSchema;
+}
+
+/* ── Geofence zones ───────────────────────────────────────────────────── */
+
+export class GeofenceZoneSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ nullable: true }) description!: string | null;
+  @ApiProperty({ type: "array", items: { type: "array", items: { type: "number" } } })
+  coordinates!: number[][];
+  @ApiProperty({ nullable: true }) radiusMeters!: number | null;
+  @ApiProperty({ enum: ["ACTIVE", "ARCHIVED"] })
+  status!: "ACTIVE" | "ARCHIVED";
+  @ApiProperty({ type: String, isArray: true }) assignedVehicleIds!: string[];
+  @ApiProperty() createdAt!: Date;
+  @ApiProperty() updatedAt!: Date;
+}
+
+export class GeofenceZoneResponse extends StandardApiResponse<GeofenceZoneSchema> {
+  @ApiProperty({ type: GeofenceZoneSchema })
+  data!: GeofenceZoneSchema;
+}
+
+export class GeofenceZoneListResponse extends StandardApiResponse<GeofenceZoneSchema[]> {
+  @ApiProperty({ type: GeofenceZoneSchema, isArray: true })
+  data!: GeofenceZoneSchema[];
+}
+
+/* ── Compliance documents ─────────────────────────────────────────────── */
+
+export class ComplianceDocumentSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ nullable: true }) vehicleId!: string | null;
+  @ApiProperty() documentType!: string;
+  @ApiProperty() documentName!: string;
+  @ApiProperty({ nullable: true }) issueDate!: string | null;
+  @ApiProperty({ nullable: true }) expiryDate!: string | null;
+  @ApiProperty() reminderDays!: number;
+  @ApiProperty({ nullable: true }) fileUrl!: string | null;
+  @ApiProperty({ nullable: true }) fileSize!: number | null;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+  @ApiProperty({ enum: ["valid", "expiring", "expired"] })
+  status!: "valid" | "expiring" | "expired";
+}
+
+export class ComplianceDocumentResponse extends StandardApiResponse<ComplianceDocumentSchema> {
+  @ApiProperty({ type: ComplianceDocumentSchema })
+  data!: ComplianceDocumentSchema;
+}
+
+export class ComplianceDocumentListResponse extends StandardApiResponse<ComplianceDocumentSchema[]> {
+  @ApiProperty({ type: ComplianceDocumentSchema, isArray: true })
+  data!: ComplianceDocumentSchema[];
+}
+
+export class ComplianceSummarySchema {
+  @ApiProperty() total!: number;
+  @ApiProperty() valid!: number;
+  @ApiProperty() expiringSoon!: number;
+  @ApiProperty() expired!: number;
+  @ApiProperty() complianceRatePercent!: number;
+}
+
+export class ComplianceSummaryResponse extends StandardApiResponse<ComplianceSummarySchema> {
+  @ApiProperty({ type: ComplianceSummarySchema })
+  data!: ComplianceSummarySchema;
+}
+
+/* ── Financials ───────────────────────────────────────────────────────── */
+
+export class VehicleProfitabilitySchema {
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty() plateNumber!: string;
+  @ApiProperty() revenue!: number;
+  @ApiProperty() fuelCost!: number;
+  @ApiProperty() maintenanceCost!: number;
+  @ApiProperty() fixedCosts!: number;
+  @ApiProperty() totalCost!: number;
+  @ApiProperty() profit!: number;
+  @ApiProperty() marginPercent!: number;
+  @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
+  tier!: "excellent" | "good" | "marginal" | "loss_making";
+  @ApiProperty() jobCount!: number;
+}
+
+export class VehicleProfitabilityListResponse extends StandardApiResponse<VehicleProfitabilitySchema[]> {
+  @ApiProperty({ type: VehicleProfitabilitySchema, isArray: true })
+  data!: VehicleProfitabilitySchema[];
+}
+
+export class FinancialSummarySchema {
+  @ApiProperty() totalRevenue!: number;
+  @ApiProperty() totalCost!: number;
+  @ApiProperty() totalProfit!: number;
+  @ApiProperty() avgMarginPercent!: number;
+  @ApiProperty() vehicleCount!: number;
+}
+
+export class FinancialSummaryResponse extends StandardApiResponse<FinancialSummarySchema> {
+  @ApiProperty({ type: FinancialSummarySchema })
+  data!: FinancialSummarySchema;
+}
+
+export class FinancialConfigSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty({ nullable: true }) monthlyWagesNgn!: number | null;
+  @ApiProperty({ nullable: true }) monthlyInsuranceNgn!: number | null;
+  @ApiProperty({ nullable: true }) monthlyDepreciationNgn!: number | null;
+  @ApiProperty({ nullable: true }) monthlyOtherNgn!: number | null;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class FinancialConfigResponse extends StandardApiResponse<FinancialConfigSchema> {
+  @ApiProperty({ type: FinancialConfigSchema })
+  data!: FinancialConfigSchema;
+}
+
+export class FinancialConfigNullableResponse extends StandardApiResponse<FinancialConfigSchema | null> {
+  @ApiProperty({ type: FinancialConfigSchema, nullable: true })
+  data!: FinancialConfigSchema | null;
+}
+
+export class FinancialConfigListResponse extends StandardApiResponse<FinancialConfigSchema[]> {
+  @ApiProperty({ type: FinancialConfigSchema, isArray: true })
+  data!: FinancialConfigSchema[];
+}
+
+/* ── Fuel summary ─────────────────────────────────────────────────────── */
+
+export class FuelSummarySchema {
+  @ApiProperty() totalLitres!: number;
+  @ApiProperty() totalCostNgn!: number;
+  @ApiProperty() avgPricePerLitre!: number;
+  @ApiProperty() transactionCount!: number;
+}
+
+export class FuelSummaryResponse extends StandardApiResponse<FuelSummarySchema> {
+  @ApiProperty({ type: FuelSummarySchema })
+  data!: FuelSummarySchema;
+}
+
+/* ── Audit ────────────────────────────────────────────────────────────── */
+
+export class AuditEntrySchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: ["job", "vehicle", "driver", "device", "fuel", "alert", "document", "geofence"] })
+  entityType!: "job" | "vehicle" | "driver" | "device" | "fuel" | "alert" | "document" | "geofence";
+  @ApiProperty() entityId!: string;
+  @ApiProperty() action!: string;
+  @ApiProperty() actorId!: string;
+  @ApiProperty({ type: "object" }) metadata!: Record<string, unknown>;
+  @ApiProperty() occurredAt!: string;
+}
+
+export class AuditEntryListResponse extends StandardApiResponse<AuditEntrySchema[]> {
+  @ApiProperty({ type: AuditEntrySchema, isArray: true })
+  data!: AuditEntrySchema[];
+}
+
+/* ── Service categories ───────────────────────────────────────────────── */
+
+export class ServiceCategoryListResponse extends StandardApiResponse<string[]> {
+  @ApiProperty({ type: String, isArray: true })
+  data!: string[];
+}
