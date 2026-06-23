@@ -1,14 +1,12 @@
 # Fleet Service — API Reference
 
-- OpenAPI `3.0.0` · Version `0.1.0` · Base path `/fleet`
-- Source spec: `https://dev-api.truckmoov.com/docs/fleet-json` (Swagger UI: `/docs/fleet`)
-- Total endpoints: **114**
-- Shapes marked _(reconstructed from source)_ were recovered from the repo because the published spec omits the `@ApiBody`/`@ApiResponse` decorator.
-- Response envelope: most endpoints wrap payloads in `{ status, message, data }`. `?` = optional field, `enum(...)` = literal union, `| null` = nullable.
+- OpenAPI: `3.0.0` · Version: `0.1.0`
+- Source: `https://dev-api.truckmoov.com/docs/fleet-json`
+- Total endpoints: **115**
 
 ## Index
 
-- **Fleet** (111)
+- **Fleet** (112)
   - `GET /fleet/health` — 
   - `GET /fleet/ready` — Readiness probe
   - `GET /fleet/test-sentry` — Trigger a test Sentry error
@@ -63,6 +61,7 @@
   - `GET /fleet/analytics/fuel-levels` — Fuel levels
   - `GET /fleet/analytics/driver-scores` — Driver safety scores
   - `GET /fleet/analytics/events` — Behavior events
+  - `GET /fleet/analytics/vehicle-safety-radar` — Fleet safety radar
   - `GET /fleet/maintenance/profiles` — List maintenance profiles
   - `POST /fleet/maintenance/profiles` — Create maintenance profile
   - `DELETE /fleet/maintenance/profiles/{id}` — Delete maintenance profile
@@ -161,15 +160,6 @@ Readiness probe — L14
 
 - `200` — Service readiness status
 
-- `200` — success _(reconstructed from source)_
-```
-{
-  ready: boolean
-}
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:308-313_
-
 ---
 
 ### `GET /fleet/test-sentry`
@@ -184,13 +174,6 @@ Throws an unhandled error so Sentry capture can be verified.
 
 - `200` — Never returns — always throws
 
-- `500` — success _(reconstructed from source)_
-```
-never (always throws Error "Sentry test error from fleet service")
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:315-323_
-
 ---
 
 ### `GET /fleet/routes/{vehicleId}/geofence`
@@ -198,33 +181,13 @@ _Source: apps/fleet/src/fleet.controller.ts:315-323_
 **Read the configured geofence**
 
 **Path params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Current bounding box
-
-- `200` — success _(reconstructed from source)_
-```
-{
-  status: boolean,
-  geofence: {
-    northeast: {
-      lat: number,
-      lng: number
-    },
-    southwest: {
-      lat: number,
-      lng: number
-    }
-  } | null
-}
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:354-360; libs/shared/geofence/src/geofence.service.ts:15-17; libs/shared/geofence/src/geofence.types.ts:1-9_
 
 ---
 
@@ -235,8 +198,7 @@ _Source: apps/fleet/src/fleet.controller.ts:354-360; libs/shared/geofence/src/ge
 Stores a bounding box for a vehicle so we can detect deviations.
 
 **Path params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body** (required):
 
@@ -259,16 +221,6 @@ Stores a bounding box for a vehicle so we can detect deviations.
 
 - `201` — Geofence stored
 
-- `201` — success _(reconstructed from source)_
-```
-{
-  status: boolean,
-  message: string
-}
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:325-352; apps/fleet/src/dto/geofence.dto.ts:5-25_
-
 ---
 
 ### `POST /fleet/routes/{vehicleId}/location`
@@ -276,8 +228,7 @@ _Source: apps/fleet/src/fleet.controller.ts:325-352; apps/fleet/src/dto/geofence
 **Report live position and detect deviations**
 
 **Path params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body** (required):
 
@@ -293,21 +244,6 @@ _Source: apps/fleet/src/fleet.controller.ts:325-352; apps/fleet/src/dto/geofence
 - `200` — Deviation flag
 - `201` — _(no body)_
 
-- `200` — success _(reconstructed from source)_
-```
-{
-  status: boolean,
-  deviation: boolean,
-  point: {
-    lat: number,
-    lng: number
-  },
-  message: string
-}
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:362-384; apps/fleet/src/dto/geofence.dto.ts:27-35_
-
 ---
 
 ### `GET /fleet/vehicles/{vehicleId}/health`
@@ -315,8 +251,7 @@ _Source: apps/fleet/src/fleet.controller.ts:362-384; apps/fleet/src/dto/geofence
 **Get last seen status**
 
 **Path params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body:** _none_
 
@@ -377,10 +312,9 @@ _Source: apps/fleet/src/fleet.controller.ts:362-384; apps/fleet/src/dto/geofence
 **Find nearest vehicles to a coordinate**
 
 **Query params:**
-
-- `lat` (number, required)
-- `lng` (number, required)
-- `limit` (number, optional)
+  - `lat` (number, required)
+  - `lng` (number, required)
+  - `limit` (number, optional)
 
 **Request body:** _none_
 
@@ -415,13 +349,12 @@ _Source: apps/fleet/src/fleet.controller.ts:362-384; apps/fleet/src/dto/geofence
 Epic C (US-C01, US-C04, US-C06): list/search/filter fleet vehicles.
 
 **Query params:**
-
-- `query` (string, optional)
-- `status` (string enum("active" | "inactive" | "maintenance" | "decommissioned"), optional)
-- `assigned` (string enum("true" | "false"), optional)
-- `type` (string enum("truck" | "van" | "trailer"), optional)
-- `yearFrom` (number, optional)
-- `yearTo` (number, optional)
+  - `query` (string, optional)
+  - `status` (string enum("active" | "inactive" | "maintenance" | "decommissioned"), optional)
+  - `assigned` (string enum("true" | "false"), optional)
+  - `type` (string enum("truck" | "van" | "trailer"), optional)
+  - `yearFrom` (number, optional)
+  - `yearTo` (number, optional)
 
 **Request body:** _none_
 
@@ -559,26 +492,18 @@ Returns count of vehicles grouped by status for the calling tenant.
 Returns a CSV of all vehicles for the calling tenant.
 
 **Query params:**
-
-- `query` (string, optional)
-- `status` (string enum("active" | "inactive" | "maintenance" | "decommissioned"), optional)
-- `assigned` (string, optional)
-- `type` (string enum("truck" | "van" | "trailer"), optional)
-- `yearFrom` (string, optional)
-- `yearTo` (string, optional)
+  - `query` (string, optional)
+  - `status` (string enum("active" | "inactive" | "maintenance" | "decommissioned"), optional)
+  - `assigned` (string, optional)
+  - `type` (string enum("truck" | "van" | "trailer"), optional)
+  - `yearFrom` (string, optional)
+  - `yearTo` (string, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — CSV file
-
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream). Columns: id,plateNumber,make,model,year,type,status,assignedDriverId,assignedDriverName,vin,capacity. Content-Disposition attachment filename=vehicles.csv
-```
-
-_Source: apps/fleet/src/fleet.controller.ts:493-516_
 
 ---
 
@@ -589,12 +514,11 @@ _Source: apps/fleet/src/fleet.controller.ts:493-516_
 Lists standalone GPS/IoT devices for the fleet admin Devices inventory page.
 
 **Query params:**
-
-- `query` (string, optional)
-- `manufacturer` (string, optional)
-- `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned"), optional)
-- `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned"), optional)
-- `assigned` (string enum("true" | "false"), optional)
+  - `query` (string, optional)
+  - `manufacturer` (string, optional)
+  - `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned"), optional)
+  - `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned"), optional)
+  - `assigned` (string enum("true" | "false"), optional)
 
 **Request body:** _none_
 
@@ -744,8 +668,7 @@ Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.
 **Get device by ID**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -784,8 +707,7 @@ Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.
 **Update device**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -837,8 +759,7 @@ Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.
 **Delete device**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -879,8 +800,7 @@ Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.
 Advances or changes a device through the installation lifecycle used by the Devices page.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -927,12 +847,10 @@ Advances or changes a device through the installation lifecycle used by the Devi
 Checks whether a device can be assigned to a specific vehicle before the UI submits the actual assignment.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Query params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body:** _none_
 
@@ -960,8 +878,7 @@ Checks whether a device can be assigned to a specific vehicle before the UI subm
 Assigns a standalone device inventory record to a fleet vehicle.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1006,8 +923,7 @@ Assigns a standalone device inventory record to a fleet vehicle.
 **Unassign device from vehicle**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1048,9 +964,8 @@ Assigns a standalone device inventory record to a fleet vehicle.
 Legacy alias for device inventory with vehicle mapping details preserved for older clients.
 
 **Query params:**
-
-- `query` (string, optional)
-- `vehicleStatus` (string enum("active" | "inactive"), optional)
+  - `query` (string, optional)
+  - `vehicleStatus` (string enum("active" | "inactive"), optional)
 
 **Request body:** _none_
 
@@ -1166,8 +1081,7 @@ Epic C (US-C05): bulk upsert vehicles by plate number.
 Retrieve a vehicle by ID
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1215,8 +1129,7 @@ Retrieve a vehicle by ID
 Partially update a vehicle's details
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1278,8 +1191,7 @@ Partially update a vehicle's details
 Remove a vehicle from the fleet
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1327,8 +1239,7 @@ Remove a vehicle from the fleet
 Epic C (US-C04): activate/deactivate vehicle availability.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1382,8 +1293,7 @@ Epic C (US-C04): activate/deactivate vehicle availability.
 Epic C (US-C03): assign a driver record to a vehicle record.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1466,8 +1376,7 @@ Epic C (US-C03): assign a driver record to a vehicle record.
 Remove current driver assignment from a vehicle
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1515,8 +1424,7 @@ Remove current driver assignment from a vehicle
 Epic C (US-C08): map a GPS device to a vehicle.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1574,10 +1482,9 @@ Epic C (US-C08): map a GPS device to a vehicle.
 Epic C (US-C02, US-C04, US-C06): list/search/filter drivers.
 
 **Query params:**
-
-- `query` (string, optional)
-- `status` (string enum("active" | "available" | "offline" | "suspended" | "inactive"), optional)
-- `assigned` (string enum("true" | "false"), optional)
+  - `query` (string, optional)
+  - `status` (string enum("active" | "available" | "offline" | "suspended" | "inactive"), optional)
+  - `assigned` (string enum("true" | "false"), optional)
 
 **Request body:** _none_
 
@@ -1765,8 +1672,7 @@ Epic C (US-C05): bulk upsert drivers by license number.
 Retrieve a driver by ID
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1814,8 +1720,7 @@ Retrieve a driver by ID
 Partially update a driver's details
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1877,8 +1782,7 @@ Partially update a driver's details
 Remove a driver record
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -1926,8 +1830,7 @@ Remove a driver record
 Epic C (US-C04): activate/deactivate driver availability.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -1981,8 +1884,7 @@ Epic C (US-C04): activate/deactivate driver availability.
 Epic C (US-C07): manage driver WhatsApp/SMS/voice channels.
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -2038,9 +1940,8 @@ Epic C (US-C07): manage driver WhatsApp/SMS/voice channels.
 Epic C (US-C06): filter/search jobs for dispatch views.
 
 **Query params:**
-
-- `query` (string, optional)
-- `status` (string, optional)
+  - `query` (string, optional)
+  - `status` (string, optional)
 
 **Request body:** _none_
 
@@ -2072,12 +1973,11 @@ Epic C (US-C06): filter/search jobs for dispatch views.
 Epic C (US-C06): combined search/filter over vehicles, drivers, and jobs.
 
 **Query params:**
-
-- `query` (string, optional)
-- `vehicleStatus` (string enum("active" | "inactive"), optional)
-- `driverStatus` (string enum("active" | "available" | "offline" | "suspended" | "inactive"), optional)
-- `jobStatus` (string, optional)
-- `assignedOnly` (string enum("true" | "false"), optional)
+  - `query` (string, optional)
+  - `vehicleStatus` (string enum("active" | "inactive"), optional)
+  - `driverStatus` (string enum("active" | "available" | "offline" | "suspended" | "inactive"), optional)
+  - `jobStatus` (string, optional)
+  - `assignedOnly` (string enum("true" | "false"), optional)
 
 **Request body:** _none_
 
@@ -2166,11 +2066,7 @@ Epic C (US-C06): combined search/filter over vehicles, drivers, and jobs.
 
 Records job status snapshot and emits job.status.changed event.
 
-**Request body** _(reconstructed from source)_:
-
-```
-none (no @Body; inputs via @Query jobId?: string (default "demo-job"), status?: string (default "assigned"))
-```
+**Request body:** _none_
 
 **Responses:**
 
@@ -2183,8 +2079,6 @@ none (no @Body; inputs via @Query jobId?: string (default "demo-job"), status?: 
     object {}
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1263-1290; apps/fleet/src/contexts/fleet/jobs/application/use-cases/publish-job-status-changed.use-case.ts:25-55; apps/fleet/src/contexts/fleet/jobs/domain/events/job-status-changed.event.ts:1-31_
 
 ---
 
@@ -2222,10 +2116,9 @@ _Source: apps/fleet/src/fleet.controller.ts:1263-1290; apps/fleet/src/contexts/f
 **List alerts — H04**
 
 **Query params:**
-
-- `status` (string enum("open" | "acknowledged" | "resolved" | "escalated"), optional)
-- `type` (string, optional)
-- `vehicleId` (string, optional)
+  - `status` (string enum("open" | "acknowledged" | "resolved" | "escalated"), optional)
+  - `type` (string, optional)
+  - `vehicleId` (string, optional)
 
 **Request body:** _none_
 
@@ -2266,14 +2159,9 @@ _Source: apps/fleet/src/fleet.controller.ts:1263-1290; apps/fleet/src/contexts/f
 **Acknowledge alert — H04**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
-
-```
-none (no @Body; actor via @Query by?: string (default "system"))
-```
+**Request body:** _none_
 
 **Responses:**
 
@@ -2327,8 +2215,6 @@ none (no @Body; actor via @Query by?: string (default "system"))
     }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1323-1354; apps/fleet/src/fleet.controller.ts:289-298 (serializeAlert); apps/fleet/src/contexts/fleet/alerts/domain/alert.entity.ts:1-19,58-60_
 
 ---
 
@@ -2337,14 +2223,9 @@ _Source: apps/fleet/src/fleet.controller.ts:1323-1354; apps/fleet/src/fleet.cont
 **Resolve alert — H04**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
-
-```
-none (no @Body; actor via @Query by?: string (default "system"))
-```
+**Request body:** _none_
 
 **Responses:**
 
@@ -2398,8 +2279,6 @@ none (no @Body; actor via @Query by?: string (default "system"))
     }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1356-1387; apps/fleet/src/fleet.controller.ts:289-298 (serializeAlert); apps/fleet/src/contexts/fleet/alerts/domain/alert.entity.ts:1-19,58-60_
 
 ---
 
@@ -2458,50 +2337,50 @@ _Source: apps/fleet/src/fleet.controller.ts:1356-1387; apps/fleet/src/fleet.cont
 High-level fleet summary across vehicles, drivers, jobs, and safety events for the given period.
 
 **Query params:**
-
-- `period_days` (number enum(7 | 30 | 60 | 90), optional)
+  - `period_days` (number enum(7 | 30 | 60 | 90), optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Analytics summary object
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    vehicles: {
-      total: number,
-      active: number,
-      inactive: number,
-      maintenance: number,
-      decommissioned: number
-    },
-    drivers: {
-      total: number,
-      active: number,
-      inactive: number
-    },
-    jobs: {
-      total: number,
-      completed: number,
-      inProgress: number,
-      pending: number
-    },
-    safety: {
-      totalEvents: number,
-      open: number,
-      critical: number
-    },
-    periodDays: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      vehicles:
+        {
+          total: number
+          active: number
+          inactive: number
+          maintenance: number
+          decommissioned: number
+        }
+      drivers:
+        {
+          total: number
+          active: number
+          inactive: number
+        }
+      jobs:
+        {
+          total: number
+          completed: number
+          inProgress: number
+          pending: number
+        }
+      safety:
+        {
+          totalEvents: number
+          open: number
+          critical: number
+        }
+      periodDays: number
+    }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1403-1406; apps/fleet/src/fleet-analytics.use-case.ts:24-60_
 
 ---
 
@@ -2511,35 +2390,37 @@ _Source: apps/fleet/src/fleet.controller.ts:1403-1406; apps/fleet/src/fleet-anal
 
 Vehicles grouped by status for the calling tenant.
 
+**Query params:**
+  - `period_days` (number enum(1 | 2 | 7 | 30 | 90), optional)
+
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Fleet status breakdown
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    total: number,
-    byStatus: Record<string, number>,
-    breakdown: [
-      {
-        id: string,
-        plateNumber: string,
-        status: string,
-        type: string,
-        assignedDriverId: string | null
-      }
-    ],
-    periodDays: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      total: number
+      byStatus:
+        object {}
+      breakdown:
+        [
+          {
+            id: string
+            plateNumber: string
+            status: string
+            type: string
+            assignedDriverId: string | null
+          }
+        ]
+      periodDays: number
+    }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1413-1416; apps/fleet/src/fleet-analytics.use-case.ts:62-80_
 
 ---
 
@@ -2550,29 +2431,26 @@ _Source: apps/fleet/src/fleet.controller.ts:1413-1416; apps/fleet/src/fleet-anal
 Jobs grouped by status for the given period.
 
 **Query params:**
-
-- `period_days` (number enum(7 | 30 | 60 | 90), optional)
+  - `period_days` (number enum(7 | 30 | 60 | 90), optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Job pipeline breakdown
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    total: number,
-    byStatus: Record<string, number>,
-    periodDays: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      total: number
+      byStatus:
+        object {}
+      periodDays: number
+    }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1423-1426; apps/fleet/src/fleet-analytics.use-case.ts:82-91_
 
 ---
 
@@ -2582,32 +2460,33 @@ _Source: apps/fleet/src/fleet.controller.ts:1423-1426; apps/fleet/src/fleet-anal
 
 Per-vehicle fuel level (from telemetry where available).
 
+**Query params:**
+  - `period_days` (number enum(1 | 2 | 7 | 30 | 90), optional)
+
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Fuel level array per vehicle
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    periodDays: number,
-    vehicles: [
-      {
-        vehicleId: string,
-        plateNumber: string,
-        fuelLevelPercent: number | null,
-        lastUpdated: string | null
-      }
-    ]
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      periodDays: number
+      vehicles:
+        [
+          {
+            vehicleId: string
+            plateNumber: string
+            fuelLevelPercent: number | null
+            lastUpdated: string | null
+          }
+        ]
+    }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1433-1436; apps/fleet/src/fleet-analytics.use-case.ts:93-104_
 
 ---
 
@@ -2618,35 +2497,31 @@ _Source: apps/fleet/src/fleet.controller.ts:1433-1436; apps/fleet/src/fleet-anal
 Safety scores per driver based on behavior events in the given period.
 
 **Query params:**
-
-- `period_days` (number enum(7 | 30 | 60 | 90), optional)
-- `limit` (number, optional)
+  - `period_days` (number enum(7 | 30 | 60 | 90), optional)
+  - `limit` (number, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Driver scores array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      driverId: string,
-      driverName: string,
-      incidents: number,
-      harshBraking: number,
-      overspeeding: number,
-      safetyScore: number
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        driverId: string
+        driverName: string
+        incidents: number
+        harshBraking: number
+        overspeeding: number
+        safetyScore: number
+      }
+    ]
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1444-1451; apps/fleet/src/fleet-analytics.use-case.ts:106-139_
 
 ---
 
@@ -2657,38 +2532,66 @@ _Source: apps/fleet/src/fleet.controller.ts:1444-1451; apps/fleet/src/fleet-anal
 Alert/behavior event list with filters for the given period.
 
 **Query params:**
-
-- `period_days` (number enum(7 | 30 | 60 | 90), optional)
-- `limit` (number, optional)
-- `severity` (string enum("low" | "medium" | "high" | "critical"), optional)
+  - `period_days` (number enum(7 | 30 | 60 | 90), optional)
+  - `limit` (number, optional)
+  - `severity` (string enum("low" | "medium" | "high" | "critical"), optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Events array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      type: string,
-      severity: string,
-      status: string,
-      vehicleId: string | null,
-      jobId: string | null,
-      details: Record<string, unknown>,
-      triggeredAt: string
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        type: string
+        severity: string
+        status: string
+        vehicleId: string | null
+        jobId: string | null
+        details:
+          object {}
+        triggeredAt: string
+      }
+    ]
 }
 ```
 
-_Source: apps/fleet/src/fleet.controller.ts:1460-1473; apps/fleet/src/fleet-analytics.use-case.ts:184-201; apps/fleet/src/contexts/fleet/alerts/domain/alert.entity.ts:12_
+---
+
+### `GET /fleet/analytics/vehicle-safety-radar`
+
+**Fleet safety radar**
+
+Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period.
+
+**Query params:**
+  - `period_days` (number enum(1 | 2 | 7 | 30 | 90), optional)
+
+**Request body:** _none_
+
+**Responses:**
+
+- `200` — Average behavior scores per dimension (0-100)
+```
+{
+  status: boolean
+  message: string
+  data:
+    {
+      braking: number
+      acceleration: number
+      speedControl: number
+      cornering: number
+      periodDays: number
+    }
+}
+```
 
 ---
 
@@ -2697,49 +2600,45 @@ _Source: apps/fleet/src/fleet.controller.ts:1460-1473; apps/fleet/src/fleet-anal
 **List maintenance profiles**
 
 **Query params:**
-
-- `vehicleId` (string, optional)
-- `lifecycleStatus` (string enum("overdue" | "due" | "upcoming" | "completed"), optional)
-- `nextDueDateFrom` (string, optional)
-- `nextDueDateTo` (string, optional)
+  - `vehicleId` (string, optional)
+  - `lifecycleStatus` (string enum("overdue" | "due" | "upcoming" | "completed"), optional)
+  - `nextDueDateFrom` (string, optional)
+  - `nextDueDateTo` (string, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Maintenance profiles array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      vehicleId: string,
-      serviceType: string,
-      serviceLabel: string,
-      intervalType: string enum("date" | "mileage" | "both" | "months"),
-      intervalDays: number | null,
-      intervalMonths: number | null,
-      intervalKm: number | null,
-      lastServiceDate: string | null,
-      lastServiceMileage: number | null,
-      currentMileage: number | null,
-      mileageSource: string enum("telemetry" | "manual"),
-      nextDueDate: string | null,
-      nextDueMileage: number | null,
-      createdAt: string,
-      updatedAt: string,
-      lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        vehicleId: string
+        serviceType: string
+        serviceLabel: string
+        intervalType: string enum("date" | "mileage" | "both" | "months")
+        intervalDays: number | null
+        intervalMonths: number | null
+        intervalKm: number | null
+        lastServiceDate: string | null
+        lastServiceMileage: number | null
+        currentMileage: number | null
+        mileageSource: string enum("telemetry" | "manual")
+        nextDueDate: string | null
+        nextDueMileage: number | null
+        createdAt: string
+        updatedAt: string
+        lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1495-1509 (handler); maintenance-profiles.use-case.ts:22-29 (list); maintenance-profile.repository.ts:5-23,56-74_
 
 ---
 
@@ -2747,59 +2646,56 @@ _Source: fleet.controller.ts:1495-1509 (handler); maintenance-profiles.use-case.
 
 **Create maintenance profile**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleId: string,
-  serviceType: string,
-  serviceLabel: string,
-  intervalType: string enum("date" | "mileage" | "both" | "months"),
-  intervalDays: number | null,
-  intervalMonths: number | null,
-  intervalKm: number | null,
-  lastServiceDate: string | null,
-  lastServiceMileage: number | null,
-  currentMileage: number | null,
-  mileageSource: string enum("telemetry" | "manual"),
-  nextDueDate: string | null,
-  nextDueMileage: number | null
+  vehicleId: string
+  serviceType: string
+  serviceLabel: string
+  intervalType: string enum("date" | "mileage" | "both" | "months")
+  intervalDays?: number | null
+  intervalMonths?: number | null
+  intervalKm?: number | null
+  lastServiceDate?: string | null
+  lastServiceMileage?: number | null
+  currentMileage?: number | null
+  mileageSource: string enum("telemetry" | "manual")
+  nextDueDate?: string | null
+  nextDueMileage?: number | null
 }
 ```
 
 **Responses:**
 
 - `201` — Maintenance profile created
-
-- `201` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    serviceType: string,
-    serviceLabel: string,
-    intervalType: string enum("date" | "mileage" | "both" | "months"),
-    intervalDays: number | null,
-    intervalMonths: number | null,
-    intervalKm: number | null,
-    lastServiceDate: string | null,
-    lastServiceMileage: number | null,
-    currentMileage: number | null,
-    mileageSource: string enum("telemetry" | "manual"),
-    nextDueDate: string | null,
-    nextDueMileage: number | null,
-    createdAt: string,
-    updatedAt: string,
-    lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      serviceType: string
+      serviceLabel: string
+      intervalType: string enum("date" | "mileage" | "both" | "months")
+      intervalDays: number | null
+      intervalMonths: number | null
+      intervalKm: number | null
+      lastServiceDate: string | null
+      lastServiceMileage: number | null
+      currentMileage: number | null
+      mileageSource: string enum("telemetry" | "manual")
+      nextDueDate: string | null
+      nextDueMileage: number | null
+      createdAt: string
+      updatedAt: string
+      lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1515-1518 (handler, @Body() body: any); maintenance-profiles.use-case.ts:31-41 (create, typed Omit<StoredMaintenanceProfile,'id'|'tenantId'|'createdAt'|'updatedAt'>); maintenance-profile.repository.ts:5-23_
 
 ---
 
@@ -2808,24 +2704,21 @@ _Source: fleet.controller.ts:1515-1518 (handler, @Body() body: any); maintenance
 **Delete maintenance profile**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Deleted
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
+  status: boolean
   message: string
+  data:
+    object {}
 }
 ```
-
-_Source: fleet.controller.ts:1524-1532 (handler); maintenance-profiles.use-case.ts:43-47 (delete returns void)_
 
 ---
 
@@ -2834,45 +2727,41 @@ _Source: fleet.controller.ts:1524-1532 (handler); maintenance-profiles.use-case.
 **Mark maintenance profile as completed**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Completed
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    serviceType: string,
-    serviceLabel: string,
-    intervalType: string enum("date" | "mileage" | "both" | "months"),
-    intervalDays: number | null,
-    intervalMonths: number | null,
-    intervalKm: number | null,
-    lastServiceDate: string | null,
-    lastServiceMileage: number | null,
-    currentMileage: number | null,
-    mileageSource: string enum("telemetry" | "manual"),
-    nextDueDate: string | null,
-    nextDueMileage: number | null,
-    createdAt: string,
-    updatedAt: string,
-    lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      serviceType: string
+      serviceLabel: string
+      intervalType: string enum("date" | "mileage" | "both" | "months")
+      intervalDays: number | null
+      intervalMonths: number | null
+      intervalKm: number | null
+      lastServiceDate: string | null
+      lastServiceMileage: number | null
+      currentMileage: number | null
+      mileageSource: string enum("telemetry" | "manual")
+      nextDueDate: string | null
+      nextDueMileage: number | null
+      createdAt: string
+      updatedAt: string
+      lifecycleStatus: string enum("overdue" | "due" | "upcoming" | "completed")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1538-1546 (handler, no @Body, only @Param id); maintenance-profiles.use-case.ts:49-77 (complete)_
+- `201` — _(no body)_
 
 ---
 
@@ -2885,23 +2774,20 @@ _Source: fleet.controller.ts:1538-1546 (handler, no @Body, only @Param id); main
 **Responses:**
 
 - `200` — Summary counts
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    total: number,
-    overdue: number,
-    due: number,
-    upcoming: number,
-    completed: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      total: number
+      overdue: number
+      due: number
+      upcoming: number
+      completed: number
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1552-1555 (handler); maintenance-profiles.use-case.ts:79-90 (summary)_
 
 ---
 
@@ -2914,19 +2800,13 @@ _Source: fleet.controller.ts:1552-1555 (handler); maintenance-profiles.use-case.
 **Responses:**
 
 - `200` — Service categories list
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    string enum("oil_change" | "tire_rotation" | "brake_inspection" | "transmission_service" | "coolant_flush" | "air_filter" | "fuel_filter" | "battery_check" | "wheel_alignment" | "general_inspection")
-  ]
+  status: boolean
+  message: string
+  data: string[]
 }
 ```
-
-_Source: fleet.controller.ts:1561-1563 (handler); maintenance-profiles.use-case.ts:92-94 (serviceCategories); maintenance-profile.repository.ts:43-54 (MAINTENANCE_SERVICE_CATEGORIES)_
 
 ---
 
@@ -2940,13 +2820,6 @@ _Source: fleet.controller.ts:1561-1563 (handler); maintenance-profiles.use-case.
 
 - `200` — CSV file
 
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream). Content-Type: text/csv; Content-Disposition: attachment; filename=maintenance-profiles.csv. Columns: id,vehicleId,serviceType,serviceLabel,intervalType,nextDueDate,nextDueMileage,lastServiceDate,lifecycleStatus (header row + one row per profile, fields JSON-stringified)
-```
-
-_Source: fleet.controller.ts:1569-1574 (handler, @Res passthrough:false, setHeader text/csv); maintenance-profiles.use-case.ts:96-107 (export, headers array)_
-
 ---
 
 ### `GET /fleet/geofences`
@@ -2954,45 +2827,34 @@ _Source: fleet.controller.ts:1569-1574 (handler, @Res passthrough:false, setHead
 **List geofence zones**
 
 **Query params:**
-
-- `status` (string enum("ACTIVE" | "ARCHIVED"), optional)
+  - `status` (string enum("ACTIVE" | "ARCHIVED"), optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Geofence zones array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      name: string,
-      description: string | null,
-      coordinates: [
-        [
-          number,
-          number
-        ]
-      ],
-      radiusMeters: number | null,
-      status: string enum("ACTIVE" | "ARCHIVED"),
-      assignedVehicleIds: [
-        string
-      ],
-      createdAt: Date,
-      updatedAt: Date
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        name: string
+        description: string | null
+        coordinates: number[][]
+        radiusMeters: number | null
+        status: string enum("ACTIVE" | "ARCHIVED")
+        assignedVehicleIds: string[]
+        createdAt: string <date-time>
+        updatedAt: string <date-time>
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1583 (handler), geofence-zones.use-case.ts:20 (list), geofence-zone.repository.ts:5 (StoredGeofenceZone)_
 
 ---
 
@@ -3000,18 +2862,13 @@ _Source: fleet.controller.ts:1583 (handler), geofence-zones.use-case.ts:20 (list
 
 **Create geofence zone**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  name: string,
-  description?: string | null,
-  coordinates: [
-    [
-      number,
-      number
-    ]
-  ],
+  name: string
+  description?: string | null
+  coordinates: number[][]
   radiusMeters?: number | null
 }
 ```
@@ -3019,35 +2876,25 @@ _Source: fleet.controller.ts:1583 (handler), geofence-zones.use-case.ts:20 (list
 **Responses:**
 
 - `201` — Zone created
-
-- `201` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    name: string,
-    description: string | null,
-    coordinates: [
-      [
-        number,
-        number
-      ]
-    ],
-    radiusMeters: number | null,
-    status: string enum("ACTIVE" | "ARCHIVED"),
-    assignedVehicleIds: [
-      string
-    ],
-    createdAt: Date,
-    updatedAt: Date
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      name: string
+      description: string | null
+      coordinates: number[][]
+      radiusMeters: number | null
+      status: string enum("ACTIVE" | "ARCHIVED")
+      assignedVehicleIds: string[]
+      createdAt: string <date-time>
+      updatedAt: string <date-time>
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1592 (handler), geofence-zones.use-case.ts:24-44 (create)_
 
 ---
 
@@ -3056,22 +2903,16 @@ _Source: fleet.controller.ts:1592 (handler), geofence-zones.use-case.ts:24-44 (c
 **Update geofence zone**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  name?: string,
-  description?: string | null,
-  coordinates?: [
-    [
-      number,
-      number
-    ]
-  ],
-  radiusMeters?: number | null,
+  name?: string
+  description?: string | null
+  coordinates?: number[][]
+  radiusMeters?: number | null
   status?: string enum("ACTIVE" | "ARCHIVED")
 }
 ```
@@ -3079,35 +2920,25 @@ _Source: fleet.controller.ts:1592 (handler), geofence-zones.use-case.ts:24-44 (c
 **Responses:**
 
 - `200` — Zone updated
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    name: string,
-    description: string | null,
-    coordinates: [
-      [
-        number,
-        number
-      ]
-    ],
-    radiusMeters: number | null,
-    status: string enum("ACTIVE" | "ARCHIVED"),
-    assignedVehicleIds: [
-      string
-    ],
-    createdAt: Date,
-    updatedAt: Date
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      name: string
+      description: string | null
+      coordinates: number[][]
+      radiusMeters: number | null
+      status: string enum("ACTIVE" | "ARCHIVED")
+      assignedVehicleIds: string[]
+      createdAt: string <date-time>
+      updatedAt: string <date-time>
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1601 (handler), geofence-zones.use-case.ts:46-58 (update)_
 
 ---
 
@@ -3116,24 +2947,21 @@ _Source: fleet.controller.ts:1601 (handler), geofence-zones.use-case.ts:46-58 (u
 **Archive geofence zone (soft delete)**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Zone archived
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
+  status: boolean
   message: string
+  data:
+    object {}
 }
 ```
-
-_Source: fleet.controller.ts:1615 (handler), geofence-zones.use-case.ts:60-64 (delete; soft-delete returns void, handler omits data)_
 
 ---
 
@@ -3142,51 +2970,38 @@ _Source: fleet.controller.ts:1615 (handler), geofence-zones.use-case.ts:60-64 (d
 **Set vehicle assignments for a geofence zone**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleIds: [
-    string
-  ]
+  vehicleIds: string[]
 }
 ```
 
 **Responses:**
 
 - `200` — Assignments updated
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    name: string,
-    description: string | null,
-    coordinates: [
-      [
-        number,
-        number
-      ]
-    ],
-    radiusMeters: number | null,
-    status: string enum("ACTIVE" | "ARCHIVED"),
-    assignedVehicleIds: [
-      string
-    ],
-    createdAt: Date,
-    updatedAt: Date
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      name: string
+      description: string | null
+      coordinates: number[][]
+      radiusMeters: number | null
+      status: string enum("ACTIVE" | "ARCHIVED")
+      assignedVehicleIds: string[]
+      createdAt: string <date-time>
+      updatedAt: string <date-time>
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1629 (handler), geofence-zones.use-case.ts:66-71 (setVehicleAssignments returns {...zone, assignedVehicleIds})_
 
 ---
 
@@ -3195,47 +3010,43 @@ _Source: fleet.controller.ts:1629 (handler), geofence-zones.use-case.ts:66-71 (s
 **List maintenance records**
 
 **Query params:**
-
-- `vehicleId` (string, optional)
-- `status` (string enum("scheduled" | "in_progress" | "completed" | "cancelled" | "overdue"), optional)
-- `priority` (string enum("low" | "medium" | "high" | "critical"), optional)
-- `maintenanceType` (string, optional)
-- `search` (string, optional)
+  - `vehicleId` (string, optional)
+  - `status` (string enum("scheduled" | "in_progress" | "completed" | "cancelled" | "overdue"), optional)
+  - `priority` (string enum("low" | "medium" | "high" | "critical"), optional)
+  - `maintenanceType` (string, optional)
+  - `search` (string, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Maintenance records array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      vehicleId: string,
-      maintenanceType: string,
-      description: string | null,
-      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-      priority: string enum("low" | "medium" | "high" | "critical"),
-      scheduledDate: string | null,
-      completedDate: string | null,
-      cost: number | null,
-      currency: string,
-      technician: string | null,
-      notes: string | null,
-      createdAt: string,
-      updatedAt: string
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        vehicleId: string
+        maintenanceType: string
+        description: string | null
+        status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+        priority: string enum("low" | "medium" | "high" | "critical")
+        scheduledDate: string | null
+        completedDate: string | null
+        cost: number | null
+        currency: string
+        technician: string | null
+        notes: string | null
+        createdAt: string
+        updatedAt: string
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1650-1662; maintenance-records.use-case.ts:20-22; maintenance-record.repository.ts:4-20_
 
 ---
 
@@ -3243,54 +3054,51 @@ _Source: fleet.controller.ts:1650-1662; maintenance-records.use-case.ts:20-22; m
 
 **Create maintenance record**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleId: string,
-  maintenanceType: string,
-  description: string | null,
-  status: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-  priority: string enum("low" | "medium" | "high" | "critical"),
-  scheduledDate: string | null,
-  completedDate: string | null,
-  cost: number | null,
-  currency: string,
-  technician: string | null,
-  notes: string | null
+  vehicleId: string
+  maintenanceType: string
+  description?: string | null
+  status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+  priority: string enum("low" | "medium" | "high" | "critical")
+  scheduledDate?: string | null
+  completedDate?: string | null
+  cost?: number | null
+  currency: string
+  technician?: string | null
+  notes?: string | null
 }
 ```
 
 **Responses:**
 
 - `201` — Record created
-
-- `201` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    maintenanceType: string,
-    description: string | null,
-    status: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-    priority: string enum("low" | "medium" | "high" | "critical"),
-    scheduledDate: string | null,
-    completedDate: string | null,
-    cost: number | null,
-    currency: string,
-    technician: string | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      maintenanceType: string
+      description: string | null
+      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+      priority: string enum("low" | "medium" | "high" | "critical")
+      scheduledDate: string | null
+      completedDate: string | null
+      cost: number | null
+      currency: string
+      technician: string | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1664-1671; maintenance-records.use-case.ts:30-40 (create takes Omit<StoredMaintenanceRecord, 'id'|'tenantId'|'createdAt'|'updatedAt'>); maintenance-record.repository.ts:4-20_
 
 ---
 
@@ -3303,24 +3111,21 @@ _Source: fleet.controller.ts:1664-1671; maintenance-records.use-case.ts:30-40 (c
 **Responses:**
 
 - `200` — Summary counts
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    total: number,
-    scheduled: number,
-    inProgress: number,
-    completed: number,
-    overdue: number,
-    totalCostNgn: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      total: number
+      scheduled: number
+      inProgress: number
+      completed: number
+      overdue: number
+      totalCostNgn: number
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1673-1680; maintenance-records.use-case.ts:67-78_
 
 ---
 
@@ -3334,13 +3139,6 @@ _Source: fleet.controller.ts:1673-1680; maintenance-records.use-case.ts:67-78_
 
 - `200` — CSV file
 
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream); filename=maintenance-records.csv; columns: id,vehicleId,maintenanceType,status,priority,scheduledDate,completedDate,cost,currency,technician
-```
-
-_Source: fleet.controller.ts:1682-1691; maintenance-records.use-case.ts:80-88_
-
 ---
 
 ### `GET /fleet/maintenance/records/{id}`
@@ -3348,41 +3146,37 @@ _Source: fleet.controller.ts:1682-1691; maintenance-records.use-case.ts:80-88_
 **Get maintenance record**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Maintenance record
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    maintenanceType: string,
-    description: string | null,
-    status: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-    priority: string enum("low" | "medium" | "high" | "critical"),
-    scheduledDate: string | null,
-    completedDate: string | null,
-    cost: number | null,
-    currency: string,
-    technician: string | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      maintenanceType: string
+      description: string | null
+      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+      priority: string enum("low" | "medium" | "high" | "critical")
+      scheduledDate: string | null
+      completedDate: string | null
+      cost: number | null
+      currency: string
+      technician: string | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1693-1705; maintenance-records.use-case.ts:24-28; maintenance-record.repository.ts:4-20_
 
 ---
 
@@ -3391,58 +3185,53 @@ _Source: fleet.controller.ts:1693-1705; maintenance-records.use-case.ts:24-28; m
 **Update maintenance record**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleId?: string,
-  maintenanceType?: string,
-  description?: string | null,
-  status?: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-  priority?: string enum("low" | "medium" | "high" | "critical"),
-  scheduledDate?: string | null,
-  completedDate?: string | null,
-  cost?: number | null,
-  currency?: string,
-  technician?: string | null,
-  notes?: string | null,
-  updatedAt?: string
+  vehicleId?: string
+  maintenanceType?: string
+  description?: string | null
+  status?: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+  priority?: string enum("low" | "medium" | "high" | "critical")
+  scheduledDate?: string | null
+  completedDate?: string | null
+  cost?: number | null
+  currency?: string
+  technician?: string | null
+  notes?: string | null
 }
 ```
 
 **Responses:**
 
 - `200` — Updated
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    maintenanceType: string,
-    description: string | null,
-    status: string enum("scheduled" | "in_progress" | "completed" | "cancelled"),
-    priority: string enum("low" | "medium" | "high" | "critical"),
-    scheduledDate: string | null,
-    completedDate: string | null,
-    cost: number | null,
-    currency: string,
-    technician: string | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      maintenanceType: string
+      description: string | null
+      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+      priority: string enum("low" | "medium" | "high" | "critical")
+      scheduledDate: string | null
+      completedDate: string | null
+      cost: number | null
+      currency: string
+      technician: string | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1707-1719; maintenance-records.use-case.ts:42-47 (update takes Partial<Omit<StoredMaintenanceRecord, 'id'|'tenantId'|'createdAt'>>); maintenance-record.repository.ts:4-20_
 
 ---
 
@@ -3451,24 +3240,21 @@ _Source: fleet.controller.ts:1707-1719; maintenance-records.use-case.ts:42-47 (u
 **Delete maintenance record**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Deleted
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
+  status: boolean
   message: string
+  data:
+    object {}
 }
 ```
-
-_Source: fleet.controller.ts:1721-1733; maintenance-records.use-case.ts:49-52_
 
 ---
 
@@ -3477,42 +3263,38 @@ _Source: fleet.controller.ts:1721-1733; maintenance-records.use-case.ts:49-52_
 **Start maintenance record**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Started
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    maintenanceType: string,
-    description: string | null,
-    status: string enum("in_progress"),
-    priority: string enum("low" | "medium" | "high" | "critical"),
-    scheduledDate: string | null,
-    completedDate: string | null,
-    cost: number | null,
-    currency: string,
-    technician: string | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      maintenanceType: string
+      description: string | null
+      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+      priority: string enum("low" | "medium" | "high" | "critical")
+      scheduledDate: string | null
+      completedDate: string | null
+      cost: number | null
+      currency: string
+      technician: string | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1735-1747; maintenance-records.use-case.ts:54-65 (transition to 'in_progress'; no @Body, status hardcoded by controller)_
+- `201` — _(no body)_
 
 ---
 
@@ -3521,42 +3303,38 @@ _Source: fleet.controller.ts:1735-1747; maintenance-records.use-case.ts:54-65 (t
 **Complete maintenance record**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Completed
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    maintenanceType: string,
-    description: string | null,
-    status: string enum("completed"),
-    priority: string enum("low" | "medium" | "high" | "critical"),
-    scheduledDate: string | null,
-    completedDate: string | null,
-    cost: number | null,
-    currency: string,
-    technician: string | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      maintenanceType: string
+      description: string | null
+      status: string enum("scheduled" | "in_progress" | "completed" | "cancelled")
+      priority: string enum("low" | "medium" | "high" | "critical")
+      scheduledDate: string | null
+      completedDate: string | null
+      cost: number | null
+      currency: string
+      technician: string | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1749-1761; maintenance-records.use-case.ts:54-65 (transition to 'completed' sets completedDate to today YYYY-MM-DD; no @Body)_
+- `201` — _(no body)_
 
 ---
 
@@ -3569,21 +3347,18 @@ _Source: fleet.controller.ts:1749-1761; maintenance-records.use-case.ts:54-65 (t
 **Responses:**
 
 - `200` — Reminders queued
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    queued: number,
-    message: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      queued: number
+      message: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1763-1770; maintenance-records.use-case.ts:67-78 (queued = summary.overdue; no @Body)_
+- `201` — _(no body)_
 
 ---
 
@@ -3592,45 +3367,41 @@ _Source: fleet.controller.ts:1763-1770; maintenance-records.use-case.ts:67-78 (q
 **List compliance documents**
 
 **Query params:**
-
-- `vehicleId` (string, optional)
-- `documentType` (string, optional)
-- `status` (string enum("valid" | "expiring" | "expired"), optional)
-- `search` (string, optional)
+  - `vehicleId` (string, optional)
+  - `documentType` (string, optional)
+  - `status` (string enum("valid" | "expiring" | "expired"), optional)
+  - `search` (string, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Compliance documents array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      vehicleId: string | null,
-      documentType: string,
-      documentName: string,
-      issueDate: string | null,
-      expiryDate: string | null,
-      reminderDays: number,
-      fileUrl: string | null,
-      fileSize: number | null,
-      notes: string | null,
-      createdAt: string,
-      updatedAt: string,
-      status: string enum("valid" | "expiring" | "expired")
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        vehicleId: string | null
+        documentType: string
+        documentName: string
+        issueDate: string | null
+        expiryDate: string | null
+        reminderDays: number
+        fileUrl: string | null
+        fileSize: number | null
+        notes: string | null
+        createdAt: string
+        updatedAt: string
+        status: string enum("valid" | "expiring" | "expired")
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1782-1793 (handler); compliance-documents.use-case.ts:25-30 (list), :21-23 (withStatus); compliance-document.repository.ts:3-17 (StoredComplianceDocument), :39-48 (computeDocumentStatus)_
 
 ---
 
@@ -3638,51 +3409,48 @@ _Source: fleet.controller.ts:1782-1793 (handler); compliance-documents.use-case.
 
 **Create compliance document**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleId: string | null,
-  documentType: string,
-  documentName: string,
-  issueDate: string | null,
-  expiryDate: string | null,
-  reminderDays?: number,
-  fileUrl: string | null,
-  fileSize: number | null,
-  notes: string | null
+  vehicleId?: string | null
+  documentType: string
+  documentName: string
+  issueDate?: string | null
+  expiryDate?: string | null
+  reminderDays?: number
+  fileUrl?: string | null
+  fileSize?: number | null
+  notes?: string | null
 }
 ```
 
 **Responses:**
 
 - `201` — Document created
-
-- `201` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string | null,
-    documentType: string,
-    documentName: string,
-    issueDate: string | null,
-    expiryDate: string | null,
-    reminderDays: number,
-    fileUrl: string | null,
-    fileSize: number | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string,
-    status: string enum("valid" | "expiring" | "expired")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string | null
+      documentType: string
+      documentName: string
+      issueDate: string | null
+      expiryDate: string | null
+      reminderDays: number
+      fileUrl: string | null
+      fileSize: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+      status: string enum("valid" | "expiring" | "expired")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1799-1802 (handler, @Body() any); compliance-documents.use-case.ts:32-43 (create); compliance-document.repository.ts:3-17 (StoredComplianceDocument minus id/tenantId/createdAt/updatedAt; reminderDays defaults to 30)_
 
 ---
 
@@ -3695,23 +3463,20 @@ _Source: fleet.controller.ts:1799-1802 (handler, @Body() any); compliance-docume
 **Responses:**
 
 - `200` — Summary counts
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    total: number,
-    valid: number,
-    expiringSoon: number,
-    expired: number,
-    complianceRatePercent: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      total: number
+      valid: number
+      expiringSoon: number
+      expired: number
+      complianceRatePercent: number
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1808-1811 (handler); compliance-documents.use-case.ts:59-67 (summary)_
 
 ---
 
@@ -3725,13 +3490,6 @@ _Source: fleet.controller.ts:1808-1811 (handler); compliance-documents.use-case.
 
 - `200` — CSV file
 
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream). Columns: id,vehicleId,documentType,documentName,issueDate,expiryDate,status,reminderDays
-```
-
-_Source: fleet.controller.ts:1817-1822 (handler, res.send raw CSV); compliance-documents.use-case.ts:97-108 (export, headers at :99)_
-
 ---
 
 ### `PATCH /fleet/compliance/documents/{id}`
@@ -3739,55 +3497,50 @@ _Source: fleet.controller.ts:1817-1822 (handler, res.send raw CSV); compliance-d
 **Update compliance document**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  vehicleId?: string | null,
-  documentType?: string,
-  documentName?: string,
-  issueDate?: string | null,
-  expiryDate?: string | null,
-  reminderDays?: number,
-  fileUrl?: string | null,
-  fileSize?: number | null,
-  notes?: string | null,
-  updatedAt?: string
+  vehicleId?: string | null
+  documentType?: string
+  documentName?: string
+  issueDate?: string | null
+  expiryDate?: string | null
+  reminderDays?: number
+  fileUrl?: string | null
+  fileSize?: number | null
+  notes?: string | null
 }
 ```
 
 **Responses:**
 
 - `200` — Updated
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string | null,
-    documentType: string,
-    documentName: string,
-    issueDate: string | null,
-    expiryDate: string | null,
-    reminderDays: number,
-    fileUrl: string | null,
-    fileSize: number | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string,
-    status: string enum("valid" | "expiring" | "expired")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string | null
+      documentType: string
+      documentName: string
+      issueDate: string | null
+      expiryDate: string | null
+      reminderDays: number
+      fileUrl: string | null
+      fileSize: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+      status: string enum("valid" | "expiring" | "expired")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1828-1836 (handler, @Body() any); compliance-documents.use-case.ts:45-51 (update, Partial<Omit<StoredComplianceDocument,'id'|'tenantId'|'createdAt'>>); compliance-document.repository.ts:3-17_
 
 ---
 
@@ -3796,24 +3549,21 @@ _Source: fleet.controller.ts:1828-1836 (handler, @Body() any); compliance-docume
 **Delete compliance document**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Deleted
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
+  status: boolean
   message: string
+  data:
+    object {}
 }
 ```
-
-_Source: fleet.controller.ts:1842-1850 (handler); compliance-documents.use-case.ts:53-57 (delete, returns void)_
 
 ---
 
@@ -3822,14 +3572,13 @@ _Source: fleet.controller.ts:1842-1850 (handler); compliance-documents.use-case.
 **Set file URL for a compliance document**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  fileUrl: string,
+  fileUrl: string
   fileSize?: number
 }
 ```
@@ -3837,33 +3586,30 @@ _Source: fleet.controller.ts:1842-1850 (handler); compliance-documents.use-case.
 **Responses:**
 
 - `200` — File URL updated
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string | null,
-    documentType: string,
-    documentName: string,
-    issueDate: string | null,
-    expiryDate: string | null,
-    reminderDays: number,
-    fileUrl: string | null,
-    fileSize: number | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string,
-    status: string enum("valid" | "expiring" | "expired")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string | null
+      documentType: string
+      documentName: string
+      issueDate: string | null
+      expiryDate: string | null
+      reminderDays: number
+      fileUrl: string | null
+      fileSize: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+      status: string enum("valid" | "expiring" | "expired")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1856-1864 (handler, @Body() { fileUrl: string; fileSize?: number }); compliance-documents.use-case.ts:93-95 (setFileUrl -> update), :45-51_
+- `201` — _(no body)_
 
 ---
 
@@ -3872,15 +3618,14 @@ _Source: fleet.controller.ts:1856-1864 (handler, @Body() { fileUrl: string; file
 **Renew a compliance document**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  expiryDate?: string,
-  fileUrl?: string,
+  expiryDate?: string
+  fileUrl?: string
   fileSize?: number
 }
 ```
@@ -3888,33 +3633,30 @@ _Source: fleet.controller.ts:1856-1864 (handler, @Body() { fileUrl: string; file
 **Responses:**
 
 - `200` — Document renewed
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string | null,
-    documentType: string,
-    documentName: string,
-    issueDate: string | null,
-    expiryDate: string | null,
-    reminderDays: number,
-    fileUrl: string | null,
-    fileSize: number | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string,
-    status: string enum("valid" | "expiring" | "expired")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string | null
+      documentType: string
+      documentName: string
+      issueDate: string | null
+      expiryDate: string | null
+      reminderDays: number
+      fileUrl: string | null
+      fileSize: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+      status: string enum("valid" | "expiring" | "expired")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1870-1878 (handler, @Body() { expiryDate?: string; fileUrl?: string; fileSize?: number }); compliance-documents.use-case.ts:73-91 (renew)_
+- `201` — _(no body)_
 
 ---
 
@@ -3923,10 +3665,9 @@ _Source: fleet.controller.ts:1870-1878 (handler, @Body() { expiryDate?: string; 
 **Set reminder days for a compliance document**
 
 **Path params:**
+  - `id` (string, required)
 
-- `id` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
@@ -3937,32 +3678,29 @@ _Source: fleet.controller.ts:1870-1878 (handler, @Body() { expiryDate?: string; 
 **Responses:**
 
 - `200` — Reminder updated
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string | null,
-    documentType: string,
-    documentName: string,
-    issueDate: string | null,
-    expiryDate: string | null,
-    reminderDays: number,
-    fileUrl: string | null,
-    fileSize: number | null,
-    notes: string | null,
-    createdAt: string,
-    updatedAt: string,
-    status: string enum("valid" | "expiring" | "expired")
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string | null
+      documentType: string
+      documentName: string
+      issueDate: string | null
+      expiryDate: string | null
+      reminderDays: number
+      fileUrl: string | null
+      fileSize: number | null
+      notes: string | null
+      createdAt: string
+      updatedAt: string
+      status: string enum("valid" | "expiring" | "expired")
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1884-1892 (handler, @Body() { reminderDays: number }); compliance-documents.use-case.ts:69-71 (updateReminder -> update), :45-51_
 
 ---
 
@@ -3975,21 +3713,18 @@ _Source: fleet.controller.ts:1884-1892 (handler, @Body() { reminderDays: number 
 **Responses:**
 
 - `200` — Reminders queued
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    queued: number,
-    message: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      queued: number
+      message: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1898-1901 (handler, no @Body; computes queued = summary.expiringSoon + summary.expired); compliance-documents.use-case.ts:59-67 (summary)_
+- `201` — _(no body)_
 
 ---
 
@@ -3997,7 +3732,7 @@ _Source: fleet.controller.ts:1898-1901 (handler, no @Body; computes queued = sum
 
 **Compute per-vehicle profitability**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
@@ -4008,32 +3743,29 @@ _Source: fleet.controller.ts:1898-1901 (handler, no @Body; computes queued = sum
 **Responses:**
 
 - `200` — Profitability array
-- `201` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      vehicleId: string,
-      plateNumber: string,
-      revenue: number,
-      fuelCost: number,
-      maintenanceCost: number,
-      fixedCosts: number,
-      totalCost: number,
-      profit: number,
-      marginPercent: number,
-      tier: string enum("excellent" | "good" | "marginal" | "loss_making"),
-      jobCount: number
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        vehicleId: string
+        plateNumber: string
+        revenue: number
+        fuelCost: number
+        maintenanceCost: number
+        fixedCosts: number
+        totalCost: number
+        profit: number
+        marginPercent: number
+        tier: string enum("excellent" | "good" | "marginal" | "loss_making")
+        jobCount: number
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1905-1912 (handler); fleet-financials.use-case.ts:62-107 (computeProfitability return); :12-17 (profitTier)_
+- `201` — _(no body)_
 
 ---
 
@@ -4046,23 +3778,20 @@ _Source: fleet.controller.ts:1905-1912 (handler); fleet-financials.use-case.ts:6
 **Responses:**
 
 - `200` — Financial summary
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    totalRevenue: number,
-    totalCost: number,
-    totalProfit: number,
-    avgMarginPercent: number,
-    vehicleCount: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      totalRevenue: number
+      totalCost: number
+      totalProfit: number
+      avgMarginPercent: number
+      vehicleCount: number
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1914-1921 (handler); fleet-financials.use-case.ts:109-118 (summary return)_
 
 ---
 
@@ -4075,29 +3804,26 @@ _Source: fleet.controller.ts:1914-1921 (handler); fleet-financials.use-case.ts:1
 **Responses:**
 
 - `200` — Financial configs array
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      vehicleId: string,
-      monthlyWagesNgn: number | null,
-      monthlyInsuranceNgn: number | null,
-      monthlyDepreciationNgn: number | null,
-      monthlyOtherNgn: number | null,
-      createdAt: string,
-      updatedAt: string
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        vehicleId: string
+        monthlyWagesNgn: number | null
+        monthlyInsuranceNgn: number | null
+        monthlyDepreciationNgn: number | null
+        monthlyOtherNgn: number | null
+        createdAt: string
+        updatedAt: string
+      }
+    ]
 }
 ```
-
-_Source: fleet.controller.ts:1923-1930 (handler); fleet-financials.use-case.ts:58-60 (listConfigs); fleet-orm.ts:364-374 (FleetFinancialConfigRecord)_
 
 ---
 
@@ -4106,35 +3832,31 @@ _Source: fleet.controller.ts:1923-1930 (handler); fleet-financials.use-case.ts:5
 **Get financial config for a vehicle**
 
 **Path params:**
-
-- `vehicleId` (string, required)
+  - `vehicleId` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Financial config
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    monthlyWagesNgn: number | null,
-    monthlyInsuranceNgn: number | null,
-    monthlyDepreciationNgn: number | null,
-    monthlyOtherNgn: number | null,
-    createdAt: string,
-    updatedAt: string
-  } | null
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      monthlyWagesNgn: number | null
+      monthlyInsuranceNgn: number | null
+      monthlyDepreciationNgn: number | null
+      monthlyOtherNgn: number | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1932-1939 (handler); fleet-financials.use-case.ts:41-45 (getConfig, returns record | null); fleet-orm.ts:364-374_
 
 ---
 
@@ -4143,16 +3865,15 @@ _Source: fleet.controller.ts:1932-1939 (handler); fleet-financials.use-case.ts:4
 **Upsert financial config for a vehicle**
 
 **Path params:**
+  - `vehicleId` (string, required)
 
-- `vehicleId` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  monthlyWagesNgn?: number | null,
-  monthlyInsuranceNgn?: number | null,
-  monthlyDepreciationNgn?: number | null,
+  monthlyWagesNgn?: number | null
+  monthlyInsuranceNgn?: number | null
+  monthlyDepreciationNgn?: number | null
   monthlyOtherNgn?: number | null
 }
 ```
@@ -4160,27 +3881,24 @@ _Source: fleet.controller.ts:1932-1939 (handler); fleet-financials.use-case.ts:4
 **Responses:**
 
 - `200` — Config upserted
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    id: string,
-    tenantId: string,
-    vehicleId: string,
-    monthlyWagesNgn: number | null,
-    monthlyInsuranceNgn: number | null,
-    monthlyDepreciationNgn: number | null,
-    monthlyOtherNgn: number | null,
-    createdAt: string,
-    updatedAt: string
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      id: string
+      tenantId: string
+      vehicleId: string
+      monthlyWagesNgn: number | null
+      monthlyInsuranceNgn: number | null
+      monthlyDepreciationNgn: number | null
+      monthlyOtherNgn: number | null
+      createdAt: string
+      updatedAt: string
+    }
 }
 ```
-
-_Source: fleet.controller.ts:1941-1948 (handler, @Body() typed any); fleet-financials.use-case.ts:47-56 (upsertConfig param Partial<Omit<FleetFinancialConfigRecord,'id'|'tenantId'|'vehicleId'|'createdAt'|'updatedAt'>>, returns cfg); fleet-orm.ts:364-374_
 
 ---
 
@@ -4194,13 +3912,6 @@ _Source: fleet.controller.ts:1941-1948 (handler, @Body() typed any); fleet-finan
 
 - `200` — CSV file
 
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream); columns: vehicleId,plateNumber,revenue,fuelCost,maintenanceCost,fixedCosts,totalCost,profit,marginPercent,tier,jobCount
-```
-
-_Source: fleet.controller.ts:1950-1959 (handler, Content-Type text/csv, filename=vehicle-pl.csv); fleet-financials.use-case.ts:120-127 (exportVehiclePL headers)_
-
 ---
 
 ### `GET /fleet/financials/cost-breakdown/export`
@@ -4213,13 +3924,6 @@ _Source: fleet.controller.ts:1950-1959 (handler, Content-Type text/csv, filename
 
 - `200` — CSV file
 
-- `200` — success _(reconstructed from source)_
-```
-text/csv file (CSV stream); columns: vehicleId,plateNumber,fuelCost,maintenanceCost,fixedCosts,totalCost
-```
-
-_Source: fleet.controller.ts:1961-1970 (handler, Content-Type text/csv, filename=cost-breakdown.csv); fleet-financials.use-case.ts:129-136 (exportCostBreakdown headers)_
-
 ---
 
 ### `GET /fleet/fuel/transactions`
@@ -4227,10 +3931,9 @@ _Source: fleet.controller.ts:1961-1970 (handler, Content-Type text/csv, filename
 **List fuel transactions (alias for /fuel/records)**
 
 **Query params:**
-
-- `vehicleId` (string, optional)
-- `from` (string, optional)
-- `to` (string, optional)
+  - `vehicleId` (string, optional)
+  - `from` (string, optional)
+  - `to` (string, optional)
 
 **Request body:** _none_
 
@@ -4273,22 +3976,19 @@ _Source: fleet.controller.ts:1961-1970 (handler, Content-Type text/csv, filename
 **Responses:**
 
 - `200` — Fuel summary
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: {
-    totalLitres: number,
-    totalCostNgn: number,
-    avgPricePerLitre: number,
-    transactionCount: number
-  }
+  status: boolean
+  message: string
+  data:
+    {
+      totalLitres: number
+      totalCostNgn: number
+      avgPricePerLitre: number
+      transactionCount: number
+    }
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:1991-2010_
 
 ---
 
@@ -4326,8 +4026,7 @@ _Source: apps/fleet/src/fleet.controller.ts:1991-2010_
 **CSV export — I07**
 
 **Path params:**
-
-- `entity` (string, required)
+  - `entity` (string, required)
 
 **Request body:** _none_
 
@@ -4345,12 +4044,11 @@ string <binary>
 **List fuel transactions — N02**
 
 **Query params:**
-
-- `vehicleId` (string, optional)
-- `driverId` (string, optional)
-- `station` (string, optional)
-- `from` (string, optional)
-- `to` (string, optional)
+  - `vehicleId` (string, optional)
+  - `driverId` (string, optional)
+  - `station` (string, optional)
+  - `from` (string, optional)
+  - `to` (string, optional)
 
 **Request body:** _none_
 
@@ -4435,8 +4133,7 @@ string <binary>
 **Fuel consumption chart — N04**
 
 **Query params:**
-
-- `period` (string enum("weekly" | "monthly"), optional)
+  - `period` (string enum("weekly" | "monthly"), optional)
 
 **Request body:** _none_
 
@@ -4533,8 +4230,7 @@ string <binary>
 **Edit fuel transaction with audit trail — N03**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body** (required):
 
@@ -4583,24 +4279,21 @@ string <binary>
 **Delete fuel transaction with audit trail — N03**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Deleted successfully
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
+  status: boolean
   message: string
+  data:
+    object {}
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:2164-2185_
 
 ---
 
@@ -4609,8 +4302,7 @@ _Source: apps/fleet/src/fleet.controller.ts:2164-2185_
 **Set fuel efficiency threshold by vehicle type — N08**
 
 **Path params:**
-
-- `vehicleType` (string, required)
+  - `vehicleType` (string, required)
 
 **Request body** (required):
 
@@ -4642,9 +4334,8 @@ _Source: apps/fleet/src/fleet.controller.ts:2164-2185_
 **List documents for an entity — J01**
 
 **Query params:**
-
-- `entityType` (string enum("job" | "vehicle" | "driver"), required)
-- `entityId` (string, required)
+  - `entityType` (string enum("job" | "vehicle" | "driver"), required)
+  - `entityId` (string, required)
 
 **Request body:** _none_
 
@@ -4681,20 +4372,16 @@ _Source: apps/fleet/src/fleet.controller.ts:2164-2185_
 **Upload document — J01**
 
 **Query params:**
+  - `entityType` (string, required)
+  - `entityId` (string, required)
+  - `docType` (string, required)
 
-- `entityType` (string, required)
-- `entityId` (string, required)
-- `docType` (string, required)
-
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
-multipart/form-data: {
-  file: binary (form field "file", required)
-}. Other inputs via @Query: entityType: string enum("job" | "vehicle" | "driver"),
-entityId: string,
-docType: string enum("pod" | "invoice" | "permit" | "other"),
-uploadedBy?: string (default "system")
+{
+  file: string <binary>
+}
 ```
 
 **Responses:**
@@ -4721,8 +4408,6 @@ uploadedBy?: string (default "system")
 }
 ```
 
-_Source: apps/fleet/src/fleet.controller.ts:2214-2257; apps/fleet/src/contexts/fleet/documents/application/upload-document.use-case.ts:32-68; apps/fleet/src/contexts/fleet/documents/domain/document.entity.ts:4-17,39-41_
-
 ---
 
 ### `GET /fleet/documents/{id}/download-url`
@@ -4730,8 +4415,7 @@ _Source: apps/fleet/src/fleet.controller.ts:2214-2257; apps/fleet/src/contexts/f
 **Get secure download URL — J02**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -4757,8 +4441,7 @@ _Source: apps/fleet/src/fleet.controller.ts:2214-2257; apps/fleet/src/contexts/f
 **Document access log — J04**
 
 **Path params:**
-
-- `id` (string, required)
+  - `id` (string, required)
 
 **Request body:** _none_
 
@@ -4790,43 +4473,36 @@ _Source: apps/fleet/src/fleet.controller.ts:2214-2257; apps/fleet/src/contexts/f
 **Activity/audit log — M06**
 
 **Query params:**
-
-- `entityType` (string enum("job" | "vehicle" | "driver" | "device" | "fuel" | "alert" | "document" | "geofence"), optional)
-- `entityId` (string, optional)
-- `action` (string, optional)
-- `limit` (number, optional)
+  - `entityType` (string enum("job" | "vehicle" | "driver" | "device" | "fuel" | "alert" | "document" | "geofence"), optional)
+  - `entityId` (string, optional)
+  - `action` (string, optional)
+  - `limit` (number, optional)
 
 **Request body:** _none_
 
 **Responses:**
 
 - `200` — Audit entries (newest first)
-
-- `200` — success _(reconstructed from source)_
 ```
 {
-  status: boolean,
-  message: string,
-  data: [
-    {
-      id: string,
-      tenantId: string,
-      entityType: string enum("job" | "vehicle" | "driver" | "device" | "fuel" | "alert" | "document" | "geofence"),
-      entityId: string,
-      action: string,
-      actorId: string,
-      metadata: {
-        [
-          key: string
-        ]: any
-      },
-      occurredAt: string
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        id: string
+        tenantId: string
+        entityType: string enum("job" | "vehicle" | "driver" | "device" | "fuel" | "alert" | "document" | "geofence")
+        entityId: string
+        action: string
+        actorId: string
+        metadata:
+          object {}
+        occurredAt: string
+      }
+    ]
 }
 ```
-
-_Source: apps/fleet/src/fleet.controller.ts:2306-2328; apps/fleet/src/audit-log.service.ts:13-49_
 
 ---
 
@@ -4836,28 +4512,30 @@ _Source: apps/fleet/src/fleet.controller.ts:2306-2328; apps/fleet/src/audit-log.
 
 **CPaaS inbound webhook — K01/K02**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  From: string,
-  Body: string,
+  From: string
+  Body: string
   tenant_id?: string
 }
 ```
 
 **Responses:**
 
-- `201` — _(no body)_
-
-- `201` — success _(reconstructed from source)_
+- `200` — 
 ```
 {
-  ok: boolean
+  status: boolean
+  message: string
+  data:
+    {
+      ok: boolean
+    }
 }
 ```
-
-_Source: apps/fleet/src/webhook.controller.ts:40-65 (handler, @Body() Record<string,string> read keys From/Body/tenant_id at :51-53); use-case apps/fleet/src/contexts/fleet/integrations/application/process-cpaas-reply.use-case.ts:31 (returns void)_
+- `201` — _(no body)_
 
 ---
 
@@ -4865,39 +4543,39 @@ _Source: apps/fleet/src/webhook.controller.ts:40-65 (handler, @Body() Record<str
 
 **ERP/TMS job sync webhook — K05**
 
-**Request body** _(reconstructed from source)_:
+**Request body** (required):
 
 ```
 {
-  externalId: string,
-  tenantId: string,
-  status: string enum("created" | "updated" | "cancelled"),
-  jobData: {
-    referenceId?: string,
-    pickupAddress?: string,
-    dropoffAddress?: string,
-    scheduledAt?: string,
-    priority?: string,
-    [
-      key: string
-    ]: any
-  }
+  externalId: string
+  tenantId: string
+  status: string enum("created" | "updated" | "cancelled")
+  jobData:
+    {
+      referenceId?: string
+      pickupAddress?: string
+      dropoffAddress?: string
+      scheduledAt?: string
+      priority?: string
+    }
 }
 ```
 
 **Responses:**
 
-- `201` — _(no body)_
-
-- `201` — success _(reconstructed from source)_
+- `200` — 
 ```
 {
-  ok: boolean,
-  jobId: string
+  status: boolean
+  message: string
+  data:
+    {
+      ok: boolean
+      jobId: string
+    }
 }
 ```
-
-_Source: apps/fleet/src/webhook.controller.ts:67-84 (handler, @Body() ErpJobPayload, returns { ok: true, jobId: job.jobId } at :79); DTO/type apps/fleet/src/contexts/fleet/integrations/application/sync-erp-job.use-case.ts:5-17 (ErpJobPayload); use-case execute returns Job (jobId getter) job.entity.ts:36_
+- `201` — _(no body)_
 
 ---
 
@@ -4909,24 +4587,22 @@ _Source: apps/fleet/src/webhook.controller.ts:67-84 (handler, @Body() ErpJobPayl
 
 **Responses:**
 
-- `200` — _(no body)_
-
-- `200` — success _(reconstructed from source)_
+- `200` — 
 ```
 {
-  status: boolean,
-  data: [
-    {
-      source: string,
-      lastReceived: string | null,
-      successCount: number,
-      failureCount: number,
-      healthy: boolean
-    }
-  ]
+  status: boolean
+  message: string
+  data:
+    [
+      {
+        source: string
+        lastReceived: string | null
+        successCount: number
+        failureCount: number
+        healthy: boolean
+      }
+    ]
 }
 ```
-
-_Source: apps/fleet/src/webhook.controller.ts:86-90 (returns { status: true, data: integrationHealth.getAll() }); apps/fleet/src/integration-health.service.ts:28-36 (getAll returns IntegrationHealth[], type at :5-11)_
 
 ---
