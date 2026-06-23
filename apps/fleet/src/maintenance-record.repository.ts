@@ -1,5 +1,8 @@
-export type MaintenanceRecordStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
-export type MaintenanceRecordPriority = "low" | "medium" | "high" | "critical";
+export const MAINTENANCE_RECORD_STATUSES = ["scheduled", "in_progress", "completed", "cancelled"] as const;
+export const MAINTENANCE_RECORD_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+
+export type MaintenanceRecordStatus = (typeof MAINTENANCE_RECORD_STATUSES)[number];
+export type MaintenanceRecordPriority = (typeof MAINTENANCE_RECORD_PRIORITIES)[number];
 
 export type StoredMaintenanceRecord = {
   id: string;
@@ -17,6 +20,20 @@ export type StoredMaintenanceRecord = {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type CreateMaintenanceRecordInput = {
+  vehicleId: string;
+  maintenanceType: string;
+  status: MaintenanceRecordStatus;
+  priority: MaintenanceRecordPriority;
+  currency: string;
+  description?: string | null;
+  scheduledDate?: string | null;
+  completedDate?: string | null;
+  cost?: number | null;
+  technician?: string | null;
+  notes?: string | null;
 };
 
 export type MaintenanceRecordFilters = {

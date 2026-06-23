@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import {
   MAINTENANCE_PROFILE_REPOSITORY,
   MAINTENANCE_SERVICE_CATEGORIES,
+  type MaintenanceIntervalType,
+  type MaintenanceMileageSource,
   type MaintenanceProfileFilters,
   type MaintenanceProfileRepository,
   type MaintenanceLifecycleStatus,
@@ -11,6 +13,22 @@ import {
 } from "./maintenance-profile.repository";
 
 export class MaintenanceProfileNotFoundError extends Error {}
+
+export type CreateMaintenanceProfileInput = {
+  vehicleId: string;
+  serviceType: string;
+  serviceLabel: string;
+  intervalType: MaintenanceIntervalType;
+  mileageSource: MaintenanceMileageSource;
+  intervalDays?: number | null;
+  intervalMonths?: number | null;
+  intervalKm?: number | null;
+  lastServiceDate?: string | null;
+  lastServiceMileage?: number | null;
+  currentMileage?: number | null;
+  nextDueDate?: string | null;
+  nextDueMileage?: number | null;
+};
 
 @Injectable()
 export class MaintenanceProfilesUseCase {
@@ -28,11 +46,23 @@ export class MaintenanceProfilesUseCase {
     return withStatus;
   }
 
-  async create(tenantId: string, data: Omit<StoredMaintenanceProfile, "id" | "tenantId" | "createdAt" | "updatedAt">) {
+  async create(tenantId: string, data: CreateMaintenanceProfileInput) {
     const profile: StoredMaintenanceProfile = {
-      ...data,
       id: randomUUID(),
       tenantId,
+      vehicleId: data.vehicleId,
+      serviceType: data.serviceType,
+      serviceLabel: data.serviceLabel,
+      intervalType: data.intervalType,
+      intervalDays: data.intervalDays ?? null,
+      intervalMonths: data.intervalMonths ?? null,
+      intervalKm: data.intervalKm ?? null,
+      lastServiceDate: data.lastServiceDate ?? null,
+      lastServiceMileage: data.lastServiceMileage ?? null,
+      currentMileage: data.currentMileage ?? null,
+      mileageSource: data.mileageSource,
+      nextDueDate: data.nextDueDate ?? null,
+      nextDueMileage: data.nextDueMileage ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

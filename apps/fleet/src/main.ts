@@ -38,6 +38,10 @@ import {
   FuelThresholdListResponse,
   FuelThresholdResponse,
   FuelThresholdSchema,
+  CpaasWebhookResponse,
+  ErpWebhookResponse,
+  IntegrationHealthResponse,
+  IntegrationHealthSchema,
   UploadedMediaResponse,
   UploadedMediaSchema,
   VehicleDriverAssignmentResponse,
@@ -114,6 +118,10 @@ async function bootstrap() {
     FuelThresholdSchema,
     FuelThresholdResponse,
     FuelThresholdListResponse,
+    CpaasWebhookResponse,
+    ErpWebhookResponse,
+    IntegrationHealthSchema,
+    IntegrationHealthResponse,
   ]);
 
   if (cfg.persistence.backend === "mikro-orm") {

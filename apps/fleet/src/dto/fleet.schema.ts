@@ -695,3 +695,50 @@ export class FuelThresholdListResponse extends StandardApiResponse<FuelThreshold
   @ApiProperty({ type: FuelThresholdSchema, isArray: true })
   data!: FuelThresholdSchema[];
 }
+
+/* ── Webhooks ──────────────────────────────────────────────────────────── */
+
+export class CpaasWebhookDataSchema {
+  @ApiProperty()
+  ok!: boolean;
+}
+
+export class CpaasWebhookResponse extends StandardApiResponse<CpaasWebhookDataSchema> {
+  @ApiProperty({ type: CpaasWebhookDataSchema })
+  data!: CpaasWebhookDataSchema;
+}
+
+export class ErpWebhookDataSchema {
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiProperty({ description: "Internal job id created or updated" })
+  jobId!: string;
+}
+
+export class ErpWebhookResponse extends StandardApiResponse<ErpWebhookDataSchema> {
+  @ApiProperty({ type: ErpWebhookDataSchema })
+  data!: ErpWebhookDataSchema;
+}
+
+export class IntegrationHealthSchema {
+  @ApiProperty({ description: "Integration source key (cpaas, erp, gps_webhook, …)" })
+  source!: string;
+
+  @ApiProperty({ nullable: true, description: "ISO timestamp of last received event" })
+  lastReceived!: string | null;
+
+  @ApiProperty()
+  successCount!: number;
+
+  @ApiProperty()
+  failureCount!: number;
+
+  @ApiProperty({ description: "True if an event was received in the last hour" })
+  healthy!: boolean;
+}
+
+export class IntegrationHealthResponse extends StandardApiResponse<IntegrationHealthSchema[]> {
+  @ApiProperty({ type: IntegrationHealthSchema, isArray: true })
+  data!: IntegrationHealthSchema[];
+}

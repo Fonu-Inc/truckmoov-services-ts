@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import {
   MAINTENANCE_RECORD_REPOSITORY,
+  type CreateMaintenanceRecordInput,
   type MaintenanceRecordFilters,
   type MaintenanceRecordRepository,
   type MaintenanceRecordStatus,
@@ -27,11 +28,21 @@ export class MaintenanceRecordsUseCase {
     return rec;
   }
 
-  async create(tenantId: string, data: Omit<StoredMaintenanceRecord, "id" | "tenantId" | "createdAt" | "updatedAt">) {
+  async create(tenantId: string, data: CreateMaintenanceRecordInput) {
     const record: StoredMaintenanceRecord = {
-      ...data,
       id: randomUUID(),
       tenantId,
+      vehicleId: data.vehicleId,
+      maintenanceType: data.maintenanceType,
+      status: data.status,
+      priority: data.priority,
+      currency: data.currency,
+      description: data.description ?? null,
+      scheduledDate: data.scheduledDate ?? null,
+      completedDate: data.completedDate ?? null,
+      cost: data.cost ?? null,
+      technician: data.technician ?? null,
+      notes: data.notes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

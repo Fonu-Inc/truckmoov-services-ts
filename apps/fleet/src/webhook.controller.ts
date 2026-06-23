@@ -10,12 +10,18 @@ import {
   RawBodyRequest,
   Req,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AppConfigService } from "@shared/config";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { ProcessCpaasReplyUseCase } from "./contexts/fleet/integrations/application/process-cpaas-reply.use-case";
 import { SyncErpJobUseCase, type ErpJobPayload } from "./contexts/fleet/integrations/application/sync-erp-job.use-case";
 import { IntegrationHealthService } from "./integration-health.service";
+import { CpaasInboundWebhookDto, ErpJobSyncWebhookDto } from "./dto/webhook.dto";
+import {
+  CpaasWebhookResponse,
+  ErpWebhookResponse,
+  IntegrationHealthResponse,
+} from "./dto/fleet.schema";
 
 @ApiTags("Webhooks")
 @Controller("webhooks")
@@ -39,6 +45,8 @@ export class WebhookController {
 
   @Post("cpaas")
   @ApiOperation({ summary: "CPaaS inbound webhook — K01/K02" })
+  @ApiBody({ type: CpaasInboundWebhookDto })
+  @ApiOkResponse({ type: CpaasWebhookResponse })
   async handleCpaas(
     @Req() req: RawBodyRequest<{ ip?: string }>,
     @Headers("x-hub-signature-256") sigHeader: string | undefined,
@@ -66,6 +74,8 @@ export class WebhookController {
 
   @Post("erp")
   @ApiOperation({ summary: "ERP/TMS job sync webhook — K05" })
+  @ApiBody({ type: ErpJobSyncWebhookDto })
+  @ApiOkResponse({ type: ErpWebhookResponse })
   async handleErp(
     @Req() req: RawBodyRequest<object>,
     @Headers("x-hub-signature-256") sigHeader: string | undefined,
@@ -85,8 +95,9 @@ export class WebhookController {
 
   @Get("health")
   @ApiOperation({ summary: "Integration health — K06" })
+  @ApiOkResponse({ type: IntegrationHealthResponse })
   getIntegrationHealth() {
-    return { status: true, data: this.integrationHealth.getAll() };
+    return { status: true, message: "success", data: this.integrationHealth.getAll() };
   }
 
   private verifyIp(ip: string | undefined): void {

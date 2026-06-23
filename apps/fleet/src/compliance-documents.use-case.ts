@@ -11,6 +11,18 @@ import {
 
 export class ComplianceDocumentNotFoundError extends Error {}
 
+export type CreateComplianceDocumentInput = {
+  documentType: string;
+  documentName: string;
+  vehicleId?: string | null;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  reminderDays?: number;
+  fileUrl?: string | null;
+  fileSize?: number | null;
+  notes?: string | null;
+};
+
 @Injectable()
 export class ComplianceDocumentsUseCase {
   constructor(
@@ -29,12 +41,19 @@ export class ComplianceDocumentsUseCase {
     return withStatus;
   }
 
-  async create(tenantId: string, data: Omit<StoredComplianceDocument, "id" | "tenantId" | "createdAt" | "updatedAt">) {
+  async create(tenantId: string, data: CreateComplianceDocumentInput) {
     const doc: StoredComplianceDocument = {
-      ...data,
       id: randomUUID(),
       tenantId,
+      vehicleId: data.vehicleId ?? null,
+      documentType: data.documentType,
+      documentName: data.documentName,
+      issueDate: data.issueDate ?? null,
+      expiryDate: data.expiryDate ?? null,
       reminderDays: data.reminderDays ?? 30,
+      fileUrl: data.fileUrl ?? null,
+      fileSize: data.fileSize ?? null,
+      notes: data.notes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

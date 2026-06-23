@@ -60,8 +60,24 @@ import {
   UpdateVehicleDto,
   VehicleListQueryDto,
 } from "./dto/vehicle.dto";
-import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
+import {
+  CreateGeofenceZoneDto,
+  LocationUpdateDto,
+  SetGeofenceDto,
+  SetGeofenceVehiclesDto,
+  UpdateGeofenceZoneDto,
+} from "./dto/geofence.dto";
 import { FuelListQueryDto, FuelMetricsQueryDto, FuelThresholdDto, RecordFuelDto, UpdateFuelRecordDto } from "./dto/fuel.dto";
+import { CreateMaintenanceRecordDto, UpdateMaintenanceRecordDto } from "./dto/maintenance-record.dto";
+import { CreateMaintenanceProfileDto } from "./dto/maintenance-profile.dto";
+import {
+  CreateComplianceDocumentDto,
+  RenewComplianceDocumentDto,
+  SetComplianceReminderDto,
+  UpdateComplianceDocumentDto,
+  UploadComplianceDocumentDto,
+} from "./dto/compliance-document.dto";
+import { ComputeProfitabilityDto, UpsertFinancialConfigDto } from "./dto/financials.dto";
 import {
   AccessLogListResponse,
   AlertListResponse,
@@ -1512,7 +1528,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create maintenance profile" })
   @ApiCreatedResponse({ description: "Maintenance profile created" })
-  async createMaintenanceProfile(@Body() body: any, @Req() req: FleetRequestContext) {
+  async createMaintenanceProfile(@Body() body: CreateMaintenanceProfileDto, @Req() req: FleetRequestContext) {
     const data = await this.maintenanceProfilesUseCase.create(this.tenantIdFromRequest(req), body);
     return { status: true, message: "success", data };
   }
@@ -1589,7 +1605,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create geofence zone" })
   @ApiCreatedResponse({ description: "Zone created" })
-  async createGeofenceZone(@Body() body: any, @Req() req: FleetRequestContext) {
+  async createGeofenceZone(@Body() body: CreateGeofenceZoneDto, @Req() req: FleetRequestContext) {
     const data = await this.geofenceZonesUseCase.create(this.tenantIdFromRequest(req), body);
     return { status: true, message: "success", data };
   }
@@ -1598,7 +1614,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update geofence zone" })
   @ApiOkResponse({ description: "Zone updated" })
-  async updateGeofenceZone(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+  async updateGeofenceZone(@Param("id") id: string, @Body() body: UpdateGeofenceZoneDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.geofenceZonesUseCase.update(this.tenantIdFromRequest(req), id, body);
       return { status: true, message: "success", data };
@@ -1626,7 +1642,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set vehicle assignments for a geofence zone" })
   @ApiOkResponse({ description: "Assignments updated" })
-  async setGeofenceVehicleAssignments(@Param("id") id: string, @Body() body: { vehicleIds: string[] }, @Req() req: FleetRequestContext) {
+  async setGeofenceVehicleAssignments(@Param("id") id: string, @Body() body: SetGeofenceVehiclesDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.geofenceZonesUseCase.setVehicleAssignments(this.tenantIdFromRequest(req), id, body.vehicleIds ?? []);
       return { status: true, message: "success", data };
@@ -1665,7 +1681,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create maintenance record" })
   @ApiCreatedResponse({ description: "Record created" })
-  async createMaintenanceRecord(@Body() body: any, @Req() req: FleetRequestContext) {
+  async createMaintenanceRecord(@Body() body: CreateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
     const data = await this.maintenanceRecordsUseCase.create(this.tenantIdFromRequest(req), body);
     return { status: true, message: "success", data };
   }
@@ -1708,7 +1724,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update maintenance record" })
   @ApiOkResponse({ description: "Updated" })
-  async updateMaintenanceRecord(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+  async updateMaintenanceRecord(@Param("id") id: string, @Body() body: UpdateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.maintenanceRecordsUseCase.update(this.tenantIdFromRequest(req), id, body);
       return { status: true, message: "success", data };
@@ -1796,7 +1812,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create compliance document" })
   @ApiCreatedResponse({ description: "Document created" })
-  async createComplianceDocument(@Body() body: any, @Req() req: FleetRequestContext) {
+  async createComplianceDocument(@Body() body: CreateComplianceDocumentDto, @Req() req: FleetRequestContext) {
     const data = await this.complianceDocumentsUseCase.create(this.tenantIdFromRequest(req), body);
     return { status: true, message: "success", data };
   }
@@ -1825,7 +1841,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update compliance document" })
   @ApiOkResponse({ description: "Updated" })
-  async updateComplianceDocument(@Param("id") id: string, @Body() body: any, @Req() req: FleetRequestContext) {
+  async updateComplianceDocument(@Param("id") id: string, @Body() body: UpdateComplianceDocumentDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.complianceDocumentsUseCase.update(this.tenantIdFromRequest(req), id, body);
       return { status: true, message: "success", data };
@@ -1853,7 +1869,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set file URL for a compliance document" })
   @ApiOkResponse({ description: "File URL updated" })
-  async uploadComplianceDocument(@Param("id") id: string, @Body() body: { fileUrl: string; fileSize?: number }, @Req() req: FleetRequestContext) {
+  async uploadComplianceDocument(@Param("id") id: string, @Body() body: UploadComplianceDocumentDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.complianceDocumentsUseCase.setFileUrl(this.tenantIdFromRequest(req), id, body.fileUrl, body.fileSize ?? null);
       return { status: true, message: "success", data };
@@ -1867,7 +1883,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Renew a compliance document" })
   @ApiOkResponse({ description: "Document renewed" })
-  async renewComplianceDocument(@Param("id") id: string, @Body() body: { expiryDate?: string; fileUrl?: string; fileSize?: number }, @Req() req: FleetRequestContext) {
+  async renewComplianceDocument(@Param("id") id: string, @Body() body: RenewComplianceDocumentDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.complianceDocumentsUseCase.renew(this.tenantIdFromRequest(req), id, body);
       return { status: true, message: "success", data };
@@ -1881,7 +1897,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set reminder days for a compliance document" })
   @ApiOkResponse({ description: "Reminder updated" })
-  async setComplianceDocumentReminder(@Param("id") id: string, @Body() body: { reminderDays: number }, @Req() req: FleetRequestContext) {
+  async setComplianceDocumentReminder(@Param("id") id: string, @Body() body: SetComplianceReminderDto, @Req() req: FleetRequestContext) {
     try {
       const data = await this.complianceDocumentsUseCase.updateReminder(this.tenantIdFromRequest(req), id, body.reminderDays);
       return { status: true, message: "success", data };
@@ -1906,7 +1922,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Compute per-vehicle profitability" })
   @ApiOkResponse({ description: "Profitability array" })
-  async computeProfitability(@Body() body: { periodMonths?: number }, @Req() req: FleetRequestContext) {
+  async computeProfitability(@Body() body: ComputeProfitabilityDto, @Req() req: FleetRequestContext) {
     const data = await this.fleetFinancialsUseCase.computeProfitability(this.tenantIdFromRequest(req), body.periodMonths ?? 1);
     return { status: true, message: "success", data };
   }
@@ -1942,7 +1958,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Upsert financial config for a vehicle" })
   @ApiOkResponse({ description: "Config upserted" })
-  async upsertFinancialConfig(@Param("vehicleId") vehicleId: string, @Body() body: any, @Req() req: FleetRequestContext) {
+  async upsertFinancialConfig(@Param("vehicleId") vehicleId: string, @Body() body: UpsertFinancialConfigDto, @Req() req: FleetRequestContext) {
     const data = await this.fleetFinancialsUseCase.upsertConfig(this.tenantIdFromRequest(req), vehicleId, body);
     return { status: true, message: "success", data };
   }
