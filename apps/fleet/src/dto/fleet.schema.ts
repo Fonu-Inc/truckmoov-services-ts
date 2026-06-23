@@ -696,6 +696,28 @@ export class FuelThresholdListResponse extends StandardApiResponse<FuelThreshold
   data!: FuelThresholdSchema[];
 }
 
+export class VehicleSafetyRadarSchema {
+  @ApiProperty({ description: "Average braking score (0-100)" })
+  braking!: number;
+
+  @ApiProperty({ description: "Average acceleration score (0-100)" })
+  acceleration!: number;
+
+  @ApiProperty({ description: "Average speed-control score (0-100)" })
+  speedControl!: number;
+
+  @ApiProperty({ description: "Average cornering score (0-100)" })
+  cornering!: number;
+
+  @ApiProperty()
+  periodDays!: number;
+}
+
+export class VehicleSafetyRadarResponse extends StandardApiResponse<VehicleSafetyRadarSchema> {
+  @ApiProperty({ type: VehicleSafetyRadarSchema })
+  data!: VehicleSafetyRadarSchema;
+}
+
 /* ── Webhooks ──────────────────────────────────────────────────────────── */
 
 export class CpaasWebhookDataSchema {

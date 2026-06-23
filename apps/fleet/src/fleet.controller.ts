@@ -23,6 +23,8 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -91,6 +93,7 @@ import {
   BulkVehicleImportResponse,
   ComplianceDocumentListResponse,
   ComplianceDocumentResponse,
+  VehicleSafetyRadarResponse,
   ComplianceSummaryResponse,
   DeviceAssignmentValidationResponse,
   DeviceListResponse,
@@ -1519,7 +1522,7 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet safety radar", description: "Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
-  @ApiOkResponse({ description: "Average behavior scores per dimension (0-100)" })
+  @ApiOkResponse({ description: "Average behavior scores per dimension (0-100)", type: VehicleSafetyRadarResponse })
   async getVehicleSafetyRadar(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
     return { status: true, message: "success", data };
@@ -2257,6 +2260,8 @@ export class FleetController {
   @Post("documents")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @UseInterceptors(FileInterceptor("file"))
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({ schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } })
   @ApiOperation({ summary: "Upload document — J01" })
   @ApiCreatedResponse({ type: DocumentResponse })
   async uploadDocument(
