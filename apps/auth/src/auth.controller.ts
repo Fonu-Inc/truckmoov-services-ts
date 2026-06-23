@@ -199,6 +199,19 @@ import {
   CarrierDistributionResponse,
   SubscriptionUsageResponse,
   BundleRatesListResponse,
+  PaymentIntentResponse,
+  ExchangeRateResponse,
+  EnterpriseEnquiryResponse,
+  SubscriptionCapsResponse,
+  RequestIdResponse,
+  IdResponse,
+  RegisterSimsResultResponse,
+  FeatureTogglesResponse,
+  CompleteOnboardingResponse,
+  WalletTopUpResponse,
+  EnabledResponse,
+  AllocateBundleResponse,
+  PaystackWebhookAckSchema,
 } from './dto/auth.schema';
 import { ResendInviteDto } from './dto/resend-invite.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
@@ -340,6 +353,7 @@ import {
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
 import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-setup-request.use-case';
 import { RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
+import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
 import { AppConfigService } from '@shared/config';
 import {
   CreatePaymentIntentDto,
@@ -4602,7 +4616,7 @@ export class AuthController {
 
   @Get('onboarding/exchange-rate')
   @ApiOperation({ summary: 'Current NGN/USD exchange rate', description: 'Live rate from ExchangeRate-API; cached 30 min.' })
-  @ApiOkResponse({ description: 'Exchange rate data' })
+  @ApiOkResponse({ description: 'Exchange rate data', type: ExchangeRateResponse })
   async getExchangeRate() {
     return this.getExchangeRateUseCase.execute();
   }
@@ -4610,7 +4624,7 @@ export class AuthController {
   @Post('onboarding/payment/intent')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create payment intent', description: 'Initialises a Paystack transaction (card) or MoMo USSD push. Returns authorization URL or USSD string.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: PaymentIntentResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiBadRequestResponse({ description: 'Plan not found or invalid gateway' })
   async createPaymentIntent(
@@ -4632,6 +4646,7 @@ export class AuthController {
   @Sse('onboarding/payment/events')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Subscribe to payment confirmation events (SSE)', description: 'Server-sent event stream. Emits once when the Paystack webhook confirms payment and activates the subscription.' })
+  @ApiOkResponse({ description: 'Server-sent events stream (text/event-stream)', content: { 'text/event-stream': {} } })
   onboardingPaymentEvents(
     @Headers('authorization') authorization?: string,
   ): Observable<{ data: unknown }> {
@@ -4642,7 +4657,8 @@ export class AuthController {
 
   @Post('onboarding/payment/webhook')
   @ApiOperation({ summary: 'Paystack payment webhook (no auth)', description: 'Receives charge.success events from Paystack. Validates HMAC signature, activates subscription, emits SSE to tenant.' })
-  @ApiCreatedResponse()
+  @ApiBody({ type: PaystackWebhookDto })
+  @ApiCreatedResponse({ description: 'Acknowledged', type: PaystackWebhookAckSchema })
   async paystackWebhook(
     @Req() req: RawBodyRequest<{ headers: Record<string, string | undefined> }>,
     @Body() body: Record<string, unknown>,
@@ -4681,7 +4697,7 @@ export class AuthController {
   @Post('onboarding/enterprise/enquiry')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit enterprise plan enquiry', description: 'Creates a support ticket of category enterprise_enquiry for the sales team.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: EnterpriseEnquiryResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async submitEnterpriseEnquiry(
     @Body(BodyOrDataPipe) payload: EnterpriseEnquiryDto,
@@ -4701,7 +4717,7 @@ export class AuthController {
   @Get('onboarding/subscription/caps')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get device & SIM caps for active plan', description: 'Returns maxDevices, maxSims, maxUsers from the tenant\'s active subscription plan.' })
-  @ApiOkResponse({ description: 'Subscription capability limits' })
+  @ApiOkResponse({ description: 'Subscription capability limits', type: SubscriptionCapsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async getSubscriptionCaps(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
@@ -4886,7 +4902,7 @@ export class AuthController {
   @Post('onboarding/devices/provision')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit device provisioning request', description: 'Submits a fleet device provisioning request (manufacturer, model, quantity). Reviewed by system team.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: RequestIdResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async submitDeviceProvisioningRequest(
     @Body(BodyOrDataPipe) payload: SubmitDeviceProvisioningRequestDto,
@@ -4906,7 +4922,7 @@ export class AuthController {
   @Post('onboarding/sims/register')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register individual SIMs', description: 'Registers one or more SIMs (by ICCID + mobile number + operator) directly to the tenant in the SIM inventory.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: RegisterSimsResultResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async registerSims(
     @Body(BodyOrDataPipe) payload: RegisterSimsDto,
@@ -4958,7 +4974,7 @@ export class AuthController {
   @Post('onboarding/sims/provision')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit SIM provisioning request', description: 'Submits a SIM provisioning request to Fonu. Reviewed and fulfilled by the system team.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: RequestIdResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async submitSimProvisioningRequest(
     @Body(BodyOrDataPipe) payload: SubmitSimProvisioningRequestDto,
@@ -4978,7 +4994,7 @@ export class AuthController {
   @Put('onboarding/features')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Save feature toggle preferences', description: 'Updates feature toggles (live_tracking, geofencing, etc.) on the tenant onboarding record.' })
-  @ApiOkResponse()
+  @ApiOkResponse({ type: FeatureTogglesResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiNotFoundResponse({ description: 'Onboarding record not found' })
   async saveFeatureToggles(
@@ -5000,7 +5016,7 @@ export class AuthController {
   @Post('onboarding/complete')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mark onboarding as complete', description: 'Sets onboarding_completed_at server-side so completion persists across devices and sessions.' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: CompleteOnboardingResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiConflictResponse({ description: 'Onboarding already completed' })
   async completeOnboarding(@Headers('authorization') authorization?: string) {
@@ -5162,7 +5178,7 @@ export class AuthController {
   @Post('sims/requests')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit SIM provisioning request' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: RequestIdResponse })
   async submitTenantSimRequest(@Body() payload: SubmitSimRequestDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5195,7 +5211,7 @@ export class AuthController {
   @Post('sims')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register a SIM' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: IdResponse })
   async registerTenantSim(@Body() payload: RegisterTenantSimDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5315,7 +5331,7 @@ export class AuthController {
   @Post('system/carriers')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create carrier (system admin)' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: SystemCarrierActionResponse })
   async createSystemCarrier(@Body() payload: CreateCarrierDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5347,7 +5363,7 @@ export class AuthController {
   @Post('system/bundle-catalog')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create bundle plan (system admin)' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: SystemBundleActionResponse })
   async createSystemBundle(@Body() payload: CreateBundleDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5429,7 +5445,7 @@ export class AuthController {
   @Post('data-bundles/wallet/topup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Top up wallet via mobile money (stub)' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: WalletTopUpResponse })
   async topUpWallet(@Body() payload: TopUpWalletDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5461,7 +5477,7 @@ export class AuthController {
   @Post('data-bundles/spending-limit')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Save spending limit settings' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: EnabledResponse })
   async saveSpendingLimit(@Body() payload: SaveSpendingLimitDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5509,7 +5525,7 @@ export class AuthController {
   @Post('data-bundles/auto-topup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Save auto top-up settings' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: EnabledResponse })
   async saveAutoTopUp(@Body() payload: SaveAutoTopUpDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -5592,7 +5608,7 @@ export class AuthController {
   @Post('data-bundles/allocations')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Allocate bundle to SIMs' })
-  @ApiCreatedResponse()
+  @ApiCreatedResponse({ type: AllocateBundleResponse })
   async allocateBundle(@Body() payload: AllocateBundleDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');

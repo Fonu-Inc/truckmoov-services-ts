@@ -2305,3 +2305,154 @@ export class DeviceMappingUploadResponse extends StandardApiResponse<DeviceMappi
   @ApiProperty({ type: DeviceMappingUploadDataSchema })
   data!: DeviceMappingUploadDataSchema;
 }
+
+/* ── Onboarding Payment / Misc Schemas ──────────────────────────────────── */
+
+export class PaymentIntentDataSchema {
+  @ApiProperty({ enum: ['paystack', 'momo'] }) gateway!: 'paystack' | 'momo';
+  @ApiProperty() reference!: string;
+  @ApiPropertyOptional({ nullable: true, type: String }) authorizationUrl?: string | null;
+  @ApiPropertyOptional({ type: String }) accessCode?: string;
+  @ApiPropertyOptional({ type: String }) ussdString?: string;
+  @ApiPropertyOptional({ type: String }) message?: string;
+}
+
+export class PaymentIntentResponse extends StandardApiResponse<PaymentIntentDataSchema> {
+  @ApiProperty({ type: PaymentIntentDataSchema })
+  data!: PaymentIntentDataSchema;
+}
+
+export class ExchangeRateDataSchema {
+  @ApiProperty() ngnPerUsd!: number;
+  @ApiProperty({ description: 'Origin of the rate', example: 'live' }) source!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) fetchedAt!: string;
+}
+
+export class ExchangeRateResponse extends StandardApiResponse<ExchangeRateDataSchema> {
+  @ApiProperty({ type: ExchangeRateDataSchema })
+  data!: ExchangeRateDataSchema;
+}
+
+export class EnterpriseEnquiryDataSchema {
+  @ApiProperty() ticketId!: string;
+}
+
+export class EnterpriseEnquiryResponse extends StandardApiResponse<EnterpriseEnquiryDataSchema> {
+  @ApiProperty({ type: EnterpriseEnquiryDataSchema })
+  data!: EnterpriseEnquiryDataSchema;
+}
+
+export class SubscriptionCapsDataSchema {
+  @ApiProperty({ nullable: true, type: String }) planCode!: string | null;
+  @ApiProperty({ nullable: true, type: String }) planName!: string | null;
+  @ApiProperty({ nullable: true, type: String }) planTier!: string | null;
+  @ApiProperty({ nullable: true, type: Number }) maxDevices!: number | null;
+  @ApiProperty({ nullable: true, type: Number }) maxSims!: number | null;
+  @ApiProperty({ nullable: true, type: Number }) maxUsers!: number | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) subscriptionActivatedAt!: string | null;
+}
+
+export class SubscriptionCapsResponse extends StandardApiResponse<SubscriptionCapsDataSchema> {
+  @ApiProperty({ type: SubscriptionCapsDataSchema })
+  data!: SubscriptionCapsDataSchema;
+}
+
+export class RequestIdDataSchema {
+  @ApiProperty() requestId!: string;
+}
+
+export class RequestIdResponse extends StandardApiResponse<RequestIdDataSchema> {
+  @ApiProperty({ type: RequestIdDataSchema })
+  data!: RequestIdDataSchema;
+}
+
+export class IdDataSchema {
+  @ApiProperty() id!: string;
+}
+
+export class IdResponse extends StandardApiResponse<IdDataSchema> {
+  @ApiProperty({ type: IdDataSchema })
+  data!: IdDataSchema;
+}
+
+export class RegisterSimsResultDataSchema {
+  @ApiProperty({ description: 'Number of SIMs registered' }) registered!: number;
+}
+
+export class RegisterSimsResultResponse extends StandardApiResponse<RegisterSimsResultDataSchema> {
+  @ApiProperty({ type: RegisterSimsResultDataSchema })
+  data!: RegisterSimsResultDataSchema;
+}
+
+export class FeatureTogglesSchema {
+  @ApiPropertyOptional() liveTracking?: boolean;
+  @ApiPropertyOptional() geofencing?: boolean;
+  @ApiPropertyOptional() routeOptimization?: boolean;
+  @ApiPropertyOptional() messaging?: boolean;
+  @ApiPropertyOptional() advancedAnalytics?: boolean;
+  @ApiPropertyOptional() apiAccess?: boolean;
+}
+
+export class FeatureTogglesDataSchema {
+  @ApiProperty({ type: FeatureTogglesSchema }) features!: FeatureTogglesSchema;
+}
+
+export class FeatureTogglesResponse extends StandardApiResponse<FeatureTogglesDataSchema> {
+  @ApiProperty({ type: FeatureTogglesDataSchema })
+  data!: FeatureTogglesDataSchema;
+}
+
+export class CompleteOnboardingDataSchema {
+  @ApiProperty({ type: String, format: 'date-time' }) completedAt!: string;
+}
+
+export class CompleteOnboardingResponse extends StandardApiResponse<CompleteOnboardingDataSchema> {
+  @ApiProperty({ type: CompleteOnboardingDataSchema })
+  data!: CompleteOnboardingDataSchema;
+}
+
+export class WalletTopUpDataSchema {
+  @ApiProperty() transactionId!: string;
+  @ApiProperty() paymentReference!: string;
+  @ApiProperty() amount!: number;
+  @ApiProperty({ enum: ['pending'] }) status!: 'pending';
+  @ApiProperty() paymentProvider!: string;
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+}
+
+export class WalletTopUpResponse extends StandardApiResponse<WalletTopUpDataSchema> {
+  @ApiProperty({ type: WalletTopUpDataSchema })
+  data!: WalletTopUpDataSchema;
+}
+
+export class EnabledDataSchema {
+  @ApiProperty() enabled!: boolean;
+}
+
+export class EnabledResponse extends StandardApiResponse<EnabledDataSchema> {
+  @ApiProperty({ type: EnabledDataSchema })
+  data!: EnabledDataSchema;
+}
+
+export class AllocateBundleFailureSchema {
+  @ApiProperty() mobileNumber!: string;
+  @ApiProperty() reason!: string;
+}
+
+export class AllocateBundleDataSchema {
+  @ApiProperty({ type: String, isArray: true }) allocationIds!: string[];
+  @ApiProperty() totalAmount!: number;
+  @ApiProperty() successfulCount!: number;
+  @ApiProperty() failedCount!: number;
+  @ApiPropertyOptional({ type: AllocateBundleFailureSchema, isArray: true }) failures?: AllocateBundleFailureSchema[];
+}
+
+export class AllocateBundleResponse extends StandardApiResponse<AllocateBundleDataSchema> {
+  @ApiProperty({ type: AllocateBundleDataSchema })
+  data!: AllocateBundleDataSchema;
+}
+
+export class PaystackWebhookAckSchema {
+  @ApiProperty() received!: boolean;
+}
