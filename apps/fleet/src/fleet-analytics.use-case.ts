@@ -59,7 +59,7 @@ export class FleetAnalyticsUseCase {
     };
   }
 
-  async fleetStatus(tenantId: string) {
+  async fleetStatus(tenantId: string, periodDays = 30) {
     const vehicles = await this.vehicleRepo.findAll({ tenantId });
     const byStatus: Record<string, number> = {};
     for (const v of vehicles) {
@@ -75,6 +75,7 @@ export class FleetAnalyticsUseCase {
         type: v.type,
         assignedDriverId: v.assignedDriverId,
       })),
+      periodDays,
     };
   }
 
@@ -89,14 +90,17 @@ export class FleetAnalyticsUseCase {
     return { total: recent.length, byStatus, periodDays };
   }
 
-  async fuelLevels(tenantId: string) {
+  async fuelLevels(tenantId: string, periodDays = 30) {
     const vehicles = await this.vehicleRepo.findAll({ tenantId });
-    return vehicles.map((v) => ({
-      vehicleId: v.id,
-      plateNumber: v.plateNumber,
-      fuelLevelPercent: null as number | null,
-      lastUpdated: null as string | null,
-    }));
+    return {
+      periodDays,
+      vehicles: vehicles.map((v) => ({
+        vehicleId: v.id,
+        plateNumber: v.plateNumber,
+        fuelLevelPercent: null as number | null,
+        lastUpdated: null as string | null,
+      })),
+    };
   }
 
   async driverScores(tenantId: string, periodDays = 30, limit = 20) {
@@ -132,6 +136,49 @@ export class FleetAnalyticsUseCase {
       .sort((a, b) => b.incidents - a.incidents)
       .slice(0, limit)
       .map((s) => ({ ...s, safetyScore: Math.max(0, 100 - s.incidents * 2) }));
+  }
+
+  async vehicleSafetyRadar(tenantId: string, periodDays = 30) {
+    const since = cutoff(periodDays);
+    const [vehicles, drivers, alerts] = await Promise.all([
+      this.vehicleRepo.findAll({ tenantId }),
+      this.driverRepo.findAll({ tenantId }),
+      this.alertRepo.findAll(tenantId),
+    ]);
+    const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
+    const vehicleToDriver = new Map(
+      vehicles.filter((v) => v.assignedDriverId).map((v) => [v.id, v.assignedDriverId!]),
+    );
+    const driverIds = new Set(drivers.map((d) => d.id));
+
+    const counts = new Map<string, { braking: number; acceleration: number; speedControl: number; cornering: number }>();
+    for (const driverId of driverIds) {
+      counts.set(driverId, { braking: 0, acceleration: 0, speedControl: 0, cornering: 0 });
+    }
+
+    for (const alert of recentAlerts) {
+      if (!alert.vehicleId) continue;
+      const driverId = vehicleToDriver.get(alert.vehicleId);
+      if (!driverId || !counts.has(driverId)) continue;
+      const entry = counts.get(driverId)!;
+      if (alert.type.includes("harsh_braking")) entry.braking++;
+      if (alert.type.includes("harsh_acceleration")) entry.acceleration++;
+      if (alert.type.includes("overspeeding") || alert.type.includes("speeding")) entry.speedControl++;
+      if (alert.type.includes("harsh_cornering") || alert.type.includes("cornering")) entry.cornering++;
+    }
+
+    const entries = [...counts.values()];
+    const total = entries.length || 1;
+    const avg = (key: keyof (typeof entries)[0]) =>
+      Math.round(entries.reduce((sum, e) => sum + Math.max(0, 100 - (e[key] as number) * 2), 0) / total);
+
+    return {
+      braking: avg("braking"),
+      acceleration: avg("acceleration"),
+      speedControl: avg("speedControl"),
+      cornering: avg("cornering"),
+      periodDays,
+    };
   }
 
   async events(tenantId: string, periodDays = 30, limit = 50, severity?: string) {

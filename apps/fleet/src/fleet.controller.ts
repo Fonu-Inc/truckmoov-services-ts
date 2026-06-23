@@ -1408,9 +1408,10 @@ export class FleetController {
   @Get("analytics/fleet-status")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet status breakdown", description: "Vehicles grouped by status for the calling tenant." })
+  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
   @ApiOkResponse({ description: "Fleet status breakdown" })
-  async getFleetStatus(@Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.fleetStatus(this.tenantIdFromRequest(req));
+  async getFleetStatus(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.fleetStatus(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
     return { status: true, message: "success", data };
   }
 
@@ -1427,9 +1428,10 @@ export class FleetController {
   @Get("analytics/fuel-levels")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel levels", description: "Per-vehicle fuel level (from telemetry where available)." })
+  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
   @ApiOkResponse({ description: "Fuel level array per vehicle" })
-  async getFuelLevels(@Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.fuelLevels(this.tenantIdFromRequest(req));
+  async getFuelLevels(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.fuelLevels(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
     return { status: true, message: "success", data };
   }
 
@@ -1467,6 +1469,16 @@ export class FleetController {
       parseInt(limit ?? "50", 10),
       severity,
     );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("analytics/vehicle-safety-radar")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Fleet safety radar", description: "Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period." })
+  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiOkResponse({ description: "Average behavior scores per dimension (0-100)" })
+  async getVehicleSafetyRadar(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
     return { status: true, message: "success", data };
   }
 
