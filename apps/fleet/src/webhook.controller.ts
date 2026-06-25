@@ -5,7 +5,6 @@ import {
   Get,
   Headers,
   Inject,
-  Logger,
   Post,
   RawBodyRequest,
   Req,
@@ -13,63 +12,22 @@ import {
 import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AppConfigService } from "@shared/config";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { ProcessCpaasReplyUseCase } from "./contexts/fleet/integrations/application/process-cpaas-reply.use-case";
 import { SyncErpJobUseCase, type ErpJobPayload } from "./contexts/fleet/integrations/application/sync-erp-job.use-case";
 import { IntegrationHealthService } from "./integration-health.service";
-import { CpaasInboundWebhookDto, ErpJobSyncWebhookDto } from "./dto/webhook.dto";
-import {
-  CpaasWebhookResponse,
-  ErpWebhookResponse,
-  IntegrationHealthResponse,
-} from "./dto/fleet.schema";
+import { ErpJobSyncWebhookDto } from "./dto/webhook.dto";
+import { ErpWebhookResponse, IntegrationHealthResponse } from "./dto/fleet.schema";
 
 @ApiTags("Webhooks")
 @Controller("webhooks")
 export class WebhookController {
-  private readonly logger = new Logger(WebhookController.name);
-  private readonly webhookSecret: string;
-  private readonly ipAllowlist: Set<string>;
   private readonly erpSecret: string;
 
   constructor(
-    private readonly processCpaasReply: ProcessCpaasReplyUseCase,
     private readonly syncErpJob: SyncErpJobUseCase,
     private readonly integrationHealth: IntegrationHealthService,
     @Inject(AppConfigService) config: AppConfigService,
   ) {
-    this.webhookSecret = config.webhooks.cpaasSecret;
     this.erpSecret = config.webhooks.erpSecret;
-    const raw = config.webhooks.cpaasIpAllowlist;
-    this.ipAllowlist = new Set(raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : []);
-  }
-
-  @Post("cpaas")
-  @ApiOperation({ summary: "CPaaS inbound webhook — K01/K02" })
-  @ApiBody({ type: CpaasInboundWebhookDto })
-  @ApiOkResponse({ type: CpaasWebhookResponse })
-  async handleCpaas(
-    @Req() req: RawBodyRequest<{ ip?: string }>,
-    @Headers("x-hub-signature-256") sigHeader: string | undefined,
-    @Body() body: Record<string, string>,
-  ): Promise<{ ok: boolean }> {
-    try {
-      this.verifyIp(req.ip);
-      this.verifySignature(req.rawBody, sigHeader, this.webhookSecret);
-
-      const from = (body["From"] ?? "").replace(/^whatsapp:/, "");
-      const text = body["Body"] ?? "";
-      const tenantId = body["tenant_id"] ?? "default";
-
-      if (from && text) {
-        await this.processCpaasReply.execute(tenantId, from, text);
-      }
-
-      this.integrationHealth.recordSuccess("cpaas");
-      return { ok: true };
-    } catch (err) {
-      this.integrationHealth.recordFailure("cpaas");
-      throw err;
-    }
   }
 
   @Post("erp")
@@ -98,13 +56,6 @@ export class WebhookController {
   @ApiOkResponse({ type: IntegrationHealthResponse })
   getIntegrationHealth() {
     return { status: true, message: "success", data: this.integrationHealth.getAll() };
-  }
-
-  private verifyIp(ip: string | undefined): void {
-    if (this.ipAllowlist.size === 0) return;
-    if (!ip || !this.ipAllowlist.has(ip)) {
-      throw new ForbiddenException("IP not in allowlist");
-    }
   }
 
   private verifySignature(rawBody: Buffer | undefined, sigHeader: string | undefined, secret: string): void {

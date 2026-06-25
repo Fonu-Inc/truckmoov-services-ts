@@ -37,8 +37,6 @@ export class AppConfigService {
 
   get webhooks() {
     return {
-      cpaasSecret: this.config.get<string>("CPAAS_WEBHOOK_SECRET", ""),
-      cpaasIpAllowlist: this.config.get<string>("CPAAS_IP_ALLOWLIST", ""),
       erpSecret: this.config.get<string>("ERP_WEBHOOK_SECRET", ""),
     };
   }

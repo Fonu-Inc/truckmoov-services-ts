@@ -5,6 +5,7 @@ export type AuditEntityType =
   | "vehicle"
   | "driver"
   | "device"
+  | "device_setup_request"
   | "fuel"
   | "alert"
   | "document"

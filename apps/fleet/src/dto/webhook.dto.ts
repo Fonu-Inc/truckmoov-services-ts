@@ -9,17 +9,6 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
  * `forbidNonWhitelisted` ValidationPipe would otherwise reject. The runtime
  * body stays permissive; HMAC signature verification guards authenticity.
  */
-export class CpaasInboundWebhookDto {
-  @ApiProperty({ description: "Sender address (may be prefixed with 'whatsapp:')" })
-  From!: string;
-
-  @ApiProperty({ description: "Message text body" })
-  Body!: string;
-
-  @ApiPropertyOptional({ description: "Tenant identifier; defaults to 'default'" })
-  tenant_id?: string;
-}
-
 export class ErpJobDataDto {
   @ApiPropertyOptional()
   referenceId?: string;

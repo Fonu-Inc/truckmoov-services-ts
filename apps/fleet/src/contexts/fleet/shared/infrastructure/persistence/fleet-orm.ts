@@ -390,6 +390,69 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
   indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
 });
 
+export class DeviceSetupRequestRecord {
+  id!: string;
+  tenantId!: string;
+  requestedByUserId?: string | null;
+  organisationName?: string | null;
+  requestingEmail?: string | null;
+  manufacturer!: string;
+  model?: string | null;
+  trackerType!: string;
+  quantity!: number;
+  simRequired!: boolean;
+  carrierId?: string | null;
+  planType?: string | null;
+  bundleId?: string | null;
+  vehicleId?: string | null;
+  state?: string | null;
+  city?: string | null;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
+  useCase!: string;
+  notes?: string | null;
+  status!: string;
+  timeline!: { status: string; at: string; note?: string | null }[];
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupRequestRecord>({
+  class: DeviceSetupRequestRecord,
+  tableName: "fleet_device_setup_requests",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    requestedByUserId: { type: "string", length: 64, nullable: true },
+    organisationName: { type: "string", length: 255, nullable: true },
+    requestingEmail: { type: "string", length: 255, nullable: true },
+    manufacturer: { type: "string", length: 64 },
+    model: { type: "string", length: 64, nullable: true },
+    trackerType: { type: "string", length: 32 },
+    quantity: { type: "integer", defaultRaw: "1" },
+    simRequired: { type: "boolean", defaultRaw: "false" },
+    carrierId: { type: "string", length: 64, nullable: true },
+    planType: { type: "string", length: 32, nullable: true },
+    bundleId: { type: "string", length: 64, nullable: true },
+    vehicleId: { type: "string", length: 64, nullable: true },
+    state: { type: "string", length: 64, nullable: true },
+    city: { type: "string", length: 64, nullable: true },
+    preferredDate: { type: "string", length: 32, nullable: true },
+    preferredTime: { type: "string", length: 32, nullable: true },
+    useCase: { type: "text" },
+    notes: { type: "text", nullable: true },
+    status: { type: "string", length: 32, defaultRaw: "'pending_review'" },
+    timeline: { type: "json" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [
+    { properties: ["tenantId", "status"] },
+    { properties: ["tenantId", "createdAt"] },
+    { properties: ["vehicleId"] },
+  ],
+});
+
 let ormPromise: Promise<MikroORM> | null = null;
 
 export async function getFleetOrm(cfg: DbConfig) {
@@ -409,6 +472,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       MaintenanceRecordOrmSchema,
       ComplianceDocumentRecordSchema,
       FleetFinancialConfigRecordSchema,
+      DeviceSetupRequestRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

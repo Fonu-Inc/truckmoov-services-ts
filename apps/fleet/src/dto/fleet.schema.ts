@@ -125,6 +125,50 @@ export class DeviceListResponse extends StandardApiResponse<DeviceSchema[]> {
   data!: DeviceSchema[];
 }
 
+export class DeviceSetupRequestTimelineEntrySchema {
+  @ApiProperty() status!: string;
+  @ApiProperty() at!: string;
+  @ApiProperty({ nullable: true }) note!: string | null;
+}
+
+export class DeviceSetupRequestSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ nullable: true }) requestedByUserId!: string | null;
+  @ApiProperty({ nullable: true }) organisationName!: string | null;
+  @ApiProperty({ nullable: true }) requestingEmail!: string | null;
+  @ApiProperty() manufacturer!: string;
+  @ApiProperty({ nullable: true }) model!: string | null;
+  @ApiProperty() trackerType!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() simRequired!: boolean;
+  @ApiProperty({ nullable: true }) carrierId!: string | null;
+  @ApiProperty({ nullable: true }) planType!: string | null;
+  @ApiProperty({ nullable: true }) bundleId!: string | null;
+  @ApiProperty({ nullable: true }) vehicleId!: string | null;
+  @ApiProperty({ nullable: true }) state!: string | null;
+  @ApiProperty({ nullable: true }) city!: string | null;
+  @ApiProperty({ nullable: true }) preferredDate!: string | null;
+  @ApiProperty({ nullable: true }) preferredTime!: string | null;
+  @ApiProperty() useCase!: string;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty() status!: string;
+  @ApiProperty({ type: DeviceSetupRequestTimelineEntrySchema, isArray: true })
+  timeline!: DeviceSetupRequestTimelineEntrySchema[];
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class DeviceSetupRequestResponse extends StandardApiResponse<DeviceSetupRequestSchema> {
+  @ApiProperty({ type: DeviceSetupRequestSchema })
+  data!: DeviceSetupRequestSchema;
+}
+
+export class DeviceSetupRequestListResponse extends StandardApiResponse<DeviceSetupRequestSchema[]> {
+  @ApiProperty({ type: DeviceSetupRequestSchema, isArray: true })
+  data!: DeviceSetupRequestSchema[];
+}
+
 export class DeviceAssignmentValidationSchema {
   @ApiProperty()
   canAssign!: boolean;
@@ -719,16 +763,6 @@ export class VehicleSafetyRadarResponse extends StandardApiResponse<VehicleSafet
 }
 
 /* ── Webhooks ──────────────────────────────────────────────────────────── */
-
-export class CpaasWebhookDataSchema {
-  @ApiProperty()
-  ok!: boolean;
-}
-
-export class CpaasWebhookResponse extends StandardApiResponse<CpaasWebhookDataSchema> {
-  @ApiProperty({ type: CpaasWebhookDataSchema })
-  data!: CpaasWebhookDataSchema;
-}
 
 export class ErpWebhookDataSchema {
   @ApiProperty()

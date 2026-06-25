@@ -43,6 +43,15 @@ import {
   ValidateDeviceAssignmentUseCase,
 } from "./contexts/fleet/devices";
 import {
+  DEVICE_SETUP_REQUEST_REPOSITORY,
+  InMemoryDeviceSetupRequestRepository,
+  MikroDeviceSetupRequestRepository,
+  CreateDeviceSetupRequestUseCase,
+  ListDeviceSetupRequestsUseCase,
+  GetDeviceSetupRequestUseCase,
+  UpdateDeviceSetupRequestStatusUseCase,
+} from "./contexts/fleet/device-setup-requests";
+import {
   AssignDriverToVehicleUseCase,
   BulkImportVehiclesUseCase,
   CreateVehicleUseCase,
@@ -109,7 +118,6 @@ import {
   ListDocumentsUseCase,
   UploadDocumentUseCase,
 } from "./contexts/fleet/documents";
-import { ProcessCpaasReplyUseCase } from "./contexts/fleet/integrations/application/process-cpaas-reply.use-case";
 import { SyncErpJobUseCase } from "./contexts/fleet/integrations/application/sync-erp-job.use-case";
 import { JobSyncListener } from "./job-sync.listener";
 import { ScheduledReportService } from "./scheduled-report.service";
@@ -119,7 +127,6 @@ import { RateLimitGuard } from "./rate-limit.guard";
 import { TenantGuard } from "./tenant.guard";
 import { AuditLogService } from "./audit-log.service";
 import { AuditEventListener } from "./audit-event.listener";
-import { JobAssignmentNotifier } from "./job-assignment-notifier";
 import { AuthContextMiddleware } from "./auth-context.middleware";
 
 @Module({
@@ -157,14 +164,12 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     GetDownloadUrlUseCase,
     ListDocumentsUseCase,
     ListAccessLogUseCase,
-    ProcessCpaasReplyUseCase,
     SyncErpJobUseCase,
     IntegrationHealthService,
     RateLimitGuard,
     TenantGuard,
     AuditLogService,
     AuditEventListener,
-    JobAssignmentNotifier,
     InMemoryAlertRepository,
     {
       provide: ALERT_REPOSITORY,
@@ -223,6 +228,21 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     UnassignDeviceFromVehicleUseCase,
     SetDeviceLifecycleStatusUseCase,
     ValidateDeviceAssignmentUseCase,
+    InMemoryDeviceSetupRequestRepository,
+    MikroDeviceSetupRequestRepository,
+    {
+      provide: DEVICE_SETUP_REQUEST_REPOSITORY,
+      inject: [InMemoryDeviceSetupRequestRepository, MikroDeviceSetupRequestRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryDeviceSetupRequestRepository,
+        mikroRepository: MikroDeviceSetupRequestRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    CreateDeviceSetupRequestUseCase,
+    ListDeviceSetupRequestsUseCase,
+    GetDeviceSetupRequestUseCase,
+    UpdateDeviceSetupRequestStatusUseCase,
     InMemoryDriverRepository,
     MikroDriverRepository,
     {
