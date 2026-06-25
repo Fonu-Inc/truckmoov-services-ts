@@ -2,7 +2,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import type { DeviceLifecycleStatus } from "../../domain/entities/device.entity";
 import { Device } from "../../domain/entities/device.entity";
+import {
+  DEVICE_IDENTITY_EVENT_PUBLISHER,
+  type DeviceIdentityEventPublisher,
+} from "../../domain/ports/device-identity-event.publisher";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
+import { emitDeviceIdentity } from "./device-identity-emit";
 
 export type DeviceImportItem = {
   imei: string;
@@ -24,6 +29,8 @@ export class BulkImportDevicesUseCase {
     private readonly deviceRepository: DeviceRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
+    @Inject(DEVICE_IDENTITY_EVENT_PUBLISHER)
+    private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
   async execute(command: BulkImportDevicesCommand) {
@@ -62,6 +69,7 @@ export class BulkImportDevicesUseCase {
       }
 
       await this.deviceRepository.save(record);
+      await emitDeviceIdentity(this.identityPublisher, record, existing ? "updated" : "registered");
       records.push(record.toPrimitives());
     }
 

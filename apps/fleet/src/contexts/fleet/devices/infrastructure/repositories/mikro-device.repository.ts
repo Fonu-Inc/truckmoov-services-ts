@@ -3,6 +3,7 @@ import { AppConfigService } from "@shared/config";
 import {
   Device,
   isDeviceLifecycleStatus,
+  isDeviceProvisionStatus,
   isDeviceStatus,
 } from "../../domain/entities/device.entity";
 import type { DeviceFilters, DeviceRepository } from "../../domain/repositories/device.repository";
@@ -30,6 +31,8 @@ export class MikroDeviceRepository implements DeviceRepository {
       batteryLevel: device.batteryLevel,
       lastSeen: device.lastSeen ? new Date(device.lastSeen) : null,
       assignedAt: device.assignedAt ? new Date(device.assignedAt) : null,
+      traccarDeviceId: device.traccarDeviceId,
+      provisionStatus: device.provisionStatus,
       createdAt: new Date(device.createdAt),
       updatedAt: new Date(device.updatedAt),
     });
@@ -121,6 +124,11 @@ export class MikroDeviceRepository implements DeviceRepository {
       batteryLevel: record.batteryLevel ?? null,
       lastSeen: record.lastSeen?.toISOString() ?? null,
       assignedAt: record.assignedAt?.toISOString() ?? null,
+      traccarDeviceId: record.traccarDeviceId ?? null,
+      provisionStatus:
+        record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)
+          ? record.provisionStatus
+          : "pending",
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     });

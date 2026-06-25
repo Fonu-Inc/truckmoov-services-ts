@@ -41,6 +41,14 @@ export class AppConfigService {
     };
   }
 
+  get traccar() {
+    return {
+      baseUrl: this.config.get<string>("TRACCAR_BASE_URL", ""),
+      adminEmail: this.config.get<string>("TRACCAR_ADMIN_EMAIL", ""),
+      adminPassword: this.config.get<string>("TRACCAR_ADMIN_PASSWORD", ""),
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),

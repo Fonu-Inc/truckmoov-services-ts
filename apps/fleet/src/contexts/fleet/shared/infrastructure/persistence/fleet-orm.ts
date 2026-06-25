@@ -73,6 +73,8 @@ export class DeviceRecord {
   batteryLevel?: number | null;
   lastSeen?: Date | null;
   assignedAt?: Date | null;
+  traccarDeviceId?: string | null;
+  provisionStatus?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -180,6 +182,8 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     batteryLevel: { type: "integer", nullable: true },
     lastSeen: { type: "datetime", nullable: true },
     assignedAt: { type: "datetime", nullable: true },
+    traccarDeviceId: { type: "string", length: 64, nullable: true },
+    provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: {
       type: "datetime",

@@ -18,8 +18,15 @@ export const DEVICE_STATUSES = [
   "decommissioned",
 ] as const;
 
+export const DEVICE_PROVISION_STATUSES = ["pending", "registered", "failed"] as const;
+
 export type DeviceLifecycleStatus = (typeof DEVICE_LIFECYCLE_STATUSES)[number];
 export type DeviceStatus = (typeof DEVICE_STATUSES)[number];
+export type DeviceProvisionStatus = (typeof DEVICE_PROVISION_STATUSES)[number];
+
+export function isDeviceProvisionStatus(value: string): value is DeviceProvisionStatus {
+  return DEVICE_PROVISION_STATUSES.includes(value as DeviceProvisionStatus);
+}
 
 export function isDeviceLifecycleStatus(value: string): value is DeviceLifecycleStatus {
   return DEVICE_LIFECYCLE_STATUSES.includes(value as DeviceLifecycleStatus);
@@ -76,6 +83,8 @@ export type DeviceProps = {
   batteryLevel: number | null;
   lastSeen: string | null;
   assignedAt: string | null;
+  traccarDeviceId?: string | null;
+  provisionStatus?: DeviceProvisionStatus;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -150,6 +159,8 @@ export class Device {
       batteryLevel: props.batteryLevel ?? null,
       lastSeen: props.lastSeen ?? null,
       assignedAt: vehicleId ? (props.assignedAt ?? new Date().toISOString()) : null,
+      traccarDeviceId: props.traccarDeviceId ?? null,
+      provisionStatus: props.provisionStatus ?? "pending",
       createdAt: props.createdAt ?? new Date().toISOString(),
       updatedAt: props.updatedAt ?? new Date().toISOString(),
     });
@@ -207,6 +218,14 @@ export class Device {
     return this.props.assignedAt;
   }
 
+  get traccarDeviceId() {
+    return this.props.traccarDeviceId ?? null;
+  }
+
+  get provisionStatus(): DeviceProvisionStatus {
+    return this.props.provisionStatus ?? "pending";
+  }
+
   get createdAt() {
     return this.props.createdAt ?? new Date().toISOString();
   }
@@ -235,6 +254,19 @@ export class Device {
       signalStrength: values.signalStrength === undefined ? this.signalStrength : values.signalStrength,
       batteryLevel: values.batteryLevel === undefined ? this.batteryLevel : values.batteryLevel,
       lastSeen: values.lastSeen === undefined ? this.lastSeen : values.lastSeen,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  withProvisioning(values: {
+    traccarDeviceId?: string | null;
+    provisionStatus: DeviceProvisionStatus;
+  }): Device {
+    return Device.create({
+      ...this.toPrimitives(),
+      traccarDeviceId:
+        values.traccarDeviceId === undefined ? this.traccarDeviceId : values.traccarDeviceId,
+      provisionStatus: values.provisionStatus,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -307,6 +339,8 @@ export class Device {
       batteryLevel: this.batteryLevel,
       lastSeen: this.lastSeen,
       assignedAt: this.assignedAt,
+      traccarDeviceId: this.traccarDeviceId,
+      provisionStatus: this.provisionStatus,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

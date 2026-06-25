@@ -108,6 +108,12 @@ export class DeviceSchema {
   @ApiProperty({ nullable: true })
   assignedAt!: string | null;
 
+  @ApiProperty({ nullable: true })
+  traccarDeviceId!: string | null;
+
+  @ApiProperty({ enum: ["pending", "registered", "failed"] })
+  provisionStatus!: "pending" | "registered" | "failed";
+
   @ApiProperty()
   createdAt!: string;
 

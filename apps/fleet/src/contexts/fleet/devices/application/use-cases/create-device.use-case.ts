@@ -2,7 +2,16 @@ import { Inject, Injectable } from "@nestjs/common";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import { Device, type DeviceLifecycleStatus } from "../../domain/entities/device.entity";
+import {
+  DEVICE_IDENTITY_EVENT_PUBLISHER,
+  type DeviceIdentityEventPublisher,
+} from "../../domain/ports/device-identity-event.publisher";
+import {
+  TRACCAR_DEVICE_PROVISIONER,
+  type TraccarDeviceProvisioner,
+} from "../../domain/ports/traccar-device.port";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
+import { emitDeviceIdentity } from "./device-identity-emit";
 
 export type CreateDeviceCommand = {
   imei: string;
@@ -20,6 +29,10 @@ export class CreateDeviceUseCase {
     private readonly deviceRepository: DeviceRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
+    @Inject(TRACCAR_DEVICE_PROVISIONER)
+    private readonly traccar: TraccarDeviceProvisioner,
+    @Inject(DEVICE_IDENTITY_EVENT_PUBLISHER)
+    private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
   async execute(command: CreateDeviceCommand) {
@@ -46,6 +59,32 @@ export class CreateDeviceUseCase {
     });
 
     await this.deviceRepository.save(device);
-    return device.toPrimitives();
+    await emitDeviceIdentity(this.identityPublisher, device, "registered");
+    const provisioned = await this.provisionIntoTraccar(device);
+    return provisioned.toPrimitives();
+  }
+
+  // Traccar registration is best-effort: an unreachable Traccar must not block
+  // device creation. Provision status records the outcome for later reconcile.
+  private async provisionIntoTraccar(device: Device): Promise<Device> {
+    try {
+      const result = await this.traccar.register({
+        imei: device.imei,
+        name: `${device.manufacturer} ${device.model} (${device.imei})`,
+      });
+      if (!result) {
+        return device;
+      }
+      const registered = device.withProvisioning({
+        traccarDeviceId: result.traccarDeviceId,
+        provisionStatus: "registered",
+      });
+      await this.deviceRepository.save(registered);
+      return registered;
+    } catch {
+      const failed = device.withProvisioning({ provisionStatus: "failed" });
+      await this.deviceRepository.save(failed);
+      return failed;
+    }
   }
 }
