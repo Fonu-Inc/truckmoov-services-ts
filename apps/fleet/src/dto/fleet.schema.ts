@@ -412,6 +412,30 @@ export class DispatchSearchResponse extends StandardApiResponse<DispatchSearchSc
   data!: DispatchSearchSchema;
 }
 
+export class RecommendedVehicleSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() plateNumber!: string;
+  @ApiProperty({ nullable: true }) type!: string | null;
+  @ApiProperty({ nullable: true }) capacity!: number | null;
+  @ApiProperty() status!: string;
+}
+
+export class RecommendedDriverSchema {
+  @ApiProperty() driverId!: string;
+  @ApiProperty() driverName!: string;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true }) assignedVehicleId!: string | null;
+  @ApiProperty({ type: RecommendedVehicleSchema, nullable: true }) vehicle!: RecommendedVehicleSchema | null;
+  @ApiProperty() score!: number;
+  @ApiProperty({ nullable: true }) distanceKm!: number | null;
+  @ApiProperty({ type: String, isArray: true }) reasons!: string[];
+}
+
+export class RecommendDriversResponse extends StandardApiResponse<RecommendedDriverSchema[]> {
+  @ApiProperty({ type: RecommendedDriverSchema, isArray: true })
+  data!: RecommendedDriverSchema[];
+}
+
 export class JobStatusResponse extends StandardApiResponse<null> {
   @ApiProperty({ nullable: true, type: "object" })
   data!: null;

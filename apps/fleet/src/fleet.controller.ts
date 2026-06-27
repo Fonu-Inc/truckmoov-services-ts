@@ -54,6 +54,7 @@ import {
   DeviceAssignmentValidationQueryDto,
   DeviceListQueryDto,
   DispatchSearchQueryDto,
+  RecommendDriversQueryDto,
   GpsDeviceListQueryDto,
   RegisterGpsDeviceDto,
   SetDeviceLifecycleStatusDto,
@@ -104,6 +105,7 @@ import {
   DashboardResponse,
   DeliveryMetricsResponse,
   DispatchSearchResponse,
+  RecommendDriversResponse,
   DocumentListResponse,
   DocumentResponse,
   DownloadUrlResponse,
@@ -235,6 +237,7 @@ import {
   normalizeDriverStatus,
 } from "./contexts/fleet/drivers/domain/entities/driver.entity";
 import { VehicleHealthService } from "./vehicle-health.service";
+import { RecommendDriversUseCase } from "./contexts/fleet/dispatch/application/recommend-drivers.use-case";
 import {
   DeleteFuelRecordUseCase,
   FuelBudgetUseCase,
@@ -355,6 +358,7 @@ export class FleetController {
     @Inject(DeleteFuelRecordUseCase) private readonly deleteFuelRecordUseCase: DeleteFuelRecordUseCase,
     @Inject(FuelMetricsUseCase) private readonly fuelMetricsUseCase: FuelMetricsUseCase,
     @Inject(FuelBudgetUseCase) private readonly fuelBudgetUseCase: FuelBudgetUseCase,
+    @Inject(RecommendDriversUseCase) private readonly recommendDriversUseCase: RecommendDriversUseCase,
     @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
     @Inject(EVENT_BUS) private readonly bus: EventBus,
   ) {}
@@ -1412,6 +1416,20 @@ export class FleetController {
     ]);
 
     return { vehicles, drivers, jobs } as unknown as DispatchSearchResponse;
+  }
+
+  @Get("dispatch/recommend-drivers")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @ApiOperation({ summary: "Rank drivers for a job by availability, capacity, type, and proximity" })
+  @ApiQuery({ name: "requiredCapacity", required: false, type: Number })
+  @ApiQuery({ name: "vehicleType", required: false, enum: ["truck", "van", "trailer"] })
+  @ApiQuery({ name: "pickupLat", required: false, type: Number })
+  @ApiQuery({ name: "pickupLng", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiOkResponse({ type: RecommendDriversResponse })
+  async recommendDrivers(@Query() query: RecommendDriversQueryDto, @Req() req: FleetRequestContext): Promise<RecommendDriversResponse> {
+    const data = await this.recommendDriversUseCase.execute(this.tenantIdFromRequest(req), query);
+    return { status: true, message: "success", data } as unknown as RecommendDriversResponse;
   }
 
   /** Emit a job-status-changed domain event to the event bus */

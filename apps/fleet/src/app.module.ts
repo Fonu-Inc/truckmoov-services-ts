@@ -106,6 +106,7 @@ import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import { DISPATCH_JOBS_READER } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { HttpDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/http-dispatch-jobs-reader";
 import { NoopDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/noop-dispatch-jobs-reader";
+import { RecommendDriversUseCase } from "./contexts/fleet/dispatch/application/recommend-drivers.use-case";
 import {
   DeleteFuelRecordUseCase,
   FUEL_RECORD_REPOSITORY,
@@ -173,6 +174,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
         config: AppConfigService,
       ) => config.persistence.backend === "in-memory" ? noopReader : httpReader,
     },
+    RecommendDriversUseCase,
     FleetFinancialsUseCase,
     DeliveryMetricsUseCase,
     ExportUseCase,

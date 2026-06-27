@@ -337,6 +337,35 @@ export class VehicleListQueryDto {
   yearTo?: string;
 }
 
+export class RecommendDriversQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  requiredCapacity?: number;
+
+  @IsOptional()
+  @IsIn(FLEET_VEHICLE_TYPES)
+  vehicleType?: "truck" | "van" | "trailer";
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  pickupLat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  pickupLng?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export class DispatchSearchQueryDto {
   @IsOptional()
   @IsString()
