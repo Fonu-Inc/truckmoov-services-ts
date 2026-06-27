@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { JOB_REPOSITORY, type JobRepository } from "../../jobs/domain/repositories/job.repository";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../../dispatch/domain/ports/dispatch-jobs-reader.port";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 
 export type DeliveryMetrics = {
@@ -16,13 +16,13 @@ export type DeliveryMetrics = {
 @Injectable()
 export class DeliveryMetricsUseCase {
   constructor(
-    @Inject(JOB_REPOSITORY) private readonly jobRepo: JobRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
   ) {}
 
   async execute(tenantId: string): Promise<DeliveryMetrics> {
     const [jobs, vehicles] = await Promise.all([
-      this.jobRepo.findAll({ tenantId }),
+      this.dispatchJobs.listJobs(tenantId),
       this.vehicleRepo.findAll({ tenantId }),
     ]);
 
@@ -32,9 +32,11 @@ export class DeliveryMetricsUseCase {
     const completed = delivered.length + cancelled.length;
     const deliverySuccessRate = completed > 0 ? delivered.length / completed : 0;
 
+    // Dispatch jobs expose only created/updated; for a delivered job updatedAt is the delivery time.
     const cycleTimes = delivered
-      .filter((j) => j.assignedAt && j.deliveredAt)
-      .map((j) => new Date(j.deliveredAt!).getTime() - new Date(j.assignedAt!).getTime());
+      .filter((j) => j.createdAt && j.updatedAt)
+      .map((j) => new Date(j.updatedAt).getTime() - new Date(j.createdAt).getTime())
+      .filter((ms) => ms >= 0);
 
     const averageCycleTimeMs = cycleTimes.length
       ? cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length

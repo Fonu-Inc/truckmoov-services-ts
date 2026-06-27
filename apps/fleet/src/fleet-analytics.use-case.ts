@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
-import { JOB_REPOSITORY, type JobRepository } from "./contexts/fleet/jobs/domain/repositories/job.repository";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
 import { VehicleHealthService } from "./vehicle-health.service";
 
@@ -16,7 +16,7 @@ export class FleetAnalyticsUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
-    @Inject(JOB_REPOSITORY) private readonly jobRepo: JobRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
     private readonly healthService: VehicleHealthService,
   ) {}
@@ -26,7 +26,7 @@ export class FleetAnalyticsUseCase {
     const [vehicles, drivers, jobs, alerts] = await Promise.all([
       this.vehicleRepo.findAll({ tenantId }),
       this.driverRepo.findAll({ tenantId }),
-      this.jobRepo.findAll({ tenantId }),
+      this.dispatchJobs.listJobs(tenantId),
       this.alertRepo.findAll(tenantId),
     ]);
     const recentJobs = jobs.filter((j) => new Date(j.updatedAt) >= since);
@@ -47,8 +47,9 @@ export class FleetAnalyticsUseCase {
       jobs: {
         total: recentJobs.length,
         completed: recentJobs.filter((j) => j.status === "delivered").length,
-        inProgress: recentJobs.filter((j) => j.status === "in_progress" || j.status === "en_route").length,
-        pending: recentJobs.filter((j) => j.status === "pending" || j.status === "assigned").length,
+        // Go dispatch lifecycle: created → assigned → en-route → arrived → loaded → delivered.
+        inProgress: recentJobs.filter((j) => ["assigned", "en-route", "arrived", "loaded"].includes(j.status)).length,
+        pending: recentJobs.filter((j) => j.status === "created").length,
       },
       safety: {
         totalEvents: recentAlerts.length,
@@ -81,7 +82,7 @@ export class FleetAnalyticsUseCase {
 
   async jobPipeline(tenantId: string, periodDays = 30) {
     const since = cutoff(periodDays);
-    const jobs = await this.jobRepo.findAll({ tenantId });
+    const jobs = await this.dispatchJobs.listJobs(tenantId);
     const recent = jobs.filter((j) => new Date(j.updatedAt) >= since);
     const byStatus: Record<string, number> = {};
     for (const j of recent) {

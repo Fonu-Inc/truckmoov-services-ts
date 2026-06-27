@@ -49,6 +49,12 @@ export class AppConfigService {
     };
   }
 
+  get dispatch() {
+    return {
+      serviceUrl: this.config.get<string>("DISPATCH_SERVICE_URL", "http://localhost:3005"),
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
-import { JOB_REPOSITORY, type JobRepository } from "../../jobs/domain/repositories/job.repository";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../../dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../alerts/domain/alert.repository";
 import { VehicleHealthService } from "../../../../vehicle-health.service";
 
@@ -22,7 +22,7 @@ export class DashboardUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
-    @Inject(JOB_REPOSITORY) private readonly jobRepo: JobRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
     private readonly healthService: VehicleHealthService,
   ) {}
@@ -34,7 +34,7 @@ export class DashboardUseCase {
     const [vehicles, drivers, jobs, alerts] = await Promise.all([
       this.vehicleRepo.findAll({ tenantId }),
       this.driverRepo.findAll({ tenantId }),
-      this.jobRepo.findAll({ tenantId }),
+      this.dispatchJobs.listJobs(tenantId),
       this.alertRepo.findAll(tenantId),
     ]);
 

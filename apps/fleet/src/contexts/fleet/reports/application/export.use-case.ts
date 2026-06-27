@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { JOB_REPOSITORY, type JobRepository } from "../../jobs/domain/repositories/job.repository";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../../dispatch/domain/ports/dispatch-jobs-reader.port";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../alerts/domain/alert.repository";
@@ -11,7 +11,7 @@ export type ExportEntity = "jobs" | "vehicles" | "drivers" | "alerts" | "fuel";
 @Injectable()
 export class ExportUseCase {
   constructor(
-    @Inject(JOB_REPOSITORY) private readonly jobRepo: JobRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
@@ -21,8 +21,8 @@ export class ExportUseCase {
   async toCsv(entity: ExportEntity, tenantId: string): Promise<string> {
     switch (entity) {
       case "jobs": {
-        const rows = await this.jobRepo.findAll({ tenantId });
-        return toCsv(rows.map((j) => j.toPrimitives()));
+        const rows = await this.dispatchJobs.listJobs(tenantId);
+        return toCsv(rows as unknown as Record<string, unknown>[]);
       }
       case "vehicles": {
         const rows = await this.vehicleRepo.findAll({ tenantId });

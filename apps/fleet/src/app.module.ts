@@ -103,6 +103,9 @@ import { ComplianceDocumentsUseCase } from "./compliance-documents.use-case";
 import { MikroComplianceDocumentRepository } from "./mikro-compliance-document.repository";
 import { COMPLIANCE_DOCUMENT_REPOSITORY } from "./compliance-document.repository";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
+import { DISPATCH_JOBS_READER } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
+import { HttpDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/http-dispatch-jobs-reader";
+import { NoopDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/noop-dispatch-jobs-reader";
 import {
   DeleteFuelRecordUseCase,
   FUEL_RECORD_REPOSITORY,
@@ -159,6 +162,17 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     MikroComplianceDocumentRepository,
     { provide: COMPLIANCE_DOCUMENT_REPOSITORY, useExisting: MikroComplianceDocumentRepository },
     ComplianceDocumentsUseCase,
+    HttpDispatchJobsReader,
+    NoopDispatchJobsReader,
+    {
+      provide: DISPATCH_JOBS_READER,
+      inject: [HttpDispatchJobsReader, NoopDispatchJobsReader, AppConfigService],
+      useFactory: (
+        httpReader: HttpDispatchJobsReader,
+        noopReader: NoopDispatchJobsReader,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? noopReader : httpReader,
+    },
     FleetFinancialsUseCase,
     DeliveryMetricsUseCase,
     ExportUseCase,

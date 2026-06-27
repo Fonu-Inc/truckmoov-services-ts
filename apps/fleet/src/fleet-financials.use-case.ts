@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
-import { JOB_REPOSITORY, type JobRepository } from "./contexts/fleet/jobs/domain/repositories/job.repository";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "./contexts/fleet/fuel/domain/repositories/fuel-record.repository";
 import { MAINTENANCE_RECORD_REPOSITORY, type MaintenanceRecordRepository } from "./maintenance-record.repository";
 import { getFleetOrm, FleetFinancialConfigRecord } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
@@ -20,7 +20,7 @@ function profitTier(margin: number): ProfitTier {
 export class FleetFinancialsUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
-    @Inject(JOB_REPOSITORY) private readonly jobRepo: JobRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(FUEL_RECORD_REPOSITORY) private readonly fuelRepo: FuelRecordRepository,
     @Inject(MAINTENANCE_RECORD_REPOSITORY) private readonly maintRepo: MaintenanceRecordRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
@@ -62,7 +62,7 @@ export class FleetFinancialsUseCase {
   async computeProfitability(tenantId: string, periodMonths = 1) {
     const [vehicles, jobs, fuelRecords, maintRecords, configs] = await Promise.all([
       this.vehicleRepo.findAll({ tenantId }),
-      this.jobRepo.findAll({ tenantId }),
+      this.dispatchJobs.listJobs(tenantId),
       this.fuelRepo.findAll({ tenantId }).then((rs) => rs.map((r) => r.toPrimitives())),
       this.maintRepo.findAllByTenant(tenantId),
       this.getConfigs(tenantId),
@@ -73,7 +73,8 @@ export class FleetFinancialsUseCase {
 
     return vehicles.map((v) => {
       const vehicleJobs = completedJobs.filter((j) => j.assignedVehicleId === v.id);
-      const revenue = vehicleJobs.length * 50000;
+      // Real revenue from canonical dispatch jobs (was a flat ₦50k stub against the dead fleet_jobs table).
+      const revenue = vehicleJobs.reduce((sum, j) => sum + (j.amountNgn ?? 0), 0);
       const fuelCost = fuelRecords
         .filter((f) => f.vehicleId === v.id)
         .reduce((sum, f) => sum + (f.liters ?? 0) * (f.pricePerLiter ?? 0), 0);
