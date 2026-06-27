@@ -389,7 +389,7 @@ describe("Fleet HTTP contract", () => {
     expect(deleteDevice.body.id).toBe(createDevice.body.id);
   });
 
-  it("supports bulk import and dispatcher search over vehicles, drivers, and jobs", async () => {
+  it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
     const importVehicles = await request(app.getHttpServer())
       .post("/fleet/vehicles/import")
       .set("Authorization", authToken("fleet_manager"))
@@ -431,27 +431,12 @@ describe("Fleet HTTP contract", () => {
     expect(importDrivers.status).toBe(201);
     expect(importDrivers.body.created).toBe(2);
 
-    const eventResponse = await request(app.getHttpServer())
-      .post("/fleet/events/job-status?jobId=job-1&status=assigned")
-      .set("Authorization", authToken("dispatcher"))
-      .set("Idempotency-Key", randomUUID());
-    expect(eventResponse.status).toBe(201);
-    expect(eventResponse.body.published).toBe(true);
-
-    const jobs = await request(app.getHttpServer())
-      .get("/fleet/jobs?status=assigned")
-      .set("Authorization", authToken("dispatcher"));
-    expect(jobs.status).toBe(200);
-    expect(jobs.body.length).toBeGreaterThanOrEqual(1);
-    expect(jobs.body[0]?.jobId).toBe("job-1");
-
     const search = await request(app.getHttpServer())
       .get("/fleet/dispatch/search?query=TM-11&driverStatus=active")
       .set("Authorization", authToken("dispatcher"));
     expect(search.status).toBe(200);
     expect(Array.isArray(search.body.vehicles)).toBe(true);
     expect(Array.isArray(search.body.drivers)).toBe(true);
-    expect(Array.isArray(search.body.jobs)).toBe(true);
   });
 
   it("POST /fleet/vehicles rejects unauthorized role", async () => {

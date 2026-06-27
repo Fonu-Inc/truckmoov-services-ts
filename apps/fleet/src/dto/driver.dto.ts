@@ -156,13 +156,3 @@ export class DriverListQueryDto {
   @IsString()
   assigned?: string;
 }
-
-export class JobListQueryDto {
-  @IsOptional()
-  @IsString()
-  query?: string;
-
-  @IsOptional()
-  @IsString()
-  status?: string;
-}

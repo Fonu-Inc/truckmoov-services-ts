@@ -52,14 +52,6 @@ export class DriverRecord {
   updatedAt!: Date;
 }
 
-export class JobRecord {
-  jobId!: string;
-  tenantId!: string;
-  status!: string;
-  createdAt!: Date;
-  updatedAt!: Date;
-}
-
 export class DeviceRecord {
   id!: string;
   imei!: string;
@@ -148,23 +140,6 @@ export const DriverRecordSchema = new EntitySchema<DriverRecord>({
     { properties: ["tenantId", "status"] },
     { properties: ["assignedVehicleId"] },
   ],
-});
-
-export const JobRecordSchema = new EntitySchema<JobRecord>({
-  class: JobRecord,
-  tableName: "fleet_jobs",
-  properties: {
-    jobId: { type: "string", primary: true },
-    tenantId: { type: "string", length: 64 },
-    status: { type: "string", length: 32 },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
-    updatedAt: {
-      type: "datetime",
-      onUpdate: () => new Date(),
-      defaultRaw: "now()",
-    },
-  },
-  indexes: [{ properties: ["tenantId", "status"] }],
 });
 
 export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
@@ -495,7 +470,6 @@ export async function getFleetOrm(cfg: DbConfig) {
     entities: [
       VehicleRecordSchema,
       DriverRecordSchema,
-      JobRecordSchema,
       DeviceRecordSchema,
       MaintenanceProfileRecordSchema,
       GeofenceZoneRecordSchema,

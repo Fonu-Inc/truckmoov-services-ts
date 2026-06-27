@@ -2,7 +2,6 @@ import { defineConfig } from "@mikro-orm/postgresql";
 import {
   VehicleRecordSchema,
   DriverRecordSchema,
-  JobRecordSchema,
 } from "./src/contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 
 export default defineConfig({
@@ -11,7 +10,7 @@ export default defineConfig({
   user: process.env.POSTGRES_USER ?? "truckmoov",
   password: process.env.POSTGRES_PASSWORD ?? "truckmoov",
   dbName: process.env.POSTGRES_DB ?? "truckmoov",
-  entities: [VehicleRecordSchema, DriverRecordSchema, JobRecordSchema],
+  entities: [VehicleRecordSchema, DriverRecordSchema],
   migrations: {
     path: "apps/fleet/src/migrations",
     tableName: "mikro_migrations_fleet",

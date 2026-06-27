@@ -19,15 +19,6 @@ import {
   UpdateDriverContactChannelsUseCase,
 } from "./contexts/fleet/drivers";
 import {
-  EventBusJobStatusEventPublisher,
-  InMemoryJobRepository,
-  JOB_REPOSITORY,
-  JOB_STATUS_EVENT_PUBLISHER,
-  ListJobsUseCase,
-  MikroJobRepository,
-  PublishJobStatusChangedUseCase,
-} from "./contexts/fleet/jobs";
-import {
   AssignDeviceToVehicleUseCase,
   BulkImportDevicesUseCase,
   CreateDeviceUseCase,
@@ -128,8 +119,6 @@ import {
   ListDocumentsUseCase,
   UploadDocumentUseCase,
 } from "./contexts/fleet/documents";
-import { SyncErpJobUseCase } from "./contexts/fleet/integrations/application/sync-erp-job.use-case";
-import { JobSyncListener } from "./job-sync.listener";
 import { ScheduledReportService } from "./scheduled-report.service";
 import { WebhookController } from "./webhook.controller";
 import { IntegrationHealthService } from "./integration-health.service";
@@ -147,7 +136,6 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     VehicleLocationListener,
     AlertDetectionListener,
     AlertEscalationService,
-    JobSyncListener,
     ScheduledReportService,
     DashboardUseCase,
     FleetAnalyticsUseCase,
@@ -186,7 +174,6 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     GetDownloadUrlUseCase,
     ListDocumentsUseCase,
     ListAccessLogUseCase,
-    SyncErpJobUseCase,
     IntegrationHealthService,
     RateLimitGuard,
     TenantGuard,
@@ -300,24 +287,6 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     SetDriverStatusUseCase,
     UpdateDriverContactChannelsUseCase,
     BulkImportDriversUseCase,
-    InMemoryJobRepository,
-    MikroJobRepository,
-    {
-      provide: JOB_REPOSITORY,
-      inject: [InMemoryJobRepository, MikroJobRepository, AppConfigService],
-      useFactory: (
-        inMemoryRepository: InMemoryJobRepository,
-        mikroRepository: MikroJobRepository,
-        config: AppConfigService,
-      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
-    },
-    ListJobsUseCase,
-    EventBusJobStatusEventPublisher,
-    {
-      provide: JOB_STATUS_EVENT_PUBLISHER,
-      useExisting: EventBusJobStatusEventPublisher,
-    },
-    PublishJobStatusChangedUseCase,
     AuthContextMiddleware,
     RolesGuard,
     IdempotencyGuard,

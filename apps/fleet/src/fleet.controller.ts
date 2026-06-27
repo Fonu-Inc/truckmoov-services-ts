@@ -39,7 +39,6 @@ import {
   BulkImportDriversDto,
   CreateDriverDto,
   DriverListQueryDto,
-  JobListQueryDto,
   SetDriverStatusDto,
   UpdateDriverContactChannelsDto,
   UpdateDriverDto,
@@ -133,9 +132,7 @@ import {
   GeofenceZoneListResponse,
   GeofenceZoneResponse,
   GpsDeviceListResponse,
-  JobListResponse,
   JobPipelineResponse,
-  JobStatusResponse,
   MaintenanceProfileListResponse,
   MaintenanceProfileResponse,
   MaintenanceProfilesSummaryResponse,
@@ -192,7 +189,6 @@ import {
   UpdateDriverContactChannelsUseCase,
   UpdateDriverUseCase,
 } from "./contexts/fleet/drivers";
-import { ListJobsUseCase, PublishJobStatusChangedUseCase } from "./contexts/fleet/jobs";
 import {
   AcknowledgeAlertUseCase,
   AlertNotFoundError,
@@ -328,10 +324,6 @@ export class FleetController {
     private readonly updateDriverContactChannelsUseCase: UpdateDriverContactChannelsUseCase,
     @Inject(BulkImportDriversUseCase)
     private readonly bulkImportDriversUseCase: BulkImportDriversUseCase,
-    @Inject(ListJobsUseCase)
-    private readonly listJobsUseCase: ListJobsUseCase,
-    @Inject(PublishJobStatusChangedUseCase)
-    private readonly publishJobStatusChangedUseCase: PublishJobStatusChangedUseCase,
     private readonly geofenceService: GeofenceService,
     private readonly vehicleHealthService: VehicleHealthService,
     @Inject(ListAlertsUseCase) private readonly listAlertsUseCase: ListAlertsUseCase,
@@ -1359,43 +1351,23 @@ export class FleetController {
     return result;
   }
 
-  /** List jobs for dispatch search/filter use-cases */
-  @Get("jobs")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
-  @ApiOperation({
-    summary: "List jobs",
-    description: "Epic C (US-C06): filter/search jobs for dispatch views.",
-  })
-  @ApiQuery({ name: "query", required: false, type: String })
-  @ApiQuery({ name: "status", required: false, type: String })
-  @ApiOkResponse({ type: JobListResponse })
-  async listJobs(@Query() query: JobListQueryDto, @Req() req: FleetRequestContext): Promise<JobListResponse> {
-    return this.listJobsUseCase.execute({
-      query: query.query,
-      status: query.status,
-      tenantId: this.tenantIdFromRequest(req),
-    }) as unknown as Promise<JobListResponse>;
-  }
-
-  /** Combined dispatcher search over vehicles, drivers, and jobs */
+  /** Combined dispatcher search over vehicles and drivers */
   @Get("dispatch/search")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Dispatch search",
-    description: "Epic C (US-C06): combined search/filter over vehicles, drivers, and jobs.",
+    description: "Epic C (US-C06): combined search/filter over vehicles and drivers.",
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "vehicleStatus", required: false, enum: ["active", "inactive"] })
   @ApiQuery({ name: "driverStatus", required: false, enum: DRIVER_STATUS_INPUTS })
-  @ApiQuery({ name: "jobStatus", required: false, type: String })
   @ApiQuery({ name: "assignedOnly", required: false, enum: ["true", "false"] })
   @ApiOkResponse({ type: DispatchSearchResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
   async searchDispatch(@Query() query: DispatchSearchQueryDto, @Req() req: FleetRequestContext): Promise<DispatchSearchResponse> {
     const assignedOnly = this.parseOptionalBoolean(query.assignedOnly, "assignedOnly");
 
-    // Run in parallel because this endpoint is read-only aggregation across three repositories.
-    const [vehicles, drivers, jobs] = await Promise.all([
+    const [vehicles, drivers] = await Promise.all([
       this.listVehiclesUseCase.execute({
         query: query.query,
         status: query.vehicleStatus,
@@ -1408,14 +1380,9 @@ export class FleetController {
         assigned: assignedOnly,
         tenantId: this.tenantIdFromRequest(req),
       }),
-      this.listJobsUseCase.execute({
-        query: query.query,
-        status: query.jobStatus,
-        tenantId: this.tenantIdFromRequest(req),
-      }),
     ]);
 
-    return { vehicles, drivers, jobs } as unknown as DispatchSearchResponse;
+    return { vehicles, drivers } as unknown as DispatchSearchResponse;
   }
 
   @Get("dispatch/recommend-drivers")
@@ -1430,36 +1397,6 @@ export class FleetController {
   async recommendDrivers(@Query() query: RecommendDriversQueryDto, @Req() req: FleetRequestContext): Promise<RecommendDriversResponse> {
     const data = await this.recommendDriversUseCase.execute(this.tenantIdFromRequest(req), query);
     return { status: true, message: "success", data } as unknown as RecommendDriversResponse;
-  }
-
-  /** Emit a job-status-changed domain event to the event bus */
-  @Post("events/job-status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
-  @RequireIdempotency()
-  @UseGuards(IdempotencyGuard)
-  @ApiOperation({
-    summary: "Publish job status event",
-    description: "Records job status snapshot and emits job.status.changed event.",
-  })
-  @ApiCreatedResponse({ type: JobStatusResponse })
-  async publishSampleEvent(
-    @Query("jobId") jobId = "demo-job",
-    @Query("status") status = "assigned",
-    @Req() req: FleetRequestContext,
-  ): Promise<JobStatusResponse> {
-    const result = await this.publishJobStatusChangedUseCase.execute({
-      jobId,
-      status,
-      tenantId: this.tenantIdFromRequest(req),
-    }) as unknown as JobStatusResponse;
-    await this.recordActivity(req, {
-      entityType: "job",
-      entityId: jobId,
-      action: "job.status.event.published",
-      summary: "Job status event published",
-      metadata: { status },
-    });
-    return result;
   }
 
   @Get("alerts/stats")

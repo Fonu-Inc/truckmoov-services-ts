@@ -326,25 +326,6 @@ export class DriverListResponse extends StandardApiResponse<DriverSchema[]> {
   data!: DriverSchema[];
 }
 
-export class JobSchema {
-  @ApiProperty()
-  jobId!: string;
-
-  @ApiProperty()
-  tenantId!: string;
-
-  @ApiProperty()
-  status!: string;
-
-  @ApiProperty()
-  updatedAt!: string;
-}
-
-export class JobListResponse extends StandardApiResponse<JobSchema[]> {
-  @ApiProperty({ type: JobSchema, isArray: true })
-  data!: JobSchema[];
-}
-
 export class VehicleDriverAssignmentSchema {
   @ApiProperty({ type: VehicleSchema })
   vehicle!: VehicleSchema;
@@ -402,9 +383,6 @@ export class DispatchSearchSchema {
 
   @ApiProperty({ type: DriverSchema, isArray: true })
   drivers!: DriverSchema[];
-
-  @ApiProperty({ type: JobSchema, isArray: true })
-  jobs!: JobSchema[];
 }
 
 export class DispatchSearchResponse extends StandardApiResponse<DispatchSearchSchema> {
@@ -434,11 +412,6 @@ export class RecommendedDriverSchema {
 export class RecommendDriversResponse extends StandardApiResponse<RecommendedDriverSchema[]> {
   @ApiProperty({ type: RecommendedDriverSchema, isArray: true })
   data!: RecommendedDriverSchema[];
-}
-
-export class JobStatusResponse extends StandardApiResponse<null> {
-  @ApiProperty({ nullable: true, type: "object" })
-  data!: null;
 }
 
 export class FleetHealthResponse extends StandardApiResponse<{ service: string }> {
