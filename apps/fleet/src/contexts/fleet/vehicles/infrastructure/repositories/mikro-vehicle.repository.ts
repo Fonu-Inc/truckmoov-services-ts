@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
-import { Vehicle } from "../../domain/entities/vehicle.entity";
+import { Vehicle, isFleetFuelType } from "../../domain/entities/vehicle.entity";
 import type {
   VehicleFilters,
   VehicleRepository,
@@ -23,6 +23,7 @@ export class MikroVehicleRepository implements VehicleRepository {
       model: vehicle.model,
       year: vehicle.year,
       type: vehicle.type,
+      fuelType: vehicle.fuelType,
       capacity: vehicle.capacity,
       tenantId: vehicle.tenantId,
       status: vehicle.status,
@@ -130,6 +131,7 @@ export class MikroVehicleRepository implements VehicleRepository {
         : record.type === "truck" || record.type === "van" || record.type === "trailer"
           ? record.type
           : null,
+      fuelType: isFleetFuelType(record.fuelType) ? record.fuelType : null,
       capacity: record.capacity ?? null,
       tenantId: record.tenantId,
       status: (["active", "inactive", "maintenance", "decommissioned"].includes(record.status)

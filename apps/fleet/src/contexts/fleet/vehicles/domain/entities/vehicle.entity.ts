@@ -14,6 +14,13 @@ export type VehicleGpsDevice = {
 
 export type FleetVehicleType = "truck" | "van" | "trailer";
 
+export const FLEET_FUEL_TYPES = ["diesel", "petrol", "ev", "hybrid"] as const;
+export type FleetFuelType = typeof FLEET_FUEL_TYPES[number];
+
+export function isFleetFuelType(value: unknown): value is FleetFuelType {
+  return typeof value === "string" && (FLEET_FUEL_TYPES as readonly string[]).includes(value);
+}
+
 export type VehicleProps = {
   id: string;
   plateNumber: string;
@@ -23,6 +30,7 @@ export type VehicleProps = {
   model: string;
   year: number | null;
   type: FleetVehicleType | null;
+  fuelType?: FleetFuelType | null;
   capacity: number | null;
   tenantId: string;
   status: FleetAssetStatus;
@@ -67,6 +75,9 @@ export class Vehicle {
     if (props.type !== null && props.type !== undefined && !["truck", "van", "trailer"].includes(props.type)) {
       throw new Error("type must be one of: truck, van, trailer");
     }
+    if (props.fuelType !== null && props.fuelType !== undefined && !isFleetFuelType(props.fuelType)) {
+      throw new Error(`fuelType must be one of: ${FLEET_FUEL_TYPES.join(", ")}`);
+    }
     if (props.capacity !== null && props.capacity !== undefined && props.capacity < 0) {
       throw new Error("capacity must be zero or greater");
     }
@@ -95,6 +106,7 @@ export class Vehicle {
       model: props.model.trim(),
       year: props.year ?? null,
       type: props.type ?? null,
+      fuelType: props.fuelType ?? null,
       capacity: props.capacity ?? null,
       tenantId: props.tenantId.trim(),
       status: props.status,
@@ -145,6 +157,10 @@ export class Vehicle {
     return this.props.type;
   }
 
+  get fuelType() {
+    return this.props.fuelType;
+  }
+
   get capacity() {
     return this.props.capacity;
   }
@@ -172,6 +188,7 @@ export class Vehicle {
     model?: string;
     year?: number | null;
     type?: FleetVehicleType | null;
+    fuelType?: FleetFuelType | null;
     capacity?: number | null;
     tenantId?: string;
     status?: FleetAssetStatus;
@@ -184,6 +201,7 @@ export class Vehicle {
       model: values.model ?? this.model,
       year: values.year === undefined ? this.year : values.year,
       type: values.type === undefined ? this.type : values.type,
+      fuelType: values.fuelType === undefined ? this.fuelType : values.fuelType,
       capacity: values.capacity === undefined ? this.capacity : values.capacity,
       tenantId: values.tenantId ?? this.tenantId,
       status: values.status ?? this.status,
@@ -238,6 +256,7 @@ export class Vehicle {
       model: this.model,
       year: this.year,
       type: this.type,
+      fuelType: this.fuelType,
       capacity: this.capacity,
       tenantId: this.tenantId,
       status: this.status,

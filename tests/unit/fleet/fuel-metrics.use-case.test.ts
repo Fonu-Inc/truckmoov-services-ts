@@ -85,4 +85,25 @@ describe("FuelMetricsUseCase", () => {
     const result = await uc.efficiency("t1");
     expect(result[0].belowThreshold).toBe(false);
   });
+
+  it("splits consumption by fuel type", async () => {
+    const diesel = FuelRecord.create({
+      id: "d1", tenantId: "t1", vehicleId: "v1", driverId: null, vehicleType: "truck", fuelType: "diesel",
+      liters: 40, pricePerLiter: 2, station: null, odometer: null,
+      recordedAt: "2026-01-15T00:00:00.000Z", recordedBy: "u1", deletedAt: null, auditTrail: [],
+    });
+    const petrol = FuelRecord.create({
+      id: "p1", tenantId: "t1", vehicleId: "v2", driverId: null, vehicleType: "van", fuelType: "petrol",
+      liters: 25, pricePerLiter: 3, station: null, odometer: null,
+      recordedAt: "2026-01-18T00:00:00.000Z", recordedBy: "u1", deletedAt: null, auditTrail: [],
+    });
+    const untyped = makeRec("u1", "v3", 10, null, "2026-01-20T00:00:00.000Z");
+    const { uc } = await buildUseCase([diesel, petrol, untyped]);
+
+    const [jan] = await uc.consumption("t1", "monthly");
+    expect(jan.liters).toBe(75);
+    expect(jan.byFuelType.diesel).toEqual({ liters: 40, totalCost: 80, records: 1 });
+    expect(jan.byFuelType.petrol).toEqual({ liters: 25, totalCost: 75, records: 1 });
+    expect(jan.byFuelType.unknown.liters).toBe(10);
+  });
 });

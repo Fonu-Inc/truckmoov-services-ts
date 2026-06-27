@@ -106,6 +106,7 @@ import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import {
   DeleteFuelRecordUseCase,
   FUEL_RECORD_REPOSITORY,
+  FuelBudgetUseCase,
   FuelMetricsUseCase,
   FuelThresholdService,
   InMemoryFuelRecordRepository,
@@ -312,6 +313,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     UpdateFuelRecordUseCase,
     DeleteFuelRecordUseCase,
     FuelMetricsUseCase,
+    FuelBudgetUseCase,
   ],
 })
 export class AppModule implements NestModule {

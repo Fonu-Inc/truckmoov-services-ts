@@ -11,5 +11,7 @@ export { ListFuelRecordsUseCase } from "./application/list-fuel-records.use-case
 export { UpdateFuelRecordUseCase } from "./application/update-fuel-record.use-case";
 export { DeleteFuelRecordUseCase } from "./application/delete-fuel-record.use-case";
 export { FuelMetricsUseCase } from "./application/fuel-metrics.use-case";
-export type { MetricsPeriod, ConsumptionBucket, VehicleEfficiency } from "./application/fuel-metrics.use-case";
+export type { MetricsPeriod, ConsumptionBucket, FuelTypeBreakdown, VehicleEfficiency } from "./application/fuel-metrics.use-case";
+export { FuelBudgetUseCase } from "./application/fuel-budget.use-case";
+export type { BudgetPeriodType, FuelBudgetView, BudgetVsActualRow } from "./application/fuel-budget.use-case";
 export { InMemoryFuelRecordRepository } from "./infrastructure/in-memory-fuel-record.repository";

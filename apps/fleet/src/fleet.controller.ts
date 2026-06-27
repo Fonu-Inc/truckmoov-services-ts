@@ -69,7 +69,7 @@ import {
   SetGeofenceVehiclesDto,
   UpdateGeofenceZoneDto,
 } from "./dto/geofence.dto";
-import { FuelListQueryDto, FuelMetricsQueryDto, FuelThresholdDto, RecordFuelDto, UpdateFuelRecordDto } from "./dto/fuel.dto";
+import { BudgetVsActualQueryDto, FuelListQueryDto, FuelMetricsQueryDto, FuelThresholdDto, RecordFuelDto, UpdateFuelRecordDto, UpsertFuelBudgetDto } from "./dto/fuel.dto";
 import { CreateMaintenanceRecordDto, UpdateMaintenanceRecordDto } from "./dto/maintenance-record.dto";
 import { CreateMaintenanceProfileDto } from "./dto/maintenance-profile.dto";
 import {
@@ -116,6 +116,9 @@ import {
   FinancialSummaryResponse,
   FleetHealthResponse,
   FleetStatusResponse,
+  FuelBudgetListResponse,
+  FuelBudgetResponse,
+  FuelBudgetVsActualResponse,
   FuelConsumptionResponse,
   FuelEfficiencyResponse,
   FuelLevelsResponse,
@@ -233,6 +236,7 @@ import {
 import { VehicleHealthService } from "./vehicle-health.service";
 import {
   DeleteFuelRecordUseCase,
+  FuelBudgetUseCase,
   FuelMetricsUseCase,
   FuelRecordNotFoundError,
   FuelThresholdService,
@@ -349,6 +353,7 @@ export class FleetController {
     @Inject(UpdateFuelRecordUseCase) private readonly updateFuelRecordUseCase: UpdateFuelRecordUseCase,
     @Inject(DeleteFuelRecordUseCase) private readonly deleteFuelRecordUseCase: DeleteFuelRecordUseCase,
     @Inject(FuelMetricsUseCase) private readonly fuelMetricsUseCase: FuelMetricsUseCase,
+    @Inject(FuelBudgetUseCase) private readonly fuelBudgetUseCase: FuelBudgetUseCase,
     @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
     @Inject(EVENT_BUS) private readonly bus: EventBus,
   ) {}
@@ -2156,6 +2161,39 @@ export class FleetController {
         transactionCount: primitives.length,
       },
     };
+  }
+
+  @Get("fuel/budgets")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "List fuel budgets (fleet-wide + per-vehicle) — N09" })
+  @ApiOkResponse({ type: FuelBudgetListResponse })
+  async listFuelBudgets(@Req() req: FleetRequestContext): Promise<FuelBudgetListResponse> {
+    const data = await this.fuelBudgetUseCase.list(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("fuel/budget-vs-actual")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Fuel budget vs actual spend — N09" })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ type: FuelBudgetVsActualResponse })
+  async fuelBudgetVsActual(@Query() query: BudgetVsActualQueryDto, @Req() req: FleetRequestContext): Promise<FuelBudgetVsActualResponse> {
+    const data = await this.fuelBudgetUseCase.budgetVsActual(this.tenantIdFromRequest(req), query);
+    return { status: true, message: "success", data } as unknown as FuelBudgetVsActualResponse;
+  }
+
+  @Put("fuel/budgets/:vehicleId")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @ApiOperation({ summary: "Upsert a fuel budget — use 'all' for fleet-wide — N09" })
+  @ApiOkResponse({ type: FuelBudgetResponse })
+  async upsertFuelBudget(
+    @Param("vehicleId") vehicleId: string,
+    @Body() body: UpsertFuelBudgetDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<FuelBudgetResponse> {
+    const data = await this.fuelBudgetUseCase.upsert(this.tenantIdFromRequest(req), vehicleId, body);
+    return { status: true, message: "success", data };
   }
 
   @Get("reports/delivery-metrics")

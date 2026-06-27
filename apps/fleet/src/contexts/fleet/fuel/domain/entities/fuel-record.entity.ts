@@ -10,6 +10,7 @@ export type FuelRecordProps = {
   vehicleId: string;
   driverId: string | null;
   vehicleType: string | null;
+  fuelType?: string | null;
   liters: number;
   pricePerLiter: number;
   totalCost: number;
@@ -33,6 +34,7 @@ export class FuelRecord {
 
     return new FuelRecord({
       ...props,
+      fuelType: props.fuelType ?? null,
       totalCost: props.totalCost ?? +(props.liters * props.pricePerLiter).toFixed(2),
       auditTrail: props.auditTrail ?? [],
       deletedAt: props.deletedAt ?? null,
@@ -44,6 +46,7 @@ export class FuelRecord {
   get vehicleId() { return this.props.vehicleId; }
   get driverId() { return this.props.driverId; }
   get vehicleType() { return this.props.vehicleType; }
+  get fuelType() { return this.props.fuelType ?? null; }
   get liters() { return this.props.liters; }
   get pricePerLiter() { return this.props.pricePerLiter; }
   get totalCost() { return this.props.totalCost; }
@@ -56,7 +59,7 @@ export class FuelRecord {
   get isDeleted() { return this.props.deletedAt !== null; }
 
   update(
-    changes: Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType">>,
+    changes: Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType" | "fuelType">>,
     by: string,
   ): FuelRecord {
     const liters = changes.liters ?? this.props.liters;

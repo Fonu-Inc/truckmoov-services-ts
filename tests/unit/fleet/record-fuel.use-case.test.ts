@@ -8,8 +8,9 @@ function build() {
   const runtime = { generateId: () => crypto.randomUUID(), getDefaultTenantId: () => "t1" };
   const triggerAlert = { execute: vi.fn().mockResolvedValue(undefined) };
   const thresholds = new FuelThresholdService();
-  const uc = new RecordFuelUseCase(repo, runtime as any, triggerAlert as any, thresholds);
-  return { repo, uc, triggerAlert, thresholds };
+  const vehicleRepo = { findById: vi.fn().mockResolvedValue(null) };
+  const uc = new RecordFuelUseCase(repo, runtime as any, triggerAlert as any, thresholds, vehicleRepo as any);
+  return { repo, uc, triggerAlert, thresholds, vehicleRepo };
 }
 
 describe("RecordFuelUseCase", () => {

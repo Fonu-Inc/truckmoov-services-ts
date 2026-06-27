@@ -21,6 +21,7 @@ import {
 } from "../contexts/fleet/devices/domain/entities/device.entity";
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
 import { DRIVER_STATUS_INPUTS } from "../contexts/fleet/drivers/domain/entities/driver.entity";
+import { FLEET_FUEL_TYPES } from "../contexts/fleet/vehicles/domain/entities/vehicle.entity";
 
 const FLEET_VEHICLE_TYPES = ["truck", "van", "trailer"] as const;
 
@@ -66,6 +67,11 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsIn(FLEET_VEHICLE_TYPES)
   type?: "truck" | "van" | "trailer";
+
+  /** Fuel the vehicle runs on — drives the diesel/petrol consumption split */
+  @IsOptional()
+  @IsIn(FLEET_FUEL_TYPES)
+  fuelType?: typeof FLEET_FUEL_TYPES[number];
 
   /** Vehicle carrying capacity in tons */
   @IsOptional()
@@ -281,6 +287,10 @@ export class VehicleImportItemDto {
   @IsOptional()
   @IsIn(FLEET_VEHICLE_TYPES)
   type?: "truck" | "van" | "trailer";
+
+  @IsOptional()
+  @IsIn(FLEET_FUEL_TYPES)
+  fuelType?: typeof FLEET_FUEL_TYPES[number];
 
   @IsOptional()
   @Type(() => Number)

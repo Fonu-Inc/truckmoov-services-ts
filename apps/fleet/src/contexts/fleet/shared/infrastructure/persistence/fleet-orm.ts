@@ -17,6 +17,7 @@ export class VehicleRecord {
   model!: string;
   year?: number | null;
   type?: string | null;
+  fuelType?: string | null;
   capacity?: number | null;
   tenantId!: string;
   status!: string;
@@ -90,6 +91,7 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
     model: { type: "string", length: 128 },
     year: { type: "integer", nullable: true },
     type: { type: "string", length: 32, nullable: true },
+    fuelType: { type: "string", length: 16, nullable: true },
     capacity: { type: "float", nullable: true },
     tenantId: { type: "string", length: 64 },
     status: { type: "string", length: 16, defaultRaw: "'active'" },
@@ -394,6 +396,32 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
   indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
 });
 
+export class FleetFuelBudgetRecord {
+  id!: string;
+  tenantId!: string;
+  // Empty string scopes the budget fleet-wide; any other value targets a single vehicle.
+  vehicleId!: string;
+  periodType!: string;
+  amountNgn!: number;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const FleetFuelBudgetRecordSchema = new EntitySchema<FleetFuelBudgetRecord>({
+  class: FleetFuelBudgetRecord,
+  tableName: "fleet_fuel_budgets",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    vehicleId: { type: "string", length: 255, defaultRaw: "''" },
+    periodType: { type: "string", length: 16, defaultRaw: "'monthly'" },
+    amountNgn: { type: "decimal", precision: 14, scale: 2 },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
+});
+
 export class DeviceSetupRequestRecord {
   id!: string;
   tenantId!: string;
@@ -476,6 +504,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       MaintenanceRecordOrmSchema,
       ComplianceDocumentRecordSchema,
       FleetFinancialConfigRecordSchema,
+      FleetFuelBudgetRecordSchema,
       DeviceSetupRequestRecordSchema,
     ],
     host: cfg.host,

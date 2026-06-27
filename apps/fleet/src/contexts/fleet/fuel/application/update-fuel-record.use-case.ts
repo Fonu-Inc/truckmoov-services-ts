@@ -13,6 +13,7 @@ export type UpdateFuelRecordCommand = {
   odometer?: number | null;
   driverId?: string | null;
   vehicleType?: string | null;
+  fuelType?: string | null;
 };
 
 @Injectable()
@@ -31,7 +32,8 @@ export class UpdateFuelRecordUseCase {
         odometer: cmd.odometer,
         driverId: cmd.driverId,
         vehicleType: cmd.vehicleType,
-      } as Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType">>,
+        fuelType: cmd.fuelType,
+      } as Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType" | "fuelType">>,
       cmd.updatedBy,
     );
 

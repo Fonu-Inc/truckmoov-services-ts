@@ -4,12 +4,14 @@ import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "../domain/rep
 import { FLEET_RUNTIME, type FleetRuntime } from "../../shared/domain/ports/fleet-runtime.port";
 import { TriggerAlertUseCase } from "../../alerts/application/trigger-alert.use-case";
 import { FuelThresholdService } from "./fuel-threshold.service";
+import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 
 export type RecordFuelCommand = {
   tenantId?: string;
   vehicleId: string;
   driverId?: string | null;
   vehicleType?: string | null;
+  fuelType?: string | null;
   liters: number;
   pricePerLiter: number;
   station?: string | null;
@@ -24,11 +26,13 @@ export class RecordFuelUseCase {
     @Inject(FLEET_RUNTIME) private readonly runtime: FleetRuntime,
     private readonly triggerAlert: TriggerAlertUseCase,
     private readonly thresholds: FuelThresholdService,
+    @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
   ) {}
 
   async execute(cmd: RecordFuelCommand): Promise<FuelRecord> {
     const tenantId = cmd.tenantId ?? this.runtime.getDefaultTenantId();
     const now = new Date().toISOString();
+    const fuelType = cmd.fuelType ?? (await this.resolveVehicleFuelType(cmd.vehicleId));
 
     const record = FuelRecord.create({
       id: this.runtime.generateId(),
@@ -36,6 +40,7 @@ export class RecordFuelUseCase {
       vehicleId: cmd.vehicleId,
       driverId: cmd.driverId ?? null,
       vehicleType: cmd.vehicleType ?? null,
+      fuelType,
       liters: cmd.liters,
       pricePerLiter: cmd.pricePerLiter,
       station: cmd.station ?? null,
@@ -50,6 +55,15 @@ export class RecordFuelUseCase {
     await this.checkEfficiencyAlert(tenantId, cmd.vehicleId, cmd.vehicleType ?? null);
 
     return record;
+  }
+
+  private async resolveVehicleFuelType(vehicleId: string): Promise<string | null> {
+    try {
+      const vehicle = await this.vehicleRepo.findById(vehicleId);
+      return vehicle?.fuelType ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private async checkEfficiencyAlert(tenantId: string, vehicleId: string, vehicleType: string | null): Promise<void> {

@@ -6,11 +6,19 @@ import type { FuelRecord } from "../domain/entities/fuel-record.entity";
 
 export type MetricsPeriod = "weekly" | "monthly";
 
+export type FuelTypeBreakdown = {
+  liters: number;
+  totalCost: number;
+  records: number;
+};
+
 export type ConsumptionBucket = {
   label: string;
   liters: number;
   totalCost: number;
   records: number;
+  // Per-fuel-type split (diesel/petrol/ev/hybrid/unknown) backing the weekly diesel-vs-petrol chart.
+  byFuelType: Record<string, FuelTypeBreakdown>;
 };
 
 export type VehicleEfficiency = {
@@ -35,10 +43,18 @@ export class FuelMetricsUseCase {
     const buckets = new Map<string, ConsumptionBucket>();
     for (const r of records) {
       const label = period === "weekly" ? isoWeek(r.recordedAt) : isoMonth(r.recordedAt);
-      const b = buckets.get(label) ?? { label, liters: 0, totalCost: 0, records: 0 };
+      const b = buckets.get(label) ?? { label, liters: 0, totalCost: 0, records: 0, byFuelType: {} };
       b.liters = +(b.liters + r.liters).toFixed(2);
       b.totalCost = +(b.totalCost + r.totalCost).toFixed(2);
       b.records++;
+
+      const ft = r.fuelType ?? "unknown";
+      const slot = b.byFuelType[ft] ?? { liters: 0, totalCost: 0, records: 0 };
+      slot.liters = +(slot.liters + r.liters).toFixed(2);
+      slot.totalCost = +(slot.totalCost + r.totalCost).toFixed(2);
+      slot.records++;
+      b.byFuelType[ft] = slot;
+
       buckets.set(label, b);
     }
 

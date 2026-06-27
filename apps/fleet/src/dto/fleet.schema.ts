@@ -225,6 +225,8 @@ export class VehicleSchema {
   year!: number | null;
   @ApiProperty({ enum: ["truck", "van", "trailer"], nullable: true })
   type!: "truck" | "van" | "trailer" | null;
+  @ApiPropertyOptional({ enum: ["diesel", "petrol", "ev", "hybrid"], nullable: true })
+  fuelType?: "diesel" | "petrol" | "ev" | "hybrid" | null;
   @ApiProperty({ nullable: true })
   capacity!: number | null;
   @ApiProperty()
@@ -707,16 +709,70 @@ export class FuelRecordListResponse extends StandardApiResponse<FuelRecordSchema
   data!: FuelRecordSchema[];
 }
 
-export class ConsumptionBucketSchema {
-  @ApiProperty() label!: string;
+export class FuelTypeBreakdownSchema {
   @ApiProperty() liters!: number;
   @ApiProperty() totalCost!: number;
   @ApiProperty() records!: number;
 }
 
+export class ConsumptionBucketSchema {
+  @ApiProperty() label!: string;
+  @ApiProperty() liters!: number;
+  @ApiProperty() totalCost!: number;
+  @ApiProperty() records!: number;
+  @ApiProperty({
+    type: "object",
+    additionalProperties: true,
+    description: "Per-fuel-type split keyed by diesel/petrol/ev/hybrid/unknown",
+  })
+  byFuelType!: Record<string, FuelTypeBreakdownSchema>;
+}
+
 export class FuelConsumptionResponse extends StandardApiResponse<ConsumptionBucketSchema[]> {
   @ApiProperty({ type: ConsumptionBucketSchema, isArray: true })
   data!: ConsumptionBucketSchema[];
+}
+
+export class FuelBudgetSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty({ enum: ["vehicle", "fleet"] }) scope!: "vehicle" | "fleet";
+  @ApiProperty({ enum: ["daily", "weekly", "monthly"] }) periodType!: "daily" | "weekly" | "monthly";
+  @ApiProperty() amountNgn!: number;
+}
+
+export class FuelBudgetListResponse extends StandardApiResponse<FuelBudgetSchema[]> {
+  @ApiProperty({ type: FuelBudgetSchema, isArray: true })
+  data!: FuelBudgetSchema[];
+}
+
+export class FuelBudgetResponse extends StandardApiResponse<FuelBudgetSchema> {
+  @ApiProperty({ type: FuelBudgetSchema })
+  data!: FuelBudgetSchema;
+}
+
+export class FuelBudgetVsActualRowSchema {
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty({ enum: ["daily", "weekly", "monthly"] }) periodType!: "daily" | "weekly" | "monthly";
+  @ApiProperty() budgetedNgn!: number;
+  @ApiProperty() actualNgn!: number;
+  @ApiProperty() variance!: number;
+  @ApiProperty({ nullable: true }) utilizationPct!: number | null;
+}
+
+export class FuelBudgetVsActualSchema {
+  @ApiProperty() windowStart!: string;
+  @ApiProperty() windowEnd!: string;
+  @ApiProperty() windowDays!: number;
+  @ApiProperty({ type: FuelBudgetVsActualRowSchema, isArray: true })
+  vehicles!: FuelBudgetVsActualRowSchema[];
+  @ApiProperty({ type: FuelBudgetVsActualRowSchema, nullable: true })
+  fleet!: FuelBudgetVsActualRowSchema | null;
+}
+
+export class FuelBudgetVsActualResponse extends StandardApiResponse<FuelBudgetVsActualSchema> {
+  @ApiProperty({ type: FuelBudgetVsActualSchema })
+  data!: FuelBudgetVsActualSchema;
 }
 
 export class VehicleEfficiencySchema {
