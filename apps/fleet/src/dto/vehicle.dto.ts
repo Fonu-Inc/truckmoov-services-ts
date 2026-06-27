@@ -68,7 +68,6 @@ export class CreateVehicleDto {
   @IsIn(FLEET_VEHICLE_TYPES)
   type?: "truck" | "van" | "trailer";
 
-  /** Fuel the vehicle runs on — drives the diesel/petrol consumption split */
   @IsOptional()
   @IsIn(FLEET_FUEL_TYPES)
   fuelType?: typeof FLEET_FUEL_TYPES[number];

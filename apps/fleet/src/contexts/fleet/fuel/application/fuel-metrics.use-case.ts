@@ -17,7 +17,6 @@ export type ConsumptionBucket = {
   liters: number;
   totalCost: number;
   records: number;
-  // Per-fuel-type split (diesel/petrol/ev/hybrid/unknown) backing the weekly diesel-vs-petrol chart.
   byFuelType: Record<string, FuelTypeBreakdown>;
 };
 

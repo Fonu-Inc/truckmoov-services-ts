@@ -720,11 +720,7 @@ export class ConsumptionBucketSchema {
   @ApiProperty() liters!: number;
   @ApiProperty() totalCost!: number;
   @ApiProperty() records!: number;
-  @ApiProperty({
-    type: "object",
-    additionalProperties: true,
-    description: "Per-fuel-type split keyed by diesel/petrol/ev/hybrid/unknown",
-  })
+  @ApiProperty({ type: "object", additionalProperties: true })
   byFuelType!: Record<string, FuelTypeBreakdownSchema>;
 }
 
@@ -1165,6 +1161,15 @@ export class ComplianceSummaryResponse extends StandardApiResponse<ComplianceSum
 
 /* ── Financials ───────────────────────────────────────────────────────── */
 
+export class CostBreakdownSchema {
+  @ApiProperty() fuel!: number;
+  @ApiProperty() maintenance!: number;
+  @ApiProperty() wages!: number;
+  @ApiProperty() insurance!: number;
+  @ApiProperty() depreciation!: number;
+  @ApiProperty() other!: number;
+}
+
 export class VehicleProfitabilitySchema {
   @ApiProperty() vehicleId!: string;
   @ApiProperty() plateNumber!: string;
@@ -1177,6 +1182,8 @@ export class VehicleProfitabilitySchema {
   @ApiProperty() marginPercent!: number;
   @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
   tier!: "excellent" | "good" | "marginal" | "loss_making";
+  @ApiProperty() score!: number;
+  @ApiProperty({ type: CostBreakdownSchema }) costBreakdown!: CostBreakdownSchema;
   @ApiProperty() jobCount!: number;
 }
 
@@ -1190,7 +1197,20 @@ export class FinancialSummarySchema {
   @ApiProperty() totalCost!: number;
   @ApiProperty() totalProfit!: number;
   @ApiProperty() avgMarginPercent!: number;
+  @ApiProperty() avgScore!: number;
   @ApiProperty() vehicleCount!: number;
+}
+
+export class FinancialStatementSchema {
+  @ApiProperty() generatedAt!: string;
+  @ApiProperty() periodMonths!: number;
+  @ApiProperty({ type: FinancialSummarySchema }) summary!: FinancialSummarySchema;
+  @ApiProperty({ type: VehicleProfitabilitySchema, isArray: true }) vehicles!: VehicleProfitabilitySchema[];
+}
+
+export class FinancialStatementResponse extends StandardApiResponse<FinancialStatementSchema> {
+  @ApiProperty({ type: FinancialStatementSchema })
+  data!: FinancialStatementSchema;
 }
 
 export class FinancialSummaryResponse extends StandardApiResponse<FinancialSummarySchema> {

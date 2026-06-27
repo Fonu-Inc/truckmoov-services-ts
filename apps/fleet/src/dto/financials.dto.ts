@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsInt, IsNumber, IsOptional, Min } from "class-validator";
+import { IsIn, IsInt, IsNumber, IsOptional, Min } from "class-validator";
+
+const STATEMENT_FORMATS = ["pdf", "csv", "xlsx"] as const;
 
 export class ComputeProfitabilityDto {
   @ApiPropertyOptional({ description: "Number of months to aggregate over (defaults to 1)", default: 1 })
@@ -9,6 +11,22 @@ export class ComputeProfitabilityDto {
   @IsInt()
   @Min(1)
   periodMonths?: number;
+}
+
+export class StatementQueryDto {
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  periodMonths?: number;
+}
+
+export class StatementExportQueryDto extends StatementQueryDto {
+  @ApiPropertyOptional({ enum: STATEMENT_FORMATS, default: "pdf" })
+  @IsOptional()
+  @IsIn(STATEMENT_FORMATS)
+  format?: typeof STATEMENT_FORMATS[number];
 }
 
 export class UpsertFinancialConfigDto {

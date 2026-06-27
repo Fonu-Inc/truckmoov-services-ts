@@ -15,7 +15,6 @@ function buildReader() {
   return new HttpDispatchJobsReader(config as any);
 }
 
-/** Mirrors Go pkg/http/auth_context.go resolveAuthClaims: re-sign parts[0], constant-compare. */
 function verifyGoToken(token: string) {
   const parts = token.split(".");
   expect(parts).toHaveLength(2);

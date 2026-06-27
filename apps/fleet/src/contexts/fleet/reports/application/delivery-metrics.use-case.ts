@@ -32,7 +32,6 @@ export class DeliveryMetricsUseCase {
     const completed = delivered.length + cancelled.length;
     const deliverySuccessRate = completed > 0 ? delivered.length / completed : 0;
 
-    // Dispatch jobs expose only created/updated; for a delivered job updatedAt is the delivery time.
     const cycleTimes = delivered
       .filter((j) => j.createdAt && j.updatedAt)
       .map((j) => new Date(j.updatedAt).getTime() - new Date(j.createdAt).getTime())

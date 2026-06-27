@@ -1,7 +1,3 @@
-/**
- * Read-only view of a canonical job owned by the Go dispatch service.
- * Fleet financials/analytics/reports read these instead of the retired fleet_jobs stub.
- */
 export type DispatchJob = {
   id: string;
   reference: string;

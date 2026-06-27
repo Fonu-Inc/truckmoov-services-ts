@@ -79,7 +79,7 @@ import {
   UpdateComplianceDocumentDto,
   UploadComplianceDocumentDto,
 } from "./dto/compliance-document.dto";
-import { ComputeProfitabilityDto, UpsertFinancialConfigDto } from "./dto/financials.dto";
+import { ComputeProfitabilityDto, StatementExportQueryDto, StatementQueryDto, UpsertFinancialConfigDto } from "./dto/financials.dto";
 import {
   AccessLogListResponse,
   AlertListResponse,
@@ -113,6 +113,7 @@ import {
   FinancialConfigListResponse,
   FinancialConfigNullableResponse,
   FinancialConfigResponse,
+  FinancialStatementResponse,
   FinancialSummaryResponse,
   FleetHealthResponse,
   FleetStatusResponse,
@@ -2121,6 +2122,33 @@ export class FleetController {
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=cost-breakdown.csv");
     res.send(csv);
+  }
+
+  @Get("financials/statement/export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Export the financial statement as PDF, CSV, or Excel" })
+  @ApiQuery({ name: "format", required: false, enum: ["pdf", "csv", "xlsx"] })
+  @ApiQuery({ name: "periodMonths", required: false, type: Number })
+  @ApiOkResponse({ description: "Statement file", content: { "application/pdf": {}, "text/csv": {}, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {} } })
+  async exportFinancialStatement(@Query() query: StatementExportQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const { body, contentType, filename } = await this.fleetFinancialsUseCase.exportStatement(
+      this.tenantIdFromRequest(req),
+      query.format ?? "pdf",
+      query.periodMonths ?? 1,
+    );
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    res.send(body);
+  }
+
+  @Get("financials/statement")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({ summary: "Financial statement with score + 5-category cost breakdown" })
+  @ApiQuery({ name: "periodMonths", required: false, type: Number })
+  @ApiOkResponse({ type: FinancialStatementResponse })
+  async getFinancialStatement(@Query() query: StatementQueryDto, @Req() req: FleetRequestContext): Promise<FinancialStatementResponse> {
+    const data = await this.fleetFinancialsUseCase.buildStatement(this.tenantIdFromRequest(req), query.periodMonths ?? 1);
+    return { status: true, message: "success", data } as unknown as FinancialStatementResponse;
   }
 
   /* ── Fuel Management Aliases (Phase 7) ─────────────────────────────────── */

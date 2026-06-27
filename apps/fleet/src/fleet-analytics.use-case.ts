@@ -47,7 +47,6 @@ export class FleetAnalyticsUseCase {
       jobs: {
         total: recentJobs.length,
         completed: recentJobs.filter((j) => j.status === "delivered").length,
-        // Go dispatch lifecycle: created → assigned → en-route → arrived → loaded → delivered.
         inProgress: recentJobs.filter((j) => ["assigned", "en-route", "arrived", "loaded"].includes(j.status)).length,
         pending: recentJobs.filter((j) => j.status === "created").length,
       },

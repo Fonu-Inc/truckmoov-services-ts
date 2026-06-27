@@ -399,7 +399,6 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
 export class FleetFuelBudgetRecord {
   id!: string;
   tenantId!: string;
-  // Empty string scopes the budget fleet-wide; any other value targets a single vehicle.
   vehicleId!: string;
   periodType!: string;
   amountNgn!: number;

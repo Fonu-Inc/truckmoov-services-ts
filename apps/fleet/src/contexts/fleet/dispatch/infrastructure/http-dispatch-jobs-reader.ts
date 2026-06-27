@@ -28,11 +28,6 @@ type DispatchJobApi = {
   updated_at?: string;
 };
 
-/**
- * Calls Go dispatch `GET /dispatch/jobs` with the same 2-part HMAC token the Go
- * services use for service-to-service auth. Dispatch unavailability degrades to an
- * empty list so financials/analytics endpoints stay up (logged, not thrown).
- */
 @Injectable()
 export class HttpDispatchJobsReader implements DispatchJobsReader {
   private readonly logger = new Logger(HttpDispatchJobsReader.name);
@@ -54,7 +49,7 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
         validateStatus: () => true,
       });
 
-      if (res.status < 200 || res.status >= 300 || !res.data?.data) {
+      if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.data)) {
         this.logger.warn(`dispatch read returned ${res.status}; degrading to empty jobs`);
         return [];
       }

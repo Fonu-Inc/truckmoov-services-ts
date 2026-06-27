@@ -16,7 +16,6 @@ export class RecordFuelDto {
   @IsString()
   vehicleType?: string | null;
 
-  /** Fuel kind; defaults to the vehicle's configured fuelType when omitted */
   @IsOptional()
   @IsIn(FUEL_TYPES)
   fuelType?: typeof FUEL_TYPES[number] | null;
@@ -80,7 +79,6 @@ export class UpsertFuelBudgetDto {
   @IsIn(FUEL_BUDGET_PERIODS)
   periodType!: typeof FUEL_BUDGET_PERIODS[number];
 
-  /** Budgeted spend in NGN for one period (one day / week / month) */
   @IsNumber()
   @Min(0)
   amountNgn!: number;
