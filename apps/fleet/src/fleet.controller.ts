@@ -1433,6 +1433,7 @@ export class FleetController {
   @Post("alerts/:id/acknowledge")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Acknowledge alert — H04" })
+  @ApiQuery({ name: "by", required: false, type: String, description: "Actor id recording the acknowledgement; defaults to the authenticated user." })
   @ApiOkResponse({ type: AlertResponse })
   async acknowledgeAlert(
     @Param("id") id: string,
@@ -1466,6 +1467,7 @@ export class FleetController {
   @Post("alerts/:id/resolve")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Resolve alert — H04" })
+  @ApiQuery({ name: "by", required: false, type: String, description: "Actor id recording the resolution; defaults to the authenticated user." })
   @ApiOkResponse({ type: AlertResponse })
   async resolveAlert(
     @Param("id") id: string,
@@ -2387,6 +2389,10 @@ export class FleetController {
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } })
   @ApiOperation({ summary: "Upload document — J01" })
+  @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
+  @ApiQuery({ name: "entityId", required: true, type: String })
+  @ApiQuery({ name: "docType", required: true, enum: ["pod", "invoice", "permit", "other"] })
+  @ApiQuery({ name: "uploadedBy", required: false, type: String, description: "Actor id credited with the upload; defaults to the authenticated user." })
   @ApiCreatedResponse({ type: DocumentResponse })
   async uploadDocument(
     @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
@@ -2447,6 +2453,7 @@ export class FleetController {
   @Get("documents/:id/download-url")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
   @ApiOperation({ summary: "Get secure download URL — J02" })
+  @ApiQuery({ name: "userId", required: false, type: String, description: "Actor id requesting the download; defaults to the authenticated user." })
   @ApiOkResponse({ type: DownloadUrlResponse })
   async getDocumentDownloadUrl(
     @Param("id") id: string,
