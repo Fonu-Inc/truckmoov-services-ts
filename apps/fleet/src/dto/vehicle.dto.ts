@@ -1,4 +1,4 @@
-import { PartialType } from "@nestjs/swagger";
+import { OmitType, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsArray,
@@ -161,7 +161,7 @@ export class CreateDeviceDto {
   lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
 }
 
-export class UpdateDeviceDto extends PartialType(CreateDeviceDto) {
+export class UpdateDeviceDto extends PartialType(OmitType(CreateDeviceDto, ["imei"] as const)) {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -184,6 +184,14 @@ export class UpdateDeviceDto extends PartialType(CreateDeviceDto) {
 export class SetDeviceLifecycleStatusDto {
   @IsIn(DEVICE_LIFECYCLE_STATUSES)
   lifecycleStatus!: typeof DEVICE_LIFECYCLE_STATUSES[number];
+}
+
+const LAST_SEEN_BUCKETS = ["5min", "1hr", "24hr", "7day", "never"] as const;
+
+export class SetDeviceFirmwareDto {
+  @IsString()
+  @MaxLength(20)
+  firmwareVersion!: string;
 }
 
 export class AssignDeviceToVehicleDto {
@@ -249,6 +257,10 @@ export class DeviceListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
+
+  @IsOptional()
+  @IsIn(LAST_SEEN_BUCKETS)
+  lastSeenBucket?: typeof LAST_SEEN_BUCKETS[number];
 }
 
 export class VehicleImportItemDto {

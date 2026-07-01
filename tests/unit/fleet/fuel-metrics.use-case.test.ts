@@ -44,6 +44,28 @@ describe("FuelMetricsUseCase", () => {
     expect(buckets).toHaveLength(2);
   });
 
+  it("groups consumption by day", async () => {
+    const { uc } = await buildUseCase([
+      makeRec("1", "v1", 40, null, "2026-01-05T08:00:00.000Z"),
+      makeRec("2", "v1", 30, null, "2026-01-05T18:00:00.000Z"),
+      makeRec("3", "v1", 10, null, "2026-01-06T08:00:00.000Z"),
+    ]);
+    const buckets = await uc.consumption("t1", "daily");
+    expect(buckets).toHaveLength(2);
+    const jan5 = buckets.find((b) => b.label === "2026-01-05");
+    expect(jan5?.liters).toBe(70);
+  });
+
+  it("filters consumption by date range", async () => {
+    const { uc } = await buildUseCase([
+      makeRec("1", "v1", 40, null, "2026-01-05T00:00:00.000Z"),
+      makeRec("2", "v1", 30, null, "2026-01-20T00:00:00.000Z"),
+    ]);
+    const buckets = await uc.consumption("t1", "monthly", { from: "2026-01-10T00:00:00.000Z" });
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].liters).toBe(30);
+  });
+
   it("returns empty when no records", async () => {
     const { uc } = await buildUseCase([]);
     expect(await uc.consumption("t1", "monthly")).toEqual([]);

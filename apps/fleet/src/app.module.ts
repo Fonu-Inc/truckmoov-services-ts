@@ -48,6 +48,16 @@ import {
   UpdateDeviceSetupRequestStatusUseCase,
 } from "./contexts/fleet/device-setup-requests";
 import {
+  CARRIER_REPOSITORY,
+  DATA_BUNDLE_REPOSITORY,
+  InMemoryCarrierRepository,
+  MikroCarrierRepository,
+  InMemoryDataBundleRepository,
+  MikroDataBundleRepository,
+  ListCarriersUseCase,
+  ListDataBundlesUseCase,
+} from "./contexts/fleet/carriers";
+import {
   AssignDriverToVehicleUseCase,
   BulkImportVehiclesUseCase,
   CreateVehicleUseCase,
@@ -268,6 +278,30 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     ListDeviceSetupRequestsUseCase,
     GetDeviceSetupRequestUseCase,
     UpdateDeviceSetupRequestStatusUseCase,
+    InMemoryCarrierRepository,
+    MikroCarrierRepository,
+    {
+      provide: CARRIER_REPOSITORY,
+      inject: [InMemoryCarrierRepository, MikroCarrierRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryCarrierRepository,
+        mikroRepository: MikroCarrierRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    InMemoryDataBundleRepository,
+    MikroDataBundleRepository,
+    {
+      provide: DATA_BUNDLE_REPOSITORY,
+      inject: [InMemoryDataBundleRepository, MikroDataBundleRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryDataBundleRepository,
+        mikroRepository: MikroDataBundleRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    ListCarriersUseCase,
+    ListDataBundlesUseCase,
     InMemoryDriverRepository,
     MikroDriverRepository,
     {

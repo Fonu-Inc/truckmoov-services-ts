@@ -56,6 +56,7 @@ import {
   RecommendDriversQueryDto,
   GpsDeviceListQueryDto,
   RegisterGpsDeviceDto,
+  SetDeviceFirmwareDto,
   SetDeviceLifecycleStatusDto,
   SetVehicleStatusDto,
   UpdateDeviceDto,
@@ -79,7 +80,7 @@ import {
   UpdateComplianceDocumentDto,
   UploadComplianceDocumentDto,
 } from "./dto/compliance-document.dto";
-import { ComputeProfitabilityDto, StatementExportQueryDto, StatementQueryDto, UpsertFinancialConfigDto } from "./dto/financials.dto";
+import { ComputeProfitabilityDto, FinancialSummaryQueryDto, StatementExportQueryDto, StatementQueryDto, UpsertFinancialConfigDto } from "./dto/financials.dto";
 import {
   AccessLogListResponse,
   AlertListResponse,
@@ -112,6 +113,8 @@ import {
   DriverResponse,
   DriverScoreListResponse,
   FinancialConfigListResponse,
+  CarrierListResponse,
+  DataBundleListResponse,
   FinancialConfigNullableResponse,
   FinancialConfigResponse,
   FinancialStatementResponse,
@@ -178,6 +181,8 @@ import {
   DeviceSetupRequestListQueryDto,
   UpdateDeviceSetupRequestStatusDto,
 } from "./dto/device-setup-request.dto";
+import { ListCarriersUseCase, ListDataBundlesUseCase } from "./contexts/fleet/carriers";
+import { DataBundleListQueryDto } from "./dto/carrier.dto";
 import {
   BulkImportDriversUseCase,
   CreateDriverUseCase,
@@ -284,6 +289,10 @@ export class FleetController {
     private readonly createDeviceSetupRequestUseCase: CreateDeviceSetupRequestUseCase,
     @Inject(ListDeviceSetupRequestsUseCase)
     private readonly listDeviceSetupRequestsUseCase: ListDeviceSetupRequestsUseCase,
+    @Inject(ListCarriersUseCase)
+    private readonly listCarriersUseCase: ListCarriersUseCase,
+    @Inject(ListDataBundlesUseCase)
+    private readonly listDataBundlesUseCase: ListDataBundlesUseCase,
     @Inject(GetDeviceSetupRequestUseCase)
     private readonly getDeviceSetupRequestUseCase: GetDeviceSetupRequestUseCase,
     @Inject(UpdateDeviceSetupRequestStatusUseCase)
@@ -603,6 +612,7 @@ export class FleetController {
   @ApiQuery({ name: "status", required: false, enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
   @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
+  @ApiQuery({ name: "lastSeenBucket", required: false, enum: ["5min", "1hr", "24hr", "7day", "never"] })
   @ApiOkResponse({ type: DeviceListResponse })
   async listDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext): Promise<DeviceListResponse> {
     return this.listDevicesUseCase.execute({
@@ -611,8 +621,50 @@ export class FleetController {
       status: query.status,
       lifecycleStatus: query.lifecycleStatus,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      lastSeenBucket: query.lastSeenBucket,
       tenantId: this.tenantIdFromRequest(req),
     }) as unknown as Promise<DeviceListResponse>;
+  }
+
+  @Get("devices/export")
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.PLATFORM_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
+  @ApiOperation({ summary: "Export devices as CSV" })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async exportDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const devices = (await this.listDevicesUseCase.execute({
+      query: query.query,
+      manufacturer: query.manufacturer,
+      status: query.status,
+      lifecycleStatus: query.lifecycleStatus,
+      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      lastSeenBucket: query.lastSeenBucket,
+      tenantId: this.tenantIdFromRequest(req),
+    })) as unknown as Array<Record<string, unknown>>;
+    const headers = ["id", "imei", "manufacturer", "model", "firmwareVersion", "lifecycleStatus", "status", "vehicleId", "lastSeen"];
+    const rows = [headers.join(","), ...devices.map((d) => headers.map((h) => JSON.stringify(d[h] ?? "")).join(","))];
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=devices.csv");
+    res.send(rows.join("\n"));
+  }
+
+  @Get("devices/import-template")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Download the CSV template for bulk device import" })
+  @ApiOkResponse({ description: "CSV template", content: { "text/csv": {} } })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async downloadDeviceImportTemplate(@Res({ passthrough: false }) res: any) {
+    const headers = ["imei", "manufacturer", "model", "firmwareVersion", "lifecycleStatus"];
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=devices-import-template.csv");
+    res.send(headers.join(","));
   }
 
   @Post("devices")
@@ -734,6 +786,30 @@ export class FleetController {
       action: "device.lifecycle.updated",
       summary: "Device lifecycle status updated",
       metadata: { lifecycleStatus: payload.lifecycleStatus },
+    });
+    return result;
+  }
+
+  @Patch("devices/:id/firmware")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @RequireIdempotency()
+  @UseGuards(IdempotencyGuard)
+  @ApiOperation({ summary: "Update device firmware version" })
+  @ApiOkResponse({ type: DeviceResponse })
+  async setDeviceFirmware(
+    @Param("id") id: string,
+    @Body() payload: SetDeviceFirmwareDto,
+    @Req() req: FleetRequestContext,
+  ): Promise<DeviceResponse> {
+    const result = (await this.runFleetUseCase(() =>
+      this.updateDeviceUseCase.execute({ id, firmwareVersion: payload.firmwareVersion }),
+    )) as unknown as DeviceResponse;
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.firmware.updated",
+      summary: "Device firmware updated",
+      metadata: { firmwareVersion: payload.firmwareVersion },
     });
     return result;
   }
@@ -900,6 +976,27 @@ export class FleetController {
       metadata: { status: payload.status },
     });
     return result;
+  }
+
+  /* ── Carriers / Data Bundles catalog ─────────────────────────────────────── */
+
+  @Get("carriers")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @ApiOperation({ summary: "List SIM carriers catalog" })
+  @ApiOkResponse({ type: CarrierListResponse })
+  async listCarriers(): Promise<CarrierListResponse> {
+    const data = await this.listCarriersUseCase.execute();
+    return { status: true, message: "success", data } as unknown as CarrierListResponse;
+  }
+
+  @Get("data-bundles")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @ApiOperation({ summary: "List SIM data bundles catalog" })
+  @ApiQuery({ name: "carrierId", required: false, type: String })
+  @ApiOkResponse({ type: DataBundleListResponse })
+  async listDataBundles(@Query() query: DataBundleListQueryDto): Promise<DataBundleListResponse> {
+    const data = await this.listDataBundlesUseCase.execute({ carrierId: query.carrierId });
+    return { status: true, message: "success", data } as unknown as DataBundleListResponse;
   }
 
   /** Retrieve GPS devices currently registered against fleet vehicles */
@@ -2019,16 +2116,30 @@ export class FleetController {
   @ApiOperation({ summary: "Compute per-vehicle profitability" })
   @ApiOkResponse({ description: "Profitability array", type: VehicleProfitabilityListResponse })
   async computeProfitability(@Body() body: ComputeProfitabilityDto, @Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.computeProfitability(this.tenantIdFromRequest(req), body.periodMonths ?? 1);
+    const data = await this.fleetFinancialsUseCase.computeProfitability(this.tenantIdFromRequest(req), body.periodMonths ?? 1, {
+      from: body.from,
+      to: body.to,
+      search: body.search,
+      marginFrom: body.marginFrom,
+      marginTo: body.marginTo,
+      revenueFrom: body.revenueFrom,
+      revenueTo: body.revenueTo,
+      netProfitFrom: body.netProfitFrom,
+      netProfitTo: body.netProfitTo,
+      scoreFrom: body.scoreFrom,
+      scoreTo: body.scoreTo,
+    });
     return { status: true, message: "success", data };
   }
 
   @Get("financials/summary")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Fleet financial summary" })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ description: "Financial summary", type: FinancialSummaryResponse })
-  async getFinancialSummary(@Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.summary(this.tenantIdFromRequest(req));
+  async getFinancialSummary(@Query() query: FinancialSummaryQueryDto, @Req() req: FleetRequestContext) {
+    const data = await this.fleetFinancialsUseCase.summary(this.tenantIdFromRequest(req), { from: query.from, to: query.to });
     return { status: true, message: "success", data };
   }
 
@@ -2092,6 +2203,15 @@ export class FleetController {
       this.tenantIdFromRequest(req),
       query.format ?? "pdf",
       query.periodMonths ?? 1,
+      {
+        title: query.title,
+        companyName: query.companyName,
+        preparedBy: query.preparedBy,
+        notes: query.notes,
+        includeCoverPage: query.includeCoverPage,
+        includeFleetSummary: query.includeFleetSummary,
+        includePerVehicleBreakdown: query.includePerVehicleBreakdown,
+      },
     );
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
@@ -2244,10 +2364,15 @@ export class FleetController {
   @Get("fuel/metrics")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel consumption chart — N04" })
-  @ApiQuery({ name: "period", required: false, enum: ["weekly", "monthly"] })
+  @ApiQuery({ name: "period", required: false, enum: ["daily", "weekly", "monthly"] })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ type: FuelConsumptionResponse })
   async fuelConsumption(@Query() query: FuelMetricsQueryDto, @Req() req: FleetRequestContext): Promise<FuelConsumptionResponse> {
-    const buckets = await this.fuelMetricsUseCase.consumption(this.tenantIdFromRequest(req), query.period ?? "monthly");
+    const buckets = await this.fuelMetricsUseCase.consumption(this.tenantIdFromRequest(req), query.period ?? "monthly", {
+      from: query.from,
+      to: query.to,
+    });
     return { status: true, message: "success", data: buckets as ConsumptionBucketSchema[] };
   }
 

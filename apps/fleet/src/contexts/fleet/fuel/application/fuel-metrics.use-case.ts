@@ -4,7 +4,7 @@ import { FLEET_RUNTIME, type FleetRuntime } from "../../shared/domain/ports/flee
 import { FuelThresholdService } from "./fuel-threshold.service";
 import type { FuelRecord } from "../domain/entities/fuel-record.entity";
 
-export type MetricsPeriod = "weekly" | "monthly";
+export type MetricsPeriod = "daily" | "weekly" | "monthly";
 
 export type FuelTypeBreakdown = {
   liters: number;
@@ -35,13 +35,18 @@ export class FuelMetricsUseCase {
     private readonly thresholds: FuelThresholdService,
   ) {}
 
-  async consumption(tenantId: string | undefined, period: MetricsPeriod): Promise<ConsumptionBucket[]> {
+  async consumption(
+    tenantId: string | undefined,
+    period: MetricsPeriod,
+    range?: { from?: string; to?: string },
+  ): Promise<ConsumptionBucket[]> {
     const tid = tenantId ?? this.runtime.getDefaultTenantId();
-    const records = await this.repo.findAll({ tenantId: tid });
+    const records = await this.repo.findAll({ tenantId: tid, from: range?.from, to: range?.to });
 
     const buckets = new Map<string, ConsumptionBucket>();
     for (const r of records) {
-      const label = period === "weekly" ? isoWeek(r.recordedAt) : isoMonth(r.recordedAt);
+      const label =
+        period === "daily" ? isoDay(r.recordedAt) : period === "weekly" ? isoWeek(r.recordedAt) : isoMonth(r.recordedAt);
       const b = buckets.get(label) ?? { label, liters: 0, totalCost: 0, records: 0, byFuelType: {} };
       b.liters = +(b.liters + r.liters).toFixed(2);
       b.totalCost = +(b.totalCost + r.totalCost).toFixed(2);
@@ -95,6 +100,10 @@ export class FuelMetricsUseCase {
       };
     });
   }
+}
+
+function isoDay(isoDate: string): string {
+  return isoDate.slice(0, 10);
 }
 
 function isoWeek(isoDate: string): string {

@@ -46,4 +46,24 @@ describe("financial statement renderers", () => {
     expect(xlsx.length).toBeGreaterThan(0);
     expect(xlsx.subarray(0, 2).toString("latin1")).toBe("PK");
   });
+
+  it("applies custom title, company name, and notes to CSV", () => {
+    const csv = renderStatementCsv(sample(), { title: "Custom Statement", companyName: "Acme Logistics", notes: "internal use only" });
+    expect(csv).toContain("Custom Statement,2026-06-27T00:00:00.000Z");
+    expect(csv).toContain("Company,Acme Logistics");
+    expect(csv).toContain("Notes,internal use only");
+  });
+
+  it("omits per-vehicle breakdown when toggled off", () => {
+    const csv = renderStatementCsv(sample(), { includePerVehicleBreakdown: false });
+    expect(csv).not.toContain("vehicleId,plateNumber,revenue");
+    expect(csv).toContain("Total Profit,60000");
+  });
+
+  it("omits cover page and summary in PDF when toggled off", () => {
+    const pdf = renderStatementPdf(sample(), { includeCoverPage: false, includeFleetSummary: false });
+    const body = pdf.toString("latin1");
+    expect(body).not.toContain("TruckMoov");
+    expect(body).toContain("Per-Vehicle P&L");
+  });
 });

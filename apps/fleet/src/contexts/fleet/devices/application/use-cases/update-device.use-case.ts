@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../../vehicles/domain/repositories/vehicle.repository";
 import { buildVehicleGpsSnapshot } from "./device-vehicle-sync";
 import { DeviceNotFoundError } from "../../domain/errors/device-not-found.error";
@@ -12,7 +11,6 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 
 export type UpdateDeviceCommand = {
   id: string;
-  imei?: string;
   manufacturer?: string;
   model?: string;
   firmwareVersion?: string;
@@ -36,13 +34,6 @@ export class UpdateDeviceUseCase {
     const device = await this.deviceRepository.findById(command.id);
     if (!device) {
       throw new DeviceNotFoundError(command.id);
-    }
-
-    if (command.imei && command.imei !== device.imei) {
-      const conflict = await this.deviceRepository.findByImei(command.imei, device.tenantId);
-      if (conflict && conflict.id !== device.id) {
-        throw new FleetRuleError(`device with IMEI ${command.imei} already exists`);
-      }
     }
 
     const updatedDevice = device.update(command);

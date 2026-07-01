@@ -54,6 +54,8 @@ export class MikroDeviceRepository implements DeviceRepository {
           : filters.assigned
             ? { vehicleId: { $ne: null } }
             : { vehicleId: null }),
+        ...(filters?.lastSeenIsNull ? { lastSeen: null } : {}),
+        ...(filters?.lastSeenAfter ? { lastSeen: { $gte: filters.lastSeenAfter } } : {}),
       },
       { orderBy: { createdAt: "asc" } },
     );

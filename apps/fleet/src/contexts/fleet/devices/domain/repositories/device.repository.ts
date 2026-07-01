@@ -8,6 +8,8 @@ export type DeviceFilters = {
   lifecycleStatus?: DeviceLifecycleStatus;
   assigned?: boolean;
   vehicleId?: string;
+  lastSeenAfter?: Date;
+  lastSeenIsNull?: boolean;
 };
 
 export interface DeviceRepository {

@@ -1170,6 +1170,7 @@ export class CostBreakdownSchema {
 export class VehicleProfitabilitySchema {
   @ApiProperty() vehicleId!: string;
   @ApiProperty() plateNumber!: string;
+  @ApiProperty() name!: string;
   @ApiProperty() revenue!: number;
   @ApiProperty() fuelCost!: number;
   @ApiProperty() maintenanceCost!: number;
@@ -1179,14 +1180,24 @@ export class VehicleProfitabilitySchema {
   @ApiProperty() marginPercent!: number;
   @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
   tier!: "excellent" | "good" | "marginal" | "loss_making";
+  @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
+  status!: "excellent" | "good" | "marginal" | "loss_making";
   @ApiProperty() score!: number;
   @ApiProperty({ type: CostBreakdownSchema }) costBreakdown!: CostBreakdownSchema;
   @ApiProperty() jobCount!: number;
+  @ApiProperty() kmDriven!: number;
 }
 
 export class VehicleProfitabilityListResponse extends StandardApiResponse<VehicleProfitabilitySchema[]> {
   @ApiProperty({ type: VehicleProfitabilitySchema, isArray: true })
   data!: VehicleProfitabilitySchema[];
+}
+
+export class TierDistributionSchema {
+  @ApiProperty() excellent!: number;
+  @ApiProperty() good!: number;
+  @ApiProperty() marginal!: number;
+  @ApiProperty() loss_making!: number;
 }
 
 export class FinancialSummarySchema {
@@ -1196,6 +1207,8 @@ export class FinancialSummarySchema {
   @ApiProperty() avgMarginPercent!: number;
   @ApiProperty() avgScore!: number;
   @ApiProperty() vehicleCount!: number;
+  @ApiProperty({ type: CostBreakdownSchema }) costBreakdown!: CostBreakdownSchema;
+  @ApiProperty({ type: TierDistributionSchema }) tierDistribution!: TierDistributionSchema;
 }
 
 export class FinancialStatementSchema {
@@ -1223,6 +1236,8 @@ export class FinancialConfigSchema {
   @ApiProperty({ nullable: true }) monthlyInsuranceNgn!: number | null;
   @ApiProperty({ nullable: true }) monthlyDepreciationNgn!: number | null;
   @ApiProperty({ nullable: true }) monthlyOtherNgn!: number | null;
+  @ApiProperty({ nullable: true }) fuelEstimateNgnPerMonth!: number | null;
+  @ApiProperty({ nullable: true }) maintenanceEstimateNgnPerMonth!: number | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }
@@ -1240,6 +1255,35 @@ export class FinancialConfigNullableResponse extends StandardApiResponse<Financi
 export class FinancialConfigListResponse extends StandardApiResponse<FinancialConfigSchema[]> {
   @ApiProperty({ type: FinancialConfigSchema, isArray: true })
   data!: FinancialConfigSchema[];
+}
+
+/* ── Carriers / Data Bundles catalog ────────────────────────────────────── */
+
+export class CarrierSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() status!: string;
+}
+
+export class DataBundleSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() carrierId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() planType!: string;
+  @ApiProperty({ nullable: true }) dataAllowanceMb!: number | null;
+  @ApiProperty() priceNgn!: number;
+  @ApiProperty() status!: string;
+}
+
+export class CarrierListResponse extends StandardApiResponse<CarrierSchema[]> {
+  @ApiProperty({ type: CarrierSchema, isArray: true })
+  data!: CarrierSchema[];
+}
+
+export class DataBundleListResponse extends StandardApiResponse<DataBundleSchema[]> {
+  @ApiProperty({ type: DataBundleSchema, isArray: true })
+  data!: DataBundleSchema[];
 }
 
 /* ── Fuel summary ─────────────────────────────────────────────────────── */

@@ -350,6 +350,8 @@ export class FleetFinancialConfigRecord {
   monthlyInsuranceNgn!: number | null;
   monthlyDepreciationNgn!: number | null;
   monthlyOtherNgn!: number | null;
+  fuelEstimateNgnPerMonth!: number | null;
+  maintenanceEstimateNgnPerMonth!: number | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -365,6 +367,8 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
     monthlyInsuranceNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     monthlyDepreciationNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     monthlyOtherNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    fuelEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    maintenanceEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
@@ -459,6 +463,57 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
   ],
 });
 
+export class CarrierRecord {
+  id!: string;
+  name!: string;
+  code!: string;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const CarrierRecordSchema = new EntitySchema<CarrierRecord>({
+  class: CarrierRecord,
+  tableName: "fleet_carriers",
+  properties: {
+    id: { type: "string", primary: true },
+    name: { type: "string", length: 128 },
+    code: { type: "string", length: 32, unique: true },
+    status: { type: "string", length: 16, defaultRaw: "'active'" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+});
+
+export class DataBundleRecord {
+  id!: string;
+  carrierId!: string;
+  name!: string;
+  planType!: string;
+  dataAllowanceMb!: number | null;
+  priceNgn!: number;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const DataBundleRecordSchema = new EntitySchema<DataBundleRecord>({
+  class: DataBundleRecord,
+  tableName: "fleet_data_bundles",
+  properties: {
+    id: { type: "string", primary: true },
+    carrierId: { type: "string", length: 64 },
+    name: { type: "string", length: 128 },
+    planType: { type: "string", length: 32 },
+    dataAllowanceMb: { type: "integer", nullable: true },
+    priceNgn: { type: "decimal", precision: 14, scale: 2 },
+    status: { type: "string", length: 16, defaultRaw: "'active'" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [{ properties: ["carrierId"] }],
+});
+
 let ormPromise: Promise<MikroORM> | null = null;
 
 export async function getFleetOrm(cfg: DbConfig) {
@@ -479,6 +534,8 @@ export async function getFleetOrm(cfg: DbConfig) {
       FleetFinancialConfigRecordSchema,
       FleetFuelBudgetRecordSchema,
       DeviceSetupRequestRecordSchema,
+      CarrierRecordSchema,
+      DataBundleRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

@@ -71,8 +71,16 @@ export class FuelThresholdDto {
 
 export class FuelMetricsQueryDto {
   @IsOptional()
-  @IsIn(["weekly", "monthly"])
-  period?: "weekly" | "monthly";
+  @IsIn(["daily", "weekly", "monthly"])
+  period?: "daily" | "weekly" | "monthly";
+
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
 }
 
 export class UpsertFuelBudgetDto {

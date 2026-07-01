@@ -18,11 +18,12 @@ function vehicle(id: string, capacity: number | null, type: string | null) {
   });
 }
 
-function build(drivers: Driver[], vehicles: Vehicle[]) {
+function build(drivers: Driver[], vehicles: Vehicle[], activeJobs: Array<{ assignedDriverId: string | null }> = []) {
   const driverRepo = { findAll: vi.fn().mockResolvedValue(drivers) };
   const vehicleRepo = { findAll: vi.fn().mockResolvedValue(vehicles) };
+  const dispatchJobs = { listJobs: vi.fn().mockResolvedValue(activeJobs) };
   const health = new VehicleHealthService();
-  return { uc: new RecommendDriversUseCase(driverRepo as any, vehicleRepo as any, health), health };
+  return { uc: new RecommendDriversUseCase(driverRepo as any, vehicleRepo as any, dispatchJobs as any, health), health };
 }
 
 describe("RecommendDriversUseCase", () => {
@@ -61,5 +62,16 @@ describe("RecommendDriversUseCase", () => {
     const ranked = await uc.execute("t1", { pickupLat: 6.5, pickupLng: 3.4 });
     expect(ranked[0].driverId).toBe("near");
     expect(ranked[0].distanceKm).toBeLessThan(ranked[1].distanceKm!);
+  });
+
+  it("deprioritises a driver already on an active dispatch job", async () => {
+    const { uc } = build(
+      [driver("d1", "available", "v1"), driver("d2", "available", "v2")],
+      [vehicle("v1", 10, "truck"), vehicle("v2", 10, "truck")],
+      [{ assignedDriverId: "d1" }],
+    );
+    const ranked = await uc.execute("t1", {});
+    expect(ranked[0].driverId).toBe("d2");
+    expect(ranked.find((r) => r.driverId === "d1")?.reasons).toContain("on active dispatch job");
   });
 });

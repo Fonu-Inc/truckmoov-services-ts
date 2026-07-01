@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { VehicleHealthService } from "../../../../vehicle-health.service";
+import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../domain/ports/dispatch-jobs-reader.port";
 
 export type RecommendDriversQuery = {
   requiredCapacity?: number;
@@ -39,20 +40,23 @@ export class RecommendDriversUseCase {
   constructor(
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     private readonly health: VehicleHealthService,
   ) {}
 
   async execute(tenantId: string, query: RecommendDriversQuery): Promise<RecommendedDriver[]> {
-    const [drivers, vehicles] = await Promise.all([
+    const [drivers, vehicles, activeJobs] = await Promise.all([
       this.driverRepo.findAll({ tenantId }),
       this.vehicleRepo.findAll({ tenantId }),
+      this.dispatchJobs.listJobs(tenantId, { status: "in_progress" }),
     ]);
     const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+    const busyDriverIds = new Set(activeJobs.map((j) => j.assignedDriverId).filter((id): id is string => !!id));
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
 
     const ranked = drivers
       .filter((d) => d.status !== "suspended")
-      .map((d) => this.rank(d, vehicleById.get(d.assignedVehicleId ?? "") ?? null, query))
+      .map((d) => this.rank(d, vehicleById.get(d.assignedVehicleId ?? "") ?? null, query, busyDriverIds.has(d.id)))
       .sort((a, b) => b.score - a.score);
 
     return ranked.slice(0, limit);
@@ -62,11 +66,12 @@ export class RecommendDriversUseCase {
     driver: { id: string; name: string; status: string; assignedVehicleId: string | null },
     vehicle: { id: string; plateNumber: string; type: string | null; capacity: number | null; status: string } | null,
     query: RecommendDriversQuery,
+    onActiveJob: boolean,
   ): RecommendedDriver {
     const reasons: string[] = [];
 
-    const availability = driver.status === "available" ? 1 : driver.status === "active" ? 0.6 : 0.1;
-    reasons.push(driver.status);
+    const availability = onActiveJob ? 0.05 : driver.status === "available" ? 1 : driver.status === "active" ? 0.6 : 0.1;
+    reasons.push(onActiveJob ? "on active dispatch job" : driver.status);
 
     let capacity = 0.7;
     if (vehicle?.capacity != null && query.requiredCapacity != null && query.requiredCapacity > 0) {
