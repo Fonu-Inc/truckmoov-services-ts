@@ -98,11 +98,32 @@ describe('SIM per-row action use-cases', () => {
   });
 
   it('updates editable fields only', async () => {
-    const useCase = new UpdateSystemSimUseCase(systemActor() as never, systemUserRepo() as never, repo);
+    const useCase = new UpdateSystemSimUseCase(
+      systemActor() as never,
+      systemUserRepo() as never,
+      repo,
+      { publish: async () => {} } as never,
+    );
     const result = await useCase.execute(TOKEN, 'sim-1', { plan: 'iot_premium', dataLimitMb: 4096 });
     expect(result.data.plan).toBe('iot_premium');
     expect(result.data.dataLimitMb).toBe(4096);
     expect((await repo.findById('sim-1'))!.plan).toBe('iot_premium');
+  });
+
+  it('emits sim.changed for a device-linked SIM on update', async () => {
+    await repo.save(buildSim({ id: 'sim-1', tenantId: 't1', deviceId: 'dev-9', deviceImei: '359001', status: 'assigned' }));
+    const published: Array<{ device_id: string; action: string; tenant_id: string }> = [];
+    const useCase = new UpdateSystemSimUseCase(
+      systemActor() as never,
+      systemUserRepo() as never,
+      repo,
+      { publish: async (e: never) => { published.push(e); } } as never,
+    );
+    await useCase.execute(TOKEN, 'sim-1', { carrier: 'Airtel' });
+    expect(published).toHaveLength(1);
+    expect(published[0].device_id).toBe('dev-9');
+    expect(published[0].tenant_id).toBe('t1');
+    expect(published[0].action).toBe('updated');
   });
 
   it('reassigns to a tenant and marks assigned', async () => {

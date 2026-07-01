@@ -5,6 +5,11 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 import { SimNotFoundError, serializeSim } from './get-system-sim-detail.use-case';
+import {
+  SIM_CHANGED_EVENT_PUBLISHER,
+  type SimChangedEventPublisher,
+  emitSimChanged,
+} from './sim-changed-event.publisher';
 
 export type UpdateSystemSimInput = {
   plan?: string;
@@ -19,6 +24,7 @@ export class UpdateSystemSimUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SIM_REPOSITORY) private readonly simRepo: SimRepository,
+    @Inject(SIM_CHANGED_EVENT_PUBLISHER) private readonly simEvents: SimChangedEventPublisher,
   ) {}
 
   async execute(accessToken: string, simId: string, patch: UpdateSystemSimInput) {
@@ -36,6 +42,7 @@ export class UpdateSystemSimUseCase {
     if (patch.smsLimit !== undefined) sim.smsLimit = patch.smsLimit;
     sim.updatedAt = new Date();
     await this.simRepo.save(sim);
+    await emitSimChanged(this.simEvents, sim, 'updated');
 
     return {
       status: true,

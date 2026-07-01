@@ -203,6 +203,8 @@ import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-r
 import { SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
 import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
 import { SimDeviceInfoListener } from './sim-device-info.listener';
+import { SIM_CHANGED_EVENT_PUBLISHER } from './sim-changed-event.publisher';
+import { EventBusSimChangedEventPublisher } from './eventbus-sim-changed-event.publisher';
 // Bundle carrier
 import { BUNDLE_CARRIER_REPOSITORY } from './bundle-carrier.repository';
 import { InMemoryBundleCarrierRepository } from './in-memory-bundle-carrier.repository';
@@ -731,6 +733,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CompleteOnboardingUseCase,
     // SIM device info listener
     SimDeviceInfoListener,
+    EventBusSimChangedEventPublisher,
+    { provide: SIM_CHANGED_EVENT_PUBLISHER, useExisting: EventBusSimChangedEventPublisher },
     // Bundle carrier repository
     InMemoryBundleCarrierRepository,
     MikroBundleCarrierRepository,

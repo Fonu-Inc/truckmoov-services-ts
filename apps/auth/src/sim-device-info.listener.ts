@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import {
+  SIM_CHANGED_EVENT_PUBLISHER,
+  type SimChangedEventPublisher,
+  emitSimChanged,
+} from './sim-changed-event.publisher';
 
 @Injectable()
 export class SimDeviceInfoListener implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -10,6 +15,7 @@ export class SimDeviceInfoListener implements OnApplicationBootstrap, OnApplicat
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(SIM_REPOSITORY) private readonly simRepo: SimRepository,
+    @Inject(SIM_CHANGED_EVENT_PUBLISHER) private readonly simEvents: SimChangedEventPublisher,
   ) {}
 
   async onApplicationBootstrap() {
@@ -21,7 +27,7 @@ export class SimDeviceInfoListener implements OnApplicationBootstrap, OnApplicat
       const sim = await this.simRepo.findById(simId);
       if (!sim) return;
 
-      await this.simRepo.save({
+      const updated = {
         ...sim,
         deviceId: typeof data.deviceId === 'string' ? data.deviceId : sim.deviceId,
         deviceName: typeof data.deviceName === 'string' ? data.deviceName : sim.deviceName,
@@ -29,7 +35,9 @@ export class SimDeviceInfoListener implements OnApplicationBootstrap, OnApplicat
         deviceType: typeof data.deviceType === 'string' ? data.deviceType : sim.deviceType,
         vehicleId: typeof data.vehicleId === 'string' ? data.vehicleId : sim.vehicleId,
         updatedAt: new Date(),
-      });
+      };
+      await this.simRepo.save(updated);
+      await emitSimChanged(this.simEvents, updated, 'updated');
     });
     this.logger.log('SimDeviceInfoListener active');
   }
