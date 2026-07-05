@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { HttpAdapterHost } from "@nestjs/core";
 import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
+import { JsonLogger } from "@shared/logger";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
 import { AppModule } from "./app.module";
@@ -107,7 +108,9 @@ import {
 } from "./dto/fleet.schema";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new JsonLogger("fleet-service"),
+  });
 
   const cfg = app.get(AppConfigService);
   const sentryEnabled = initializeSentry(cfg);

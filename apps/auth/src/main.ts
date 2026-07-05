@@ -4,6 +4,7 @@ import { HttpAdapterHost } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
+import { JsonLogger } from "@shared/logger";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
 import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
@@ -67,7 +68,9 @@ import {
 import { PaystackWebhookDto } from "./dto/paystack-webhook.dto";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new JsonLogger("auth-service"),
+  });
 
   const cfg = app.get(AppConfigService);
   const sentryEnabled = initializeSentry(cfg);
