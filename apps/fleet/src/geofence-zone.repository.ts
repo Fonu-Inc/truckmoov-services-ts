@@ -10,6 +10,10 @@ export type StoredGeofenceZone = {
   coordinates: GeoCoordinate[];
   radiusMeters: number | null;
   status: GeofenceZoneStatus;
+  category: string;
+  entryAlertsEnabled: boolean;
+  exitAlertsEnabled: boolean;
+  dwellAlertsEnabled: boolean;
   assignedVehicleIds: string[];
   createdAt: Date;
   updatedAt: Date;

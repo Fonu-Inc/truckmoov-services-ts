@@ -35,9 +35,10 @@ export class CreateMaintenanceRecordDto {
   @MaxLength(1000)
   description?: string | null;
 
-  /** Lifecycle status */
+  /** Lifecycle status; defaults to "scheduled" when omitted */
+  @IsOptional()
   @IsIn(MAINTENANCE_RECORD_STATUSES)
-  status!: MaintenanceRecordStatus;
+  status?: MaintenanceRecordStatus;
 
   /** Urgency level */
   @IsIn(MAINTENANCE_RECORD_PRIORITIES)
@@ -60,11 +61,12 @@ export class CreateMaintenanceRecordDto {
   @Min(0)
   cost?: number | null;
 
-  /** ISO currency code */
+  /** ISO currency code; defaults to "NGN" when omitted */
+  @IsOptional()
   @IsString()
   @MinLength(3)
   @MaxLength(3)
-  currency!: string;
+  currency?: string;
 
   /** Technician name */
   @IsOptional()

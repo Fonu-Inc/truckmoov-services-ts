@@ -165,6 +165,7 @@ import {
   DeviceNotFoundError,
   GetDeviceUseCase,
   ListDevicesUseCase,
+  ListVehicleTripsUseCase,
   SetDeviceLifecycleStatusUseCase,
   UnassignDeviceFromVehicleUseCase,
   UpdateDeviceUseCase,
@@ -267,6 +268,8 @@ export class FleetController {
     private readonly listVehiclesUseCase: ListVehiclesUseCase,
     @Inject(ListDevicesUseCase)
     private readonly listDevicesUseCase: ListDevicesUseCase,
+    @Inject(ListVehicleTripsUseCase)
+    private readonly listVehicleTripsUseCase: ListVehicleTripsUseCase,
     @Inject(GetDeviceUseCase)
     private readonly getDeviceUseCase: GetDeviceUseCase,
     @Inject(CreateDeviceUseCase)
@@ -1092,8 +1095,15 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get vehicle by ID" })
   @ApiOkResponse({ type: VehicleResponse })
-  async getVehicle(@Param("id") id: string): Promise<VehicleResponse> {
-    return this.runFleetUseCase(() => this.getVehicleUseCase.execute(id)) as unknown as Promise<VehicleResponse>;
+  async getVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
+    const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(id));
+    const tenantId = this.tenantIdFromRequest(req);
+    const [devices, maintenanceRecords, trips] = await Promise.all([
+      this.listDevicesUseCase.execute({ tenantId, vehicleId: id }),
+      this.maintenanceRecordsUseCase.list(tenantId, { vehicleId: id }),
+      this.listVehicleTripsUseCase.execute(id),
+    ]);
+    return { ...vehicle, devices, maintenanceRecords, trips } as unknown as VehicleResponse;
   }
 
   /** Partially update a vehicle's details */
@@ -1803,6 +1813,20 @@ export class FleetController {
     return { status: true, message: "success", data };
   }
 
+  @Get("geofences/:id")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Get geofence zone" })
+  @ApiOkResponse({ description: "Geofence zone", type: GeofenceZoneResponse })
+  async getGeofenceZone(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    try {
+      const data = await this.geofenceZonesUseCase.get(this.tenantIdFromRequest(req), id);
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof GeofenceZoneNotFoundError) throw new NotFoundException("Geofence zone not found");
+      throw e;
+    }
+  }
+
   @Patch("geofences/:id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update geofence zone" })
@@ -2244,7 +2268,7 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordListResponse> {
     const records = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req), vehicleId, from, to });
-    return { status: true, message: "success", data: records.map((r) => r.toPrimitives()) } as unknown as FuelRecordListResponse;
+    return { status: true, message: "success", data: records } as unknown as FuelRecordListResponse;
   }
 
   @Get("fuel/summary")
@@ -2252,8 +2276,7 @@ export class FleetController {
   @ApiOperation({ summary: "Fuel summary stats" })
   @ApiOkResponse({ description: "Fuel summary", type: FuelSummaryResponse })
   async getFuelSummary(@Req() req: FleetRequestContext) {
-    const records = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
-    const primitives = records.map((r) => r.toPrimitives());
+    const primitives = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
     const totalLitres = primitives.reduce((s, r) => s + r.liters, 0);
     const totalCostNgn = primitives.reduce((s, r) => s + r.totalCost, 0);
     const avgPrice = totalLitres > 0 ? totalCostNgn / totalLitres : 0;
@@ -2418,7 +2441,7 @@ export class FleetController {
   @ApiOkResponse({ type: FuelRecordListResponse })
   async listFuel(@Query() query: FuelListQueryDto, @Req() req: FleetRequestContext): Promise<FuelRecordListResponse> {
     const records = await this.listFuelRecordsUseCase.execute({ ...query, tenantId: this.tenantIdFromRequest(req) });
-    return { status: true, message: "success", data: records.map((r) => r.toPrimitives()) };
+    return { status: true, message: "success", data: records };
   }
 
   @Patch("fuel/:id")

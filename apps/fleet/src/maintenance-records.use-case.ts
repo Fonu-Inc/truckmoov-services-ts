@@ -8,24 +8,36 @@ import {
   type MaintenanceRecordStatus,
   type StoredMaintenanceRecord,
 } from "./maintenance-record.repository";
+import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
+import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 
 export class MaintenanceRecordNotFoundError extends Error {}
+
+type WithVehiclePlateNumber<T> = T & { vehiclePlateNumber: string | null };
 
 @Injectable()
 export class MaintenanceRecordsUseCase {
   constructor(
     @Inject(MAINTENANCE_RECORD_REPOSITORY)
     private readonly repo: MaintenanceRecordRepository,
+    @Inject(VEHICLE_REPOSITORY)
+    private readonly vehicleRepo: VehicleRepository,
   ) {}
 
+  private async withPlateNumber(rec: StoredMaintenanceRecord): Promise<WithVehiclePlateNumber<StoredMaintenanceRecord>> {
+    const vehicle = await this.vehicleRepo.findById(rec.vehicleId);
+    return { ...rec, vehiclePlateNumber: vehicle?.toPrimitives().plateNumber ?? null };
+  }
+
   async list(tenantId: string, filters?: MaintenanceRecordFilters) {
-    return this.repo.findAllByTenant(tenantId, filters);
+    const records = await this.repo.findAllByTenant(tenantId, filters);
+    return Promise.all(records.map((rec) => this.withPlateNumber(rec)));
   }
 
   async findOne(tenantId: string, id: string) {
     const rec = await this.repo.findById(id);
     if (!rec || rec.tenantId !== tenantId) throw new MaintenanceRecordNotFoundError();
-    return rec;
+    return this.withPlateNumber(rec);
   }
 
   async create(tenantId: string, data: CreateMaintenanceRecordInput) {
@@ -34,9 +46,9 @@ export class MaintenanceRecordsUseCase {
       tenantId,
       vehicleId: data.vehicleId,
       maintenanceType: data.maintenanceType,
-      status: data.status,
+      status: data.status ?? "scheduled",
       priority: data.priority,
-      currency: data.currency,
+      currency: data.currency ?? "NGN",
       description: data.description ?? null,
       scheduledDate: data.scheduledDate ?? null,
       completedDate: data.completedDate ?? null,

@@ -25,9 +25,9 @@ export type StoredMaintenanceRecord = {
 export type CreateMaintenanceRecordInput = {
   vehicleId: string;
   maintenanceType: string;
-  status: MaintenanceRecordStatus;
+  status?: MaintenanceRecordStatus;
   priority: MaintenanceRecordPriority;
-  currency: string;
+  currency?: string;
   description?: string | null;
   scheduledDate?: string | null;
   completedDate?: string | null;

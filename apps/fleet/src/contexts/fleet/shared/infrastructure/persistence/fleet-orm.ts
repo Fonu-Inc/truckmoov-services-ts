@@ -228,6 +228,10 @@ export class GeofenceZoneRecord {
   coordinates!: [number, number][];
   radiusMeters!: number | null;
   status!: string;
+  category!: string;
+  entryAlertsEnabled!: boolean;
+  exitAlertsEnabled!: boolean;
+  dwellAlertsEnabled!: boolean;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -243,6 +247,10 @@ export const GeofenceZoneRecordSchema = new EntitySchema<GeofenceZoneRecord>({
     coordinates: { type: "json" },
     radiusMeters: { type: "float", nullable: true },
     status: { type: "string", length: 16, defaultRaw: "'ACTIVE'" },
+    category: { type: "string", length: 64, defaultRaw: "'general'" },
+    entryAlertsEnabled: { type: "boolean", defaultRaw: "true" },
+    exitAlertsEnabled: { type: "boolean", defaultRaw: "true" },
+    dwellAlertsEnabled: { type: "boolean", defaultRaw: "false" },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },

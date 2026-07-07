@@ -13,6 +13,11 @@ export {
   type TraccarDeviceProvisioner,
 } from "./domain/ports/traccar-device.port";
 export {
+  TRACCAR_TRIPS_PROVIDER,
+  type TraccarTripsProvider,
+  type TraccarTrip,
+} from "./domain/ports/traccar-trips.port";
+export {
   DEVICE_IDENTITY_EVENT_PUBLISHER,
   type DeviceIdentityChangedEvent,
   type DeviceIdentityEventPublisher,
@@ -21,6 +26,8 @@ export { InMemoryDeviceRepository } from "./infrastructure/repositories/in-memor
 export { MikroDeviceRepository } from "./infrastructure/repositories/mikro-device.repository";
 export { HttpTraccarDeviceProvisioner } from "./infrastructure/traccar/http-traccar-device.provisioner";
 export { NoopTraccarDeviceProvisioner } from "./infrastructure/traccar/noop-traccar-device.provisioner";
+export { HttpTraccarTripsProvider } from "./infrastructure/traccar/http-traccar-trips.provider";
+export { NoopTraccarTripsProvider } from "./infrastructure/traccar/noop-traccar-trips.provider";
 export { EventBusDeviceIdentityEventPublisher } from "./infrastructure/eventbus-device-identity-event.publisher";
 export { CreateDeviceUseCase } from "./application/use-cases/create-device.use-case";
 export { ListDevicesUseCase } from "./application/use-cases/list-devices.use-case";
@@ -32,3 +39,4 @@ export { AssignDeviceToVehicleUseCase } from "./application/use-cases/assign-dev
 export { UnassignDeviceFromVehicleUseCase } from "./application/use-cases/unassign-device-from-vehicle.use-case";
 export { SetDeviceLifecycleStatusUseCase } from "./application/use-cases/set-device-lifecycle-status.use-case";
 export { ValidateDeviceAssignmentUseCase } from "./application/use-cases/validate-device-assignment.use-case";
+export { ListVehicleTripsUseCase } from "./application/use-cases/list-vehicle-trips.use-case";

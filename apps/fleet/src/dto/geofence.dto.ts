@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { ArrayMinSize, IsArray, IsIn, IsNumber, IsOptional, IsString, MinLength, ValidateNested } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from "class-validator";
 import type { GeofenceZoneStatus } from "../geofence-zone.repository";
 
 const GEOFENCE_STATUSES: GeofenceZoneStatus[] = ["ACTIVE", "ARCHIVED"];
@@ -62,6 +62,27 @@ export class CreateGeofenceZoneDto {
   @Type(() => Number)
   @IsNumber()
   radiusMeters?: number | null;
+
+  @ApiPropertyOptional({ description: "Zone category, e.g. \"Restricted Area\"", default: "general" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  category?: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  entryAlertsEnabled?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  exitAlertsEnabled?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  dwellAlertsEnabled?: boolean;
 }
 
 export class UpdateGeofenceZoneDto extends PartialType(CreateGeofenceZoneDto) {
