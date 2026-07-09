@@ -13,7 +13,7 @@ import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/reposit
 
 export class MaintenanceRecordNotFoundError extends Error {}
 
-type WithVehiclePlateNumber<T> = T & { vehiclePlateNumber: string | null };
+type WithVehiclePlateNumber<T> = T & { vehiclePlateNumber: string | null; vehicleRegistrationNumber: string | null };
 
 @Injectable()
 export class MaintenanceRecordsUseCase {
@@ -26,7 +26,12 @@ export class MaintenanceRecordsUseCase {
 
   private async withPlateNumber(rec: StoredMaintenanceRecord): Promise<WithVehiclePlateNumber<StoredMaintenanceRecord>> {
     const vehicle = await this.vehicleRepo.findById(rec.vehicleId);
-    return { ...rec, vehiclePlateNumber: vehicle?.toPrimitives().plateNumber ?? null };
+    const primitives = vehicle?.toPrimitives();
+    return {
+      ...rec,
+      vehiclePlateNumber: primitives?.plateNumber ?? null,
+      vehicleRegistrationNumber: primitives?.registrationNumber ?? primitives?.plateNumber ?? null,
+    };
   }
 
   async list(tenantId: string, filters?: MaintenanceRecordFilters) {

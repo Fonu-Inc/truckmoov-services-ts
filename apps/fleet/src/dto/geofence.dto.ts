@@ -4,6 +4,7 @@ import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString,
 import type { GeofenceZoneStatus } from "../geofence-zone.repository";
 
 const GEOFENCE_STATUSES: GeofenceZoneStatus[] = ["ACTIVE", "ARCHIVED"];
+const GEOFENCE_SHAPES = ["CIRCLE", "POLYGON"] as const;
 
 class LatLngDto {
   @ApiProperty({ description: "Latitude in decimal degrees" })
@@ -13,6 +14,56 @@ class LatLngDto {
   @ApiProperty({ description: "Longitude in decimal degrees" })
   @IsNumber()
   lng!: number;
+}
+
+class GeofenceCenterDto {
+  @ApiProperty()
+  @IsNumber()
+  latitude!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  longitude!: number;
+}
+
+class GeofenceSpeedLimitDto {
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber()
+  limitKph?: number | null;
+}
+
+class GeofenceScheduleDto {
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({ nullable: true, default: "Africa/Lagos" })
+  @IsOptional()
+  @IsString()
+  timezone?: string | null;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  days?: string[];
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  startTime?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  endTime?: string | null;
 }
 
 export class SetGeofenceDto {
@@ -48,13 +99,29 @@ export class CreateGeofenceZoneDto {
   @IsString()
   description?: string | null;
 
+  @ApiPropertyOptional({ description: "Zone type, e.g. \"RESTRICTED_AREA\", \"CUSTOMER_SITE\"", default: "general" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  zoneType?: string;
+
+  @ApiPropertyOptional({ enum: GEOFENCE_SHAPES, description: "Derived from radiusMeters/center vs coordinates when omitted" })
+  @IsOptional()
+  @IsIn(GEOFENCE_SHAPES)
+  shape?: (typeof GEOFENCE_SHAPES)[number];
+
+  @ApiPropertyOptional({ type: GeofenceCenterDto, nullable: true, description: "Circle center; required when shape is CIRCLE" })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GeofenceCenterDto)
+  center?: GeofenceCenterDto | null;
+
   @ApiProperty({
-    description: "Polygon vertices as [lng, lat] pairs",
+    description: "Polygon vertices as [lng, lat] pairs (empty for circle zones)",
     type: "array",
     items: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
   })
   @IsArray()
-  @ArrayMinSize(1)
   coordinates!: [number, number][];
 
   @ApiPropertyOptional({ nullable: true, description: "Radius in metres for circular zones" })
@@ -83,6 +150,29 @@ export class CreateGeofenceZoneDto {
   @IsOptional()
   @IsBoolean()
   dwellAlertsEnabled?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsNumber()
+  dwellMinutes?: number | null;
+
+  @ApiPropertyOptional({ type: GeofenceSpeedLimitDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GeofenceSpeedLimitDto)
+  speedLimit?: GeofenceSpeedLimitDto;
+
+  @ApiPropertyOptional({ type: GeofenceScheduleDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GeofenceScheduleDto)
+  schedule?: GeofenceScheduleDto;
+
+  @ApiPropertyOptional({ type: String, isArray: true, description: "Vehicle IDs assigned to the zone" })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  assignedVehicleIds?: string[];
 }
 
 export class UpdateGeofenceZoneDto extends PartialType(CreateGeofenceZoneDto) {

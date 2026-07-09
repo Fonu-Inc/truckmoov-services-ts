@@ -1,5 +1,5 @@
 import { PartialType } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   IsIn,
   IsISO8601,
@@ -35,8 +35,9 @@ export class CreateMaintenanceRecordDto {
   @MaxLength(1000)
   description?: string | null;
 
-  /** Lifecycle status; defaults to "scheduled" when omitted */
+  /** Lifecycle status; defaults to "scheduled" when omitted or blank */
   @IsOptional()
+  @Transform(({ value }) => (value === "" || value === null ? undefined : value))
   @IsIn(MAINTENANCE_RECORD_STATUSES)
   status?: MaintenanceRecordStatus;
 
@@ -61,8 +62,9 @@ export class CreateMaintenanceRecordDto {
   @Min(0)
   cost?: number | null;
 
-  /** ISO currency code; defaults to "NGN" when omitted */
+  /** ISO currency code; defaults to "NGN" when omitted or blank */
   @IsOptional()
+  @Transform(({ value }) => (value === "" || value === null ? undefined : value))
   @IsString()
   @MinLength(3)
   @MaxLength(3)

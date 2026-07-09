@@ -225,13 +225,24 @@ export class GeofenceZoneRecord {
   tenantId!: string;
   name!: string;
   description!: string | null;
+  zoneType!: string;
   coordinates!: [number, number][];
+  centerLatitude!: number | null;
+  centerLongitude!: number | null;
   radiusMeters!: number | null;
   status!: string;
   category!: string;
   entryAlertsEnabled!: boolean;
   exitAlertsEnabled!: boolean;
   dwellAlertsEnabled!: boolean;
+  dwellMinutes!: number | null;
+  speedLimitEnabled!: boolean;
+  speedLimitKph!: number | null;
+  scheduleEnabled!: boolean;
+  scheduleTimezone!: string | null;
+  scheduleDays!: string[];
+  scheduleStartTime!: string | null;
+  scheduleEndTime!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -244,13 +255,24 @@ export const GeofenceZoneRecordSchema = new EntitySchema<GeofenceZoneRecord>({
     tenantId: { type: "string", length: 64 },
     name: { type: "string", length: 255 },
     description: { type: "text", nullable: true },
+    zoneType: { type: "string", length: 64, defaultRaw: "'general'" },
     coordinates: { type: "json" },
+    centerLatitude: { type: "float", nullable: true },
+    centerLongitude: { type: "float", nullable: true },
     radiusMeters: { type: "float", nullable: true },
     status: { type: "string", length: 16, defaultRaw: "'ACTIVE'" },
     category: { type: "string", length: 64, defaultRaw: "'general'" },
     entryAlertsEnabled: { type: "boolean", defaultRaw: "true" },
     exitAlertsEnabled: { type: "boolean", defaultRaw: "true" },
     dwellAlertsEnabled: { type: "boolean", defaultRaw: "false" },
+    dwellMinutes: { type: "integer", nullable: true },
+    speedLimitEnabled: { type: "boolean", defaultRaw: "false" },
+    speedLimitKph: { type: "float", nullable: true },
+    scheduleEnabled: { type: "boolean", defaultRaw: "false" },
+    scheduleTimezone: { type: "string", length: 64, nullable: true },
+    scheduleDays: { type: "json" },
+    scheduleStartTime: { type: "string", length: 8, nullable: true },
+    scheduleEndTime: { type: "string", length: 8, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
@@ -360,6 +382,13 @@ export class FleetFinancialConfigRecord {
   monthlyOtherNgn!: number | null;
   fuelEstimateNgnPerMonth!: number | null;
   maintenanceEstimateNgnPerMonth!: number | null;
+  driverWageAllocationMethod!: string | null;
+  monthlyDriverWageNgn!: number | null;
+  assetPurchasePriceNgn!: number | null;
+  assetPurchaseDate!: string | null;
+  assetUsefulLifeMonths!: number | null;
+  assetSalvageValueNgn!: number | null;
+  depreciationMethod!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -377,6 +406,13 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
     monthlyOtherNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     fuelEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     maintenanceEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    driverWageAllocationMethod: { type: "string", length: 32, nullable: true },
+    monthlyDriverWageNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    assetPurchasePriceNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    assetPurchaseDate: { type: "string", length: 10, nullable: true },
+    assetUsefulLifeMonths: { type: "integer", nullable: true },
+    assetSalvageValueNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    depreciationMethod: { type: "string", length: 32, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },

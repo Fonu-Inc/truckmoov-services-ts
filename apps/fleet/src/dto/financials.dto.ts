@@ -3,6 +3,8 @@ import { Type } from "class-transformer";
 import { IsBoolean, IsISO8601, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
 
 const STATEMENT_FORMATS = ["pdf", "csv", "xlsx"] as const;
+const DRIVER_WAGE_ALLOCATION_METHODS = ["fixed_monthly", "per_trip", "per_kilometer", "hybrid"] as const;
+const DEPRECIATION_METHODS = ["straight_line", "declining_balance"] as const;
 
 export class ComputeProfitabilityDto {
   @ApiPropertyOptional({ description: "Number of months to aggregate over (defaults to 1)", default: 1 })
@@ -202,4 +204,47 @@ export class UpsertFinancialConfigDto {
   @IsNumber()
   @Min(0)
   maintenanceEstimateNgnPerMonth?: number | null;
+
+  @ApiPropertyOptional({ enum: DRIVER_WAGE_ALLOCATION_METHODS, nullable: true, description: "How the driver wage is allocated" })
+  @IsOptional()
+  @IsIn(DRIVER_WAGE_ALLOCATION_METHODS)
+  driverWageAllocationMethod?: (typeof DRIVER_WAGE_ALLOCATION_METHODS)[number] | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Monthly driver wage (NGN)" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  monthlyDriverWageNgn?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Asset purchase price (NGN)" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  assetPurchasePriceNgn?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Asset purchase date (ISO8601)" })
+  @IsOptional()
+  @IsISO8601()
+  assetPurchaseDate?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Asset useful life in months" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  assetUsefulLifeMonths?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Asset salvage value (NGN)" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  assetSalvageValueNgn?: number | null;
+
+  @ApiPropertyOptional({ enum: DEPRECIATION_METHODS, nullable: true, description: "Depreciation method applied to the asset" })
+  @IsOptional()
+  @IsIn(DEPRECIATION_METHODS)
+  depreciationMethod?: (typeof DEPRECIATION_METHODS)[number] | null;
 }

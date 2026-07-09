@@ -241,6 +241,25 @@ export class VehicleSchema {
   fuelLevelPercent?: number | null;
   @ApiProperty({ type: VehicleGpsDeviceSchema, nullable: true })
   gpsDevice!: VehicleGpsDeviceSchema | null;
+  @ApiPropertyOptional({ type: VehicleGpsDeviceSchema, isArray: true, description: "Devices attached to this vehicle (GPS trackers, OBD readers, etc.)" })
+  devices?: VehicleGpsDeviceSchema[];
+  @ApiPropertyOptional({ description: "Maintenance history for this vehicle (see MaintenanceRecordSchema)", type: "array", items: { type: "object" } })
+  maintenanceRecords?: unknown[];
+  @ApiPropertyOptional({
+    type: "array",
+    items: {
+      type: "object",
+      properties: {
+        from: { type: "string" },
+        to: { type: "string" },
+        date: { type: "string" },
+        distanceKm: { type: "number" },
+        durationMinutes: { type: "number" },
+        status: { type: "string" },
+      },
+    },
+  })
+  trips?: Array<{ from: string; to: string; date: string; distanceKm: number; durationMinutes: number; status: string }>;
 }
 
 export class VehicleResponse extends StandardApiResponse<VehicleSchema> {
@@ -684,7 +703,11 @@ export class FuelRecordSchema {
   @ApiProperty() id!: string;
   @ApiProperty() tenantId!: string;
   @ApiProperty() vehicleId!: string;
+  @ApiPropertyOptional({ nullable: true, description: "Vehicle registration/plate number, joined from the vehicle record" })
+  vehiclePlateNumber?: string | null;
   @ApiProperty({ nullable: true }) driverId!: string | null;
+  @ApiPropertyOptional({ nullable: true, description: "Driver name, joined from the driver record" })
+  driverName?: string | null;
   @ApiProperty({ nullable: true }) vehicleType!: string | null;
   @ApiProperty() liters!: number;
   @ApiProperty() pricePerLiter!: number;
@@ -1036,6 +1059,8 @@ export class MaintenanceRecordSchema {
   @ApiProperty() id!: string;
   @ApiProperty() tenantId!: string;
   @ApiProperty() vehicleId!: string;
+  @ApiPropertyOptional({ nullable: true, description: "Vehicle registration number, joined from the vehicle record" })
+  vehicleRegistrationNumber?: string | null;
   @ApiProperty() maintenanceType!: string;
   @ApiProperty({ nullable: true }) description!: string | null;
   @ApiProperty({ enum: ["scheduled", "in_progress", "completed", "cancelled"] })
@@ -1088,16 +1113,48 @@ export class ReminderQueuedResponse extends StandardApiResponse<ReminderQueuedSc
 
 /* ── Geofence zones ───────────────────────────────────────────────────── */
 
+class GeofenceCenterSchema {
+  @ApiProperty() latitude!: number;
+  @ApiProperty() longitude!: number;
+}
+
+class GeofenceSpeedLimitSchema {
+  @ApiProperty() enabled!: boolean;
+  @ApiProperty({ nullable: true }) limitKph!: number | null;
+}
+
+class GeofenceAlertsSchema {
+  @ApiProperty() entry!: boolean;
+  @ApiProperty() exit!: boolean;
+  @ApiProperty() dwell!: boolean;
+  @ApiProperty({ nullable: true }) dwellMinutes!: number | null;
+  @ApiProperty({ type: GeofenceSpeedLimitSchema }) speedLimit!: GeofenceSpeedLimitSchema;
+}
+
+class GeofenceScheduleSchema {
+  @ApiProperty() enabled!: boolean;
+  @ApiProperty({ nullable: true }) timezone!: string | null;
+  @ApiProperty({ type: String, isArray: true }) days!: string[];
+  @ApiProperty({ nullable: true }) startTime!: string | null;
+  @ApiProperty({ nullable: true }) endTime!: string | null;
+}
+
 export class GeofenceZoneSchema {
   @ApiProperty() id!: string;
   @ApiProperty() tenantId!: string;
   @ApiProperty() name!: string;
   @ApiProperty({ nullable: true }) description!: string | null;
+  @ApiProperty() zoneType!: string;
+  @ApiProperty({ enum: ["CIRCLE", "POLYGON"] }) shape!: "CIRCLE" | "POLYGON";
+  @ApiProperty({ type: GeofenceCenterSchema, nullable: true }) center!: GeofenceCenterSchema | null;
   @ApiProperty({ type: "array", items: { type: "array", items: { type: "number" } } })
   coordinates!: number[][];
   @ApiProperty({ nullable: true }) radiusMeters!: number | null;
   @ApiProperty({ enum: ["ACTIVE", "ARCHIVED"] })
   status!: "ACTIVE" | "ARCHIVED";
+  @ApiProperty() category!: string;
+  @ApiProperty({ type: GeofenceAlertsSchema }) alerts!: GeofenceAlertsSchema;
+  @ApiProperty({ type: GeofenceScheduleSchema }) schedule!: GeofenceScheduleSchema;
   @ApiProperty({ type: String, isArray: true }) assignedVehicleIds!: string[];
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
@@ -1238,6 +1295,15 @@ export class FinancialConfigSchema {
   @ApiProperty({ nullable: true }) monthlyOtherNgn!: number | null;
   @ApiProperty({ nullable: true }) fuelEstimateNgnPerMonth!: number | null;
   @ApiProperty({ nullable: true }) maintenanceEstimateNgnPerMonth!: number | null;
+  @ApiProperty({ enum: ["fixed_monthly", "per_trip", "per_kilometer", "hybrid"], nullable: true })
+  driverWageAllocationMethod!: "fixed_monthly" | "per_trip" | "per_kilometer" | "hybrid" | null;
+  @ApiProperty({ nullable: true }) monthlyDriverWageNgn!: number | null;
+  @ApiProperty({ nullable: true }) assetPurchasePriceNgn!: number | null;
+  @ApiProperty({ nullable: true }) assetPurchaseDate!: string | null;
+  @ApiProperty({ nullable: true }) assetUsefulLifeMonths!: number | null;
+  @ApiProperty({ nullable: true }) assetSalvageValueNgn!: number | null;
+  @ApiProperty({ enum: ["straight_line", "declining_balance"], nullable: true })
+  depreciationMethod!: "straight_line" | "declining_balance" | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }

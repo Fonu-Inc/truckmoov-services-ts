@@ -5,6 +5,7 @@ import { FLEET_RUNTIME, type FleetRuntime } from "../../shared/domain/ports/flee
 import { TriggerAlertUseCase } from "../../alerts/application/trigger-alert.use-case";
 import { FuelThresholdService } from "./fuel-threshold.service";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
+import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 
 export type RecordFuelCommand = {
   tenantId?: string;
@@ -27,9 +28,10 @@ export class RecordFuelUseCase {
     private readonly triggerAlert: TriggerAlertUseCase,
     private readonly thresholds: FuelThresholdService,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
+    @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
   ) {}
 
-  async execute(cmd: RecordFuelCommand): Promise<FuelRecord> {
+  async execute(cmd: RecordFuelCommand) {
     const tenantId = cmd.tenantId ?? this.runtime.getDefaultTenantId();
     const now = new Date().toISOString();
     const fuelType = cmd.fuelType ?? (await this.resolveVehicleFuelType(cmd.vehicleId));
@@ -54,7 +56,16 @@ export class RecordFuelUseCase {
     await this.repo.save(record);
     await this.checkEfficiencyAlert(tenantId, cmd.vehicleId, cmd.vehicleType ?? null);
 
-    return record;
+    const [vehicle, driver] = await Promise.all([
+      this.vehicleRepo.findById(record.vehicleId),
+      record.driverId ? this.driverRepo.findById(record.driverId) : Promise.resolve(null),
+    ]);
+
+    return {
+      ...record.toPrimitives(),
+      vehiclePlateNumber: vehicle?.plateNumber ?? null,
+      driverName: driver?.name ?? null,
+    };
   }
 
   private async resolveVehicleFuelType(vehicleId: string): Promise<string | null> {

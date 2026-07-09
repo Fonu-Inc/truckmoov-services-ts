@@ -2,6 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "../domain/repositories/fuel-record.repository";
 import { FuelRecordNotFoundError } from "../domain/errors/fuel-record-not-found.error";
 import type { FuelRecordProps } from "../domain/entities/fuel-record.entity";
+import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
+import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 
 export type UpdateFuelRecordCommand = {
   id: string;
@@ -18,7 +20,11 @@ export type UpdateFuelRecordCommand = {
 
 @Injectable()
 export class UpdateFuelRecordUseCase {
-  constructor(@Inject(FUEL_RECORD_REPOSITORY) private readonly repo: FuelRecordRepository) {}
+  constructor(
+    @Inject(FUEL_RECORD_REPOSITORY) private readonly repo: FuelRecordRepository,
+    @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
+    @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
+  ) {}
 
   async execute(cmd: UpdateFuelRecordCommand) {
     const record = await this.repo.findById(cmd.id, cmd.tenantId);
@@ -38,6 +44,16 @@ export class UpdateFuelRecordUseCase {
     );
 
     await this.repo.save(updated);
-    return updated;
+
+    const [vehicle, driver] = await Promise.all([
+      this.vehicleRepo.findById(updated.vehicleId),
+      updated.driverId ? this.driverRepo.findById(updated.driverId) : Promise.resolve(null),
+    ]);
+
+    return {
+      ...updated.toPrimitives(),
+      vehiclePlateNumber: vehicle?.plateNumber ?? null,
+      driverName: driver?.name ?? null,
+    };
   }
 }

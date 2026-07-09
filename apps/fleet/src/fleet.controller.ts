@@ -2362,12 +2362,11 @@ export class FleetController {
     @Body() dto: RecordFuelDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
-    const record = await this.recordFuelUseCase.execute({
+    const data = await this.recordFuelUseCase.execute({
       ...dto,
       tenantId: this.tenantIdFromRequest(req),
       recordedBy: req.user?.userId ?? "system",
     });
-    const data = record.toPrimitives();
       await this.recordActivity(req, {
         entityType: "fuel",
         entityId: data.id,
@@ -2381,7 +2380,7 @@ export class FleetController {
           station: data.station,
         },
       });
-    return { status: true, message: "success", data: record.toPrimitives() };
+    return { status: true, message: "success", data };
   }
 
   @Get("fuel/metrics")
@@ -2454,13 +2453,12 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
     try {
-      const record = await this.updateFuelRecordUseCase.execute({
+      const data = await this.updateFuelRecordUseCase.execute({
         id,
         tenantId: this.tenantIdFromRequest(req),
         updatedBy: req.user?.userId ?? "system",
         ...dto,
       });
-      const data = record.toPrimitives();
       await this.recordActivity(req, {
         entityType: "fuel",
         entityId: id,
@@ -2474,7 +2472,7 @@ export class FleetController {
           station: data.station,
         },
       });
-      return { status: true, message: "success", data: record.toPrimitives() };
+      return { status: true, message: "success", data };
     } catch (err) {
       if (err instanceof FuelRecordNotFoundError) throw new NotFoundException(err.message);
       throw err;
