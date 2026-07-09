@@ -1099,9 +1099,9 @@ export class FleetController {
     const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(id));
     const tenantId = this.tenantIdFromRequest(req);
     const [devices, maintenanceRecords, trips] = await Promise.all([
-      this.listDevicesUseCase.execute({ tenantId, vehicleId: id }),
-      this.maintenanceRecordsUseCase.list(tenantId, { vehicleId: id }),
-      this.listVehicleTripsUseCase.execute(id),
+      this.listDevicesUseCase.execute({ tenantId, vehicleId: id }).catch(() => []),
+      this.maintenanceRecordsUseCase.list(tenantId, { vehicleId: id }).catch(() => []),
+      this.listVehicleTripsUseCase.execute(id).catch(() => []),
     ]);
     return { ...vehicle, devices, maintenanceRecords, trips } as unknown as VehicleResponse;
   }
