@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { createHash } from "node:crypto";
 import { NodeEnv } from "./node-env";
 
 @Injectable()
@@ -115,6 +116,16 @@ export class AppConfigService {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),
     };
+  }
+
+  /**
+   * Short, non-reversible fingerprint of JWT_SECRET (first 8 hex chars of
+   * its SHA-256 digest) — safe to log at startup so two services' logs can
+   * be diffed to confirm they're using the same secret, without ever
+   * exposing the secret itself. JWT_SECRET must never be logged directly.
+   */
+  get jwtSecretFingerprint(): string {
+    return createHash("sha256").update(this.auth.jwtSecret).digest("hex").slice(0, 8);
   }
 
   get superadmin() {

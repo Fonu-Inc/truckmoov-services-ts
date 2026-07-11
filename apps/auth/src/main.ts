@@ -73,6 +73,7 @@ async function bootstrap() {
   });
 
   const cfg = app.get(AppConfigService);
+  new JsonLogger("auth-service").log("jwt_secret_fingerprint", { fingerprint: cfg.jwtSecretFingerprint });
   const sentryEnabled = initializeSentry(cfg);
 
   app.enableCors(createCorsOptions(cfg.server.corsAllowedOrigins));
