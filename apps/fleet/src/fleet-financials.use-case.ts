@@ -137,8 +137,9 @@ export class FleetFinancialsUseCase {
       const wages = periodMonths * Number(cfg?.monthlyWagesNgn ?? 0);
       const insurance = periodMonths * Number(cfg?.monthlyInsuranceNgn ?? 0);
       const depreciation = periodMonths * Number(cfg?.monthlyDepreciationNgn ?? 0);
+      const parking = periodMonths * Number(cfg?.monthlyParkingNgn ?? 0);
       const other = periodMonths * Number(cfg?.monthlyOtherNgn ?? 0);
-      const fixedCosts = wages + insurance + depreciation + other;
+      const fixedCosts = wages + insurance + depreciation + parking + other;
       const totalCost = fuelCost + maintCost + fixedCosts;
       const profit = revenue - totalCost;
       const marginPercent = revenue > 0 ? (profit / revenue) * 100 : 0;

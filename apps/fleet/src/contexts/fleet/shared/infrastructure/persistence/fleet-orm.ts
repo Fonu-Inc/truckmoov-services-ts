@@ -379,6 +379,7 @@ export class FleetFinancialConfigRecord {
   monthlyWagesNgn!: number | null;
   monthlyInsuranceNgn!: number | null;
   monthlyDepreciationNgn!: number | null;
+  monthlyParkingNgn!: number | null;
   monthlyOtherNgn!: number | null;
   fuelEstimateNgnPerMonth!: number | null;
   maintenanceEstimateNgnPerMonth!: number | null;
@@ -403,6 +404,7 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
     monthlyWagesNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     monthlyInsuranceNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     monthlyDepreciationNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    monthlyParkingNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     monthlyOtherNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     fuelEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
     maintenanceEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },

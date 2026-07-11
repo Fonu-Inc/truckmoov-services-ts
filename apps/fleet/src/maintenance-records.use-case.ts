@@ -24,8 +24,21 @@ export class MaintenanceRecordsUseCase {
     private readonly vehicleRepo: VehicleRepository,
   ) {}
 
+  /**
+   * Resolves a vehicle from a value that may be either a real vehicle UUID
+   * or a plate/registration string. The "Schedule Maintenance" UI submits
+   * the vehicle *registration* (a plate string) as vehicleId, so a plain
+   * findById misses and enrichment came back null. Try id first, then fall
+   * back to plate lookup (registrationNumber is an alias of plateNumber).
+   */
+  private async resolveVehicle(vehicleId: string, tenantId: string) {
+    const byId = await this.vehicleRepo.findById(vehicleId);
+    if (byId) return byId;
+    return this.vehicleRepo.findByPlateNumber(vehicleId, tenantId);
+  }
+
   private async withPlateNumber(rec: StoredMaintenanceRecord): Promise<WithVehiclePlateNumber<StoredMaintenanceRecord>> {
-    const vehicle = await this.vehicleRepo.findById(rec.vehicleId);
+    const vehicle = await this.resolveVehicle(rec.vehicleId, rec.tenantId);
     const primitives = vehicle?.toPrimitives();
     return {
       ...rec,
@@ -46,10 +59,15 @@ export class MaintenanceRecordsUseCase {
   }
 
   async create(tenantId: string, data: CreateMaintenanceRecordInput) {
+    // The UI submits the vehicle registration/plate as vehicleId. Store the
+    // canonical vehicle UUID when it resolves, so the record links correctly
+    // and enrichment (plate/reg) works. Fall back to the raw value if it
+    // resolves to nothing, so create still succeeds rather than hard-failing.
+    const vehicle = await this.resolveVehicle(data.vehicleId, tenantId);
     const record: StoredMaintenanceRecord = {
       id: randomUUID(),
       tenantId,
-      vehicleId: data.vehicleId,
+      vehicleId: vehicle?.id ?? data.vehicleId,
       maintenanceType: data.maintenanceType,
       status: data.status ?? "scheduled",
       priority: data.priority,

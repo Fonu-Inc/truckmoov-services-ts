@@ -1292,6 +1292,7 @@ export class FinancialConfigSchema {
   @ApiProperty({ nullable: true }) monthlyWagesNgn!: number | null;
   @ApiProperty({ nullable: true }) monthlyInsuranceNgn!: number | null;
   @ApiProperty({ nullable: true }) monthlyDepreciationNgn!: number | null;
+  @ApiProperty({ nullable: true }) monthlyParkingNgn!: number | null;
   @ApiProperty({ nullable: true }) monthlyOtherNgn!: number | null;
   @ApiProperty({ nullable: true }) fuelEstimateNgnPerMonth!: number | null;
   @ApiProperty({ nullable: true }) maintenanceEstimateNgnPerMonth!: number | null;

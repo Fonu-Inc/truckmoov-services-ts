@@ -178,6 +178,13 @@ export class UpsertFinancialConfigDto {
   @Min(0)
   monthlyDepreciationNgn?: number | null;
 
+  @ApiPropertyOptional({ nullable: true, description: "Monthly parking fixed cost (NGN)" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  monthlyParkingNgn?: number | null;
+
   @ApiPropertyOptional({ nullable: true, description: "Other monthly fixed costs (NGN)" })
   @IsOptional()
   @Type(() => Number)
