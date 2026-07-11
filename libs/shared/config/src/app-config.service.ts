@@ -1,6 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createHash } from "node:crypto";
 import { NodeEnv } from "./node-env";
 
 @Injectable()
@@ -115,17 +114,15 @@ export class AppConfigService {
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),
+      // Arbitrary label rotated alongside JWT_SECRET, NOT derived from it —
+      // safe to log at startup so two services' logs can be diffed to
+      // confirm they're on the same secret generation. Never derive
+      // anything (hash, fingerprint, etc.) from JWT_SECRET itself for
+      // logging: even a truncated one-way digest is an offline verification
+      // oracle if the secret is ever weak, and log stores are a lower trust
+      // boundary than the secret store.
+      jwtKeyId: this.config.get<string>("JWT_KEY_ID", "unset"),
     };
-  }
-
-  /**
-   * Short, non-reversible fingerprint of JWT_SECRET (first 8 hex chars of
-   * its SHA-256 digest) — safe to log at startup so two services' logs can
-   * be diffed to confirm they're using the same secret, without ever
-   * exposing the secret itself. JWT_SECRET must never be logged directly.
-   */
-  get jwtSecretFingerprint(): string {
-    return createHash("sha256").update(this.auth.jwtSecret).digest("hex").slice(0, 8);
   }
 
   get superadmin() {

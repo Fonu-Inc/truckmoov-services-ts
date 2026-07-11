@@ -113,7 +113,7 @@ async function bootstrap() {
   });
 
   const cfg = app.get(AppConfigService);
-  new JsonLogger("fleet-service").log("jwt_secret_fingerprint", { fingerprint: cfg.jwtSecretFingerprint });
+  new JsonLogger("fleet-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });
   const sentryEnabled = initializeSentry(cfg);
 
   app.enableCors(createCorsOptions(cfg.server.corsAllowedOrigins));
