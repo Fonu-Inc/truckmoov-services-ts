@@ -14,7 +14,28 @@ export class MikroMaintenanceRecordRepository implements MaintenanceRecordReposi
   async save(record: StoredMaintenanceRecord): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.upsert(MaintenanceRecordOrmRecord, record as unknown as MaintenanceRecordOrmRecord);
+    // Map ONLY real columns explicitly — em.upsert introspects the object's
+    // own keys to build the SQL, so any extra field (e.g. the response-only
+    // vehiclePlateNumber/vehicleRegistrationNumber enrichment) would emit a
+    // phantom column and fail with "column ... does not exist".
+    const row: MaintenanceRecordOrmRecord = {
+      id: record.id,
+      tenantId: record.tenantId,
+      vehicleId: record.vehicleId,
+      maintenanceType: record.maintenanceType,
+      description: record.description,
+      status: record.status,
+      priority: record.priority,
+      scheduledDate: record.scheduledDate,
+      completedDate: record.completedDate,
+      cost: record.cost,
+      currency: record.currency,
+      technician: record.technician,
+      notes: record.notes,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+    await em.upsert(MaintenanceRecordOrmRecord, row);
   }
 
   async findById(id: string): Promise<StoredMaintenanceRecord | null> {

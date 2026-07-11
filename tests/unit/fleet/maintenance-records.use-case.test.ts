@@ -29,10 +29,11 @@ function fakeVehicleRepo(): VehicleRepository {
   } as VehicleRepository;
 }
 
-function fakeMaintenanceRepo(seed: StoredMaintenanceRecord[] = []): MaintenanceRecordRepository {
+function fakeMaintenanceRepo(seed: StoredMaintenanceRecord[] = [], saved?: StoredMaintenanceRecord[]): MaintenanceRecordRepository {
   const store = new Map(seed.map((r) => [r.id, r]));
   return {
     save: async (r: StoredMaintenanceRecord) => {
+      saved?.push(r);
       store.set(r.id, r);
     },
     findById: async (id: string) => store.get(id) ?? null,
@@ -41,6 +42,27 @@ function fakeMaintenanceRepo(seed: StoredMaintenanceRecord[] = []): MaintenanceR
       store.delete(id);
     },
   };
+}
+
+function seedRecord(overrides: Partial<StoredMaintenanceRecord> = {}): StoredMaintenanceRecord {
+  return {
+    id: "rec-1",
+    tenantId: TENANT,
+    vehicleId: VEHICLE_UUID,
+    maintenanceType: "corrective",
+    status: "scheduled",
+    priority: "medium",
+    currency: "NGN",
+    description: null,
+    scheduledDate: null,
+    completedDate: null,
+    cost: null,
+    technician: null,
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as never;
 }
 
 describe("MaintenanceRecordsUseCase — vehicle resolution (issue 4)", () => {
@@ -86,6 +108,34 @@ describe("MaintenanceRecordsUseCase — vehicle resolution (issue 4)", () => {
     const [enriched] = await useCase.list(TENANT);
     expect(enriched.vehiclePlateNumber).toBe(PLATE);
     expect(enriched.vehicleRegistrationNumber).toBe(PLATE);
+  });
+
+  it("transition() saves a record with ONLY real columns — no enrichment fields leak to persistence (500 fix)", async () => {
+    const saved: StoredMaintenanceRecord[] = [];
+    const useCase = new MaintenanceRecordsUseCase(fakeMaintenanceRepo([seedRecord()], saved), vehicleRepo);
+
+    const result = await useCase.transition(TENANT, "rec-1", "in_progress");
+
+    // Response IS enriched...
+    expect(result.vehiclePlateNumber).toBe(PLATE);
+    // ...but what was persisted must NOT contain enrichment-only fields,
+    // or the DB upsert emits phantom columns and 500s.
+    expect(saved).toHaveLength(1);
+    expect(saved[0].status).toBe("in_progress");
+    expect("vehiclePlateNumber" in saved[0]).toBe(false);
+    expect("vehicleRegistrationNumber" in saved[0]).toBe(false);
+  });
+
+  it("update() saves a record with ONLY real columns — no enrichment fields leak to persistence", async () => {
+    const saved: StoredMaintenanceRecord[] = [];
+    const useCase = new MaintenanceRecordsUseCase(fakeMaintenanceRepo([seedRecord()], saved), vehicleRepo);
+
+    await useCase.update(TENANT, "rec-1", { technician: "Amina Bello" });
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0].technician).toBe("Amina Bello");
+    expect("vehiclePlateNumber" in saved[0]).toBe(false);
+    expect("vehicleRegistrationNumber" in saved[0]).toBe(false);
   });
 
   it("enrichment returns null (not a crash) when the vehicle truly can't be found", async () => {

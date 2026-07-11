@@ -52,10 +52,22 @@ export class MaintenanceRecordsUseCase {
     return Promise.all(records.map((rec) => this.withPlateNumber(rec)));
   }
 
-  async findOne(tenantId: string, id: string) {
+  /**
+   * Fetches the RAW stored record (no plate/reg enrichment). Mutations
+   * (update/transition/delete) must build on this — never on findOne's
+   * enriched result — because vehiclePlateNumber/vehicleRegistrationNumber
+   * are response-only fields, NOT DB columns. Persisting an enriched object
+   * makes MikroORM's upsert emit those phantom columns and the insert fails
+   * with "column vehiclePlateNumber ... does not exist".
+   */
+  private async findRaw(tenantId: string, id: string): Promise<StoredMaintenanceRecord> {
     const rec = await this.repo.findById(id);
     if (!rec || rec.tenantId !== tenantId) throw new MaintenanceRecordNotFoundError();
-    return this.withPlateNumber(rec);
+    return rec;
+  }
+
+  async findOne(tenantId: string, id: string) {
+    return this.withPlateNumber(await this.findRaw(tenantId, id));
   }
 
   async create(tenantId: string, data: CreateMaintenanceRecordInput) {
@@ -86,19 +98,19 @@ export class MaintenanceRecordsUseCase {
   }
 
   async update(tenantId: string, id: string, data: Partial<Omit<StoredMaintenanceRecord, "id" | "tenantId" | "createdAt">>) {
-    const existing = await this.findOne(tenantId, id);
-    const updated = { ...existing, ...data, updatedAt: new Date() };
+    const existing = await this.findRaw(tenantId, id);
+    const updated: StoredMaintenanceRecord = { ...existing, ...data, updatedAt: new Date() };
     await this.repo.save(updated);
-    return updated;
+    return this.withPlateNumber(updated);
   }
 
   async delete(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+    await this.findRaw(tenantId, id);
     await this.repo.deleteById(id);
   }
 
   async transition(tenantId: string, id: string, status: MaintenanceRecordStatus) {
-    const existing = await this.findOne(tenantId, id);
+    const existing = await this.findRaw(tenantId, id);
     const today = new Date().toISOString().slice(0, 10);
     const updated: StoredMaintenanceRecord = {
       ...existing,
@@ -107,7 +119,7 @@ export class MaintenanceRecordsUseCase {
       updatedAt: new Date(),
     };
     await this.repo.save(updated);
-    return updated;
+    return this.withPlateNumber(updated);
   }
 
   async summary(tenantId: string) {
