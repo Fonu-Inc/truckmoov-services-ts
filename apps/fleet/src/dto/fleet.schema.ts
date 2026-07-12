@@ -241,10 +241,13 @@ export class VehicleSchema {
   fuelLevelPercent?: number | null;
   @ApiProperty({ type: VehicleGpsDeviceSchema, nullable: true })
   gpsDevice!: VehicleGpsDeviceSchema | null;
-  @ApiPropertyOptional({ type: VehicleGpsDeviceSchema, isArray: true, description: "Devices attached to this vehicle (GPS trackers, OBD readers, etc.)" })
-  devices?: VehicleGpsDeviceSchema[];
-  @ApiPropertyOptional({ description: "Maintenance history for this vehicle (see MaintenanceRecordSchema)", type: "array", items: { type: "object" } })
-  maintenanceRecords?: unknown[];
+  @ApiPropertyOptional({ type: DeviceSchema, isArray: true, description: "Devices attached to this vehicle (Devices tab)" })
+  devices?: DeviceSchema[];
+  // Lazy () => ref: MaintenanceRecordSchema is declared later in this file,
+  // so a direct value reference would hit the temporal dead zone when this
+  // decorator evaluates at class-definition time.
+  @ApiPropertyOptional({ type: () => MaintenanceRecordSchema, isArray: true, description: "Maintenance history for this vehicle (Maintenance tab)" })
+  maintenanceRecords?: MaintenanceRecordSchema[];
   @ApiPropertyOptional({
     type: "array",
     items: {

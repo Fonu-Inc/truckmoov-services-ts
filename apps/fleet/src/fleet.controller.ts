@@ -1710,12 +1710,16 @@ export class FleetController {
   @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["overdue", "due", "upcoming", "completed"] })
   @ApiQuery({ name: "nextDueDateFrom", required: false, type: String })
   @ApiQuery({ name: "nextDueDateTo", required: false, type: String })
+  @ApiQuery({ name: "currentMileageMin", required: false, type: Number, description: "Minimum current mileage (km)" })
+  @ApiQuery({ name: "currentMileageMax", required: false, type: Number, description: "Maximum current mileage (km)" })
   @ApiOkResponse({ description: "Maintenance profiles array", type: MaintenanceProfileListResponse })
   async listMaintenanceProfiles(
     @Query("vehicleId") vehicleId: string,
     @Query("lifecycleStatus") lifecycleStatus: string,
     @Query("nextDueDateFrom") nextDueDateFrom: string,
     @Query("nextDueDateTo") nextDueDateTo: string,
+    @Query("currentMileageMin") currentMileageMin: string,
+    @Query("currentMileageMax") currentMileageMax: string,
     @Req() req: FleetRequestContext,
   ) {
     const data = await this.maintenanceProfilesUseCase.list(this.tenantIdFromRequest(req), {
@@ -1723,6 +1727,8 @@ export class FleetController {
       lifecycleStatus: lifecycleStatus as any,
       nextDueDateFrom,
       nextDueDateTo,
+      currentMileageMin: currentMileageMin != null && currentMileageMin !== "" ? Number(currentMileageMin) : undefined,
+      currentMileageMax: currentMileageMax != null && currentMileageMax !== "" ? Number(currentMileageMax) : undefined,
     });
     return { status: true, message: "success", data };
   }
