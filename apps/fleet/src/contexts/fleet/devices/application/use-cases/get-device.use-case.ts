@@ -9,8 +9,8 @@ export class GetDeviceUseCase {
     private readonly deviceRepository: DeviceRepository,
   ) {}
 
-  async execute(id: string) {
-    const device = await this.deviceRepository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const device = await this.deviceRepository.findById(id, tenantId);
     if (!device) {
       throw new DeviceNotFoundError(id);
     }

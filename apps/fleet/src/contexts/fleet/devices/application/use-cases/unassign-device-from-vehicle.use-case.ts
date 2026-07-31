@@ -19,14 +19,14 @@ export class UnassignDeviceFromVehicleUseCase {
     private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
-  async execute(deviceId: string) {
-    const device = await this.deviceRepository.findById(deviceId);
+  async execute(deviceId: string, tenantId: string) {
+    const device = await this.deviceRepository.findById(deviceId, tenantId);
     if (!device) {
       throw new DeviceNotFoundError(deviceId);
     }
 
     const vehicle = device.vehicleId
-      ? await this.vehicleRepository.findById(device.vehicleId)
+      ? await this.vehicleRepository.findById(device.vehicleId, tenantId)
       : null;
 
     const updatedDevice = device.unassignFromVehicle();

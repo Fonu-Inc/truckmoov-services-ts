@@ -48,8 +48,10 @@ export class InMemoryVehicleRepository implements VehicleRepository {
     });
   }
 
-  async findById(id: string): Promise<Vehicle | null> {
-    return this.data.get(id) ?? null;
+  async findById(id: string, tenantId: string): Promise<Vehicle | null> {
+    const vehicle = this.data.get(id);
+    if (!vehicle || vehicle.tenantId !== tenantId) return null;
+    return vehicle;
   }
 
   async findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null> {
@@ -63,15 +65,17 @@ export class InMemoryVehicleRepository implements VehicleRepository {
     );
   }
 
-  async findByAssignedDriverId(driverId: string): Promise<Vehicle | null> {
+  async findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null> {
     return (
       Array.from(this.data.values()).find(
-        (vehicle) => vehicle.assignedDriverId === driverId,
+        (vehicle) => vehicle.assignedDriverId === driverId && vehicle.tenantId === tenantId,
       ) ?? null
     );
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
+    const vehicle = this.data.get(id);
+    if (!vehicle || vehicle.tenantId !== tenantId) return;
     this.data.delete(id);
   }
 }

@@ -25,20 +25,20 @@ export class DeleteDeviceUseCase {
     private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
-  async execute(id: string) {
-    const device = await this.deviceRepository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const device = await this.deviceRepository.findById(id, tenantId);
     if (!device) {
       throw new DeviceNotFoundError(id);
     }
 
     if (device.vehicleId) {
-      const vehicle = await this.vehicleRepository.findById(device.vehicleId);
+      const vehicle = await this.vehicleRepository.findById(device.vehicleId, tenantId);
       if (vehicle && vehicle.gpsDevice?.imei === device.imei) {
         await this.vehicleRepository.save(vehicle.clearGpsDevice());
       }
     }
 
-    await this.deviceRepository.deleteById(id);
+    await this.deviceRepository.deleteById(id, tenantId);
     await this.deregisterFromTraccar(device.traccarDeviceId);
     await emitDeviceIdentity(this.identityPublisher, device, "deleted");
     return device.toPrimitives();

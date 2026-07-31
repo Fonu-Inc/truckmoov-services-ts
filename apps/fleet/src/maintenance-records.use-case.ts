@@ -32,7 +32,7 @@ export class MaintenanceRecordsUseCase {
    * back to plate lookup (registrationNumber is an alias of plateNumber).
    */
   private async resolveVehicle(vehicleId: string, tenantId: string) {
-    const byId = await this.vehicleRepo.findById(vehicleId);
+    const byId = await this.vehicleRepo.findById(vehicleId, tenantId);
     if (byId) return byId;
     return this.vehicleRepo.findByPlateNumber(vehicleId, tenantId);
   }

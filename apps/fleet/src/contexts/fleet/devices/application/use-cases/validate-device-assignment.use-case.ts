@@ -16,13 +16,13 @@ export class ValidateDeviceAssignmentUseCase {
     private readonly vehicleRepository: VehicleRepository,
   ) {}
 
-  async execute(deviceId: string, vehicleId: string): Promise<AssignmentValidation> {
-    const device = await this.deviceRepository.findById(deviceId);
+  async execute(deviceId: string, vehicleId: string, tenantId: string): Promise<AssignmentValidation> {
+    const device = await this.deviceRepository.findById(deviceId, tenantId);
     if (!device) {
       return { canAssign: false, reason: "Device not found" };
     }
 
-    const vehicle = await this.vehicleRepository.findById(vehicleId);
+    const vehicle = await this.vehicleRepository.findById(vehicleId, tenantId);
     if (!vehicle) {
       return { canAssign: false, reason: "Vehicle not found" };
     }
@@ -40,7 +40,7 @@ export class ValidateDeviceAssignmentUseCase {
       return { canAssign: false, reason: "Device is already assigned to another vehicle" };
     }
 
-    const occupyingDevice = await this.deviceRepository.findByVehicleId(vehicle.id);
+    const occupyingDevice = await this.deviceRepository.findByVehicleId(vehicle.id, tenantId);
     if (occupyingDevice && occupyingDevice.id !== device.id) {
       return { canAssign: false, reason: "Vehicle already has a GPS device assigned" };
     }

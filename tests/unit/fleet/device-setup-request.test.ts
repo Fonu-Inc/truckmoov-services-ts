@@ -4,6 +4,7 @@ import { InMemoryDeviceSetupRequestRepository } from "../../../apps/fleet/src/co
 import { CreateDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/create-device-setup-request.use-case";
 import { ListDeviceSetupRequestsUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/list-device-setup-requests.use-case";
 import { UpdateDeviceSetupRequestStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/update-device-setup-request-status.use-case";
+import { GetDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/get-device-setup-request.use-case";
 
 let counter = 0;
 const runtime = {
@@ -62,7 +63,7 @@ describe("DeviceSetupRequest use-cases", () => {
     const created = await create.execute({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics" });
     expect(created.status).toBe("pending_review");
 
-    const advanced = await update.execute({ id: created.id, status: "in_progress" });
+    const advanced = await update.execute({ id: created.id, tenantId: "t1", status: "in_progress" });
     expect(advanced.status).toBe("in_progress");
 
     const all = await list.execute({ tenantId: "t1" });
@@ -78,5 +79,24 @@ describe("DeviceSetupRequest use-cases", () => {
     const t1 = await list.execute({ tenantId: "t1" });
     expect(t1).toHaveLength(1);
     expect(t1[0].tenantId).toBe("t1");
+  });
+
+  it("get rejects a setup request belonging to a different tenant", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const get = new GetDeviceSetupRequestUseCase(repo);
+    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "a", tenantId: "t1" }));
+
+    await expect(() => get.execute("a", "t2")).rejects.toThrow(/not found/);
+    await expect(get.execute("a", "t1")).resolves.toMatchObject({ id: "a", tenantId: "t1" });
+  });
+
+  it("update-status rejects a setup request belonging to a different tenant", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
+    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "a", tenantId: "t1" }));
+
+    await expect(() =>
+      update.execute({ id: "a", tenantId: "t2", status: "in_progress" }),
+    ).rejects.toThrow(/not found/);
   });
 });

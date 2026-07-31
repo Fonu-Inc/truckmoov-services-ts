@@ -39,12 +39,15 @@ describe("RateLimitGuard", () => {
     );
   });
 
-  it("uses x-forwarded-for header over req.ip", () => {
+  it("ignores a client-supplied x-forwarded-for header and buckets by req.ip", () => {
+    // x-forwarded-for is client-controlled input — trusting it lets a caller
+    // set a different value on every request and bypass the limit entirely.
+    // Two different spoofed headers on the same underlying req.ip must share
+    // one bucket.
     const guard = makeGuard(10, 2);
-    const ctx = makeCtx("127.0.0.1", "5.5.5.5");
-    guard.canActivate(ctx);
-    guard.canActivate(ctx);
-    expect(() => guard.canActivate(ctx)).toThrow(HttpException);
+    guard.canActivate(makeCtx("127.0.0.1", "5.5.5.5"));
+    guard.canActivate(makeCtx("127.0.0.1", "6.6.6.6"));
+    expect(() => guard.canActivate(makeCtx("127.0.0.1", "7.7.7.7"))).toThrow(HttpException);
   });
 
   it("separate buckets per IP", () => {

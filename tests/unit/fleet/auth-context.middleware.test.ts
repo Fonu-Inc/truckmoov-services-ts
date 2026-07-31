@@ -11,6 +11,12 @@ function signToken(payload: Record<string, unknown>, secret = "replace-me") {
   return `${encodedPayload}.${signature}`;
 }
 
+function makeRes() {
+  const json = vi.fn();
+  const status = vi.fn().mockReturnValue({ json });
+  return { status, json };
+}
+
 describe("AuthContextMiddleware", () => {
   it("extracts tenant and role from bearer tokens without trusting client tenant input", () => {
     const middleware = new AuthContextMiddleware({
@@ -31,10 +37,12 @@ describe("AuthContextMiddleware", () => {
       body: { tenantId: "client-tenant", registrationNumber: "TM-101" },
     };
 
+    const res = makeRes();
     const next = vi.fn();
-    middleware.use(req, {} as never, next);
+    middleware.use(req, res as never, next);
 
     expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
     expect(req.user).toEqual({
       userId: "user-1",
       email: "fleet@example.com",
@@ -45,5 +53,83 @@ describe("AuthContextMiddleware", () => {
     expect(req.headers["x-tenant-id"]).toBe("tenant-from-token");
     expect(req.query.tenantId).toBe("client-tenant");
     expect(req.body.tenantId).toBe("client-tenant");
+  });
+
+  it("rejects requests with no Authorization header", () => {
+    const middleware = new AuthContextMiddleware({
+      auth: { jwtSecret: "replace-me" },
+    } as AppConfigService);
+
+    const req: any = { headers: {} };
+    const res = makeRes();
+    const next = vi.fn();
+
+    middleware.use(req, res as never, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "missing or invalid authorization" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects requests with a malformed Authorization header", () => {
+    const middleware = new AuthContextMiddleware({
+      auth: { jwtSecret: "replace-me" },
+    } as AppConfigService);
+
+    const req: any = { headers: { authorization: "Bearer not-a-valid-token" } };
+    const res = makeRes();
+    const next = vi.fn();
+
+    middleware.use(req, res as never, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects requests with an invalid signature", () => {
+    const middleware = new AuthContextMiddleware({
+      auth: { jwtSecret: "replace-me" },
+    } as AppConfigService);
+
+    const token = signToken(
+      {
+        sub: "user-1",
+        email: "fleet@example.com",
+        role: "dispatcher",
+        tenantId: "tenant-1",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      },
+      "wrong-secret",
+    );
+    const req: any = { headers: { authorization: `Bearer ${token}` } };
+    const res = makeRes();
+    const next = vi.fn();
+
+    middleware.use(req, res as never, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects requests with an expired token", () => {
+    const middleware = new AuthContextMiddleware({
+      auth: { jwtSecret: "replace-me" },
+    } as AppConfigService);
+
+    const token = signToken({
+      sub: "user-1",
+      email: "fleet@example.com",
+      role: "dispatcher",
+      tenantId: "tenant-1",
+      exp: Math.floor(Date.now() / 1000) - 3600,
+    });
+    const req: any = { headers: { authorization: `Bearer ${token}` } };
+    const res = makeRes();
+    const next = vi.fn();
+
+    middleware.use(req, res as never, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 });

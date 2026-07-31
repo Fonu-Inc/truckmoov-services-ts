@@ -12,6 +12,12 @@ process.env.SUPERADMIN_EMAIL ??= 'superadmin@truckmoov.com';
 process.env.SUPERADMIN_PASSWORD ??= 'SuperAdmin123!';
 process.env.SUPERADMIN_FULL_NAME ??= 'Truckmoov Super Admin';
 process.env.SUPERADMIN_TENANT_ID ??= 'system';
+// Permissive for the shared app instance below: this file calls /auth/login
+// many times across unrelated tests, which would otherwise trip the login
+// rate limiter's shared bucket. The limiter's actual enforcement (including
+// the 429 path) is covered by its own dedicated app instance further down
+// and by tests/unit/auth/login-rate-limit.guard.test.ts.
+process.env.LOGIN_RATE_LIMIT_BURST ??= '1000';
 
 function makeRegisterPayload(
   email: string,
@@ -223,6 +229,41 @@ describe('Auth HTTP contract', () => {
       .send({ email: 'logintest@contract.com', password: 'WrongPass!' });
 
     expect(res.status).toBe(401);
+  });
+
+  it('POST /auth/login returns 429 after repeated attempts from the same client', async () => {
+    // Uses its own app instance with a tight burst so this doesn't disturb
+    // the shared app's bucket used by every other test in this file.
+    const previousBurst = process.env.LOGIN_RATE_LIMIT_BURST;
+    process.env.LOGIN_RATE_LIMIT_BURST = '3';
+    vi.resetModules();
+    const { AppModule: RateLimitedAppModule } = await import('../../../apps/auth/src/app.module');
+    const moduleRef = await Test.createTestingModule({
+      imports: [RateLimitedAppModule],
+    }).compile();
+    const rateLimitedApp = moduleRef.createNestApplication();
+    await rateLimitedApp.init();
+
+    try {
+      const attempt = () =>
+        request(rateLimitedApp.getHttpServer())
+          .post('/auth/login')
+          .send({ email: 'nobody@contract.com', password: 'WrongPass!' });
+
+      const first = await attempt();
+      const second = await attempt();
+      const third = await attempt();
+      const fourth = await attempt();
+
+      expect(first.status).toBe(401);
+      expect(second.status).toBe(401);
+      expect(third.status).toBe(401);
+      expect(fourth.status).toBe(429);
+    } finally {
+      await rateLimitedApp.close();
+      process.env.LOGIN_RATE_LIMIT_BURST = previousBurst;
+      vi.resetModules();
+    }
   });
 
   it('POST /auth/login rejects superadmin credentials', async () => {

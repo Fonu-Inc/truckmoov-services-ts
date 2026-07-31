@@ -24,7 +24,9 @@ import {
   Sse,
   RawBodyRequest,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Observable } from 'rxjs';
 import {
@@ -867,6 +869,7 @@ export class AuthController {
 
   /** Authenticate with email and password */
   @Post('login')
+  @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: AuthResponse })
   async login(@Body(BodyOrDataPipe) payload: LoginDto): Promise<AuthResponse> {
     const result = await this.runAuthUseCase(() =>

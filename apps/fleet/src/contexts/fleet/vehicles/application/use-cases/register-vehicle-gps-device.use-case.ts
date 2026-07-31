@@ -13,6 +13,7 @@ import {
 
 export type RegisterVehicleGpsDeviceCommand = {
   vehicleId: string;
+  tenantId: string;
   imei: string;
   manufacturer: string;
   model: string;
@@ -32,19 +33,19 @@ export class RegisterVehicleGpsDeviceUseCase {
   ) {}
 
   async execute(command: RegisterVehicleGpsDeviceCommand) {
-    const vehicle = await this.vehicleRepository.findById(command.vehicleId);
+    const vehicle = await this.vehicleRepository.findById(command.vehicleId, command.tenantId);
     if (!vehicle) {
       throw new VehicleNotFoundError(command.vehicleId);
     }
 
-    const existingByVehicle = await this.deviceRepository.findByVehicleId(vehicle.id);
+    const existingByVehicle = await this.deviceRepository.findByVehicleId(vehicle.id, command.tenantId);
     if (existingByVehicle && existingByVehicle.imei !== command.imei) {
       await this.deviceRepository.save(existingByVehicle.unassignFromVehicle());
     }
 
     const existingDevice = await this.deviceRepository.findByImei(command.imei, vehicle.tenantId);
     if (existingDevice?.vehicleId && existingDevice.vehicleId !== vehicle.id) {
-      const previousVehicle = await this.vehicleRepository.findById(existingDevice.vehicleId);
+      const previousVehicle = await this.vehicleRepository.findById(existingDevice.vehicleId, vehicle.tenantId);
       if (previousVehicle && previousVehicle.gpsDevice?.imei === existingDevice.imei) {
         await this.vehicleRepository.save(previousVehicle.clearGpsDevice());
       }

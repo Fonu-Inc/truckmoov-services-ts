@@ -11,6 +11,7 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 
 export type UpdateDeviceCommand = {
   id: string;
+  tenantId: string;
   manufacturer?: string;
   model?: string;
   firmwareVersion?: string;
@@ -31,7 +32,7 @@ export class UpdateDeviceUseCase {
   ) {}
 
   async execute(command: UpdateDeviceCommand) {
-    const device = await this.deviceRepository.findById(command.id);
+    const device = await this.deviceRepository.findById(command.id, command.tenantId);
     if (!device) {
       throw new DeviceNotFoundError(command.id);
     }
@@ -40,7 +41,7 @@ export class UpdateDeviceUseCase {
     await this.deviceRepository.save(updatedDevice);
 
     if (updatedDevice.vehicleId) {
-      const vehicle = await this.vehicleRepository.findById(updatedDevice.vehicleId);
+      const vehicle = await this.vehicleRepository.findById(updatedDevice.vehicleId, command.tenantId);
       if (vehicle && vehicle.gpsDevice?.imei === device.imei) {
         await this.vehicleRepository.save(
           vehicle.registerGpsDevice(

@@ -14,6 +14,7 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 export type AssignDeviceToVehicleCommand = {
   deviceId: string;
   vehicleId: string;
+  tenantId: string;
 };
 
 @Injectable()
@@ -28,12 +29,12 @@ export class AssignDeviceToVehicleUseCase {
   ) {}
 
   async execute(command: AssignDeviceToVehicleCommand) {
-    const device = await this.deviceRepository.findById(command.deviceId);
+    const device = await this.deviceRepository.findById(command.deviceId, command.tenantId);
     if (!device) {
       throw new DeviceNotFoundError(command.deviceId);
     }
 
-    const vehicle = await this.vehicleRepository.findById(command.vehicleId);
+    const vehicle = await this.vehicleRepository.findById(command.vehicleId, command.tenantId);
     if (!vehicle) {
       throw new VehicleNotFoundError(command.vehicleId);
     }
@@ -51,7 +52,7 @@ export class AssignDeviceToVehicleUseCase {
       throw new FleetRuleError("device must be verified online before assignment");
     }
 
-    const occupyingDevice = await this.deviceRepository.findByVehicleId(vehicle.id);
+    const occupyingDevice = await this.deviceRepository.findByVehicleId(vehicle.id, command.tenantId);
     if (occupyingDevice && occupyingDevice.id !== device.id) {
       throw new FleetRuleError("vehicle already has a GPS device assigned");
     }

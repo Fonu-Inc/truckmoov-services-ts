@@ -18,20 +18,20 @@ export class DeleteDriverUseCase {
     private readonly vehicleRepository: VehicleRepository,
   ) {}
 
-  async execute(id: string) {
-    const existingDriver = await this.driverRepository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const existingDriver = await this.driverRepository.findById(id, tenantId);
     if (!existingDriver) {
       throw new DriverNotFoundError(id);
     }
 
     if (existingDriver.assignedVehicleId) {
-      const vehicle = await this.vehicleRepository.findById(existingDriver.assignedVehicleId);
+      const vehicle = await this.vehicleRepository.findById(existingDriver.assignedVehicleId, tenantId);
       if (vehicle) {
         await this.vehicleRepository.save(vehicle.unassignDriver());
       }
     }
 
-    await this.driverRepository.deleteById(id);
+    await this.driverRepository.deleteById(id, tenantId);
     return { deleted: true, id };
   }
 }

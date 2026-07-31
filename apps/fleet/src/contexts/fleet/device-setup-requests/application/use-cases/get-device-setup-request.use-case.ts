@@ -12,8 +12,8 @@ export class GetDeviceSetupRequestUseCase {
     private readonly repository: DeviceSetupRequestRepository,
   ) {}
 
-  async execute(id: string) {
-    const request = await this.repository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const request = await this.repository.findById(id, tenantId);
     if (!request) {
       throw new FleetRuleError(`device setup request ${id} not found`);
     }

@@ -25,11 +25,16 @@ describe("InMemoryDriverRepository", () => {
   it("saves and retrieves by id", async () => {
     const d = makeDriver("d1");
     await repo.save(d);
-    expect(await repo.findById("d1")).toBe(d);
+    expect(await repo.findById("d1", "t1")).toBe(d);
   });
 
   it("returns null for missing id", async () => {
-    expect(await repo.findById("missing")).toBeNull();
+    expect(await repo.findById("missing", "t1")).toBeNull();
+  });
+
+  it("returns null when tenant does not match", async () => {
+    await repo.save(makeDriver("d1", "t1"));
+    expect(await repo.findById("d1", "t2")).toBeNull();
   });
 
   it("findAll filters by tenantId", async () => {
@@ -64,7 +69,13 @@ describe("InMemoryDriverRepository", () => {
 
   it("deleteById removes driver", async () => {
     await repo.save(makeDriver("d1"));
-    await repo.deleteById("d1");
-    expect(await repo.findById("d1")).toBeNull();
+    await repo.deleteById("d1", "t1");
+    expect(await repo.findById("d1", "t1")).toBeNull();
+  });
+
+  it("deleteById does not remove a driver belonging to a different tenant", async () => {
+    await repo.save(makeDriver("d1", "t1"));
+    await repo.deleteById("d1", "t2");
+    expect(await repo.findById("d1", "t1")).not.toBeNull();
   });
 });

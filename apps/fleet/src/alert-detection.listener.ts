@@ -31,7 +31,7 @@ export class AlertDetectionListener implements OnApplicationBootstrap {
 
       let alertType = "route_deviation";
       try {
-        const vehicle = await this.getVehicle.execute(vehicleId);
+        const vehicle = await this.getVehicle.execute(vehicleId, envelope.tenant_id);
         if ((vehicle as unknown as { status: string }).status === "inactive") {
           alertType = "unauthorized_usage";
         }

@@ -67,7 +67,7 @@ describe("CreateDeviceUseCase provisioning + identity emit", () => {
 
     expect(result.provisionStatus).toBe("failed");
     expect(result.traccarDeviceId).toBeNull();
-    expect(await repo.findById(result.id)).not.toBeNull();
+    expect(await repo.findById(result.id, "t1")).not.toBeNull();
   });
 
   it("stays pending when no traccar is configured (noop)", async () => {
@@ -116,6 +116,7 @@ describe("SetDeviceLifecycleStatusUseCase decommission", () => {
 
     const result = await new SetDeviceLifecycleStatusUseCase(repo, vehicleRepo, provisioner, publisher).execute({
       id: "d-9",
+      tenantId: "t1",
       lifecycleStatus: "decommissioned",
     });
 
@@ -123,7 +124,7 @@ describe("SetDeviceLifecycleStatusUseCase decommission", () => {
     expect(result.traccarDeviceId).toBeNull();
     expect(deregistered).toEqual(["tc-99"]);
     expect(publisher.events.at(-1)?.action).toBe("decommissioned");
-    const persisted = await repo.findById("d-9");
+    const persisted = await repo.findById("d-9", "t1");
     expect(persisted?.provisionStatus).toBe("pending");
     expect(persisted?.traccarDeviceId).toBeNull();
   });

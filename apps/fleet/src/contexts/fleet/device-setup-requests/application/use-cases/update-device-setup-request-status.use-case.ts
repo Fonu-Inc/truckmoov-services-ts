@@ -8,6 +8,7 @@ import {
 
 export type UpdateDeviceSetupRequestStatusCommand = {
   id: string;
+  tenantId: string;
   status: DeviceSetupRequestStatus;
   note?: string | null;
 };
@@ -20,7 +21,7 @@ export class UpdateDeviceSetupRequestStatusUseCase {
   ) {}
 
   async execute(command: UpdateDeviceSetupRequestStatusCommand) {
-    const request = await this.repository.findById(command.id);
+    const request = await this.repository.findById(command.id, command.tenantId);
     if (!request) {
       throw new FleetRuleError(`device setup request ${command.id} not found`);
     }

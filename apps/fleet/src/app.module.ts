@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
 import { GeofenceModule } from "@shared/geofence";
@@ -353,6 +353,9 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(AuthContextMiddleware).forRoutes(FleetController);
+    consumer
+      .apply(AuthContextMiddleware)
+      .exclude({ path: "fleet/health", method: RequestMethod.GET })
+      .forRoutes(FleetController);
   }
 }

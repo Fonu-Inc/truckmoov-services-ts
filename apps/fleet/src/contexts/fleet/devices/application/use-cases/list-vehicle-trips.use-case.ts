@@ -20,8 +20,8 @@ export class ListVehicleTripsUseCase {
     @Inject(TRACCAR_TRIPS_PROVIDER) private readonly tripsProvider: TraccarTripsProvider,
   ) {}
 
-  async execute(vehicleId: string, lookbackDays = DEFAULT_LOOKBACK_DAYS): Promise<VehicleTrip[]> {
-    const device = await this.deviceRepository.findByVehicleId(vehicleId);
+  async execute(vehicleId: string, tenantId: string, lookbackDays = DEFAULT_LOOKBACK_DAYS): Promise<VehicleTrip[]> {
+    const device = await this.deviceRepository.findByVehicleId(vehicleId, tenantId);
     const traccarDeviceId = device?.toPrimitives().traccarDeviceId;
     if (!traccarDeviceId) return [];
 

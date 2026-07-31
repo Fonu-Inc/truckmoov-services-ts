@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, AppConfigService } from '@shared/config';
+import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { EventBusModule } from '@shared/eventbus';
 import { LoggerModule } from '@shared/logger';
 import { MailerModule } from '@shared/mailer';
@@ -302,6 +303,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   controllers: [AuthController],
   providers: [
+    LoginRateLimitGuard,
     // User repository
     InMemoryUserRepository,
     MikroUserRepository,

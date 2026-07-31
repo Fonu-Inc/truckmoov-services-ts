@@ -30,11 +30,12 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const roleHeader = request.headers["x-user-role"];
-    const roleFromUser = request.user?.role;
-    const role = normalizeRole(
-      roleFromUser ?? (Array.isArray(roleHeader) ? roleHeader[0] : roleHeader),
-    );
+    // Only request.user (populated exclusively by verified-JWT auth
+    // middleware) is trustworthy here. The x-user-role header is
+    // client-controlled input and must never be treated as an identity
+    // signal, even as a fallback — doing so lets an unauthenticated caller
+    // impersonate any role by just setting the header themselves.
+    const role = normalizeRole(request.user?.role);
 
     if (!role) {
       throw new UnauthorizedException("Authentication is required for this route");

@@ -86,17 +86,17 @@ export class MikroVehicleRepository implements VehicleRepository {
     return filtered.map((record) => this.toDomain(record));
   }
 
-  async findById(id: string): Promise<Vehicle | null> {
+  async findById(id: string, tenantId: string): Promise<Vehicle | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const record = await em.findOne(VehicleRecord, { id });
+    const record = await em.findOne(VehicleRecord, { id, tenantId });
     return record ? this.toDomain(record) : null;
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.nativeDelete(VehicleRecord, { id });
+    await em.nativeDelete(VehicleRecord, { id, tenantId });
   }
 
   async findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null> {
@@ -109,11 +109,12 @@ export class MikroVehicleRepository implements VehicleRepository {
     return record ? this.toDomain(record) : null;
   }
 
-  async findByAssignedDriverId(driverId: string): Promise<Vehicle | null> {
+  async findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(VehicleRecord, {
       assignedDriverId: driverId,
+      tenantId,
     });
     return record ? this.toDomain(record) : null;
   }

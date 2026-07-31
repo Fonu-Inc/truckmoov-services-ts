@@ -13,6 +13,7 @@ import {
 
 export type SetDriverStatusCommand = {
   id: string;
+  tenantId: string;
   status: FleetDriverStatus;
 };
 
@@ -26,7 +27,7 @@ export class SetDriverStatusUseCase {
   ) {}
 
   async execute(command: SetDriverStatusCommand) {
-    const driver = await this.driverRepository.findById(command.id);
+    const driver = await this.driverRepository.findById(command.id, command.tenantId);
     if (!driver) {
       throw new DriverNotFoundError(command.id);
     }
@@ -35,7 +36,7 @@ export class SetDriverStatusUseCase {
     await this.driverRepository.save(updatedDriver);
 
     if (isDriverUnavailableStatus(command.status) && driver.assignedVehicleId) {
-      const vehicle = await this.vehicleRepository.findById(driver.assignedVehicleId);
+      const vehicle = await this.vehicleRepository.findById(driver.assignedVehicleId, command.tenantId);
       if (vehicle) {
         await this.vehicleRepository.save(vehicle.unassignDriver());
       }

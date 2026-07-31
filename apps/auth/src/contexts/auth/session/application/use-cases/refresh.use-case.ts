@@ -41,9 +41,16 @@ export class RefreshUseCase {
       throw new ForbiddenError("This account has been disabled");
     }
 
+    // Rotate on every use: the old refresh token is invalidated and a new
+    // one issued, so a leaked/replayed token has a single-use window
+    // instead of being valid indefinitely.
+    await this.sessionStore.deleteByRefreshToken(refreshToken);
+    const newRefreshToken = this.tokenService.issueRefreshToken(user);
+    await this.sessionStore.save(newRefreshToken, user);
+
     return {
       accessToken: this.tokenService.issueAccessToken(user),
-      refreshToken,
+      refreshToken: newRefreshToken,
       expiresIn: 3600,
     };
   }

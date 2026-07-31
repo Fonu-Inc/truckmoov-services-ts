@@ -34,7 +34,7 @@ export class RecordFuelUseCase {
   async execute(cmd: RecordFuelCommand) {
     const tenantId = cmd.tenantId ?? this.runtime.getDefaultTenantId();
     const now = new Date().toISOString();
-    const fuelType = cmd.fuelType ?? (await this.resolveVehicleFuelType(cmd.vehicleId));
+    const fuelType = cmd.fuelType ?? (await this.resolveVehicleFuelType(cmd.vehicleId, tenantId));
 
     const record = FuelRecord.create({
       id: this.runtime.generateId(),
@@ -57,8 +57,8 @@ export class RecordFuelUseCase {
     await this.checkEfficiencyAlert(tenantId, cmd.vehicleId, cmd.vehicleType ?? null);
 
     const [vehicle, driver] = await Promise.all([
-      this.vehicleRepo.findById(record.vehicleId),
-      record.driverId ? this.driverRepo.findById(record.driverId) : Promise.resolve(null),
+      this.vehicleRepo.findById(record.vehicleId, tenantId),
+      record.driverId ? this.driverRepo.findById(record.driverId, tenantId) : Promise.resolve(null),
     ]);
 
     return {
@@ -68,9 +68,9 @@ export class RecordFuelUseCase {
     };
   }
 
-  private async resolveVehicleFuelType(vehicleId: string): Promise<string | null> {
+  private async resolveVehicleFuelType(vehicleId: string, tenantId: string): Promise<string | null> {
     try {
-      const vehicle = await this.vehicleRepo.findById(vehicleId);
+      const vehicle = await this.vehicleRepo.findById(vehicleId, tenantId);
       return vehicle?.fuelType ?? null;
     } catch {
       return null;

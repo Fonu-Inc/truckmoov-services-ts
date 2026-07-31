@@ -12,8 +12,8 @@ export class GetVehicleUseCase {
     private readonly vehicleRepository: VehicleRepository,
   ) {}
 
-  async execute(id: string) {
-    const vehicle = await this.vehicleRepository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const vehicle = await this.vehicleRepository.findById(id, tenantId);
     if (!vehicle) {
       throw new VehicleNotFoundError(id);
     }

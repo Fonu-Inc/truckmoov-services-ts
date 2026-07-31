@@ -9,8 +9,8 @@ export type DeviceSetupRequestFilters = {
 export interface DeviceSetupRequestRepository {
   save(request: DeviceSetupRequest): Promise<void>;
   findAll(filters?: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]>;
-  findById(id: string): Promise<DeviceSetupRequest | null>;
-  deleteById(id: string): Promise<void>;
+  findById(id: string, tenantId: string): Promise<DeviceSetupRequest | null>;
+  deleteById(id: string, tenantId: string): Promise<void>;
 }
 
 export const DEVICE_SETUP_REQUEST_REPOSITORY = Symbol("DEVICE_SETUP_REQUEST_REPOSITORY");

@@ -77,11 +77,16 @@ describe("Fleet HTTP contract", () => {
   });
 
   it("GET /fleet/test-sentry returns 500", async () => {
-    const response = await request(app.getHttpServer()).get("/fleet/test-sentry");
+    const response = await request(app.getHttpServer())
+      .get("/fleet/test-sentry")
+      .set("Authorization", authToken("admin"));
     expect(response.status).toBe(500);
   });
 
   it("supports assignment, activation, contact channels, and GPS mapping", async () => {
+    // 8 sequential real HTTP round-trips through a full Nest bootstrap —
+    // comfortably under 5s in isolation, but the default timeout has been
+    // observed to flake under full-suite CPU contention.
     const createVehicle = await request(app.getHttpServer())
       .post("/fleet/vehicles")
       .set("Authorization", authToken("admin"))
@@ -205,7 +210,7 @@ describe("Fleet HTTP contract", () => {
       .set("Authorization", authToken("dispatcher"));
     expect(driverAfterDeactivate.status).toBe(200);
     expect(driverAfterDeactivate.body.assignedVehicleId).toBeNull();
-  });
+  }, 15000);
 
   it("GET /fleet/alerts includes createdAt in alert responses", async () => {
     const { ALERT_REPOSITORY, Alert } = await import("../../../apps/fleet/src/contexts/fleet/alerts");
@@ -277,6 +282,9 @@ describe("Fleet HTTP contract", () => {
   });
 
   it("supports standalone device inventory, lifecycle transitions, and assignment validation", async () => {
+    // Many sequential real HTTP round-trips through a full Nest bootstrap —
+    // comfortably under 5s in isolation, but the default timeout has been
+    // observed to flake under full-suite CPU contention.
     const createVehicle = await request(app.getHttpServer())
       .post("/fleet/vehicles")
       .set("Authorization", authToken("fleet_manager"))
@@ -387,7 +395,7 @@ describe("Fleet HTTP contract", () => {
       .set("Authorization", authToken("fleet_manager"));
     expect(deleteDevice.status).toBe(200);
     expect(deleteDevice.body.id).toBe(createDevice.body.id);
-  });
+  }, 15000);
 
   it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
     const importVehicles = await request(app.getHttpServer())

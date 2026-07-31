@@ -46,8 +46,8 @@ export class UpdateFuelRecordUseCase {
     await this.repo.save(updated);
 
     const [vehicle, driver] = await Promise.all([
-      this.vehicleRepo.findById(updated.vehicleId),
-      updated.driverId ? this.driverRepo.findById(updated.driverId) : Promise.resolve(null),
+      this.vehicleRepo.findById(updated.vehicleId, cmd.tenantId),
+      updated.driverId ? this.driverRepo.findById(updated.driverId, cmd.tenantId) : Promise.resolve(null),
     ]);
 
     return {

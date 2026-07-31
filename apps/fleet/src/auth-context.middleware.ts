@@ -23,6 +23,10 @@ type MutableFleetRequest = {
   user?: FleetAuthUser;
 };
 
+type MiddlewareResponse = {
+  status(code: number): { json(body: unknown): void };
+};
+
 type MiddlewareNext = (error?: unknown) => void;
 
 @Injectable()
@@ -32,16 +36,23 @@ export class AuthContextMiddleware implements NestMiddleware {
     private readonly config: AppConfigService,
   ) {}
 
-  use(req: MutableFleetRequest, _res: unknown, next: MiddlewareNext): void {
+  // Deliberately writes the 401 response directly (res.status().json()) and
+  // returns without calling next(), rather than throwing. NestMiddleware in
+  // Express mode runs outside Nest's exception-filter pipeline (guards,
+  // interceptors, controllers) — a thrown HttpException here is not
+  // reliably caught, and was observed to hang requests instead of
+  // responding, since Express has no matching error-handling middleware
+  // registered to catch it.
+  use(req: MutableFleetRequest, res: MiddlewareResponse, next: MiddlewareNext): void {
     const token = this.extractBearerToken(req.headers.authorization);
     if (!token) {
-      next();
+      res.status(401).json({ error: "missing or invalid authorization" });
       return;
     }
 
     const payload = this.verify(token);
     if (!payload) {
-      next();
+      res.status(401).json({ error: "missing or invalid authorization" });
       return;
     }
 

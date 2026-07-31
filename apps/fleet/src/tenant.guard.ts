@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Role, normalizeRole } from "@shared/rbac";
 
@@ -17,15 +17,29 @@ export class TenantGuard implements CanActivate {
     if (skip) return true;
 
     const req = context.switchToHttp().getRequest<{
-      headers: Record<string, string | undefined>;
+      query: Record<string, string | undefined>;
+      body: Record<string, unknown> | undefined;
       user?: { tenantId?: string; role?: string };
     }>();
 
-    const claimedTenant = req.user?.tenantId ?? req.headers["x-tenant-id"];
-    if (!claimedTenant) return true; // No tenant context → single-tenant / unauthenticated dev mode
+    // Only req.user (populated exclusively by verified-JWT auth middleware)
+    // is trustworthy — never the x-tenant-id/x-user-role headers, which are
+    // client-controlled input.
+    const authenticatedTenant = req.user?.tenantId;
+    if (!authenticatedTenant) return true; // No authenticated tenant context → nothing to enforce here.
 
-    const role = normalizeRole(req.user?.role ?? req.headers["x-user-role"]);
+    const role = normalizeRole(req.user?.role);
     if (role === Role.ENTERPRISE_ADMIN || role === Role.SUPER_ADMIN) return true;
+
+    const queryTenantId = req.query?.["tenantId"];
+    const bodyTenantId = typeof req.body?.["tenantId"] === "string" ? (req.body["tenantId"] as string) : undefined;
+
+    if (
+      (queryTenantId && queryTenantId !== authenticatedTenant)
+      || (bodyTenantId && bodyTenantId !== authenticatedTenant)
+    ) {
+      throw new ForbiddenException("tenant_id must match the authenticated tenant");
+    }
 
     return true;
   }

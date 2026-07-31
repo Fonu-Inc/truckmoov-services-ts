@@ -16,6 +16,7 @@ import {
 
 export type UpdateDriverCommand = {
   id: string;
+  tenantId: string;
   firstName?: string;
   lastName?: string;
   name?: string;
@@ -23,7 +24,6 @@ export type UpdateDriverCommand = {
   email?: string | null;
   licenseNumber?: string;
   licenseExpiryDate?: string | null;
-  tenantId?: string;
   status?: DriverStatusInput;
   communicationPreference?: DriverCommunicationPreference;
 };
@@ -36,7 +36,7 @@ export class UpdateDriverUseCase {
   ) {}
 
   async execute(command: UpdateDriverCommand) {
-    const existingDriver = await this.driverRepository.findById(command.id);
+    const existingDriver = await this.driverRepository.findById(command.id, command.tenantId);
     if (!existingDriver) {
       throw new DriverNotFoundError(command.id);
     }
@@ -54,7 +54,10 @@ export class UpdateDriverUseCase {
         email: command.email,
         licenseNumber: command.licenseNumber,
         licenseExpiryDate: command.licenseExpiryDate,
-        tenantId: command.tenantId,
+        // tenantId is never taken from the command — it's only used above to
+        // scope the lookup. Passing it through here would let a caller
+        // reassign this driver into their own tenant (see vehicles' update
+        // use-case for the same class of bug, fixed the same way).
         status: normalizeDriverStatus(command.status),
         communicationPreference: command.communicationPreference,
       })

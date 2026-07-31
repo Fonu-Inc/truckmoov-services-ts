@@ -14,16 +14,17 @@ export class ListFuelRecordsUseCase {
   ) {}
 
   async execute(filters: Omit<FuelRecordFilters, "tenantId"> & { tenantId?: string }) {
+    const tenantId = filters.tenantId ?? this.runtime.getDefaultTenantId();
     const records = await this.repo.findAll({
       ...filters,
-      tenantId: filters.tenantId ?? this.runtime.getDefaultTenantId(),
+      tenantId,
     });
 
     return Promise.all(
       records.map(async (record) => {
         const [vehicle, driver] = await Promise.all([
-          this.vehicleRepo.findById(record.vehicleId),
-          record.driverId ? this.driverRepo.findById(record.driverId) : Promise.resolve(null),
+          this.vehicleRepo.findById(record.vehicleId, tenantId),
+          record.driverId ? this.driverRepo.findById(record.driverId, tenantId) : Promise.resolve(null),
         ]);
         return {
           ...record.toPrimitives(),

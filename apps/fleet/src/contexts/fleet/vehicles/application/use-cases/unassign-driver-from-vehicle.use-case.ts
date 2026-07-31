@@ -18,8 +18,8 @@ export class UnassignDriverFromVehicleUseCase {
     private readonly driverRepository: DriverRepository,
   ) {}
 
-  async execute(vehicleId: string) {
-    const vehicle = await this.vehicleRepository.findById(vehicleId);
+  async execute(vehicleId: string, tenantId: string) {
+    const vehicle = await this.vehicleRepository.findById(vehicleId, tenantId);
     if (!vehicle) {
       throw new VehicleNotFoundError(vehicleId);
     }
@@ -28,7 +28,7 @@ export class UnassignDriverFromVehicleUseCase {
     await this.vehicleRepository.save(detachedVehicle);
 
     if (vehicle.assignedDriverId) {
-      const driver = await this.driverRepository.findById(vehicle.assignedDriverId);
+      const driver = await this.driverRepository.findById(vehicle.assignedDriverId, tenantId);
       if (driver) {
         await this.driverRepository.save(driver.unassignVehicle());
       }

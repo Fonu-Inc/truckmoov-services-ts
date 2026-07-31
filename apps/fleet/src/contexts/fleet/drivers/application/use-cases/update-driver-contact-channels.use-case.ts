@@ -8,6 +8,7 @@ import {
 
 export type UpdateDriverContactChannelsCommand = {
   id: string;
+  tenantId: string;
   channels: Partial<DriverContactChannels>;
 };
 
@@ -19,7 +20,7 @@ export class UpdateDriverContactChannelsUseCase {
   ) {}
 
   async execute(command: UpdateDriverContactChannelsCommand) {
-    const driver = await this.driverRepository.findById(command.id);
+    const driver = await this.driverRepository.findById(command.id, command.tenantId);
     if (!driver) {
       throw new DriverNotFoundError(command.id);
     }

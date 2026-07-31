@@ -468,8 +468,10 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get last seen status" })
   @ApiOkResponse({ type: VehicleHealthResponse })
-  async getVehicleHealth(@Param("vehicleId") vehicleId: string) {
-    const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(vehicleId));
+  async getVehicleHealth(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
+    const vehicle = await this.runFleetUseCase(() =>
+      this.getVehicleUseCase.execute(vehicleId, this.tenantIdFromRequest(req)),
+    );
     return { status: true, data: this.buildHealth(vehicle as never) };
   }
 
@@ -738,8 +740,10 @@ export class FleetController {
   )
   @ApiOperation({ summary: "Get device by ID" })
   @ApiOkResponse({ type: DeviceResponse })
-  async getDevice(@Param("id") id: string): Promise<DeviceResponse> {
-    return this.runFleetUseCase(() => this.getDeviceUseCase.execute(id)) as unknown as Promise<DeviceResponse>;
+  async getDevice(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
+    return this.runFleetUseCase(() =>
+      this.getDeviceUseCase.execute(id, this.tenantIdFromRequest(req)),
+    ) as unknown as Promise<DeviceResponse>;
   }
 
   @Patch("devices/:id")
@@ -754,7 +758,7 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.updateDeviceUseCase.execute({ id, ...payload }),
+      this.updateDeviceUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
     ) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -781,7 +785,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.setDeviceLifecycleStatusUseCase.execute({ id, lifecycleStatus: payload.lifecycleStatus }),
+      this.setDeviceLifecycleStatusUseCase.execute({
+        id,
+        lifecycleStatus: payload.lifecycleStatus,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     ) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -805,7 +813,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
     const result = (await this.runFleetUseCase(() =>
-      this.updateDeviceUseCase.execute({ id, firmwareVersion: payload.firmwareVersion }),
+      this.updateDeviceUseCase.execute({
+        id,
+        firmwareVersion: payload.firmwareVersion,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     )) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -827,10 +839,12 @@ export class FleetController {
   async validateDeviceAssignment(
     @Param("id") id: string,
     @Query() query: DeviceAssignmentValidationQueryDto,
+    @Req() req: FleetRequestContext,
   ): Promise<DeviceAssignmentValidationResponse> {
     return this.validateDeviceAssignmentUseCase.execute(
       id,
       query.vehicleId,
+      this.tenantIdFromRequest(req),
     ) as unknown as DeviceAssignmentValidationResponse;
   }
 
@@ -849,7 +863,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DeviceResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.assignDeviceToVehicleUseCase.execute({ deviceId: id, vehicleId: payload.vehicleId }),
+      this.assignDeviceToVehicleUseCase.execute({
+        deviceId: id,
+        vehicleId: payload.vehicleId,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     ) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -869,7 +887,7 @@ export class FleetController {
   @ApiOkResponse({ type: DeviceResponse })
   async unassignDeviceFromVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.unassignDeviceFromVehicleUseCase.execute(id),
+      this.unassignDeviceFromVehicleUseCase.execute(id, this.tenantIdFromRequest(req)),
     ) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -888,7 +906,7 @@ export class FleetController {
   @ApiOkResponse({ type: DeviceResponse })
   async deleteDevice(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DeviceResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.deleteDeviceUseCase.execute(id),
+      this.deleteDeviceUseCase.execute(id, this.tenantIdFromRequest(req)),
     ) as unknown as DeviceResponse;
     await this.recordActivity(req, {
       entityType: "device",
@@ -950,9 +968,12 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Get device setup request" })
   @ApiOkResponse({ type: DeviceSetupRequestResponse })
-  async getDeviceSetupRequest(@Param("id") id: string): Promise<DeviceSetupRequestResponse> {
+  async getDeviceSetupRequest(
+    @Param("id") id: string,
+    @Req() req: FleetRequestContext,
+  ): Promise<DeviceSetupRequestResponse> {
     return this.runFleetUseCase(() =>
-      this.getDeviceSetupRequestUseCase.execute(id),
+      this.getDeviceSetupRequestUseCase.execute(id, this.tenantIdFromRequest(req)),
     ) as unknown as Promise<DeviceSetupRequestResponse>;
   }
 
@@ -969,7 +990,12 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DeviceSetupRequestResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.updateDeviceSetupRequestStatusUseCase.execute({ id, status: payload.status, note: payload.note }),
+      this.updateDeviceSetupRequestStatusUseCase.execute({
+        id,
+        status: payload.status,
+        note: payload.note,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     ) as unknown as DeviceSetupRequestResponse;
     await this.recordActivity(req, {
       entityType: "device_setup_request",
@@ -1096,12 +1122,12 @@ export class FleetController {
   @ApiOperation({ summary: "Get vehicle by ID" })
   @ApiOkResponse({ type: VehicleResponse })
   async getVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
-    const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(id));
     const tenantId = this.tenantIdFromRequest(req);
+    const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(id, tenantId));
     const [devices, maintenanceRecords, trips] = await Promise.all([
       this.listDevicesUseCase.execute({ tenantId, vehicleId: id }).catch(() => []),
       this.maintenanceRecordsUseCase.list(tenantId, { vehicleId: id }).catch(() => []),
-      this.listVehicleTripsUseCase.execute(id).catch(() => []),
+      this.listVehicleTripsUseCase.execute(id, tenantId).catch(() => []),
     ]);
     return { ...vehicle, devices, maintenanceRecords, trips } as unknown as VehicleResponse;
   }
@@ -1147,7 +1173,7 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.setVehicleStatusUseCase.execute({ id, status: payload.status }),
+      this.setVehicleStatusUseCase.execute({ id, status: payload.status, tenantId: this.tenantIdFromRequest(req) }),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -1176,7 +1202,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<VehicleDriverAssignmentResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.assignDriverToVehicleUseCase.execute({ vehicleId, driverId: payload.driverId }),
+      this.assignDriverToVehicleUseCase.execute({
+        vehicleId,
+        driverId: payload.driverId,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     ) as unknown as VehicleDriverAssignmentResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -1200,7 +1230,7 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.unassignDriverFromVehicleUseCase.execute(vehicleId),
+      this.unassignDriverFromVehicleUseCase.execute(vehicleId, this.tenantIdFromRequest(req)),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -1227,7 +1257,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.registerVehicleGpsDeviceUseCase.execute({ vehicleId, ...payload }),
+      this.registerVehicleGpsDeviceUseCase.execute({
+        vehicleId,
+        ...payload,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -1253,7 +1287,7 @@ export class FleetController {
   @ApiOkResponse({ type: VehicleResponse })
   async deleteVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.deleteVehicleUseCase.execute(id),
+      this.deleteVehicleUseCase.execute(id, this.tenantIdFromRequest(req)),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -1348,8 +1382,10 @@ export class FleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get driver by ID" })
   @ApiOkResponse({ type: DriverResponse })
-  async getDriver(@Param("id") id: string): Promise<DriverResponse> {
-    return this.runFleetUseCase(() => this.getDriverUseCase.execute(id)) as unknown as Promise<DriverResponse>;
+  async getDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DriverResponse> {
+    return this.runFleetUseCase(() =>
+      this.getDriverUseCase.execute(id, this.tenantIdFromRequest(req)),
+    ) as unknown as Promise<DriverResponse>;
   }
 
   /** Partially update a driver's details */
@@ -1395,6 +1431,7 @@ export class FleetController {
     const result = await this.runFleetUseCase(() =>
       this.setDriverStatusUseCase.execute({
         id,
+        tenantId: this.tenantIdFromRequest(req),
         status: normalizeDriverStatus(payload.status) ?? "active",
       }),
     ) as unknown as DriverResponse;
@@ -1426,7 +1463,11 @@ export class FleetController {
     @Req() req: FleetRequestContext,
   ): Promise<DriverResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.updateDriverContactChannelsUseCase.execute({ id, channels: payload }),
+      this.updateDriverContactChannelsUseCase.execute({
+        id,
+        tenantId: this.tenantIdFromRequest(req),
+        channels: payload,
+      }),
     ) as unknown as DriverResponse;
     await this.recordActivity(req, {
       entityType: "driver",
@@ -1447,7 +1488,7 @@ export class FleetController {
   @ApiOkResponse({ type: DriverResponse })
   async deleteDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DriverResponse> {
     const result = await this.runFleetUseCase(() =>
-      this.deleteDriverUseCase.execute(id),
+      this.deleteDriverUseCase.execute(id, this.tenantIdFromRequest(req)),
     ) as unknown as DriverResponse;
     await this.recordActivity(req, {
       entityType: "driver",

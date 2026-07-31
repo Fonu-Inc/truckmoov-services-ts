@@ -14,10 +14,10 @@ export type VehicleFilters = {
 export interface VehicleRepository {
   save(vehicle: Vehicle): Promise<void>;
   findAll(filters?: VehicleFilters): Promise<Vehicle[]>;
-  findById(id: string): Promise<Vehicle | null>;
+  findById(id: string, tenantId: string): Promise<Vehicle | null>;
   findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null>;
-  findByAssignedDriverId(driverId: string): Promise<Vehicle | null>;
-  deleteById(id: string): Promise<void>;
+  findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null>;
+  deleteById(id: string, tenantId: string): Promise<void>;
 }
 
 export const VEHICLE_REPOSITORY = Symbol("VEHICLE_REPOSITORY");

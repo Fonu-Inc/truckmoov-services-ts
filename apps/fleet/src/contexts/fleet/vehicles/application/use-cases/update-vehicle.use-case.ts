@@ -9,6 +9,7 @@ import type { FleetVehicleType, FleetFuelType } from "../../domain/entities/vehi
 
 export type UpdateVehicleCommand = {
   id: string;
+  tenantId: string;
   registrationNumber?: string;
   plateNumber?: string;
   vin?: string | null;
@@ -18,7 +19,6 @@ export type UpdateVehicleCommand = {
   type?: FleetVehicleType | null;
   fuelType?: FleetFuelType | null;
   capacity?: number | null;
-  tenantId?: string;
   status?: FleetAssetStatus;
 };
 
@@ -30,12 +30,15 @@ export class UpdateVehicleUseCase {
   ) {}
 
   async execute(command: UpdateVehicleCommand) {
-    const existingVehicle = await this.vehicleRepository.findById(command.id);
+    const existingVehicle = await this.vehicleRepository.findById(command.id, command.tenantId);
     if (!existingVehicle) {
       throw new VehicleNotFoundError(command.id);
     }
 
     // Keep the same aliasing rule on updates so the UI never has to know about plateNumber.
+    // tenantId is never taken from the command here — it's only used above to
+    // scope the lookup. Passing it through would let a caller reassign this
+    // vehicle into their own tenant.
     const updatedVehicle = existingVehicle.update({
       plateNumber: command.registrationNumber ?? command.plateNumber,
       vin: command.vin,
@@ -45,7 +48,6 @@ export class UpdateVehicleUseCase {
       type: command.type,
       fuelType: command.fuelType,
       capacity: command.capacity,
-      tenantId: command.tenantId,
       status: command.status,
     });
 

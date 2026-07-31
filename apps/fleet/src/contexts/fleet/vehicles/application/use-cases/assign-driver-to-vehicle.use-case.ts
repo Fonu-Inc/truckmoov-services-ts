@@ -14,6 +14,7 @@ import {
 export type AssignDriverToVehicleCommand = {
   vehicleId: string;
   driverId: string;
+  tenantId: string;
 };
 
 @Injectable()
@@ -26,12 +27,12 @@ export class AssignDriverToVehicleUseCase {
   ) {}
 
   async execute(command: AssignDriverToVehicleCommand) {
-    const vehicle = await this.vehicleRepository.findById(command.vehicleId);
+    const vehicle = await this.vehicleRepository.findById(command.vehicleId, command.tenantId);
     if (!vehicle) {
       throw new VehicleNotFoundError(command.vehicleId);
     }
 
-    const driver = await this.driverRepository.findById(command.driverId);
+    const driver = await this.driverRepository.findById(command.driverId, command.tenantId);
     if (!driver) {
       throw new DriverNotFoundError(command.driverId);
     }
@@ -51,14 +52,14 @@ export class AssignDriverToVehicleUseCase {
     // Keep assignment links symmetric: every driver points to one vehicle and vice versa.
     // When either side is already assigned, we detach the previous pair before linking the new one.
     if (vehicle.assignedDriverId && vehicle.assignedDriverId !== driver.id) {
-      const previousDriver = await this.driverRepository.findById(vehicle.assignedDriverId);
+      const previousDriver = await this.driverRepository.findById(vehicle.assignedDriverId, command.tenantId);
       if (previousDriver) {
         await this.driverRepository.save(previousDriver.unassignVehicle());
       }
     }
 
     if (driver.assignedVehicleId && driver.assignedVehicleId !== vehicle.id) {
-      const previousVehicle = await this.vehicleRepository.findById(driver.assignedVehicleId);
+      const previousVehicle = await this.vehicleRepository.findById(driver.assignedVehicleId, command.tenantId);
       if (previousVehicle) {
         await this.vehicleRepository.save(previousVehicle.unassignDriver());
       }

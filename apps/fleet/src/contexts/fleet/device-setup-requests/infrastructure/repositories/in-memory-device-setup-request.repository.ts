@@ -29,11 +29,15 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
       .sort((a, b) => b.toPrimitives().createdAt.localeCompare(a.toPrimitives().createdAt));
   }
 
-  async findById(id: string): Promise<DeviceSetupRequest | null> {
-    return this.data.get(id) ?? null;
+  async findById(id: string, tenantId: string): Promise<DeviceSetupRequest | null> {
+    const request = this.data.get(id);
+    if (!request || request.tenantId !== tenantId) return null;
+    return request;
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
+    const request = this.data.get(id);
+    if (!request || request.tenantId !== tenantId) return;
     this.data.delete(id);
   }
 }

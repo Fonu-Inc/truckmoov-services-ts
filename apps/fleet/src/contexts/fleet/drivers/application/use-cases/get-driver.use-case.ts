@@ -12,8 +12,8 @@ export class GetDriverUseCase {
     private readonly driverRepository: DriverRepository,
   ) {}
 
-  async execute(id: string) {
-    const driver = await this.driverRepository.findById(id);
+  async execute(id: string, tenantId: string) {
+    const driver = await this.driverRepository.findById(id, tenantId);
     if (!driver) {
       throw new DriverNotFoundError(id);
     }

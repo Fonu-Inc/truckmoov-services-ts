@@ -11,16 +11,31 @@ class FakeIdentityProvider {
 }
 
 class FakeTokenService {
+  private refreshTokenCounter = 0;
+
   issueAccessToken() {
     return "access-token";
   }
 
   issueRefreshToken() {
-    return "refresh-token";
+    this.refreshTokenCounter += 1;
+    return `refresh-token-${this.refreshTokenCounter}`;
   }
 
   resolveAccessToken() {
     return null;
+  }
+}
+
+class FakeUserRepository {
+  private readonly users = new Map<string, { id: string; accountStatus: "enabled" | "disabled" }>();
+
+  seed(id: string, accountStatus: "enabled" | "disabled" = "enabled") {
+    this.users.set(id, { id, accountStatus });
+  }
+
+  async findById(id: string) {
+    return this.users.get(id) ?? null;
   }
 }
 
@@ -79,18 +94,65 @@ describe("Auth use-cases", () => {
     });
 
     expect(result.accessToken).toBe("access-token");
-    expect(result.refreshToken).toBe("refresh-token");
+    expect(result.refreshToken).toBe("refresh-token-1");
     expect(result.user.email).toBe("dev-admin");
 
-    const stored = await sessionStore.getByRefreshToken("refresh-token");
+    const stored = await sessionStore.getByRefreshToken("refresh-token-1");
     expect(stored?.email).toBe("dev-admin");
   });
 
   it("refresh rejects unknown refresh token", async () => {
-    const useCase = new RefreshUseCase(new FakeSessionStore(), new FakeTokenService());
+    const useCase = new RefreshUseCase(
+      new FakeSessionStore(),
+      new FakeTokenService(),
+      new FakeUserRepository() as never,
+    );
 
     await expect(() => useCase.execute("unknown-refresh")).rejects.toBeInstanceOf(
       InvalidRefreshTokenError,
     );
+  });
+
+  it("refresh rotates the refresh token and invalidates the old one", async () => {
+    const sessionStore = new FakeSessionStore();
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1", "enabled");
+
+    const loginUseCase = new LoginUseCase(new FakeIdentityProvider(), tokenService, sessionStore);
+    const loginResult = await loginUseCase.execute({ email: "dev-admin", password: "StrongPass123!" });
+    const oldRefreshToken = loginResult.refreshToken;
+
+    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never);
+    const refreshResult = await refreshUseCase.execute(oldRefreshToken);
+
+    expect(refreshResult.refreshToken).not.toBe(oldRefreshToken);
+    expect(refreshResult.accessToken).toBe("access-token");
+
+    // Old token is now invalid — a replay attempt fails.
+    await expect(() => refreshUseCase.execute(oldRefreshToken)).rejects.toBeInstanceOf(
+      InvalidRefreshTokenError,
+    );
+
+    // New token works.
+    const secondRefresh = await refreshUseCase.execute(refreshResult.refreshToken);
+    expect(secondRefresh.refreshToken).not.toBe(refreshResult.refreshToken);
+  });
+
+  it("refresh rejects and clears the session for a disabled account", async () => {
+    const sessionStore = new FakeSessionStore();
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1", "disabled");
+
+    const loginUseCase = new LoginUseCase(new FakeIdentityProvider(), tokenService, sessionStore);
+    const loginResult = await loginUseCase.execute({ email: "dev-admin", password: "StrongPass123!" });
+
+    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never);
+    await expect(() => refreshUseCase.execute(loginResult.refreshToken)).rejects.toThrow(
+      "This account has been disabled",
+    );
+
+    expect(await sessionStore.getByRefreshToken(loginResult.refreshToken)).toBeNull();
   });
 });

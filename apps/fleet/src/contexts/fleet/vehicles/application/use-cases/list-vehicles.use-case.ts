@@ -22,12 +22,20 @@ export class ListVehiclesUseCase {
     const vehicles = await this.vehicleRepository.findAll(filters);
     const primitives = vehicles.map((v) => v.toPrimitives());
 
-    const driverIds = [...new Set(primitives.map((v) => v.assignedDriverId).filter(Boolean))] as string[];
+    // Scope each driver lookup by its owning vehicle's own tenantId (not
+    // filters.tenantId, which may be unset for an admin cross-tenant list) —
+    // this keeps the lookup correctly scoped in every case.
+    const driverLookups = new Map<string, string>();
+    for (const vehicle of primitives) {
+      if (vehicle.assignedDriverId) {
+        driverLookups.set(vehicle.assignedDriverId, vehicle.tenantId);
+      }
+    }
     const driverMap = new Map<string, string>();
-    if (driverIds.length > 0) {
+    if (driverLookups.size > 0) {
       await Promise.all(
-        driverIds.map(async (id) => {
-          const driver = await this.driverRepository.findById(id);
+        [...driverLookups.entries()].map(async ([id, tenantId]) => {
+          const driver = await this.driverRepository.findById(id, tenantId);
           if (driver) driverMap.set(id, driver.name);
         }),
       );

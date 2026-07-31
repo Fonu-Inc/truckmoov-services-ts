@@ -16,6 +16,7 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 
 export type SetDeviceLifecycleStatusCommand = {
   id: string;
+  tenantId: string;
   lifecycleStatus: DeviceLifecycleStatus;
 };
 
@@ -33,7 +34,7 @@ export class SetDeviceLifecycleStatusUseCase {
   ) {}
 
   async execute(command: SetDeviceLifecycleStatusCommand) {
-    const device = await this.deviceRepository.findById(command.id);
+    const device = await this.deviceRepository.findById(command.id, command.tenantId);
     if (!device) {
       throw new DeviceNotFoundError(command.id);
     }
@@ -61,7 +62,7 @@ export class SetDeviceLifecycleStatusUseCase {
     // retires the device from Traccar, and clears provisioning state so the persisted row
     // never reports a dangling traccarDeviceId after removal.
     if (device.vehicleId) {
-      const vehicle = await this.vehicleRepository.findById(device.vehicleId);
+      const vehicle = await this.vehicleRepository.findById(device.vehicleId, command.tenantId);
       if (vehicle && vehicle.gpsDevice?.imei === device.imei) {
         await this.vehicleRepository.save(vehicle.clearGpsDevice());
       }

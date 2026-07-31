@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { TenantGuard } from "../../../apps/fleet/src/tenant.guard";
 
@@ -50,8 +51,22 @@ describe("TenantGuard", () => {
     expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "SUPER_ADMIN", queryTenantId: "t2" }))).toBe(true);
   });
 
-  it("ignores client-supplied tenant mismatch in query and body", () => {
-    expect(makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", queryTenantId: "t2", bodyTenantId: "t3" }))).toBe(true);
+  it("rejects client-supplied tenant mismatch in query", () => {
+    expect(() =>
+      makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", queryTenantId: "t2" })),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("rejects client-supplied tenant mismatch in body", () => {
+    expect(() =>
+      makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", bodyTenantId: "t3" })),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("allows when client-supplied tenant in query/body matches the authenticated tenant", () => {
+    expect(
+      makeGuard().canActivate(makeCtx({ claimedTenant: "t1", role: "DISPATCHER", queryTenantId: "t1", bodyTenantId: "t1" })),
+    ).toBe(true);
   });
 
   it("bypasses when SKIP_TENANT_KEY metadata is set", () => {

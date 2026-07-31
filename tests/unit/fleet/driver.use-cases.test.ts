@@ -38,10 +38,32 @@ describe("Fleet driver and assignment use-cases", () => {
     expect(created.phone).toBe("+2348000000001");
     expect(created.status).toBe("available");
 
-    const deleted = await deleteUseCase.execute(created.id);
+    const deleted = await deleteUseCase.execute(created.id, "default");
     expect(deleted).toEqual({ deleted: true, id: created.id });
 
-    await expect(() => deleteUseCase.execute(created.id)).rejects.toBeInstanceOf(
+    await expect(() => deleteUseCase.execute(created.id, "default")).rejects.toBeInstanceOf(
+      DriverNotFoundError,
+    );
+  });
+
+  it("does not delete a driver belonging to a different tenant", async () => {
+    const driverRepository = new InMemoryDriverRepository();
+    const vehicleRepository = new InMemoryVehicleRepository();
+    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
+    const deleteUseCase = new DeleteDriverUseCase(driverRepository, vehicleRepository);
+
+    const created = await createUseCase.execute({
+      firstName: "John",
+      lastName: "Doe",
+      phone: "+2348000000001",
+      licenseNumber: "LIC-1234",
+      licenseExpiryDate: "2026-08-15",
+      communicationPreference: "whatsapp",
+      status: "available",
+      tenantId: "tenant-a",
+    });
+
+    await expect(() => deleteUseCase.execute(created.id, "tenant-b")).rejects.toBeInstanceOf(
       DriverNotFoundError,
     );
   });
@@ -77,6 +99,7 @@ describe("Fleet driver and assignment use-cases", () => {
     const assignment = await assignDriver.execute({
       driverId: driver.id,
       vehicleId: vehicle.id,
+      tenantId: "default",
     });
 
     expect(assignment.vehicle.assignedDriverId).toBe(driver.id);
@@ -86,13 +109,14 @@ describe("Fleet driver and assignment use-cases", () => {
 
     const deactivated = await setDriverStatus.execute({
       id: driver.id,
+      tenantId: "default",
       status: "offline",
     });
 
     expect(deactivated.status).toBe("offline");
     expect(deactivated.assignedVehicleId).toBeNull();
 
-    const vehicleAfterDeactivate = await vehicleRepository.findById(vehicle.id);
+    const vehicleAfterDeactivate = await vehicleRepository.findById(vehicle.id, "default");
     expect(vehicleAfterDeactivate?.assignedDriverId).toBeNull();
   });
 

@@ -79,10 +79,10 @@ export class MikroDeviceRepository implements DeviceRepository {
     return filtered.map((record) => this.toDomain(record));
   }
 
-  async findById(id: string): Promise<Device | null> {
+  async findById(id: string, tenantId: string): Promise<Device | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const record = await em.findOne(DeviceRecord, { id });
+    const record = await em.findOne(DeviceRecord, { id, tenantId });
     return record ? this.toDomain(record) : null;
   }
 
@@ -96,17 +96,17 @@ export class MikroDeviceRepository implements DeviceRepository {
     return record ? this.toDomain(record) : null;
   }
 
-  async findByVehicleId(vehicleId: string): Promise<Device | null> {
+  async findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const record = await em.findOne(DeviceRecord, { vehicleId });
+    const record = await em.findOne(DeviceRecord, { vehicleId, tenantId });
     return record ? this.toDomain(record) : null;
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.nativeDelete(DeviceRecord, { id });
+    await em.nativeDelete(DeviceRecord, { id, tenantId });
   }
 
   private toDomain(record: DeviceRecord) {

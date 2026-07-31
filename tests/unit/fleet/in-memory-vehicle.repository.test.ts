@@ -13,11 +13,16 @@ describe("InMemoryVehicleRepository", () => {
   it("saves and retrieves by id", async () => {
     const v = makeVehicle("v1");
     await repo.save(v);
-    expect(await repo.findById("v1")).toBe(v);
+    expect(await repo.findById("v1", "t1")).toBe(v);
   });
 
   it("returns null for missing id", async () => {
-    expect(await repo.findById("missing")).toBeNull();
+    expect(await repo.findById("missing", "t1")).toBeNull();
+  });
+
+  it("returns null when tenant does not match", async () => {
+    await repo.save(makeVehicle("v1", "t1"));
+    expect(await repo.findById("v1", "t2")).toBeNull();
   });
 
   it("findAll filters by tenantId", async () => {
@@ -53,12 +58,18 @@ describe("InMemoryVehicleRepository", () => {
 
   it("findByAssignedDriverId returns vehicle for driver", async () => {
     await repo.save(makeVehicle("v1", "t1", { assignedDriverId: "d1" }));
-    expect(await repo.findByAssignedDriverId("d1")).not.toBeNull();
+    expect(await repo.findByAssignedDriverId("d1", "t1")).not.toBeNull();
   });
 
   it("deleteById removes the vehicle", async () => {
     await repo.save(makeVehicle("v1"));
-    await repo.deleteById("v1");
-    expect(await repo.findById("v1")).toBeNull();
+    await repo.deleteById("v1", "t1");
+    expect(await repo.findById("v1", "t1")).toBeNull();
+  });
+
+  it("deleteById does not remove a vehicle belonging to a different tenant", async () => {
+    await repo.save(makeVehicle("v1", "t1"));
+    await repo.deleteById("v1", "t2");
+    expect(await repo.findById("v1", "t1")).not.toBeNull();
   });
 });

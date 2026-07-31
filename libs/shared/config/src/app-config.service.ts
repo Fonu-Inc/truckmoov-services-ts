@@ -122,6 +122,12 @@ export class AppConfigService {
       // oracle if the secret is ever weak, and log stores are a lower trust
       // boundary than the secret store.
       jwtKeyId: this.config.get<string>("JWT_KEY_ID", "unset"),
+      // Deliberately strict defaults independent of the general API rate
+      // limit: a handful of attempts, then a slow refill, to throttle
+      // credential-stuffing/brute-force without needing per-deployment env
+      // tuning to get a safe-by-default value.
+      loginRateLimitRps: this.config.get<number>("LOGIN_RATE_LIMIT_RPS", 0.1),
+      loginRateLimitBurst: this.config.get<number>("LOGIN_RATE_LIMIT_BURST", 5),
     };
   }
 

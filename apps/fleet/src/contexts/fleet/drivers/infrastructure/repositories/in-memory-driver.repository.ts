@@ -46,8 +46,10 @@ export class InMemoryDriverRepository implements DriverRepository {
     });
   }
 
-  async findById(id: string): Promise<Driver | null> {
-    return this.data.get(id) ?? null;
+  async findById(id: string, tenantId: string): Promise<Driver | null> {
+    const driver = this.data.get(id);
+    if (!driver || driver.tenantId !== tenantId) return null;
+    return driver;
   }
 
   async findByLicenseNumber(licenseNumber: string, tenantId: string): Promise<Driver | null> {
@@ -61,10 +63,10 @@ export class InMemoryDriverRepository implements DriverRepository {
     );
   }
 
-  async findByAssignedVehicleId(vehicleId: string): Promise<Driver | null> {
+  async findByAssignedVehicleId(vehicleId: string, tenantId: string): Promise<Driver | null> {
     return (
       Array.from(this.data.values()).find(
-        (driver) => driver.assignedVehicleId === vehicleId,
+        (driver) => driver.assignedVehicleId === vehicleId && driver.tenantId === tenantId,
       ) ?? null
     );
   }
@@ -77,7 +79,9 @@ export class InMemoryDriverRepository implements DriverRepository {
     );
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
+    const driver = this.data.get(id);
+    if (!driver || driver.tenantId !== tenantId) return;
     this.data.delete(id);
   }
 }

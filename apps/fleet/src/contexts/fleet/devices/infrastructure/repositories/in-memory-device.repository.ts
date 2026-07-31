@@ -52,8 +52,10 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     });
   }
 
-  async findById(id: string): Promise<Device | null> {
-    return this.data.get(id) ?? null;
+  async findById(id: string, tenantId: string): Promise<Device | null> {
+    const device = this.data.get(id);
+    if (!device || device.tenantId !== tenantId) return null;
+    return device;
   }
 
   async findByImei(imei: string, tenantId: string): Promise<Device | null> {
@@ -65,13 +67,17 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     );
   }
 
-  async findByVehicleId(vehicleId: string): Promise<Device | null> {
+  async findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null> {
     return (
-      Array.from(this.data.values()).find((device) => device.vehicleId === vehicleId) ?? null
+      Array.from(this.data.values()).find(
+        (device) => device.vehicleId === vehicleId && device.tenantId === tenantId,
+      ) ?? null
     );
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
+    const device = this.data.get(id);
+    if (!device || device.tenantId !== tenantId) return;
     this.data.delete(id);
   }
 }
