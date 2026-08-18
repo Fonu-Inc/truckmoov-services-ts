@@ -40,12 +40,20 @@ export class InviteUserUseCase {
       throw new ForbiddenError("Cannot invite users with this role");
     }
 
+    const email = command.email.trim();
+    const existing = await this.inviteRepo.findPendingByEmailForTenant(
+      caller.tenantId,
+      email,
+    );
+
     const token = this.idGenerator.generate();
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
+    // Reuse an existing pending invite so re-inviting the same address refreshes
+    // it in place instead of accumulating duplicate pending rows.
     await this.inviteRepo.save({
-      id: this.idGenerator.generate(),
-      email: command.email,
+      id: existing?.id ?? this.idGenerator.generate(),
+      email,
       role: targetRole,
       tenantId: caller.tenantId,
       token,
@@ -56,11 +64,11 @@ export class InviteUserUseCase {
     });
 
     await this.notifier.sendInviteEmail({
-      email: command.email,
+      email,
       role: targetRole,
       inviteToken: token,
     });
 
-    return { message: "Invitation sent", email: command.email, role: targetRole };
+    return { message: "Invitation sent", email, role: targetRole };
   }
 }
