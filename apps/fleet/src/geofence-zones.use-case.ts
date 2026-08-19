@@ -80,7 +80,7 @@ export class GeofenceZonesUseCase {
   }
 
   async get(tenantId: string, id: string) {
-    const zone = await this.repo.findById(id);
+    const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
     return toApiShape(zone);
   }
@@ -124,7 +124,7 @@ export class GeofenceZonesUseCase {
   }
 
   async update(tenantId: string, id: string, data: Partial<GeofenceZoneInput> & { status?: GeofenceZoneStatus }) {
-    const zone = await this.repo.findById(id);
+    const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
 
     const updated: StoredGeofenceZone = {
@@ -160,13 +160,13 @@ export class GeofenceZonesUseCase {
   }
 
   async delete(tenantId: string, id: string) {
-    const zone = await this.repo.findById(id);
+    const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
     await this.repo.save({ ...zone, status: "ARCHIVED", updatedAt: new Date() });
   }
 
   async setVehicleAssignments(tenantId: string, id: string, vehicleIds: string[]) {
-    const zone = await this.repo.findById(id);
+    const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
     await this.repo.setVehicleAssignments(id, tenantId, vehicleIds);
     return toApiShape({ ...zone, assignedVehicleIds: vehicleIds });

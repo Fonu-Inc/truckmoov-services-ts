@@ -84,6 +84,10 @@ class FakeEventBus implements EventBus {
 
   async publish(): Promise<void> {}
 
+  async isReady(): Promise<boolean> {
+    return true;
+  }
+
   async subscribe(_subject: string, handler: (envelope: EventEnvelope) => Promise<void>) {
     this.handler = handler;
     return async () => {};

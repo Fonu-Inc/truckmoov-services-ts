@@ -9,6 +9,7 @@ export interface EventBus {
     subject: string,
     handler: (envelope: EventEnvelope) => Promise<void>,
   ): Promise<() => Promise<void>>;
+  isReady(): Promise<boolean>;
 }
 
 export const EVENT_BUS = Symbol("EVENT_BUS");

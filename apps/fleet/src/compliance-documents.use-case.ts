@@ -62,7 +62,7 @@ export class ComplianceDocumentsUseCase {
   }
 
   async update(tenantId: string, id: string, data: Partial<Omit<StoredComplianceDocument, "id" | "tenantId" | "createdAt">>) {
-    const existing = await this.repo.findById(id);
+    const existing = await this.repo.findById(id, tenantId);
     if (!existing || existing.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
     const updated = { ...existing, ...data, updatedAt: new Date() };
     await this.repo.save(updated);
@@ -70,9 +70,9 @@ export class ComplianceDocumentsUseCase {
   }
 
   async delete(tenantId: string, id: string) {
-    const doc = await this.repo.findById(id);
+    const doc = await this.repo.findById(id, tenantId);
     if (!doc || doc.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
-    await this.repo.deleteById(id);
+    await this.repo.deleteById(id, tenantId);
   }
 
   async summary(tenantId: string) {
@@ -90,7 +90,7 @@ export class ComplianceDocumentsUseCase {
   }
 
   async renew(tenantId: string, id: string, data: { expiryDate?: string; fileUrl?: string; fileSize?: number }) {
-    const existing = await this.repo.findById(id);
+    const existing = await this.repo.findById(id, tenantId);
     if (!existing || existing.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
     const newExpiry = data.expiryDate ?? (() => {
       if (!existing.expiryDate) return null;

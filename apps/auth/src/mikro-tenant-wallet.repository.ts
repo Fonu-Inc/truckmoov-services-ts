@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { LockMode } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import {
   TenantWalletRecord,
@@ -30,5 +31,36 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.upsert(TenantWalletRecord, wallet as unknown as TenantWalletRecord);
+  }
+
+  async debit(tenantId: string, amountKobo: number): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    return orm.em.fork().transactional(async (em) => {
+      const record = await em.findOne(
+        TenantWalletRecord,
+        { tenantId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      if (!record || record.balanceKobo < amountKobo) return false;
+      record.balanceKobo -= amountKobo;
+      record.updatedAt = new Date();
+      await em.flush();
+      return true;
+    });
+  }
+
+  async credit(tenantId: string, amountKobo: number): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.fork().transactional(async (em) => {
+      const record = await em.findOne(
+        TenantWalletRecord,
+        { tenantId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      if (!record) return;
+      record.balanceKobo += amountKobo;
+      record.updatedAt = new Date();
+      await em.flush();
+    });
   }
 }

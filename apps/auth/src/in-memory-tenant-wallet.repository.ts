@@ -12,4 +12,19 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
   async save(wallet: StoredTenantWallet): Promise<void> {
     this.store.set(wallet.tenantId, wallet);
   }
+
+  async debit(tenantId: string, amountKobo: number): Promise<boolean> {
+    const wallet = this.store.get(tenantId);
+    if (!wallet || wallet.balanceKobo < amountKobo) return false;
+    wallet.balanceKobo -= amountKobo;
+    wallet.updatedAt = new Date();
+    return true;
+  }
+
+  async credit(tenantId: string, amountKobo: number): Promise<void> {
+    const wallet = this.store.get(tenantId);
+    if (!wallet) return;
+    wallet.balanceKobo += amountKobo;
+    wallet.updatedAt = new Date();
+  }
 }

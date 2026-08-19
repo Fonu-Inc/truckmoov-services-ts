@@ -17,10 +17,10 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     await em.upsert(ComplianceDocumentRecord, doc as unknown as ComplianceDocumentRecord);
   }
 
-  async findById(id: string): Promise<StoredComplianceDocument | null> {
+  async findById(id: string, tenantId: string): Promise<StoredComplianceDocument | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const rec = await em.findOne(ComplianceDocumentRecord, { id });
+    const rec = await em.findOne(ComplianceDocumentRecord, { id, tenantId });
     return rec ? (rec as unknown as StoredComplianceDocument) : null;
   }
 
@@ -45,9 +45,9 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     return result;
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.nativeDelete(ComplianceDocumentRecord, { id });
+    await em.nativeDelete(ComplianceDocumentRecord, { id, tenantId });
   }
 }

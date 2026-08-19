@@ -237,6 +237,11 @@ describe('Auth HTTP contract', () => {
     const previousBurst = process.env.LOGIN_RATE_LIMIT_BURST;
     process.env.LOGIN_RATE_LIMIT_BURST = '3';
     vi.resetModules();
+    // prom-client's registry is process-global; the shared app already
+    // registered its metrics, so clear it before this second in-process app
+    // re-registers (avoids "metric already registered").
+    const { register: promRegister } = await import('prom-client');
+    promRegister.clear();
     const { AppModule: RateLimitedAppModule } = await import('../../../apps/auth/src/app.module');
     const moduleRef = await Test.createTestingModule({
       imports: [RateLimitedAppModule],

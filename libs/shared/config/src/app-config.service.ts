@@ -2,9 +2,37 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NodeEnv } from "./node-env";
 
+// Known placeholder/dev-default secret values that must never reach production.
+const PLACEHOLDER_SECRETS = new Set(["replace-me", "change-me", "truckmoov", "replace"]);
+
 @Injectable()
 export class AppConfigService {
-  constructor(@Inject(ConfigService) private readonly config: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {
+    this.validateSecrets();
+  }
+
+  // Fail fast in production when critical secrets are unset, empty, or left at a
+  // known placeholder value. In non-production, warn but allow so local/dev boots.
+  private validateSecrets(): void {
+    const isProd = this.config.get<string>("NODE_ENV", NodeEnv.Development) === NodeEnv.Production;
+    const required: Array<[string, string | undefined]> = [
+      ["JWT_SECRET", this.config.get<string>("JWT_SECRET")],
+      ["POSTGRES_PASSWORD", this.config.get<string>("POSTGRES_PASSWORD")],
+    ];
+
+    const invalid = required
+      .filter(([, value]) => {
+        const v = (value ?? "").trim().toLowerCase();
+        return v === "" || PLACEHOLDER_SECRETS.has(v);
+      })
+      .map(([name]) => name);
+
+    if (invalid.length === 0) return;
+
+    const message = `Insecure or missing secrets: ${invalid.join(", ")}. Set strong values via environment variables.`;
+    if (isProd) throw new Error(message);
+    console.warn(`[AppConfigService] WARNING: ${message}`);
+  }
 
   get db() {
     return {
@@ -52,6 +80,26 @@ export class AppConfigService {
   get dispatch() {
     return {
       serviceUrl: this.config.get<string>("DISPATCH_SERVICE_URL", "http://localhost:3005"),
+    };
+  }
+
+  get redis() {
+    return {
+      // Enabled by default; the idempotency guard degrades to an in-memory
+      // fallback if the connection is unavailable, so this stays safe in dev.
+      enabled: this.config.get<string>("REDIS_ENABLED", "true") !== "false",
+      host: this.config.get<string>("REDIS_HOST", "localhost"),
+      port: this.config.get<number>("REDIS_PORT", 6379),
+      password: this.config.get<string>("REDIS_PASSWORD", "") || undefined,
+      keyPrefix: this.config.get<string>("REDIS_KEY_PREFIX", "truckmoov:"),
+      // Idempotency key retention window.
+      idempotencyTtlSeconds: this.config.get<number>("IDEMPOTENCY_TTL_SECONDS", 86400),
+    };
+  }
+
+  get nats() {
+    return {
+      url: this.config.get<string>("NATS_URL", "nats://localhost:4222"),
     };
   }
 

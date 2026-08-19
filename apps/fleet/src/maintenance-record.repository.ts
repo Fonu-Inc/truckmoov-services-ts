@@ -48,9 +48,9 @@ export type MaintenanceRecordFilters = {
 
 export interface MaintenanceRecordRepository {
   save(record: StoredMaintenanceRecord): Promise<void>;
-  findById(id: string): Promise<StoredMaintenanceRecord | null>;
+  findById(id: string, tenantId: string): Promise<StoredMaintenanceRecord | null>;
   findAllByTenant(tenantId: string, filters?: MaintenanceRecordFilters): Promise<StoredMaintenanceRecord[]>;
-  deleteById(id: string): Promise<void>;
+  deleteById(id: string, tenantId: string): Promise<void>;
 }
 
 export const MAINTENANCE_RECORD_REPOSITORY = Symbol("MAINTENANCE_RECORD_REPOSITORY");

@@ -13,6 +13,7 @@ export default defineConfig({
       "@shared/http": path.resolve(__dirname, "libs/shared/http/src"),
       "@shared/openapi": path.resolve(__dirname, "libs/shared/openapi/src"),
       "@shared/observability": path.resolve(__dirname, "libs/shared/observability/src"),
+      "@shared/metrics": path.resolve(__dirname, "libs/shared/metrics/src"),
       "@shared/eventbus": path.resolve(__dirname, "libs/shared/eventbus/src"),
       "@shared/mailer": path.resolve(__dirname, "libs/shared/mailer/src"),
       "@shared/object-storage": path.resolve(__dirname, "libs/shared/object-storage/src"),

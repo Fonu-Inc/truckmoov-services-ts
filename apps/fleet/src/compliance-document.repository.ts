@@ -29,9 +29,9 @@ export type ComplianceDocumentFilters = {
 
 export interface ComplianceDocumentRepository {
   save(doc: StoredComplianceDocument): Promise<void>;
-  findById(id: string): Promise<StoredComplianceDocument | null>;
+  findById(id: string, tenantId: string): Promise<StoredComplianceDocument | null>;
   findAllByTenant(tenantId: string, filters?: ComplianceDocumentFilters): Promise<StoredComplianceDocument[]>;
-  deleteById(id: string): Promise<void>;
+  deleteById(id: string, tenantId: string): Promise<void>;
 }
 
 export const COMPLIANCE_DOCUMENT_REPOSITORY = Symbol("COMPLIANCE_DOCUMENT_REPOSITORY");

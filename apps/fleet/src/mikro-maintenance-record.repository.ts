@@ -38,10 +38,10 @@ export class MikroMaintenanceRecordRepository implements MaintenanceRecordReposi
     await em.upsert(MaintenanceRecordOrmRecord, row);
   }
 
-  async findById(id: string): Promise<StoredMaintenanceRecord | null> {
+  async findById(id: string, tenantId: string): Promise<StoredMaintenanceRecord | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    const rec = await em.findOne(MaintenanceRecordOrmRecord, { id });
+    const rec = await em.findOne(MaintenanceRecordOrmRecord, { id, tenantId });
     return rec ? (rec as unknown as StoredMaintenanceRecord) : null;
   }
 
@@ -73,9 +73,9 @@ export class MikroMaintenanceRecordRepository implements MaintenanceRecordReposi
     return result;
   }
 
-  async deleteById(id: string): Promise<void> {
+  async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.nativeDelete(MaintenanceRecordOrmRecord, { id });
+    await em.nativeDelete(MaintenanceRecordOrmRecord, { id, tenantId });
   }
 }

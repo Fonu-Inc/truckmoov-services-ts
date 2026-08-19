@@ -7,6 +7,7 @@ import { JsonLogger } from "@shared/logger";
 import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
 import { AppModule } from "./app.module";
+import { assertTenantScopedControllers } from "./assert-tenant-scoped";
 import { getFleetOrm } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import {
   BulkDeviceImportResponse,
@@ -111,6 +112,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new JsonLogger("fleet-service"),
   });
+
+  // Fail closed: abort boot if any controller lacks @TenantScoped()/@Public().
+  assertTenantScopedControllers(app);
 
   const cfg = app.get(AppConfigService);
   new JsonLogger("fleet-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });

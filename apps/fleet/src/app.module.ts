@@ -1,10 +1,13 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
+import { DiscoveryModule } from "@nestjs/core";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
+import { MetricsModule } from "@shared/metrics";
+import { ReadinessController } from "./readiness.controller";
 import { GeofenceModule } from "@shared/geofence";
 import { LoggerModule } from "@shared/logger";
 import { ObjectStorageModule } from "@shared/object-storage";
-import { IdempotencyGuard, RolesGuard } from "@shared/rbac";
+import { IdempotencyGuard, RolesGuard, RedisClientProvider } from "@shared/rbac";
 import {
   BulkImportDriversUseCase,
   CreateDriverUseCase,
@@ -143,8 +146,8 @@ import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
 
 @Module({
-  imports: [ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule],
-  controllers: [FleetController, WebhookController],
+  imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule],
+  controllers: [FleetController, WebhookController, ReadinessController],
   providers: [
     VehicleHealthService,
     VehicleLocationListener,
@@ -190,6 +193,8 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     ListAccessLogUseCase,
     IntegrationHealthService,
     RateLimitGuard,
+    // Applied explicitly via @TenantScoped() on FleetController (not a global
+    // APP_GUARD). Still a no-op for unauthenticated/health requests.
     TenantGuard,
     AuditLogService,
     AuditEventListener,
@@ -340,6 +345,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     AuthContextMiddleware,
     RolesGuard,
     IdempotencyGuard,
+    RedisClientProvider,
     InMemoryFuelRecordRepository,
     { provide: FUEL_RECORD_REPOSITORY, useExisting: InMemoryFuelRecordRepository },
     FuelThresholdService,

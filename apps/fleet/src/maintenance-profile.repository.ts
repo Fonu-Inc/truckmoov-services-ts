@@ -33,9 +33,9 @@ export type MaintenanceProfileFilters = {
 
 export interface MaintenanceProfileRepository {
   save(profile: StoredMaintenanceProfile): Promise<void>;
-  findById(id: string): Promise<StoredMaintenanceProfile | null>;
+  findById(id: string, tenantId: string): Promise<StoredMaintenanceProfile | null>;
   findAllByTenant(tenantId: string, filters?: MaintenanceProfileFilters): Promise<StoredMaintenanceProfile[]>;
-  deleteById(id: string): Promise<void>;
+  deleteById(id: string, tenantId: string): Promise<void>;
 }
 
 export const MAINTENANCE_PROFILE_REPOSITORY = Symbol("MAINTENANCE_PROFILE_REPOSITORY");

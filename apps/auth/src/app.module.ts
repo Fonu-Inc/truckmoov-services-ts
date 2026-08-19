@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
+import { IdempotencyGuard, RedisClientProvider } from '@shared/rbac';
 import { EventBusModule } from '@shared/eventbus';
+import { MetricsModule } from '@shared/metrics';
+import { ReadinessController } from './readiness.controller';
 import { LoggerModule } from '@shared/logger';
 import { MailerModule } from '@shared/mailer';
 import { ObjectStorageModule } from '@shared/object-storage';
@@ -300,10 +303,13 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ObjectStorageModule,
     SmsModule,
     EventBusModule,
+    MetricsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, ReadinessController],
   providers: [
     LoginRateLimitGuard,
+    IdempotencyGuard,
+    RedisClientProvider,
     // User repository
     InMemoryUserRepository,
     MikroUserRepository,

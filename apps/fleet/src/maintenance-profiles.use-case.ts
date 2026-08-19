@@ -71,13 +71,13 @@ export class MaintenanceProfilesUseCase {
   }
 
   async delete(tenantId: string, id: string) {
-    const profile = await this.repo.findById(id);
+    const profile = await this.repo.findById(id, tenantId);
     if (!profile || profile.tenantId !== tenantId) throw new MaintenanceProfileNotFoundError();
-    await this.repo.deleteById(id);
+    await this.repo.deleteById(id, tenantId);
   }
 
   async complete(tenantId: string, id: string) {
-    const profile = await this.repo.findById(id);
+    const profile = await this.repo.findById(id, tenantId);
     if (!profile || profile.tenantId !== tenantId) throw new MaintenanceProfileNotFoundError();
     const today = new Date().toISOString().slice(0, 10);
     const updated: StoredMaintenanceProfile = {

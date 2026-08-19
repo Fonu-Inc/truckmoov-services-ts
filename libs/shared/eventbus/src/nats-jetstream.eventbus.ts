@@ -91,6 +91,15 @@ export class NatsJetStreamEventBus implements EventBus {
     return async () => sub.stop();
   }
 
+  async isReady(): Promise<boolean> {
+    try {
+      const js = await this.getJetStream();
+      return !!js && !!this.connection && !this.connection.isClosed();
+    } catch {
+      return false;
+    }
+  }
+
   private async getJetStream(): Promise<JetStreamClient | null> {
     if (this.jetstream) {
       return this.jetstream;

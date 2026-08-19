@@ -61,7 +61,7 @@ export class MaintenanceRecordsUseCase {
    * with "column vehiclePlateNumber ... does not exist".
    */
   private async findRaw(tenantId: string, id: string): Promise<StoredMaintenanceRecord> {
-    const rec = await this.repo.findById(id);
+    const rec = await this.repo.findById(id, tenantId);
     if (!rec || rec.tenantId !== tenantId) throw new MaintenanceRecordNotFoundError();
     return rec;
   }
@@ -106,7 +106,7 @@ export class MaintenanceRecordsUseCase {
 
   async delete(tenantId: string, id: string) {
     await this.findRaw(tenantId, id);
-    await this.repo.deleteById(id);
+    await this.repo.deleteById(id, tenantId);
   }
 
   async transition(tenantId: string, id: string, status: MaintenanceRecordStatus) {

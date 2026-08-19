@@ -37,11 +37,12 @@ export class AllocateBundleUseCase {
     const bundle = await this.bundleCatalogRepository.findById(payload.bundleId);
     if (!bundle) throw new Error('Bundle not found');
 
-    const wallet = await this.tenantWalletRepository.findByTenantId(tenantId);
-    const balanceKobo = wallet?.balanceKobo ?? 0;
     const totalCostKobo = bundle.priceKobo * payload.mobileNumbers.length;
 
-    if (balanceKobo < totalCostKobo) throw new Error('Insufficient wallet balance');
+    // Atomic debit up front prevents concurrent double-spend: the balance is
+    // reserved before any allocation, and unused funds are refunded per failure.
+    const debited = await this.tenantWalletRepository.debit(tenantId, totalCostKobo);
+    if (!debited) throw new Error('Insufficient wallet balance');
 
     const now = new Date();
     const allocationIds: string[] = [];
@@ -78,18 +79,13 @@ export class AllocateBundleUseCase {
 
         allocationIds.push(id);
       } catch (err) {
+        // Refund the reserved cost for this failed allocation.
+        await this.tenantWalletRepository.credit(tenantId, bundle.priceKobo);
         failures.push({ mobileNumber, reason: err instanceof Error ? err.message : 'Unknown error' });
       }
     }
 
     const successfulCount = allocationIds.length;
-    const newBalanceKobo = balanceKobo - bundle.priceKobo * successfulCount;
-    await this.tenantWalletRepository.save({
-      tenantId,
-      balanceKobo: newBalanceKobo,
-      currency: wallet?.currency ?? 'NGN',
-      updatedAt: now,
-    });
 
     return {
       status: true,

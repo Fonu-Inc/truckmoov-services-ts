@@ -188,3 +188,35 @@ MikroORM is the chosen migration strategy for this bootstrap.
 - Durable adapters implemented behind ports:
   - `apps/auth/src/contexts/auth/session/infrastructure/mikro-session.store.ts`
   - `apps/fleet/src/contexts/fleet/*/infrastructure/repositories/mikro-*.repository.ts`
+
+## Asymmetric user-token signing (EdDSA / Ed25519)
+
+Auth signs user access tokens with either HMAC (legacy, default) or EdDSA. All
+services dual-verify: 3-segment JWTs are checked against the auth JWKS
+(`GET /auth/.well-known/jwks.json`, kid → public key); 2-segment legacy tokens
+keep verifying with the shared HMAC secret. Nothing changes until
+`JWT_SIGNING_MODE` is flipped to `asymmetric`.
+
+### Generate a keypair
+
+```
+node scripts/generate-jwt-keypair.mjs
+```
+
+### Doppler config
+
+Signer (auth only):
+- `JWT_PRIVATE_KEY` — Ed25519 PKCS8 PEM from the script (secret; never commit)
+- `JWT_KEY_ID` — the `kid` the script prints
+- `JWT_SIGNING_MODE` — `hmac` (default) or `asymmetric`
+
+Verifiers (auth + fleet):
+- `JWKS_URL` — default `http://auth-service:3001/auth/.well-known/jwks.json`
+- `JWT_ISSUER` — default `truckmoov-auth`
+- `JWT_AUDIENCE` — default `truckmoov-services`
+- `JWT_SECRET` — unchanged, still used for legacy HMAC verify
+
+Rollout: set the key vars everywhere with `JWT_SIGNING_MODE=hmac` first (JWKS is
+served, dual-verify is live), then flip auth to `asymmetric`. Rotation is
+additive — publish the new key alongside the old, then retire the old kid once
+no live token references it.

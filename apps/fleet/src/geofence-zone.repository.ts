@@ -48,9 +48,9 @@ export type GeofenceZoneFilters = {
 
 export interface GeofenceZoneRepository {
   save(zone: StoredGeofenceZone): Promise<void>;
-  findById(id: string): Promise<StoredGeofenceZone | null>;
+  findById(id: string, tenantId: string): Promise<StoredGeofenceZone | null>;
   findAllByTenant(tenantId: string, filters?: GeofenceZoneFilters): Promise<StoredGeofenceZone[]>;
-  deleteById(id: string): Promise<void>;
+  deleteById(id: string, tenantId: string): Promise<void>;
   setVehicleAssignments(zoneId: string, tenantId: string, vehicleIds: string[]): Promise<void>;
 }
 

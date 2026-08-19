@@ -1,10 +1,12 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Public } from "@shared/rbac";
 import { IntegrationHealthService } from "./integration-health.service";
 import { IntegrationHealthResponse } from "./dto/fleet.schema";
 
 @ApiTags("Webhooks")
 @Controller("webhooks")
+@Public()
 export class WebhookController {
   constructor(private readonly integrationHealth: IntegrationHealthService) {}
 

@@ -34,6 +34,7 @@ import {
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { GeofenceService } from "@shared/geofence";
 import { IdempotencyGuard, RequireIdempotency, Role, Roles, RolesGuard } from "@shared/rbac";
+import { TenantScoped } from "./tenant-scoped.decorator";
 import { randomUUID } from "node:crypto";
 import {
   BulkImportDriversDto,
@@ -260,6 +261,7 @@ type FleetRequestContext = {
 
 @ApiTags("Fleet")
 @Controller("fleet")
+@TenantScoped()
 @UseGuards(RolesGuard)
 export class FleetController {
   private readonly logger = new Logger(FleetController.name);

@@ -27,6 +27,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
+import { IdempotencyGuard, RequireIdempotency } from '@shared/rbac';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Observable } from 'rxjs';
 import {
@@ -891,6 +892,7 @@ export class AuthController {
 
   /** Authenticate a system account with email and password */
   @Post('system/login')
+  @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: AuthResponse })
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
@@ -2139,6 +2141,7 @@ export class AuthController {
 
   /** Request a password reset via email or SMS */
   @Post('forgot-password')
+  @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: MessageResponse })
   async forgotPassword(@Body(BodyOrDataPipe) payload: ForgotPasswordDto) {
     try {
@@ -5446,6 +5449,8 @@ export class AuthController {
   }
 
   @Post('data-bundles/wallet/topup')
+  @UseGuards(IdempotencyGuard)
+  @RequireIdempotency()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Top up wallet via mobile money (stub)' })
   @ApiCreatedResponse({ type: WalletTopUpResponse })
@@ -5609,6 +5614,8 @@ export class AuthController {
   }
 
   @Post('data-bundles/allocations')
+  @UseGuards(IdempotencyGuard)
+  @RequireIdempotency()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Allocate bundle to SIMs' })
   @ApiCreatedResponse({ type: AllocateBundleResponse })
