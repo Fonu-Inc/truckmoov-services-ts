@@ -1,0 +1,75 @@
+import { ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
+import { ActivityLogService } from './activity-log.service';
+import {
+  ForbiddenError,
+  InvalidAccessTokenError,
+  InvalidCredentialsError,
+  InvalidRefreshTokenError,
+} from './contexts/auth/session';
+
+export abstract class BaseAuthController {
+  protected readonly logger = new Logger(this.constructor.name);
+
+  constructor(protected readonly activityLogService: ActivityLogService) {}
+
+  protected async runAuthUseCase<T>(fn: () => Promise<T>) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (
+        error instanceof InvalidCredentialsError ||
+        error instanceof InvalidRefreshTokenError
+      ) {
+        throw new UnauthorizedException(error.message);
+      }
+      if (error instanceof ForbiddenError) {
+        throw new ForbiddenException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  protected rethrowInvalidAccessToken(error: unknown): void {
+    if (error instanceof InvalidAccessTokenError) {
+      throw new UnauthorizedException(error.message);
+    }
+  }
+
+  protected extractBearerToken(header?: string): string | null {
+    if (!header) return null;
+    const [scheme, token] = header.split(' ');
+    if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+    return token;
+  }
+
+  protected parseNumericQuery(value?: string): number | undefined {
+    if (value == null || value.trim() === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  protected async tryRecordActivity(
+    command: Parameters<ActivityLogService['record']>[0],
+  ): Promise<void> {
+    try {
+      await this.activityLogService.record(command);
+    } catch (error) {
+      this.logger.warn(
+        `activity_log_record_failed:${command.action}:${(error as Error).message}`,
+      );
+    }
+  }
+
+  protected async tryRecordActivityFromAccessToken(
+    accessToken: string,
+    command: Parameters<ActivityLogService['recordFromAccessToken']>[1],
+  ): Promise<void> {
+    try {
+      await this.activityLogService.recordFromAccessToken(accessToken, command);
+    } catch (error) {
+      this.logger.warn(
+        `activity_log_record_failed:${command.action}:${(error as Error).message}`,
+      );
+    }
+  }
+}

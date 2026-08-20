@@ -81,6 +81,25 @@ import {
   VEHICLE_REPOSITORY,
 } from "./contexts/fleet/vehicles";
 import { FleetController } from "./fleet.controller";
+import { RoutesController } from "./routes.controller";
+import { VehiclesController } from "./vehicles.controller";
+import { DevicesController } from "./devices.controller";
+import { DeviceSetupRequestsController } from "./device-setup-requests.controller";
+import { CarriersController } from "./carriers.controller";
+import { DataBundlesController } from "./data-bundles.controller";
+import { GpsDevicesController } from "./gps-devices.controller";
+import { DriversController } from "./drivers.controller";
+import { DispatchController } from "./dispatch.controller";
+import { AlertsController } from "./alerts.controller";
+import { ReportsController } from "./reports.controller";
+import { AnalyticsController } from "./analytics.controller";
+import { MaintenanceController } from "./maintenance.controller";
+import { GeofencesController } from "./geofences.controller";
+import { ComplianceController } from "./compliance.controller";
+import { FinancialsController } from "./financials.controller";
+import { FuelController } from "./fuel.controller";
+import { DocumentsController } from "./documents.controller";
+import { AuditController } from "./audit.controller";
 import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtime.port";
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
 import { VehicleHealthService } from "./vehicle-health.service";
@@ -147,7 +166,30 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
 
 @Module({
   imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule],
-  controllers: [FleetController, WebhookController, ReadinessController],
+  controllers: [
+    FleetController,
+    RoutesController,
+    VehiclesController,
+    DevicesController,
+    DeviceSetupRequestsController,
+    CarriersController,
+    DataBundlesController,
+    GpsDevicesController,
+    DriversController,
+    DispatchController,
+    AlertsController,
+    ReportsController,
+    AnalyticsController,
+    MaintenanceController,
+    GeofencesController,
+    ComplianceController,
+    FinancialsController,
+    FuelController,
+    DocumentsController,
+    AuditController,
+    WebhookController,
+    ReadinessController,
+  ],
   providers: [
     VehicleHealthService,
     VehicleLocationListener,
@@ -362,6 +404,27 @@ export class AppModule implements NestModule {
     consumer
       .apply(AuthContextMiddleware)
       .exclude({ path: "fleet/health", method: RequestMethod.GET })
-      .forRoutes(FleetController);
+      .forRoutes(
+        FleetController,
+        RoutesController,
+        VehiclesController,
+        DevicesController,
+        DeviceSetupRequestsController,
+        CarriersController,
+        DataBundlesController,
+        GpsDevicesController,
+        DriversController,
+        DispatchController,
+        AlertsController,
+        ReportsController,
+        AnalyticsController,
+        MaintenanceController,
+        GeofencesController,
+        ComplianceController,
+        FinancialsController,
+        FuelController,
+        DocumentsController,
+        AuditController,
+      );
   }
 }

@@ -105,7 +105,7 @@ describe('Auth HTTP contract', () => {
     tier: 'starter' | 'professional' | 'enterprise',
   ): Promise<string> {
     const res = await request(app.getHttpServer())
-      .get('/auth/system/subscription-plans')
+      .get('/system/subscription-plans')
       .set('Authorization', `Bearer ${token}`);
     const plan = (res.body.data.plans as Array<{ code: string; tier: string }>).find(
       (candidate) => candidate.tier === tier,
@@ -282,9 +282,9 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(403);
   });
 
-  it('POST /auth/system/login authenticates the bootstrapped superadmin', async () => {
+  it('POST /system/login authenticates the bootstrapped superadmin', async () => {
     const loginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -296,7 +296,7 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.body.user.tenantId).toBe('system');
   });
 
-  it('POST /auth/system/login rejects tenant credentials', async () => {
+  it('POST /system/login rejects tenant credentials', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -308,7 +308,7 @@ describe('Auth HTTP contract', () => {
       );
 
     const loginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'tenant-login-only@contract.com',
         password: 'Str0ngPass!',
@@ -317,9 +317,9 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(403);
   });
 
-  it('POST /auth/system/admins creates a system admin account and GET /auth/system/admins lists it', async () => {
+  it('POST /system/admins creates a system admin account and GET /system/admins lists it', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -329,7 +329,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin One',
@@ -345,7 +345,7 @@ describe('Auth HTTP contract', () => {
     expect(createRes.body.user.accountStatus).toBe('enabled');
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/system/admins')
+      .get('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(listRes.status).toBe(200);
@@ -362,9 +362,9 @@ describe('Auth HTTP contract', () => {
     );
   });
 
-  it('POST /auth/system/login authenticates a system admin and PATCH /auth/system/change-password rotates credentials', async () => {
+  it('POST /system/login authenticates a system admin and PATCH /system/change-password rotates credentials', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -372,7 +372,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin Two',
@@ -391,7 +391,7 @@ describe('Auth HTTP contract', () => {
     expect(tenantLoginRes.status).toBe(403);
 
     const adminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!',
@@ -401,7 +401,7 @@ describe('Auth HTTP contract', () => {
     expect(adminLoginRes.body.user.role).toBe('SYSTEM_ADMIN');
 
     const changePasswordRes = await request(app.getHttpServer())
-      .patch('/auth/system/change-password')
+      .patch('/system/change-password')
       .set('Authorization', `Bearer ${adminLoginRes.body.accessToken}`)
       .send({
         currentPassword: 'Adm1nPass!',
@@ -414,7 +414,7 @@ describe('Auth HTTP contract', () => {
     expect(changePasswordRes.body.refreshToken).toBeTypeOf('string');
 
     const oldPasswordLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!',
@@ -423,7 +423,7 @@ describe('Auth HTTP contract', () => {
     expect(oldPasswordLoginRes.status).toBe(401);
 
     const newPasswordLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin2@truckmoov.com',
         password: 'Adm1nPass!Updated',
@@ -432,9 +432,9 @@ describe('Auth HTTP contract', () => {
     expect(newPasswordLoginRes.status).toBe(201);
   });
 
-  it('PATCH /auth/system/admins/:userId/status suspends and reactivates a system admin account', async () => {
+  it('PATCH /system/admins/:userId/status suspends and reactivates a system admin account', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -442,7 +442,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin Three',
@@ -454,7 +454,7 @@ describe('Auth HTTP contract', () => {
     const userId = createRes.body.user.userId as string;
 
     const disableRes = await request(app.getHttpServer())
-      .patch(`/auth/system/admins/${userId}/status`)
+      .patch(`/system/admins/${userId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ accountStatus: 'disabled' });
 
@@ -462,7 +462,7 @@ describe('Auth HTTP contract', () => {
     expect(disableRes.body.user.accountStatus).toBe('disabled');
 
     const disabledLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin3@truckmoov.com',
         password: 'Adm1nPass!',
@@ -471,7 +471,7 @@ describe('Auth HTTP contract', () => {
     expect(disabledLoginRes.status).toBe(403);
 
     const enableRes = await request(app.getHttpServer())
-      .patch(`/auth/system/admins/${userId}/status`)
+      .patch(`/system/admins/${userId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ accountStatus: 'enabled' });
 
@@ -479,7 +479,7 @@ describe('Auth HTTP contract', () => {
     expect(enableRes.body.user.accountStatus).toBe('enabled');
 
     const enabledLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin3@truckmoov.com',
         password: 'Adm1nPass!',
@@ -488,9 +488,9 @@ describe('Auth HTTP contract', () => {
     expect(enabledLoginRes.status).toBe(201);
   });
 
-  it('DELETE /auth/system/admins/:userId permanently removes a system admin account', async () => {
+  it('DELETE /system/admins/:userId permanently removes a system admin account', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -498,7 +498,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Admin Delete',
@@ -510,7 +510,7 @@ describe('Auth HTTP contract', () => {
     const userId = createRes.body.user.userId as string;
 
     const deleteRes = await request(app.getHttpServer())
-      .delete(`/auth/system/admins/${userId}`)
+      .delete(`/system/admins/${userId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(deleteRes.status).toBe(200);
@@ -518,7 +518,7 @@ describe('Auth HTTP contract', () => {
     expect(deleteRes.body.email).toBe('sysadmin-delete@truckmoov.com');
 
     const deletedLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'sysadmin-delete@truckmoov.com',
         password: 'Adm1nPass!',
@@ -527,7 +527,7 @@ describe('Auth HTTP contract', () => {
     expect(deletedLoginRes.status).toBe(401);
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/system/admins')
+      .get('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     const stillListed = (listRes.body.users as Array<{ userId: string }>).some(
@@ -536,9 +536,9 @@ describe('Auth HTTP contract', () => {
     expect(stillListed).toBe(false);
   });
 
-  it('GET /auth/system/settings returns defaults and PATCH /auth/system/settings updates them', async () => {
+  it('GET /system/settings returns defaults and PATCH /system/settings updates them', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -548,7 +548,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const getSettingsRes = await request(app.getHttpServer())
-      .get('/auth/system/settings')
+      .get('/system/settings')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(getSettingsRes.status).toBe(200);
@@ -558,7 +558,7 @@ describe('Auth HTTP contract', () => {
     expect(getSettingsRes.body.data.defaults.timezone).toBe('Africa/Lagos');
 
     const patchSettingsRes = await request(app.getHttpServer())
-      .patch('/auth/system/settings')
+      .patch('/system/settings')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         platformName: 'Truckmoov Control',
@@ -592,7 +592,7 @@ describe('Auth HTTP contract', () => {
     );
 
     await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Settings Admin',
@@ -602,7 +602,7 @@ describe('Auth HTTP contract', () => {
       .expect(201);
 
     const systemAdminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'system-settings-admin@truckmoov.com',
         password: 'Adm1nPass!',
@@ -611,7 +611,7 @@ describe('Auth HTTP contract', () => {
     expect(systemAdminLoginRes.status).toBe(201);
 
     const systemAdminGetRes = await request(app.getHttpServer())
-      .get('/auth/system/settings')
+      .get('/system/settings')
       .set('Authorization', `Bearer ${systemAdminLoginRes.body.accessToken}`);
 
     expect(systemAdminGetRes.status).toBe(200);
@@ -620,7 +620,7 @@ describe('Auth HTTP contract', () => {
 
   it('system admin invite endpoints create, list, resend, register, and cancel invites', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -630,7 +630,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createInviteRes = await request(app.getHttpServer())
-      .post('/auth/system/admin-invites')
+      .post('/system/admin-invites')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ email: 'invited-sysadmin@truckmoov.com' });
 
@@ -641,7 +641,7 @@ describe('Auth HTTP contract', () => {
     const inviteId = createInviteRes.body.data.id as string;
 
     const listInvitesRes = await request(app.getHttpServer())
-      .get('/auth/system/admin-invites')
+      .get('/system/admin-invites')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(listInvitesRes.status).toBe(200);
@@ -659,7 +659,7 @@ describe('Auth HTTP contract', () => {
     expect(firstInvite).toBeTruthy();
 
     const resendInviteRes = await request(app.getHttpServer())
-      .post(`/auth/system/admin-invites/${inviteId}/resend`)
+      .post(`/system/admin-invites/${inviteId}/resend`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(resendInviteRes.status).toBe(201);
@@ -682,7 +682,7 @@ describe('Auth HTTP contract', () => {
     expect(registerInvitedRes.body.user.tenantId).toBe('system');
 
     const invitedLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'invited-sysadmin@truckmoov.com',
         password: 'Adm1nPass!',
@@ -691,7 +691,7 @@ describe('Auth HTTP contract', () => {
     expect(invitedLoginRes.status).toBe(201);
 
     const createCancelInviteRes = await request(app.getHttpServer())
-      .post('/auth/system/admin-invites')
+      .post('/system/admin-invites')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ email: 'cancel-sysadmin@truckmoov.com' });
 
@@ -699,7 +699,7 @@ describe('Auth HTTP contract', () => {
     const cancelInviteId = createCancelInviteRes.body.data.id as string;
 
     const cancelInviteRes = await request(app.getHttpServer())
-      .delete(`/auth/system/admin-invites/${cancelInviteId}`)
+      .delete(`/system/admin-invites/${cancelInviteId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(cancelInviteRes.status).toBe(200);
@@ -710,9 +710,9 @@ describe('Auth HTTP contract', () => {
     });
   });
 
-  it('POST /auth/system/tenants/:tenantId/invite/resend reissues pending tenant bootstrap invites', async () => {
+  it('POST /system/tenants/:tenantId/invite/resend reissues pending tenant bootstrap invites', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -723,7 +723,7 @@ describe('Auth HTTP contract', () => {
 
     const planCode = await fetchPlanCode(superadminToken, 'professional');
     const createTenantRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -747,7 +747,7 @@ describe('Auth HTTP contract', () => {
     expect(firstInvite).toBeTruthy();
 
     const resendRes = await request(app.getHttpServer())
-      .post(`/auth/system/tenants/${tenantId}/invite/resend`)
+      .post(`/system/tenants/${tenantId}/invite/resend`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(resendRes.status).toBe(201);
@@ -773,16 +773,16 @@ describe('Auth HTTP contract', () => {
 
     const activeResendRes = await request(app.getHttpServer())
       .post(
-        `/auth/system/tenants/${activeTenantRegisterRes.body.user.tenantId}/invite/resend`,
+        `/system/tenants/${activeTenantRegisterRes.body.user.tenantId}/invite/resend`,
       )
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(activeResendRes.status).toBe(409);
   });
 
-  it('GET /auth/system/feature-flags lists platform flags and PATCH updates a flag', async () => {
+  it('GET /system/feature-flags lists platform flags and PATCH updates a flag', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -792,7 +792,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const listFlagsRes = await request(app.getHttpServer())
-      .get('/auth/system/feature-flags')
+      .get('/system/feature-flags')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(listFlagsRes.status).toBe(200);
@@ -808,7 +808,7 @@ describe('Auth HTTP contract', () => {
     );
 
     const patchFlagRes = await request(app.getHttpServer())
-      .patch('/auth/system/feature-flags/enable_multi_stakeholder_model')
+      .patch('/system/feature-flags/enable_multi_stakeholder_model')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         isEnabled: true,
@@ -824,9 +824,9 @@ describe('Auth HTTP contract', () => {
     expect(patchFlagRes.body.data.rolloutPercentage).toBe(100);
   });
 
-  it('GET /auth/system/activity-log returns system-scoped activity and tenant activity log rejects system accounts', async () => {
+  it('GET /system/activity-log returns system-scoped activity and tenant activity log rejects system accounts', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -836,7 +836,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Audit Admin',
@@ -847,7 +847,7 @@ describe('Auth HTTP contract', () => {
     expect(createAdminRes.status).toBe(201);
 
     const systemLogRes = await request(app.getHttpServer())
-      .get('/auth/system/activity-log')
+      .get('/system/activity-log')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(systemLogRes.status).toBe(200);
@@ -872,9 +872,9 @@ describe('Auth HTTP contract', () => {
     expect(tenantLogRes.status).toBe(403);
   });
 
-  it('POST /auth/system/tenants creates a tenant onboarding record and sends the bootstrap invite', async () => {
+  it('POST /system/tenants creates a tenant onboarding record and sends the bootstrap invite', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -885,7 +885,7 @@ describe('Auth HTTP contract', () => {
 
     const planCode = await fetchPlanCode(superadminToken, 'enterprise');
     const createRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -947,14 +947,14 @@ describe('Auth HTTP contract', () => {
     expect(invite).toBeTruthy();
   });
 
-  it('POST /auth/system/tenants rejects an unknown subscription plan code', async () => {
+  it('POST /system/tenants rejects an unknown subscription plan code', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const res = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -969,15 +969,15 @@ describe('Auth HTTP contract', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /auth/system/tenants requires a contact name', async () => {
+  it('POST /system/tenants requires a contact name', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
     const superadminToken = superadminLoginRes.body.accessToken as string;
     const planCode = await fetchPlanCode(superadminToken, 'starter');
 
     const res = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -991,32 +991,32 @@ describe('Auth HTTP contract', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /auth/system/devices/:deviceId returns 404 for an unknown device and keeps literal routes resolvable', async () => {
+  it('GET /system/devices/:deviceId returns 404 for an unknown device and keeps literal routes resolvable', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const detailRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/does-not-exist')
+      .get('/system/devices/does-not-exist')
       .set('Authorization', `Bearer ${superadminToken}`);
     expect(detailRes.status).toBe(404);
 
     // The :deviceId param route must not swallow literal device sub-routes.
     const exportRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/export')
+      .get('/system/devices/export')
       .set('Authorization', `Bearer ${superadminToken}`);
     expect(exportRes.status).toBe(200);
 
     const catalogRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/catalog')
+      .get('/system/devices/catalog')
       .set('Authorization', `Bearer ${superadminToken}`);
     expect(catalogRes.status).toBe(200);
   });
 
-  it('GET /auth/system/tenants/summary and /auth/system/tenants return tenant management data', async () => {
+  it('GET /system/tenants/summary and /system/tenants return tenant management data', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1026,7 +1026,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Tenant Admin',
@@ -1038,7 +1038,7 @@ describe('Auth HTTP contract', () => {
 
     const pendingPlanCode = await fetchPlanCode(superadminToken, 'enterprise');
     const pendingTenantRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1091,7 +1091,7 @@ describe('Auth HTTP contract', () => {
     const tenantToken = activeTenantRegisterRes.body.accessToken as string;
 
     const summaryRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants/summary')
+      .get('/system/tenants/summary')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(summaryRes.status).toBe(200);
@@ -1105,7 +1105,7 @@ describe('Auth HTTP contract', () => {
     expect(summaryRes.body.data.overdueInvoices).toBeNull();
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants')
+      .get('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(listRes.status).toBe(200);
@@ -1135,7 +1135,7 @@ describe('Auth HTTP contract', () => {
     expect(activeTenant.organizationType).toBe('enterprise');
 
     const filteredRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants')
+      .get('/system/tenants')
       .query({ status: 'pending', plan: 'enterprise', search: 'delta' })
       .set('Authorization', `Bearer ${superadminToken}`);
 
@@ -1146,7 +1146,7 @@ describe('Auth HTTP contract', () => {
     );
 
     const systemAdminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'system-tenant-admin@truckmoov.com',
         password: 'Adm1nPass!',
@@ -1155,21 +1155,21 @@ describe('Auth HTTP contract', () => {
     expect(systemAdminLoginRes.status).toBe(201);
 
     const systemAdminListRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants')
+      .get('/system/tenants')
       .set('Authorization', `Bearer ${systemAdminLoginRes.body.accessToken}`);
 
     expect(systemAdminListRes.status).toBe(200);
 
     const tenantForbiddenRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants')
+      .get('/system/tenants')
       .set('Authorization', `Bearer ${tenantToken}`);
 
     expect(tenantForbiddenRes.status).toBe(403);
   });
 
-  it('GET /auth/system/tenants/export returns a CSV export', async () => {
+  it('GET /system/tenants/export returns a CSV export', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1180,7 +1180,7 @@ describe('Auth HTTP contract', () => {
 
     const exportPlanCode = await fetchPlanCode(superadminToken, 'professional');
     const onboardRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1212,7 +1212,7 @@ describe('Auth HTTP contract', () => {
     expect(onboardRes.status).toBe(201);
 
     const exportRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants/export')
+      .get('/system/tenants/export')
       .query({
         search: 'export tenant',
         status: 'pending',
@@ -1242,15 +1242,15 @@ describe('Auth HTTP contract', () => {
     expect(tenantLoginRes.status).toBe(201);
 
     const forbiddenExportRes = await request(app.getHttpServer())
-      .get('/auth/system/tenants/export')
+      .get('/system/tenants/export')
       .set('Authorization', `Bearer ${tenantLoginRes.body.accessToken}`);
 
     expect(forbiddenExportRes.status).toBe(403);
   });
 
-  it('GET /auth/system/subscription-plans returns the seeded plan catalog with opaque codes', async () => {
+  it('GET /system/subscription-plans returns the seeded plan catalog with opaque codes', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1259,7 +1259,7 @@ describe('Auth HTTP contract', () => {
     expect(superadminLoginRes.status).toBe(201);
 
     const plansRes = await request(app.getHttpServer())
-      .get('/auth/system/subscription-plans')
+      .get('/system/subscription-plans')
       .set('Authorization', `Bearer ${superadminLoginRes.body.accessToken}`);
 
     expect(plansRes.status).toBe(200);
@@ -1310,9 +1310,9 @@ describe('Auth HTTP contract', () => {
     );
   });
 
-  it('PATCH /auth/system/tenants/:tenantId updates pending tenant onboarding metadata', async () => {
+  it('PATCH /system/tenants/:tenantId updates pending tenant onboarding metadata', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1324,7 +1324,7 @@ describe('Auth HTTP contract', () => {
     const starterPlanCode = await fetchPlanCode(superadminToken, 'starter');
     const growthPlanCode = await fetchPlanCode(superadminToken, 'professional');
     const createRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1345,7 +1345,7 @@ describe('Auth HTTP contract', () => {
     expect(createRes.status).toBe(201);
 
     const updateRes = await request(app.getHttpServer())
-      .patch(`/auth/system/tenants/${createRes.body.data.tenantId}`)
+      .patch(`/system/tenants/${createRes.body.data.tenantId}`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1407,9 +1407,9 @@ describe('Auth HTTP contract', () => {
     expect(rotatedInvite).toBeTruthy();
   });
 
-  it('DELETE /auth/system/tenants/:tenantId deletes safe pending tenants and rejects active tenants', async () => {
+  it('DELETE /system/tenants/:tenantId deletes safe pending tenants and rejects active tenants', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1420,7 +1420,7 @@ describe('Auth HTTP contract', () => {
 
     const deletePlanCode = await fetchPlanCode(superadminToken, 'starter');
     const pendingTenantRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1442,7 +1442,7 @@ describe('Auth HTTP contract', () => {
     const pendingTenantId = pendingTenantRes.body.data.tenantId as string;
 
     const deletePendingRes = await request(app.getHttpServer())
-      .delete(`/auth/system/tenants/${pendingTenantId}`)
+      .delete(`/system/tenants/${pendingTenantId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(deletePendingRes.status).toBe(200);
@@ -1453,7 +1453,7 @@ describe('Auth HTTP contract', () => {
     });
 
     const deletedDetailRes = await request(app.getHttpServer())
-      .get(`/auth/system/tenants/${pendingTenantId}`)
+      .get(`/system/tenants/${pendingTenantId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(deletedDetailRes.status).toBe(404);
@@ -1471,15 +1471,15 @@ describe('Auth HTTP contract', () => {
     expect(activeTenantRes.status).toBe(201);
 
     const deleteActiveRes = await request(app.getHttpServer())
-      .delete(`/auth/system/tenants/${activeTenantRes.body.user.tenantId}`)
+      .delete(`/system/tenants/${activeTenantRes.body.user.tenantId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(deleteActiveRes.status).toBe(409);
   });
 
-  it('GET /auth/system/reference-data/tenant-onboarding and tenant detail/status endpoints work', async () => {
+  it('GET /system/reference-data/tenant-onboarding and tenant detail/status endpoints work', async () => {
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1489,7 +1489,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const refDataRes = await request(app.getHttpServer())
-      .get('/auth/system/reference-data/tenant-onboarding')
+      .get('/system/reference-data/tenant-onboarding')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(refDataRes.status).toBe(200);
@@ -1521,13 +1521,13 @@ describe('Auth HTTP contract', () => {
     const tenantId = tenantRegisterRes.body.user.tenantId as string;
 
     const forbiddenRefDataRes = await request(app.getHttpServer())
-      .get('/auth/system/reference-data/tenant-onboarding')
+      .get('/system/reference-data/tenant-onboarding')
       .set('Authorization', `Bearer ${tenantRegisterRes.body.accessToken}`);
 
     expect(forbiddenRefDataRes.status).toBe(403);
 
     const detailRes = await request(app.getHttpServer())
-      .get(`/auth/system/tenants/${tenantId}`)
+      .get(`/system/tenants/${tenantId}`)
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(detailRes.status).toBe(200);
@@ -1537,7 +1537,7 @@ describe('Auth HTTP contract', () => {
     expect(detailRes.body.data.onboarding).toBeNull();
 
     const suspendRes = await request(app.getHttpServer())
-      .patch(`/auth/system/tenants/${tenantId}/status`)
+      .patch(`/system/tenants/${tenantId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ status: 'suspended' });
 
@@ -1552,7 +1552,7 @@ describe('Auth HTTP contract', () => {
     expect(suspendedLoginRes.status).toBe(403);
 
     const reactivateRes = await request(app.getHttpServer())
-      .patch(`/auth/system/tenants/${tenantId}/status`)
+      .patch(`/system/tenants/${tenantId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ status: 'active' });
 
@@ -1568,7 +1568,7 @@ describe('Auth HTTP contract', () => {
 
     const reactivationPlanCode = await fetchPlanCode(superadminToken, 'starter');
     const pendingTenantRes = await request(app.getHttpServer())
-      .post('/auth/system/tenants')
+      .post('/system/tenants')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         company: {
@@ -1596,7 +1596,7 @@ describe('Auth HTTP contract', () => {
 
     const pendingStatusRes = await request(app.getHttpServer())
       .patch(
-        `/auth/system/tenants/${pendingTenantRes.body.data.tenantId}/status`,
+        `/system/tenants/${pendingTenantRes.body.data.tenantId}/status`,
       )
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ status: 'suspended' });
@@ -1604,7 +1604,7 @@ describe('Auth HTTP contract', () => {
     expect(pendingStatusRes.status).toBe(409);
   });
 
-  it('GET /auth/system/dashboard returns system-wide metrics for superadmin and system admin only', async () => {
+  it('GET /system/dashboard returns system-wide metrics for superadmin and system admin only', async () => {
     const tenantRegisterRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -1618,7 +1618,7 @@ describe('Auth HTTP contract', () => {
     expect(tenantRegisterRes.status).toBe(201);
 
     const superadminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1628,7 +1628,7 @@ describe('Auth HTTP contract', () => {
     const superadminToken = superadminLoginRes.body.accessToken as string;
 
     const createAdminRes = await request(app.getHttpServer())
-      .post('/auth/system/admins')
+      .post('/system/admins')
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({
         fullName: 'System Dashboard Admin',
@@ -1639,7 +1639,7 @@ describe('Auth HTTP contract', () => {
     expect(createAdminRes.status).toBe(201);
 
     const systemDashboardRes = await request(app.getHttpServer())
-      .get('/auth/system/dashboard')
+      .get('/system/dashboard')
       .set('Authorization', `Bearer ${superadminToken}`);
 
     expect(systemDashboardRes.status).toBe(200);
@@ -1661,7 +1661,7 @@ describe('Auth HTTP contract', () => {
     expect(systemDashboardRes.body.data.generatedAt).toBeTypeOf('string');
 
     const systemAdminLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'system-dashboard-admin@truckmoov.com',
         password: 'Adm1nPass!',
@@ -1670,14 +1670,14 @@ describe('Auth HTTP contract', () => {
     expect(systemAdminLoginRes.status).toBe(201);
 
     const systemAdminDashboardRes = await request(app.getHttpServer())
-      .get('/auth/system/dashboard')
+      .get('/system/dashboard')
       .set('Authorization', `Bearer ${systemAdminLoginRes.body.accessToken}`);
 
     expect(systemAdminDashboardRes.status).toBe(200);
     expect(systemAdminDashboardRes.body.status).toBe(true);
 
     const tenantDashboardRes = await request(app.getHttpServer())
-      .get('/auth/system/dashboard')
+      .get('/system/dashboard')
       .set('Authorization', `Bearer ${tenantRegisterRes.body.accessToken}`);
 
     expect(tenantDashboardRes.status).toBe(403);
@@ -1685,7 +1685,7 @@ describe('Auth HTTP contract', () => {
 
   it('system device catalog and inventory endpoints work for system admins and drive onboarding device options', async () => {
     const systemLoginRes = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
@@ -1694,7 +1694,7 @@ describe('Auth HTTP contract', () => {
     expect(systemLoginRes.status).toBe(201);
 
     const createCatalogRes = await request(app.getHttpServer())
-      .post('/auth/system/devices/catalog')
+      .post('/system/devices/catalog')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`)
       .send({
         manufacturer: 'Teltonika',
@@ -1713,7 +1713,7 @@ describe('Auth HTTP contract', () => {
     const catalogId = createCatalogRes.body.data.id as string;
 
     const listCatalogRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/catalog')
+      .get('/system/devices/catalog')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(listCatalogRes.status).toBe(200);
@@ -1725,7 +1725,7 @@ describe('Auth HTTP contract', () => {
     ).toBe(true);
 
     const deviceCatalogReferenceRes = await request(app.getHttpServer())
-      .get('/auth/system/reference-data/device-catalog')
+      .get('/system/reference-data/device-catalog')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(deviceCatalogReferenceRes.status).toBe(200);
@@ -1733,7 +1733,7 @@ describe('Auth HTTP contract', () => {
     expect(deviceCatalogReferenceRes.body.data.statuses).toContain('supported');
 
     const onboardingReferenceRes = await request(app.getHttpServer())
-      .get('/auth/system/reference-data/tenant-onboarding')
+      .get('/system/reference-data/tenant-onboarding')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(onboardingReferenceRes.status).toBe(200);
@@ -1749,7 +1749,7 @@ describe('Auth HTTP contract', () => {
     ).toBe(true);
 
     const deviceSummaryRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/summary')
+      .get('/system/devices/summary')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(deviceSummaryRes.status).toBe(200);
@@ -1761,14 +1761,14 @@ describe('Auth HTTP contract', () => {
     );
 
     const inventoryRes = await request(app.getHttpServer())
-      .get('/auth/system/devices')
+      .get('/system/devices')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(inventoryRes.status).toBe(200);
     expect(Array.isArray(inventoryRes.body.data.devices)).toBe(true);
 
     const exportInventoryRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/export')
+      .get('/system/devices/export')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(exportInventoryRes.status).toBe(200);
@@ -1778,7 +1778,7 @@ describe('Auth HTTP contract', () => {
     );
 
     const updateCatalogRes = await request(app.getHttpServer())
-      .patch(`/auth/system/devices/catalog/${catalogId}`)
+      .patch(`/system/devices/catalog/${catalogId}`)
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`)
       .send({
         status: 'deprecated',
@@ -1790,7 +1790,7 @@ describe('Auth HTTP contract', () => {
     expect(updateCatalogRes.body.data.supportedFeatures).toEqual(['obd2']);
 
     const deleteCatalogRes = await request(app.getHttpServer())
-      .delete(`/auth/system/devices/catalog/${catalogId}`)
+      .delete(`/system/devices/catalog/${catalogId}`)
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(deleteCatalogRes.status).toBe(200);
@@ -1809,7 +1809,7 @@ describe('Auth HTTP contract', () => {
     expect(tenantRegisterRes.status).toBe(201);
 
     const tenantCatalogRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/catalog')
+      .get('/system/devices/catalog')
       .set('Authorization', `Bearer ${tenantRegisterRes.body.accessToken}`);
 
     expect(tenantCatalogRes.status).toBe(403);
@@ -1835,7 +1835,7 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(201);
 
     const profileRes = await request(app.getHttpServer())
-      .patch('/auth/profile')
+      .patch('/profile')
       .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
       .send({ fullName: 'Activity Admin Updated' });
 
@@ -1992,7 +1992,7 @@ describe('Auth HTTP contract', () => {
     expect(res.body.user.role).toBe('DISPATCHER');
   });
 
-  it('GET /auth/organization/users lists users within the caller organization', async () => {
+  it('GET /organization/users lists users within the caller organization', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2021,7 +2021,7 @@ describe('Auth HTTP contract', () => {
     });
 
     const res = await request(app.getHttpServer())
-      .get('/auth/organization/users')
+      .get('/organization/users')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(res.status).toBe(200);
@@ -2045,7 +2045,7 @@ describe('Auth HTTP contract', () => {
     expect(adminUser?.lastActiveAt).toEqual(expect.any(String));
   });
 
-  it("PATCH /auth/organization/users/:userId lets admin edit another user's profile", async () => {
+  it("PATCH /organization/users/:userId lets admin edit another user's profile", async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2074,7 +2074,7 @@ describe('Auth HTTP contract', () => {
     });
 
     const res = await request(app.getHttpServer())
-      .patch('/auth/organization/users/org-user-2')
+      .patch('/organization/users/org-user-2')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         fullName: 'After Edit',
@@ -2091,7 +2091,7 @@ describe('Auth HTTP contract', () => {
     expect(res.body.user.lastActiveAt).toBeNull();
   });
 
-  it('PATCH /auth/organization/users/:userId/status disables a user account and revokes access immediately', async () => {
+  it('PATCH /organization/users/:userId/status disables a user account and revokes access immediately', async () => {
     const adminRegRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2126,7 +2126,7 @@ describe('Auth HTTP contract', () => {
 
     const disableRes = await request(app.getHttpServer())
       .patch(
-        `/auth/organization/users/${registerInvitedRes.body.user.id}/status`,
+        `/organization/users/${registerInvitedRes.body.user.id}/status`,
       )
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({ accountStatus: 'disabled' });
@@ -2137,7 +2137,7 @@ describe('Auth HTTP contract', () => {
     expect(disableRes.body.user.status).toBe('inactive');
 
     const profileRes = await request(app.getHttpServer())
-      .get('/auth/profile')
+      .get('/profile')
       .set('Authorization', `Bearer ${disabledUserAccessToken}`);
 
     expect(profileRes.status).toBe(403);
@@ -2149,7 +2149,7 @@ describe('Auth HTTP contract', () => {
     expect(loginRes.status).toBe(403);
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/organization/users')
+      .get('/organization/users')
       .set('Authorization', `Bearer ${adminAccessToken}`);
 
     expect(listRes.status).toBe(200);
@@ -2163,7 +2163,7 @@ describe('Auth HTTP contract', () => {
     });
   });
 
-  it('POST /auth/organization/invites/resend resends a pending invite', async () => {
+  it('POST /organization/invites/resend resends a pending invite', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2183,7 +2183,7 @@ describe('Auth HTTP contract', () => {
     expect(inviteRes.status).toBe(201);
 
     const resendRes = await request(app.getHttpServer())
-      .post('/auth/organization/invites/resend')
+      .post('/organization/invites/resend')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ email: 'pending-resend@contract.com' });
 
@@ -2193,7 +2193,7 @@ describe('Auth HTTP contract', () => {
     expect(resendRes.body.role).toBe('DISPATCHER');
   });
 
-  it('DELETE /auth/organization/users/:userId removes a user from the organization', async () => {
+  it('DELETE /organization/users/:userId removes a user from the organization', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2222,14 +2222,14 @@ describe('Auth HTTP contract', () => {
     });
 
     const deleteRes = await request(app.getHttpServer())
-      .delete('/auth/organization/users/org-user-3')
+      .delete('/organization/users/org-user-3')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(deleteRes.status).toBe(200);
     expect(deleteRes.body.message).toBe('User removed from organization');
 
     const listRes = await request(app.getHttpServer())
-      .get('/auth/organization/users')
+      .get('/organization/users')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(listRes.status).toBe(200);
@@ -2352,7 +2352,7 @@ describe('Auth HTTP contract', () => {
 
   // ── User profile + preferences (Epic B) ──────────────
 
-  it('GET/PATCH /auth/profile supports viewing and editing own profile', async () => {
+  it('GET/PATCH /profile supports viewing and editing own profile', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2365,7 +2365,7 @@ describe('Auth HTTP contract', () => {
     const accessToken = regRes.body.accessToken as string;
 
     const getProfileRes = await request(app.getHttpServer())
-      .get('/auth/profile')
+      .get('/profile')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(getProfileRes.status).toBe(200);
@@ -2375,7 +2375,7 @@ describe('Auth HTTP contract', () => {
     expect(getProfileRes.body.profile.profilePictureUrl).toBeNull();
 
     const patchProfileRes = await request(app.getHttpServer())
-      .patch('/auth/profile')
+      .patch('/profile')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         fullName: 'Adebayo Adekunle',
@@ -2395,23 +2395,23 @@ describe('Auth HTTP contract', () => {
     );
   });
 
-  it('GET /auth/profile returns 401 for an invalid bearer token', async () => {
+  it('GET /profile returns 401 for an invalid bearer token', async () => {
     const response = await request(app.getHttpServer())
-      .get('/auth/profile')
+      .get('/profile')
       .set('Authorization', 'Bearer definitely-not-a-truckmoov-token');
 
     expect(response.status).toBe(401);
     expect(response.body.message).toBe('Invalid or expired access token');
   });
 
-  it('GET/PATCH /auth/preferences/notifications supports notification settings', async () => {
+  it('GET/PATCH /profile/preferences/notifications supports notification settings', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(makeRegisterPayload('notify@contract.com'));
     const accessToken = regRes.body.accessToken as string;
 
     const patchRes = await request(app.getHttpServer())
-      .patch('/auth/preferences/notifications')
+      .patch('/profile/preferences/notifications')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         emailDigest: true,
@@ -2427,7 +2427,7 @@ describe('Auth HTTP contract', () => {
     expect(patchRes.body.notificationPreferences.pushAlerts).toBe(false);
 
     const getRes = await request(app.getHttpServer())
-      .get('/auth/preferences/notifications')
+      .get('/profile/preferences/notifications')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(getRes.status).toBe(200);
@@ -2435,7 +2435,7 @@ describe('Auth HTTP contract', () => {
     expect(getRes.body.notificationPreferences.jobAssignment).toBe(false);
   });
 
-  it('PATCH /auth/preferences/dispatch allows dispatcher to set working hours/timezone', async () => {
+  it('PATCH /profile/preferences/dispatch allows dispatcher to set working hours/timezone', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(makeRegisterPayload('dispatch-pref@contract.com'));
@@ -2460,7 +2460,7 @@ describe('Auth HTTP contract', () => {
     const dispatcherToken = loginRes.body.accessToken as string;
 
     const patchRes = await request(app.getHttpServer())
-      .patch('/auth/preferences/dispatch')
+      .patch('/profile/preferences/dispatch')
       .set('Authorization', `Bearer ${dispatcherToken}`)
       .send({
         timezone: 'Africa/Lagos',
@@ -2478,20 +2478,20 @@ describe('Auth HTTP contract', () => {
     ]);
   });
 
-  it('GET /auth/preferences/dispatch rejects non-dispatcher', async () => {
+  it('GET /profile/preferences/dispatch rejects non-dispatcher', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(makeRegisterPayload('not-dispatch@contract.com'));
     const accessToken = regRes.body.accessToken as string;
 
     const res = await request(app.getHttpServer())
-      .get('/auth/preferences/dispatch')
+      .get('/profile/preferences/dispatch')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(res.status).toBe(403);
   });
 
-  it('GET/PATCH /auth/organization/settings allows enterprise admin to configure branding/defaults', async () => {
+  it('GET/PATCH /organization/settings allows enterprise admin to configure branding/defaults', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(
@@ -2502,7 +2502,7 @@ describe('Auth HTTP contract', () => {
     const accessToken = regRes.body.accessToken as string;
 
     const initialGetRes = await request(app.getHttpServer())
-      .get('/auth/organization/settings')
+      .get('/organization/settings')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(initialGetRes.status).toBe(200);
@@ -2511,7 +2511,7 @@ describe('Auth HTTP contract', () => {
     );
 
     const patchRes = await request(app.getHttpServer())
-      .patch('/auth/organization/settings')
+      .patch('/organization/settings')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         branding: {
@@ -2542,7 +2542,7 @@ describe('Auth HTTP contract', () => {
     expect(patchRes.body.defaults.currency).toBe('NGN');
 
     const getRes = await request(app.getHttpServer())
-      .get('/auth/organization/settings')
+      .get('/organization/settings')
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(getRes.status).toBe(200);
@@ -2553,7 +2553,7 @@ describe('Auth HTTP contract', () => {
     expect(getRes.body.defaults.timezone).toBe('Africa/Lagos');
   });
 
-  it('GET /auth/organization/settings allows non-enterprise-admin user but PATCH still rejects', async () => {
+  it('GET /organization/settings allows non-enterprise-admin user but PATCH still rejects', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send(makeRegisterPayload('org-denied@contract.com'));
@@ -2575,14 +2575,14 @@ describe('Auth HTTP contract', () => {
     const dispatcherToken = loginRes.body.accessToken as string;
 
     const res = await request(app.getHttpServer())
-      .get('/auth/organization/settings')
+      .get('/organization/settings')
       .set('Authorization', `Bearer ${dispatcherToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.tenantId).toBe(regRes.body.user.tenantId);
 
     const patchRes = await request(app.getHttpServer())
-      .patch('/auth/organization/settings')
+      .patch('/organization/settings')
       .set('Authorization', `Bearer ${dispatcherToken}`)
       .send({
         branding: {
@@ -2597,15 +2597,15 @@ describe('Auth HTTP contract', () => {
 
   async function systemToken() {
     const res = await request(app.getHttpServer())
-      .post('/auth/system/login')
+      .post('/system/login')
       .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
     return res.body.accessToken as string;
   }
 
-  it('GET /auth/system/sims/requests/summary returns approval queue counts', async () => {
+  it('GET /system/sims/requests/summary returns approval queue counts', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/sims/requests/summary')
+      .get('/system/sims/requests/summary')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe(true);
@@ -2613,71 +2613,71 @@ describe('Auth HTTP contract', () => {
     expect(res.body.data).toHaveProperty('pendingApproval');
   });
 
-  it('GET /auth/system/sims/requests/summary requires a token', async () => {
-    const res = await request(app.getHttpServer()).get('/auth/system/sims/requests/summary');
+  it('GET /system/sims/requests/summary requires a token', async () => {
+    const res = await request(app.getHttpServer()).get('/system/sims/requests/summary');
     expect(res.status).toBe(401);
   });
 
-  it('GET /auth/system/sims/batches/summary returns batch counts', async () => {
+  it('GET /system/sims/batches/summary returns batch counts', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/sims/batches/summary')
+      .get('/system/sims/batches/summary')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty('pendingActivation');
     expect(res.body.data).toHaveProperty('needsAttention');
   });
 
-  it('GET /auth/system/sims/:simId returns 404 for unknown SIM', async () => {
+  it('GET /system/sims/:simId returns 404 for unknown SIM', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/sims/does-not-exist')
+      .get('/system/sims/does-not-exist')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
   });
 
-  it('GET /auth/system/support/escalated returns grouped parties', async () => {
+  it('GET /system/support/escalated returns grouped parties', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/support/escalated')
+      .get('/system/support/escalated')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty('parties');
     expect(Array.isArray(res.body.data.parties)).toBe(true);
   });
 
-  it('GET /auth/system/support/dashboard includes attention + recently-resolved lists', async () => {
+  it('GET /system/support/dashboard includes attention + recently-resolved lists', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/support/dashboard')
+      .get('/system/support/dashboard')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty('needsAttention');
     expect(res.body.data).toHaveProperty('recentlyResolved');
   });
 
-  it('GET /auth/system/support/device-setup/:requestId returns detail with preferredInstallDate', async () => {
+  it('GET /system/support/device-setup/:requestId returns detail with preferredInstallDate', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/support/device-setup/dsr-001')
+      .get('/system/support/device-setup/dsr-001')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data.id).toBe('dsr-001');
     expect(res.body.data).toHaveProperty('preferredInstallDate');
   });
 
-  it('GET /auth/system/support/device-setup/:requestId returns 404 when missing', async () => {
+  it('GET /system/support/device-setup/:requestId returns 404 when missing', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .get('/auth/system/support/device-setup/nope')
+      .get('/system/support/device-setup/nope')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(404);
   });
 
-  it('PATCH /auth/system/support/device-setup/:requestId/assign assigns to the actor', async () => {
+  it('PATCH /system/support/device-setup/:requestId/assign assigns to the actor', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .patch('/auth/system/support/device-setup/dsr-002/assign')
+      .patch('/system/support/device-setup/dsr-002/assign')
       .set('Authorization', `Bearer ${token}`)
       .send({});
     expect(res.status).toBe(200);
@@ -2685,10 +2685,10 @@ describe('Auth HTTP contract', () => {
     expect(res.body.data.assignedTo).toBeTruthy();
   });
 
-  it('PATCH /auth/system/support/device-setup/:requestId/reject sets a reason', async () => {
+  it('PATCH /system/support/device-setup/:requestId/reject sets a reason', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
-      .patch('/auth/system/support/device-setup/dsr-003/reject')
+      .patch('/system/support/device-setup/dsr-003/reject')
       .set('Authorization', `Bearer ${token}`)
       .send({ reason: 'Duplicate request' });
     expect(res.status).toBe(200);

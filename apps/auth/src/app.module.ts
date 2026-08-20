@@ -72,6 +72,18 @@ import {
   AuthPersistenceHealthCheck,
 } from './contexts/auth/session';
 import { AuthController } from './auth.controller';
+import { ProfileController } from './profile.controller';
+import { OrganizationController } from './organization.controller';
+import { SystemController } from './system.controller';
+import { SystemReferenceDataController } from './system-reference-data.controller';
+import { SystemTenantsController } from './system-tenants.controller';
+import { SystemDevicesController } from './system-devices.controller';
+import { SystemSimsController } from './system-sims.controller';
+import { SystemSupportController } from './system-support.controller';
+import { SystemBillingController } from './system-billing.controller';
+import { OnboardingController } from './onboarding.controller';
+import { TenantSimsController } from './tenant-sims.controller';
+import { DataBundlesController } from './data-bundles.controller';
 import { ActivityLogListener } from './activity-log.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
@@ -305,7 +317,22 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     EventBusModule,
     MetricsModule,
   ],
-  controllers: [AuthController, ReadinessController],
+  controllers: [
+    AuthController,
+    ProfileController,
+    OrganizationController,
+    SystemController,
+    SystemReferenceDataController,
+    SystemTenantsController,
+    SystemDevicesController,
+    SystemSimsController,
+    SystemSupportController,
+    SystemBillingController,
+    OnboardingController,
+    TenantSimsController,
+    DataBundlesController,
+    ReadinessController,
+  ],
   providers: [
     LoginRateLimitGuard,
     IdempotencyGuard,
