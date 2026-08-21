@@ -11,6 +11,11 @@ vi.mock(
 import { AllocateBundleUseCase } from "../../../apps/auth/src/allocate-bundle.use-case";
 import { InMemoryTenantWalletRepository } from "../../../apps/auth/src/in-memory-tenant-wallet.repository";
 
+// No limit configured: allow every spend and record nothing.
+function noSpendingLimit() {
+  return { assertWithinLimit: async () => {}, recordSpend: async () => {} } as any;
+}
+
 function makeUseCase(wallet: InMemoryTenantWalletRepository) {
   const bundleCatalogRepository = {
     findById: vi.fn().mockResolvedValue({
@@ -30,6 +35,7 @@ function makeUseCase(wallet: InMemoryTenantWalletRepository) {
     wallet,
     bundleAllocationRepository as any,
     bundleTransactionRepository as any,
+    noSpendingLimit(),
   );
 }
 
@@ -76,6 +82,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
       wallet,
       bundleAllocationRepository as any,
       bundleTransactionRepository as any,
+      noSpendingLimit(),
     );
 
     const res = await useCase.execute("tok", {

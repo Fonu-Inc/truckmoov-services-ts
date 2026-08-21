@@ -4,6 +4,55 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-2 — Single-currency until international currency is switched on
+
+**Status:** open. Direction agreed, not scheduled. Deferred feature rather than debt.
+
+### Decision
+
+The platform shows Naira only. Currency conversion and the USD preview stay off
+until international currency is a deliberate piece of work.
+
+### Why it is safe to defer
+
+Storage is already single-currency: `balance_kobo`, `price_kobo`, and
+`monthly_price_ngn` all hold Naira, and nothing converts at write time. Turning
+conversion off removes a display path. It does not change a stored figure.
+
+The requirements document warns about the alternative. Screen 20, line 4518: if
+a second currency is ever added, every stored amount needs an explicit currency
+alongside it, not an implied one. Keeping the feature off makes that an explicit
+decision later rather than a half-built state now.
+
+### Agreed shape
+
+A flag beside the ones that already exist in `system_settings.features`
+(`allowNewTenantRegistration`, `maintenanceMode`, `enableBetaFeatures`):
+
+```
+features.internationalCurrency = false
+```
+
+No migration: `features` is a JSON column, and the existing system-admin
+`PATCH /system/settings` already edits it.
+
+While the flag is off:
+
+1. Every amount renders in Naira.
+2. No endpoint returns a converted figure. The gate applies at the API, not only
+   in the interface — a hidden panel served by a live conversion endpoint is how
+   stale dollar prices return.
+3. The exchange rate may be stored, but is never applied. It is never applied to
+   a stored amount even when the flag is on.
+4. Screen 20 reduces to the default-currency setting. Screen 21 drops its USD
+   preview.
+
+### Known follow-on
+
+Screen 33 prices AI usage in Naira against provider costs in USD, so its margin
+figure needs a rate eventually. That screen depends on this flag being turned on,
+and should not ship a private conversion of its own in the meantime.
+
 ## TD-1 — One database role for every service
 
 **Status:** open. Direction agreed, not scheduled.

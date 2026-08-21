@@ -6,6 +6,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 import { TENANT_WALLET_REPOSITORY, type TenantWalletRepository } from './tenant-wallet.repository';
+import { SpendingLimitService } from './spending-limit.service';
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 
@@ -26,6 +27,7 @@ export class AllocateBundleUseCase {
     @Inject(TENANT_WALLET_REPOSITORY) private readonly tenantWalletRepository: TenantWalletRepository,
     @Inject(BUNDLE_ALLOCATION_REPOSITORY) private readonly bundleAllocationRepository: BundleAllocationRepository,
     @Inject(BUNDLE_TRANSACTION_REPOSITORY) private readonly bundleTransactionRepository: BundleTransactionRepository,
+    @Inject(SpendingLimitService) private readonly spendingLimitService: SpendingLimitService,
   ) {}
 
   async execute(accessToken: string, payload: Payload) {
@@ -38,6 +40,9 @@ export class AllocateBundleUseCase {
     if (!bundle) throw new Error('Bundle not found');
 
     const totalCostKobo = bundle.priceKobo * payload.mobileNumbers.length;
+
+    // Checked before the debit, so a refused spend leaves the balance alone.
+    await this.spendingLimitService.assertWithinLimit(tenantId, totalCostKobo);
 
     // Atomic debit up front prevents concurrent double-spend: the balance is
     // reserved before any allocation, and unused funds are refunded per failure.
@@ -86,6 +91,10 @@ export class AllocateBundleUseCase {
     }
 
     const successfulCount = allocationIds.length;
+
+    // Failed allocations were refunded, so only the amount that stayed spent
+    // counts towards the limit.
+    await this.spendingLimitService.recordSpend(tenantId, bundle.priceKobo * successfulCount);
 
     return {
       status: true,

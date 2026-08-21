@@ -5,11 +5,11 @@ import { InMemoryDocumentRepository } from "../../../apps/fleet/src/contexts/fle
 import { InMemoryAccessLogRepository } from "../../../apps/fleet/src/contexts/fleet/documents/infrastructure/in-memory-access-log.repository";
 
 function makeUseCase(retentionDays = 365) {
-  const config = { fleet: { documentRetentionDays: retentionDays } } as AppConfigService;
+  const config = { fleet: { documentRetentionDays: retentionDays, documentMaxBytes: 10 * 1024 * 1024, documentScanRequired: false } } as AppConfigService;
   const docRepo = new InMemoryDocumentRepository();
   const logRepo = new InMemoryAccessLogRepository();
   const storage = { putObject: vi.fn().mockResolvedValue(undefined), createPresignedDownloadUrl: vi.fn(), createPresignedUploadUrl: vi.fn() };
-  return { uc: new UploadDocumentUseCase(docRepo, logRepo, storage as any, config), docRepo, logRepo, storage };
+  return { uc: new UploadDocumentUseCase(docRepo, logRepo, storage as any, config, { scan: async () => ({ scanned: false, clean: false }) }), docRepo, logRepo, storage };
 }
 
 const baseCmd: UploadDocumentCommand = {

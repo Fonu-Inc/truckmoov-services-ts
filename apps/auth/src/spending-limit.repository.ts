@@ -6,6 +6,10 @@ export type StoredSpendingLimit = {
   resetDayOfMonth: number;
   alertEmail: string | null;
   notifyAtPercentages: number[];
+  /** Start of the window the stored total belongs to, as YYYY-MM-DD. */
+  windowStartedOn: string | null;
+  /** Thresholds already announced inside the current window. */
+  notifiedPercentages: number[];
   updatedAt: Date;
 };
 

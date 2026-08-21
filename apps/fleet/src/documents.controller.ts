@@ -30,6 +30,9 @@ import {
   ListAccessLogUseCase,
   ListDocumentsUseCase,
   UploadDocumentUseCase,
+  DocumentTooLargeError,
+  DocumentTypeNotAllowedError,
+  DocumentRejectedByScannerError,
   EntityType,
   DocumentType,
 } from "./contexts/fleet/documents";
@@ -40,6 +43,13 @@ import {
   AccessLogListResponse,
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+
+/**
+ * Stops an oversized body being buffered before the use case can refuse it.
+ * The authoritative limit is DOCUMENT_MAX_BYTES, checked in the use case; this
+ * matches its default so the two do not disagree in the common case.
+ */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 @ApiTags("Documents")
 @Controller("documents")
@@ -59,7 +69,7 @@ export class DocumentsController extends BaseFleetController {
 
   @Post()
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_UPLOAD_BYTES } }))
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } })
   @ApiOperation({ summary: "Upload document — J01" })
@@ -82,16 +92,28 @@ export class DocumentsController extends BaseFleetController {
     if (!validDocTypes.includes(docType as DocumentType)) throw new BadRequestException("invalid docType");
     if (!file) throw new BadRequestException("file is required");
 
-    const doc = await this.uploadDocumentUseCase.execute({
-      tenantId: this.tenantIdFromRequest(req),
-      entityType: entityType as EntityType,
-      entityId,
-      docType: docType as DocumentType,
-      filename: file.originalname,
-      contentType: file.mimetype,
-      buffer: file.buffer,
-      uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
-    });
+    let doc;
+    try {
+      doc = await this.uploadDocumentUseCase.execute({
+        tenantId: this.tenantIdFromRequest(req),
+        entityType: entityType as EntityType,
+        entityId,
+        docType: docType as DocumentType,
+        filename: file.originalname,
+        contentType: file.mimetype,
+        buffer: file.buffer,
+        uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
+      });
+    } catch (error) {
+      if (
+        error instanceof DocumentTooLargeError ||
+        error instanceof DocumentTypeNotAllowedError ||
+        error instanceof DocumentRejectedByScannerError
+      ) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
     await this.recordActivity(req, {
       entityType: "document",
       entityId: doc.id,

@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   BadRequestException,
+  ConflictException,
   Post,
   Inject,
   Headers,
@@ -29,6 +30,7 @@ import { ActivityLogService } from './activity-log.service';
 import { AllocateBundleUseCase } from './allocate-bundle.use-case';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
+import { SpendingLimitExceededError } from './spending-limit.service';
 import { DisableAutoTopupUseCase } from './disable-auto-topup.use-case';
 import { DisableSpendingLimitUseCase } from './disable-spending-limit.use-case';
 import {
@@ -326,6 +328,7 @@ export class DataBundlesController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SpendingLimitExceededError) throw new ConflictException(error.message);
       if (error instanceof Error && error.message.includes('Insufficient')) throw new BadRequestException(error.message);
       throw error;
     }

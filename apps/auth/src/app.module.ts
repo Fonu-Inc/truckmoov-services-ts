@@ -297,6 +297,11 @@ import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
 import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
 import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
+import { SpendingLimitService } from './spending-limit.service';
+import { INVOICE_NUMBER_REPOSITORY } from './invoice-number.repository';
+import { InMemoryInvoiceNumberRepository } from './in-memory-invoice-number.repository';
+import { MikroInvoiceNumberRepository } from './mikro-invoice-number.repository';
+import { InvoiceNumberService } from './invoice-number.service';
 import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { GetSpendingLimitUseCase } from './get-spending-limit.use-case';
 import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
@@ -899,6 +904,19 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // Data bundle dashboard
     GetBundleSummaryUseCase,
     GetWalletBalanceUseCase,
+    InMemoryInvoiceNumberRepository,
+    MikroInvoiceNumberRepository,
+    {
+      provide: INVOICE_NUMBER_REPOSITORY,
+      inject: [InMemoryInvoiceNumberRepository, MikroInvoiceNumberRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInvoiceNumberRepository,
+        mikro: MikroInvoiceNumberRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InvoiceNumberService,
+    SpendingLimitService,
     TopupWalletUseCase,
     SettleWalletTopUpUseCase,
     GetSpendingLimitUseCase,

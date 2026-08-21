@@ -161,6 +161,8 @@ import {
   MikroAccessLogRepository,
   MikroDocumentRepository,
   UploadDocumentUseCase,
+  FILE_SCANNER,
+  UnscannedFileScanner,
 } from "./contexts/fleet/documents";
 import { ScheduledReportService } from "./scheduled-report.service";
 import { WebhookController } from "./webhook.controller";
@@ -259,6 +261,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
         config: AppConfigService,
       ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
     },
+    { provide: FILE_SCANNER, useClass: UnscannedFileScanner },
     UploadDocumentUseCase,
     GetDownloadUrlUseCase,
     ListDocumentsUseCase,

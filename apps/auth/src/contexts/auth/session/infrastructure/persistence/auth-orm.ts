@@ -1269,6 +1269,8 @@ export class SpendingLimitSettingsRecord {
   resetDayOfMonth!: number;
   alertEmail!: string | null;
   notifyAtPercentages!: number[];
+  windowStartedOn!: string | null;
+  notifiedPercentages!: number[];
   updatedAt!: Date;
 }
 
@@ -1283,6 +1285,8 @@ export const SpendingLimitSettingsRecordSchema = new EntitySchema<SpendingLimitS
     resetDayOfMonth: { fieldName: 'reset_day_of_month', type: 'number', default: 1 },
     alertEmail: { fieldName: 'alert_email', type: 'string', length: 255, nullable: true },
     notifyAtPercentages: { fieldName: 'notify_at_percentages', type: 'json' },
+    windowStartedOn: { fieldName: 'window_started_on', type: 'string', length: 10, nullable: true },
+    notifiedPercentages: { fieldName: 'notified_percentages', type: 'json' },
     updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
   },
 });

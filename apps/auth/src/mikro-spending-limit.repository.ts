@@ -15,6 +15,8 @@ function toStored(r: SpendingLimitSettingsRecord): StoredSpendingLimit {
     resetDayOfMonth: r.resetDayOfMonth,
     alertEmail: r.alertEmail,
     notifyAtPercentages: r.notifyAtPercentages as number[],
+    windowStartedOn: r.windowStartedOn ?? null,
+    notifiedPercentages: (r.notifiedPercentages as number[]) ?? [],
     updatedAt: r.updatedAt,
   };
 }

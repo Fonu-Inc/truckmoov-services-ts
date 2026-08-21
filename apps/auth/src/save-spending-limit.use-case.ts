@@ -35,6 +35,8 @@ export class SaveSpendingLimitUseCase {
       resetDayOfMonth: payload.resetDayOfMonth,
       alertEmail: payload.alertEmail,
       notifyAtPercentages: payload.notifyAtPercentages ?? existing?.notifyAtPercentages ?? [80, 100],
+      windowStartedOn: existing?.windowStartedOn ?? null,
+      notifiedPercentages: existing?.notifiedPercentages ?? [],
       updatedAt: new Date(),
     });
 
