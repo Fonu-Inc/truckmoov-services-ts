@@ -72,7 +72,9 @@ describe("Fleet driver and assignment use-cases", () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
     const createDriver = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
-    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeRuntime as any);
+    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeRuntime as any, {
+      findActiveVehicleLimit: async () => null,
+    });
     const assignDriver = new AssignDriverToVehicleUseCase(vehicleRepository, driverRepository);
     const setDriverStatus = new SetDriverStatusUseCase(driverRepository, vehicleRepository);
 

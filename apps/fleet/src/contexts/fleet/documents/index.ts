@@ -10,3 +10,5 @@ export { ListDocumentsUseCase } from "./application/list-documents.use-case";
 export { ListAccessLogUseCase } from "./application/list-access-log.use-case";
 export { InMemoryDocumentRepository } from "./infrastructure/in-memory-document.repository";
 export { InMemoryAccessLogRepository } from "./infrastructure/in-memory-access-log.repository";
+export { MikroDocumentRepository } from "./infrastructure/mikro-document.repository";
+export { MikroAccessLogRepository } from "./infrastructure/mikro-access-log.repository";

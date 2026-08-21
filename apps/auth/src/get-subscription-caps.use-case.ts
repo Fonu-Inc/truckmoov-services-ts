@@ -48,6 +48,7 @@ export class GetSubscriptionCapsUseCase {
           planCode: null,
           planName: null,
           planTier: null,
+          maxActiveVehicles: null,
           maxDevices: null,
           maxSims: null,
           maxUsers: null,
@@ -67,8 +68,12 @@ export class GetSubscriptionCapsUseCase {
         planCode: plan?.code ?? onboarding.subscription.planCode,
         planName: plan?.name ?? null,
         planTier: plan?.tier ?? null,
-        maxDevices: plan?.maxActiveVehicles ?? null,
-        maxSims: plan?.maxActiveVehicles ?? null,
+        // Plans carry no device or SIM cap of their own. Aliasing the vehicle
+        // cap here silently capped SIMs at the vehicle count, so report the
+        // absence instead until real caps exist on the plan.
+        maxActiveVehicles: plan?.maxActiveVehicles ?? null,
+        maxDevices: null,
+        maxSims: null,
         maxUsers: plan?.maxUsers ?? null,
         subscriptionActivatedAt: onboarding.subscriptionActivatedAt ?? null,
       },

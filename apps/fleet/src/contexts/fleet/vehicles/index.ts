@@ -2,7 +2,13 @@ export { VEHICLE_REPOSITORY } from "./domain/repositories/vehicle.repository";
 export { VehicleNotFoundError } from "./domain/errors/vehicle-not-found.error";
 export { InMemoryVehicleRepository } from "./infrastructure/repositories/in-memory-vehicle.repository";
 export { MikroVehicleRepository } from "./infrastructure/repositories/mikro-vehicle.repository";
-export { CreateVehicleUseCase } from "./application/use-cases/create-vehicle.use-case";
+export { CreateVehicleUseCase, VehicleQuotaExceededError } from "./application/use-cases/create-vehicle.use-case";
+export { VEHICLE_QUOTA_READER } from "./domain/ports/vehicle-quota-reader.port";
+export type { VehicleQuotaReader } from "./domain/ports/vehicle-quota-reader.port";
+export {
+  MikroVehicleQuotaReader,
+  UnlimitedVehicleQuotaReader,
+} from "./infrastructure/repositories/mikro-vehicle-quota-reader";
 export { ListVehiclesUseCase } from "./application/use-cases/list-vehicles.use-case";
 export { GetVehicleUseCase } from "./application/use-cases/get-vehicle.use-case";
 export { UpdateVehicleUseCase } from "./application/use-cases/update-vehicle.use-case";

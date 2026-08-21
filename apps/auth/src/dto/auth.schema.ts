@@ -2346,8 +2346,9 @@ export class SubscriptionCapsDataSchema {
   @ApiProperty({ nullable: true, type: String }) planCode!: string | null;
   @ApiProperty({ nullable: true, type: String }) planName!: string | null;
   @ApiProperty({ nullable: true, type: String }) planTier!: string | null;
-  @ApiProperty({ nullable: true, type: Number }) maxDevices!: number | null;
-  @ApiProperty({ nullable: true, type: Number }) maxSims!: number | null;
+  @ApiProperty({ nullable: true, type: Number }) maxActiveVehicles!: number | null;
+  @ApiProperty({ nullable: true, type: Number, description: 'Null until plans carry a device cap' }) maxDevices!: number | null;
+  @ApiProperty({ nullable: true, type: Number, description: 'Null until plans carry a SIM cap' }) maxSims!: number | null;
   @ApiProperty({ nullable: true, type: Number }) maxUsers!: number | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) subscriptionActivatedAt!: string | null;
 }

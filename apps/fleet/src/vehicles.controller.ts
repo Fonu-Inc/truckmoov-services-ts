@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   Body,
+  ConflictException,
   Res,
   Param,
   Inject,
@@ -43,6 +44,7 @@ import {
   GetVehicleUseCase,
   CreateVehicleUseCase,
   UpdateVehicleUseCase,
+  VehicleQuotaExceededError,
 } from "./contexts/fleet/vehicles";
 import {
   VehicleSummaryResponse,
@@ -242,10 +244,18 @@ export class VehiclesController extends BaseFleetController {
   })
   @ApiCreatedResponse({ type: VehicleResponse })
   async createVehicle(@Body() payload: CreateVehicleDto, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
-    const result = await this.createVehicleUseCase.execute({
-      ...payload,
-      tenantId: this.tenantIdFromRequest(req),
-    });
+    let result;
+    try {
+      result = await this.createVehicleUseCase.execute({
+        ...payload,
+        tenantId: this.tenantIdFromRequest(req),
+      });
+    } catch (error) {
+      if (error instanceof VehicleQuotaExceededError) {
+        throw new ConflictException(error.message);
+      }
+      throw error;
+    }
     await this.recordActivity(req, {
       entityType: "vehicle",
       entityId: result.id,

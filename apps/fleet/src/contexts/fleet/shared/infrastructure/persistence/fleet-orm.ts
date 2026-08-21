@@ -372,6 +372,64 @@ export const ComplianceDocumentRecordSchema = new EntitySchema<ComplianceDocumen
   },
 });
 
+export class DocumentRecord {
+  id!: string;
+  tenantId!: string;
+  entityType!: string;
+  entityId!: string;
+  docType!: string;
+  key!: string;
+  filename!: string;
+  contentType!: string;
+  sizeBytes!: number;
+  uploadedBy!: string;
+  uploadedAt!: Date;
+  expiresAt!: Date | null;
+}
+
+export const DocumentRecordSchema = new EntitySchema<DocumentRecord>({
+  class: DocumentRecord,
+  tableName: "fleet_documents",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64, index: true },
+    entityType: { type: "string", length: 32 },
+    entityId: { type: "string", length: 255 },
+    docType: { type: "string", length: 32 },
+    key: { type: "string", length: 1024 },
+    filename: { type: "string", length: 255 },
+    contentType: { type: "string", length: 255 },
+    sizeBytes: { type: "integer", default: 0 },
+    uploadedBy: { type: "string", length: 64 },
+    uploadedAt: { type: "datetime", defaultRaw: "now()" },
+    expiresAt: { type: "datetime", nullable: true },
+  },
+});
+
+export class DocumentAccessLogRecord {
+  id!: string;
+  docId!: string;
+  tenantId!: string;
+  action!: string;
+  userId!: string;
+  ip!: string;
+  at!: Date;
+}
+
+export const DocumentAccessLogRecordSchema = new EntitySchema<DocumentAccessLogRecord>({
+  class: DocumentAccessLogRecord,
+  tableName: "fleet_document_access_logs",
+  properties: {
+    id: { type: "string", primary: true },
+    docId: { type: "string", length: 255, index: true },
+    tenantId: { type: "string", length: 64, index: true },
+    action: { type: "string", length: 32 },
+    userId: { type: "string", length: 64 },
+    ip: { type: "string", length: 64 },
+    at: { type: "datetime", defaultRaw: "now()" },
+  },
+});
+
 export class FleetFinancialConfigRecord {
   id!: string;
   tenantId!: string;
@@ -577,6 +635,8 @@ export async function getFleetOrm(cfg: DbConfig) {
       GeofenceAssignmentRecordSchema,
       MaintenanceRecordOrmSchema,
       ComplianceDocumentRecordSchema,
+      DocumentRecordSchema,
+      DocumentAccessLogRecordSchema,
       FleetFinancialConfigRecordSchema,
       FleetFuelBudgetRecordSchema,
       DeviceSetupRequestRecordSchema,
