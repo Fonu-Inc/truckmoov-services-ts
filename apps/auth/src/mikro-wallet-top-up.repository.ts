@@ -15,6 +15,7 @@ function toStored(r: WalletTopUpRecord): StoredWalletTopUp {
     mobileNumber: r.mobileNumber,
     status: r.status,
     reference: r.reference,
+    settledAt: r.settledAt ?? null,
     createdAt: r.createdAt,
   };
 }
@@ -30,6 +31,28 @@ export class MikroWalletTopUpRepository implements WalletTopUpRepository {
       [tenantId],
     );
     return rows.map((r) => toStored(r as unknown as WalletTopUpRecord));
+  }
+
+  async findByReference(reference: string): Promise<StoredWalletTopUp | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<WalletTopUpRecord[]>(
+      'select * from wallet_top_ups where reference = ? limit 1',
+      [reference],
+    );
+    const row = rows[0];
+    return row ? toStored(row as unknown as WalletTopUpRecord) : null;
+  }
+
+  async markSettled(id: string, settledAt: Date): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const result = await orm.em.getConnection().execute<Array<{ id: string }>>(
+      `update wallet_top_ups
+         set status = 'success', settled_at = ?
+       where id = ? and status = 'pending'
+       returning id`,
+      [settledAt, id],
+    );
+    return result.length === 1;
   }
 
   async sumSuccessfulByTenantId(tenantId: string): Promise<number> {

@@ -2,11 +2,13 @@ import {
   ForbiddenException,
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Inject,
   Headers,
   Patch,
+  Query,
   UnauthorizedException,
   Delete,
 } from '@nestjs/common';
@@ -23,13 +25,15 @@ import { ForbiddenError } from './contexts/auth/session';
 import { CreateSystemBundleUseCase } from './create-system-bundle.use-case';
 import { CreateSystemCarrierUseCase } from './create-system-carrier.use-case';
 import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
-import { SystemCarrierActionResponse, SystemBundleActionResponse, MessageResponse } from './dto/auth.schema';
+import { SystemCarrierActionResponse, SystemBundleActionResponse, MessageResponse, BundlePlansListResponse } from './dto/auth.schema';
 import {
   UpdateBundleDto,
   CreateCarrierDto,
   CreateBundleDto,
   UpdateCarrierDto,
+  ListSystemBundleCatalogQueryDto,
 } from './dto/sim-management.dto';
+import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use-case';
 import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 
@@ -43,6 +47,7 @@ export class SystemBillingController extends BaseAuthController {
     @Inject(CreateSystemBundleUseCase) private readonly createSystemBundleUseCase: CreateSystemBundleUseCase,
     @Inject(UpdateSystemBundleUseCase) private readonly updateSystemBundleUseCase: UpdateSystemBundleUseCase,
     @Inject(DeleteSystemBundleUseCase) private readonly deleteSystemBundleUseCase: DeleteSystemBundleUseCase,
+    @Inject(ListSystemBundleCatalogUseCase) private readonly listSystemBundleCatalogUseCase: ListSystemBundleCatalogUseCase,
   ) {
     super(activityLogService);
   }
@@ -72,6 +77,32 @@ export class SystemBillingController extends BaseAuthController {
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
       return await this.updateSystemCarrierUseCase.execute(accessToken, id, payload);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('bundle-catalog')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bundle catalog (system admin)' })
+  @ApiOkResponse({ type: BundlePlansListResponse })
+  async listSystemBundleCatalog(
+    @Query() query: ListSystemBundleCatalogQueryDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listSystemBundleCatalogUseCase.execute(accessToken, {
+        carrierId: query.carrierId,
+        billingCycle: query.billingCycle,
+        search: query.search,
+        active: query.status === 'all' || query.status === undefined ? undefined : query.status === 'active',
+        page: query.page,
+        limit: query.limit,
+      });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

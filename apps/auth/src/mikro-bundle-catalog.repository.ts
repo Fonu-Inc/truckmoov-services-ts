@@ -35,6 +35,7 @@ export class MikroBundleCatalogRepository implements BundleCatalogRepository {
     if (filters?.carrierId) { conditions.push('carrier_id = ?'); params.push(filters.carrierId); }
     if (filters?.billingCycle) { conditions.push('billing_cycle = ?'); params.push(filters.billingCycle); }
     if (filters?.activeOnly) { conditions.push('active = true'); }
+    if (filters?.active !== undefined) { conditions.push('active = ?'); params.push(filters.active); }
     if (filters?.search) {
       const q = `%${filters.search}%`;
       conditions.push('(name ilike ? or code ilike ?)');

@@ -33,6 +33,7 @@ export class TopupWalletUseCase {
       mobileNumber: payload.mobileNumber,
       status: 'pending',
       reference,
+      settledAt: null,
       createdAt: now,
     });
 

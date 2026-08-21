@@ -10,6 +10,7 @@ export class InMemoryBundleCatalogRepository implements BundleCatalogRepository 
     if (filters?.carrierId) results = results.filter((b) => b.carrierId === filters.carrierId);
     if (filters?.billingCycle) results = results.filter((b) => b.billingCycle === filters.billingCycle);
     if (filters?.activeOnly) results = results.filter((b) => b.active);
+    if (filters?.active !== undefined) results = results.filter((b) => b.active === filters.active);
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       results = results.filter(

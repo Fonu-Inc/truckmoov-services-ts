@@ -81,6 +81,12 @@ import { SystemDevicesController } from './system-devices.controller';
 import { SystemSimsController } from './system-sims.controller';
 import { SystemSupportController } from './system-support.controller';
 import { SystemBillingController } from './system-billing.controller';
+import { SystemKycController } from './system-kyc.controller';
+import {
+  ApproveKycDocumentUseCase,
+  ListKycReviewQueueUseCase,
+  RejectKycDocumentUseCase,
+} from './review-kyc-document.use-cases';
 import { OnboardingController } from './onboarding.controller';
 import { TenantSimsController } from './tenant-sims.controller';
 import { DataBundlesController } from './data-bundles.controller';
@@ -280,6 +286,7 @@ import { ListCarriersUseCase } from './list-carriers.use-case';
 import { CreateSystemCarrierUseCase } from './create-system-carrier.use-case';
 import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { ListBundleCatalogUseCase } from './list-bundle-catalog.use-case';
+import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use-case';
 import { CreateSystemBundleUseCase } from './create-system-bundle.use-case';
 import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
@@ -287,6 +294,7 @@ import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
 import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
 import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
+import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { GetSpendingLimitUseCase } from './get-spending-limit.use-case';
 import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
 import { DisableSpendingLimitUseCase } from './disable-spending-limit.use-case';
@@ -328,6 +336,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemSimsController,
     SystemSupportController,
     SystemBillingController,
+    SystemKycController,
     OnboardingController,
     TenantSimsController,
     DataBundlesController,
@@ -759,6 +768,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListKycDocumentsUseCase,
     GetOnboardingStatusUseCase,
     SaveKycDocumentUseCase,
+    ListKycReviewQueueUseCase,
+    ApproveKycDocumentUseCase,
+    RejectKycDocumentUseCase,
     DeleteKycDocumentUseCase,
     SubmitDeviceProvisioningRequestUseCase,
     RegisterSimsUseCase,
@@ -874,6 +886,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CreateSystemCarrierUseCase,
     UpdateSystemCarrierUseCase,
     ListBundleCatalogUseCase,
+    ListSystemBundleCatalogUseCase,
     CreateSystemBundleUseCase,
     UpdateSystemBundleUseCase,
     DeleteSystemBundleUseCase,
@@ -881,6 +894,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetBundleSummaryUseCase,
     GetWalletBalanceUseCase,
     TopupWalletUseCase,
+    SettleWalletTopUpUseCase,
     GetSpendingLimitUseCase,
     SaveSpendingLimitUseCase,
     DisableSpendingLimitUseCase,

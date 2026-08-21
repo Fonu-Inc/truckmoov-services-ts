@@ -38,6 +38,16 @@ export class ListSimsQueryDto {
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] }) @IsOptional() @IsIn(['csv', 'xlsx']) format?: 'csv' | 'xlsx';
 }
 
+export class ListSystemBundleCatalogQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() carrierId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() billingCycle?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
+  @ApiPropertyOptional({ enum: ['all', 'active', 'inactive'], default: 'all' })
+  @IsOptional() @IsIn(['all', 'active', 'inactive']) status?: 'all' | 'active' | 'inactive';
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
+}
+
 export class SubmitSimRequestDto {
   @ApiProperty() @IsInt() @Min(1) quantity!: number;
   @ApiProperty() @IsString() carrier!: string;

@@ -2456,3 +2456,32 @@ export class AllocateBundleResponse extends StandardApiResponse<AllocateBundleDa
 export class PaystackWebhookAckSchema {
   @ApiProperty() received!: boolean;
 }
+
+export class KycReviewDocumentSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty() documentType!: string;
+  @ApiProperty() documentName!: string;
+  @ApiProperty() fileSize!: number;
+  @ApiProperty({ enum: ['pending', 'under_review', 'verified', 'rejected'] }) status!: string;
+  @ApiProperty({ nullable: true }) reviewedBy!: string | null;
+  @ApiProperty({ nullable: true }) reviewedAt!: Date | null;
+  @ApiProperty({ nullable: true }) rejectionReason!: string | null;
+  @ApiProperty() createdAt!: Date;
+  @ApiProperty() updatedAt!: Date;
+}
+
+export class KycReviewQueueDataSchema {
+  @ApiProperty({ type: KycReviewDocumentSchema, isArray: true }) items!: KycReviewDocumentSchema[];
+  @ApiProperty() total!: number;
+}
+
+export class KycReviewQueueResponse extends StandardApiResponse<KycReviewQueueDataSchema> {
+  @ApiProperty({ type: KycReviewQueueDataSchema })
+  data!: KycReviewQueueDataSchema;
+}
+
+export class KycReviewDocumentResponse extends StandardApiResponse<KycReviewDocumentSchema> {
+  @ApiProperty({ type: KycReviewDocumentSchema })
+  data!: KycReviewDocumentSchema;
+}

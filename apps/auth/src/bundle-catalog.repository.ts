@@ -18,6 +18,7 @@ export type BundleCatalogFilters = {
   billingCycle?: string;
   search?: string;
   activeOnly?: boolean;
+  active?: boolean;
   page?: number;
   limit?: number;
 };

@@ -39,6 +39,7 @@ import { AppConfigService } from '@shared/config';
 import { ObjectStorageService } from '@shared/object-storage';
 import { Observable } from 'rxjs';
 import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
+import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -102,6 +103,7 @@ export class OnboardingController extends BaseAuthController {
     @Inject(GetExchangeRateUseCase) private readonly getExchangeRateUseCase: GetExchangeRateUseCase,
     @Inject(CreatePaymentIntentUseCase) private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
+    @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
     @Inject(SubscribePaymentEventsUseCase) private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
@@ -202,6 +204,21 @@ export class OnboardingController extends BaseAuthController {
           this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
         } catch {
           this.logger.error(`Failed to activate subscription for tenant ${tenantId}`);
+        }
+      }
+      // A wallet top-up carries no tenant in its metadata: the settlement reads
+      // the tenant from the stored top-up row instead, so it runs on reference alone.
+      if (reference) {
+        try {
+          const settlement = await this.settleWalletTopUpUseCase.execute(reference);
+          if (settlement.outcome === 'credited' && settlement.tenantId) {
+            this.paymentEventService.emit(settlement.tenantId, {
+              event: 'payment.confirmed',
+              reference,
+            });
+          }
+        } catch {
+          this.logger.error(`Failed to settle wallet top-up for reference ${reference}`);
         }
       }
     }

@@ -18,14 +18,35 @@ export type StoredKycDocument = {
   documentName: string;
   fileKey: string;
   fileSize: number;
-  status: 'pending' | 'under_review' | 'verified' | 'rejected';
+  status: KycDocumentStatus;
+  reviewedBy: string | null;
+  reviewedAt: Date | null;
+  rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export const KYC_DOCUMENT_STATUSES = [
+  'pending',
+  'under_review',
+  'verified',
+  'rejected',
+] as const;
+export type KycDocumentStatus = (typeof KYC_DOCUMENT_STATUSES)[number];
+
+export type KycDocumentQueueFilters = {
+  status?: KycDocumentStatus;
+  tenantId?: string;
+  page?: number;
+  limit?: number;
 };
 
 export interface KycDocumentRepository {
   findAllByTenantId(tenantId: string): Promise<StoredKycDocument[]>;
   findById(id: string): Promise<StoredKycDocument | null>;
+  findForReview(
+    filters?: KycDocumentQueueFilters,
+  ): Promise<{ items: StoredKycDocument[]; total: number }>;
   save(doc: StoredKycDocument): Promise<void>;
   delete(id: string): Promise<void>;
 }

@@ -50,6 +50,9 @@ export class SaveKycDocumentUseCase {
       fileKey: payload.fileKey,
       fileSize: payload.fileSize,
       status: 'pending' as const,
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectionReason: null,
       createdAt: now,
       updatedAt: now,
     };

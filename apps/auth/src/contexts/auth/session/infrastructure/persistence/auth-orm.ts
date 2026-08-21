@@ -399,6 +399,9 @@ export class TenantKycDocumentRecord {
   fileKey!: string;
   fileSize!: number;
   status!: string;
+  reviewedBy!: string | null;
+  reviewedAt!: Date | null;
+  rejectionReason!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -414,7 +417,10 @@ export const TenantKycDocumentRecordSchema =
       documentName: { fieldName: 'document_name', type: 'string', length: 255 },
       fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
       fileSize: { fieldName: 'file_size', type: 'number', default: 0 },
-      status: { type: 'string', length: 32, default: 'pending' },
+      status: { type: 'string', length: 32, default: 'pending', index: true },
+      reviewedBy: { fieldName: 'reviewed_by', type: 'string', length: 64, nullable: true },
+      reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
+      rejectionReason: { fieldName: 'rejection_reason', type: 'string', length: 1000, nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
@@ -1233,6 +1239,7 @@ export class WalletTopUpRecord {
   mobileNumber!: string;
   status!: string;
   reference!: string | null;
+  settledAt!: Date | null;
   createdAt!: Date;
 }
 
@@ -1247,6 +1254,7 @@ export const WalletTopUpRecordSchema = new EntitySchema<WalletTopUpRecord>({
     mobileNumber: { fieldName: 'mobile_number', type: 'string', length: 32 },
     status: { type: 'string', length: 32, default: 'pending' },
     reference: { type: 'string', length: 255, nullable: true },
+    settledAt: { fieldName: 'settled_at', type: 'datetime', nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
   },
 });
