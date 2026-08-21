@@ -12,6 +12,7 @@ export type StoredComplianceDocument = {
   fileUrl: string | null;
   fileSize: number | null;
   notes: string | null;
+  reminderSentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -32,16 +33,32 @@ export interface ComplianceDocumentRepository {
   findById(id: string, tenantId: string): Promise<StoredComplianceDocument | null>;
   findAllByTenant(tenantId: string, filters?: ComplianceDocumentFilters): Promise<StoredComplianceDocument[]>;
   deleteById(id: string, tenantId: string): Promise<void>;
+  /**
+   * Documents at or inside the reminder window that nobody has been told about
+   * yet, across every tenant. Deliberately cross-tenant: the reminder sweep is
+   * a background job, never reachable through a tenant-facing request.
+   */
+  findDueForReminder(onOrBeforeDate: string): Promise<StoredComplianceDocument[]>;
+  /** Stamps the reminder time so a document is announced once per expiry. */
+  markReminded(ids: string[], sentAt: Date): Promise<void>;
 }
 
 export const COMPLIANCE_DOCUMENT_REPOSITORY = Symbol("COMPLIANCE_DOCUMENT_REPOSITORY");
 
-export function computeDocumentStatus(doc: StoredComplianceDocument): ComplianceDocumentStatus {
+/**
+ * `reminderDays` is the platform-wide window set by a platform admin, not the
+ * document's own `reminderDays` column. That column is retained for now but no
+ * longer decides status, so the badge and the reminder email agree.
+ */
+export function computeDocumentStatus(
+  doc: StoredComplianceDocument,
+  reminderDays: number,
+): ComplianceDocumentStatus {
   if (!doc.expiryDate) return "valid";
   const today = new Date().toISOString().slice(0, 10);
   if (doc.expiryDate < today) return "expired";
   const soonDate = new Date();
-  soonDate.setDate(soonDate.getDate() + doc.reminderDays);
+  soonDate.setDate(soonDate.getDate() + reminderDays);
   const soonStr = soonDate.toISOString().slice(0, 10);
   if (doc.expiryDate <= soonStr) return "expiring";
   return "valid";

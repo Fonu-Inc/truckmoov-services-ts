@@ -24,6 +24,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
+import { ComplianceReminderSweepService } from "./compliance-reminder-sweep.service";
 import { ComplianceDocumentsUseCase, ComplianceDocumentNotFoundError } from "./compliance-documents.use-case";
 import {
   SetComplianceReminderDto,
@@ -50,6 +51,7 @@ export class ComplianceController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(ComplianceDocumentsUseCase) private readonly complianceDocumentsUseCase: ComplianceDocumentsUseCase,
+    @Inject(ComplianceReminderSweepService) private readonly complianceReminderSweepService: ComplianceReminderSweepService,
   ) {
     super(auditLog, bus);
   }
@@ -178,9 +180,16 @@ export class ComplianceController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Send compliance reminder emails" })
   @ApiOkResponse({ description: "Reminders queued", type: ReminderQueuedResponse })
-  async sendComplianceReminders(@Req() req: FleetRequestContext) {
-    const summary = await this.complianceDocumentsUseCase.summary(this.tenantIdFromRequest(req));
-    return { status: true, message: "success", data: { queued: summary.expiringSoon + summary.expired, message: "Compliance reminder emails will be sent" } };
+  async sendComplianceReminders() {
+    const result = await this.complianceReminderSweepService.run();
+    return {
+      status: true,
+      message: "success",
+      data: {
+        queued: result.documents,
+        message: `Queued reminders for ${result.documents} document(s) across ${result.tenants} tenant(s)`,
+      },
+    };
   }
 
   /* ── Fleet Financials ──────────────────────────────────────────────────── */

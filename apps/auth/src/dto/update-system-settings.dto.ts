@@ -6,11 +6,15 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { SYSTEM_BACKUP_FREQUENCIES } from '../system-settings.repository';
+import {
+  MAX_COMPLIANCE_REMINDER_DAYS,
+  SYSTEM_BACKUP_FREQUENCIES,
+} from '../system-settings.repository';
 
 class SystemSettingsDefaultsDto {
   @IsOptional()
@@ -21,6 +25,13 @@ class SystemSettingsDefaultsDto {
   @IsString()
   @MaxLength(16)
   language?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MAX_COMPLIANCE_REMINDER_DAYS)
+  @Type(() => Number)
+  complianceReminderDays?: number;
 }
 
 class SystemSettingsFeaturesDto {

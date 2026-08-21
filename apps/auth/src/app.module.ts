@@ -91,6 +91,7 @@ import { OnboardingController } from './onboarding.controller';
 import { TenantSimsController } from './tenant-sims.controller';
 import { DataBundlesController } from './data-bundles.controller';
 import { ActivityLogListener } from './activity-log.listener';
+import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
@@ -167,6 +168,7 @@ import { SYSTEM_SETTINGS_REPOSITORY } from './system-settings.repository';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
 import { UpdateSystemFeatureFlagUseCase } from './update-system-feature-flag.use-case';
 import { UpdateSystemSettingsUseCase } from './update-system-settings.use-case';
+import { SystemSettingsChangedPublisher } from './system-settings-changed.publisher';
 import { UpdateSystemTenantUseCase } from './update-system-tenant.use-case';
 import { UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { SuperAdminBootstrapService } from './superadmin-bootstrap.service';
@@ -661,6 +663,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CompleteProfileUseCase,
     ActivityLogService,
     ActivityLogListener,
+    ComplianceReminderListener,
     GetActivityLogUseCase,
     GetSystemSettingsUseCase,
     GetSystemDashboardUseCase,
@@ -682,6 +685,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateSystemDeviceModelUseCase,
     UpdateSystemFeatureFlagUseCase,
     UpdateSystemSettingsUseCase,
+    SystemSettingsChangedPublisher,
     UpdateSystemTenantUseCase,
     UpdateSystemTenantStatusUseCase,
     ExportSystemSimsUseCase,

@@ -3138,6 +3138,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "datetime"
+        },
+        "reminder_sent_at": {
+          "name": "reminder_sent_at",
+          "type": "timestamptz(6)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
         }
       },
       "name": "fleet_compliance_documents",
@@ -3162,6 +3178,17 @@
           "keyName": "fleet_compliance_documents_pkey",
           "unique": true,
           "primary": true
+        },
+        {
+          "columnNames": [
+            "expiry_date",
+            "reminder_sent_at"
+          ],
+          "composite": true,
+          "constraint": false,
+          "keyName": "fleet_compliance_documents_reminder_idx",
+          "unique": false,
+          "primary": false
         },
         {
           "columnNames": [

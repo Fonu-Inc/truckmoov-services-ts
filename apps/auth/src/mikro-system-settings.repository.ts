@@ -4,9 +4,10 @@ import {
   SystemSettingsRecord,
   getAuthOrm,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type {
-  SystemSettings,
-  SystemSettingsRepository,
+import {
+  normalizeSystemSettings,
+  type SystemSettings,
+  type SystemSettingsRepository,
 } from './system-settings.repository';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class MikroSystemSettingsRepository implements SystemSettingsRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(SystemSettingsRecord, { id: 'system' });
-    return record as SystemSettings | null;
+    return record ? normalizeSystemSettings(record as unknown as SystemSettings) : null;
   }
 
   async save(settings: SystemSettings): Promise<void> {

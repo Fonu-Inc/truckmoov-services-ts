@@ -8,9 +8,18 @@ export const SYSTEM_BACKUP_FREQUENCIES = [
 export type SystemBackupFrequency =
   (typeof SYSTEM_BACKUP_FREQUENCIES)[number];
 
+export const DEFAULT_COMPLIANCE_REMINDER_DAYS = 7;
+export const MAX_COMPLIANCE_REMINDER_DAYS = 180;
+
 export type SystemSettingsDefaults = {
   timezone: string;
   language: string;
+  /**
+   * How many days before expiry a compliance document counts as expiring, and
+   * a reminder is sent. One platform-wide window: the per-document
+   * `reminderDays` column it replaced is retained but no longer consulted.
+   */
+  complianceReminderDays: number;
 };
 
 export type SystemSettingsFeatures = {
@@ -44,6 +53,7 @@ export function buildDefaultSystemSettings(): SystemSettings {
     defaults: {
       timezone: 'Africa/Lagos',
       language: 'en',
+      complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
     },
     features: {
       allowNewTenantRegistration: true,
@@ -57,6 +67,21 @@ export function buildDefaultSystemSettings(): SystemSettings {
     },
     updatedByUserId: null,
     updatedAt: new Date(0),
+  };
+}
+
+/**
+ * Rows written before `complianceReminderDays` existed hold a `defaults` JSON
+ * object without it. Fill it on read so callers never see it missing.
+ */
+export function normalizeSystemSettings(settings: SystemSettings): SystemSettings {
+  if (typeof settings.defaults?.complianceReminderDays === 'number') return settings;
+  return {
+    ...settings,
+    defaults: {
+      ...settings.defaults,
+      complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
+    },
   };
 }
 

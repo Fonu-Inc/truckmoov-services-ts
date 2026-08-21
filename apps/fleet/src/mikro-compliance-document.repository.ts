@@ -50,4 +50,26 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     const em = orm.em.fork();
     await em.nativeDelete(ComplianceDocumentRecord, { id, tenantId });
   }
+
+  async findDueForReminder(onOrBeforeDate: string): Promise<StoredComplianceDocument[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<ComplianceDocumentRecord[]>(
+      `select * from fleet_compliance_documents
+        where expiry_date is not null
+          and expiry_date <= ?
+          and reminder_sent_at is null
+        order by tenant_id asc, expiry_date asc`,
+      [onOrBeforeDate],
+    );
+    return rows as unknown as StoredComplianceDocument[];
+  }
+
+  async markReminded(ids: string[], sentAt: Date): Promise<void> {
+    if (ids.length === 0) return;
+    const orm = await getFleetOrm(this.config.db);
+    await orm.em.getConnection().execute(
+      `update fleet_compliance_documents set reminder_sent_at = ? where id = any(?)`,
+      [sentAt, ids],
+    );
+  }
 }

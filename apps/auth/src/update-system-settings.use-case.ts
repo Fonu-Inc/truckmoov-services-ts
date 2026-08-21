@@ -8,7 +8,10 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { assertValidTimezone } from './contexts/auth/session/application/use-cases/support/settings-validation';
 import { ensureSystemActor } from './system-authz';
+import { SystemSettingsChangedPublisher } from './system-settings-changed.publisher';
 import {
+  DEFAULT_COMPLIANCE_REMINDER_DAYS,
+  MAX_COMPLIANCE_REMINDER_DAYS,
   SYSTEM_SETTINGS_REPOSITORY,
   buildDefaultSystemSettings,
   type SystemSettings,
@@ -22,6 +25,7 @@ export type UpdateSystemSettingsCommand = {
   defaults?: {
     timezone?: string;
     language?: string;
+    complianceReminderDays?: number;
   };
   features?: {
     allowNewTenantRegistration?: boolean;
@@ -44,6 +48,8 @@ export class UpdateSystemSettingsUseCase {
     private readonly userRepository: UserRepository,
     @Inject(SYSTEM_SETTINGS_REPOSITORY)
     private readonly systemSettingsRepository: SystemSettingsRepository,
+    @Inject(SystemSettingsChangedPublisher)
+    private readonly systemSettingsChangedPublisher: SystemSettingsChangedPublisher,
   ) {}
 
   async execute(command: UpdateSystemSettingsCommand) {
@@ -63,6 +69,10 @@ export class UpdateSystemSettingsUseCase {
       defaults: {
         timezone: normalizeTimezoneInput(timezoneInput),
         language: command.defaults?.language ?? current.defaults.language,
+        complianceReminderDays:
+          command.defaults?.complianceReminderDays ??
+          current.defaults.complianceReminderDays ??
+          DEFAULT_COMPLIANCE_REMINDER_DAYS,
       },
       features: {
         allowNewTenantRegistration:
@@ -98,8 +108,18 @@ export class UpdateSystemSettingsUseCase {
     if (merged.retention.logRetentionDays < 1) {
       throw new InvalidSettingsError('logRetentionDays must be greater than 0');
     }
+    if (
+      !Number.isInteger(merged.defaults.complianceReminderDays) ||
+      merged.defaults.complianceReminderDays < 1 ||
+      merged.defaults.complianceReminderDays > MAX_COMPLIANCE_REMINDER_DAYS
+    ) {
+      throw new InvalidSettingsError(
+        `complianceReminderDays must be a whole number between 1 and ${MAX_COMPLIANCE_REMINDER_DAYS}`,
+      );
+    }
 
     await this.systemSettingsRepository.save(merged);
+    await this.systemSettingsChangedPublisher.publish(merged);
 
     return {
       status: true,

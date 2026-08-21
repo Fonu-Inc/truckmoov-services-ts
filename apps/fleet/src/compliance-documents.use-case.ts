@@ -8,6 +8,7 @@ import {
   type StoredComplianceDocument,
   computeDocumentStatus,
 } from "./compliance-document.repository";
+import { ComplianceReminderWindowService } from "./compliance-reminder-window.service";
 
 export class ComplianceDocumentNotFoundError extends Error {}
 
@@ -28,10 +29,12 @@ export class ComplianceDocumentsUseCase {
   constructor(
     @Inject(COMPLIANCE_DOCUMENT_REPOSITORY)
     private readonly repo: ComplianceDocumentRepository,
+    @Inject(ComplianceReminderWindowService)
+    private readonly reminderWindow: ComplianceReminderWindowService,
   ) {}
 
   private withStatus(doc: StoredComplianceDocument) {
-    return { ...doc, status: computeDocumentStatus(doc) };
+    return { ...doc, status: computeDocumentStatus(doc, this.reminderWindow.reminderDays) };
   }
 
   async list(tenantId: string, filters?: ComplianceDocumentFilters & { status?: ComplianceDocumentStatus }) {
@@ -54,6 +57,7 @@ export class ComplianceDocumentsUseCase {
       fileUrl: data.fileUrl ?? null,
       fileSize: data.fileSize ?? null,
       notes: data.notes ?? null,
+      reminderSentAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -65,6 +69,9 @@ export class ComplianceDocumentsUseCase {
     const existing = await this.repo.findById(id, tenantId);
     if (!existing || existing.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
     const updated = { ...existing, ...data, updatedAt: new Date() };
+    // A new expiry re-arms the reminder, otherwise a renewed document would
+    // never be announced again.
+    if (updated.expiryDate !== existing.expiryDate) updated.reminderSentAt = null;
     await this.repo.save(updated);
     return this.withStatus(updated);
   }
@@ -103,6 +110,7 @@ export class ComplianceDocumentsUseCase {
       expiryDate: newExpiry,
       fileUrl: data.fileUrl ?? existing.fileUrl,
       fileSize: data.fileSize ?? existing.fileSize,
+      reminderSentAt: newExpiry !== existing.expiryDate ? null : existing.reminderSentAt,
       updatedAt: new Date(),
     };
     await this.repo.save(updated);
@@ -119,7 +127,7 @@ export class ComplianceDocumentsUseCase {
     const rows = [
       headers.join(","),
       ...docs.map((d) => {
-        const status = computeDocumentStatus(d);
+        const status = computeDocumentStatus(d, this.reminderWindow.reminderDays);
         return headers.map((h) => JSON.stringify(h === "status" ? status : (d as Record<string, unknown>)[h] ?? "")).join(",");
       }),
     ];

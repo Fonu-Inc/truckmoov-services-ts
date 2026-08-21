@@ -130,6 +130,8 @@ import { MaintenanceRecordsUseCase } from "./maintenance-records.use-case";
 import { MikroMaintenanceRecordRepository } from "./mikro-maintenance-record.repository";
 import { MAINTENANCE_RECORD_REPOSITORY } from "./maintenance-record.repository";
 import { ComplianceDocumentsUseCase } from "./compliance-documents.use-case";
+import { ComplianceReminderWindowService } from "./compliance-reminder-window.service";
+import { ComplianceReminderSweepService } from "./compliance-reminder-sweep.service";
 import { MikroComplianceDocumentRepository } from "./mikro-compliance-document.repository";
 import { COMPLIANCE_DOCUMENT_REPOSITORY } from "./compliance-document.repository";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
@@ -214,6 +216,8 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     MaintenanceRecordsUseCase,
     MikroComplianceDocumentRepository,
     { provide: COMPLIANCE_DOCUMENT_REPOSITORY, useExisting: MikroComplianceDocumentRepository },
+    ComplianceReminderWindowService,
+    ComplianceReminderSweepService,
     ComplianceDocumentsUseCase,
     HttpDispatchJobsReader,
     NoopDispatchJobsReader,

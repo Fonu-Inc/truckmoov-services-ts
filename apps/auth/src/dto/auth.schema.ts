@@ -1174,6 +1174,12 @@ export class SystemSettingsDefaultsSchema {
 
   @ApiProperty()
   language!: string;
+
+  @ApiProperty({
+    description:
+      'Days before expiry that a compliance document counts as expiring and a reminder is sent',
+  })
+  complianceReminderDays!: number;
 }
 
 export class SystemSettingsFeaturesSchema {

@@ -348,6 +348,7 @@ export class ComplianceDocumentRecord {
   fileUrl!: string | null;
   fileSize!: number | null;
   notes!: string | null;
+  reminderSentAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -367,6 +368,7 @@ export const ComplianceDocumentRecordSchema = new EntitySchema<ComplianceDocumen
     fileUrl: { type: "string", length: 1024, nullable: true },
     fileSize: { type: "integer", nullable: true },
     notes: { type: "text", nullable: true },
+    reminderSentAt: { type: "datetime", nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
