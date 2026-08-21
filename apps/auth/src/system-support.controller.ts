@@ -29,6 +29,10 @@ import {
   ApiCreatedResponse,
 } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
+import {
+  AssignSystemSupportTicketUseCase,
+  AssigneeNotSupportStaffError,
+} from './assign-system-support-ticket.use-case';
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -47,6 +51,7 @@ import {
 import { RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
 import {
   TICKET_CATEGORIES,
+  AssignTicketDto,
   UpdateTicketStatusDto,
   EscalateTicketDto,
   SendSupportMessageDto,
@@ -74,6 +79,7 @@ export class SystemSupportController extends BaseAuthController {
     @Inject(ListSystemSupportTicketsUseCase) private readonly listSystemSupportTicketsUseCase: ListSystemSupportTicketsUseCase,
     @Inject(GetSystemSupportTicketUseCase) private readonly getSystemSupportTicketUseCase: GetSystemSupportTicketUseCase,
     @Inject(UpdateSystemSupportTicketStatusUseCase) private readonly updateSystemSupportTicketStatusUseCase: UpdateSystemSupportTicketStatusUseCase,
+    @Inject(AssignSystemSupportTicketUseCase) private readonly assignSystemSupportTicketUseCase: AssignSystemSupportTicketUseCase,
     @Inject(EscalateSystemSupportTicketUseCase) private readonly escalateSystemSupportTicketUseCase: EscalateSystemSupportTicketUseCase,
     @Inject(ListSystemSupportTicketMessagesUseCase) private readonly listSystemSupportTicketMessagesUseCase: ListSystemSupportTicketMessagesUseCase,
     @Inject(SendSystemSupportMessageUseCase) private readonly sendSystemSupportMessageUseCase: SendSystemSupportMessageUseCase,
@@ -386,6 +392,44 @@ export class SystemSupportController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof NotFoundException) throw error;
+      throw error;
+    }
+  }
+
+  @Patch('tickets/:ticketId/assign')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Assign a ticket to platform support staff, or clear the assignment' })
+  @ApiOkResponse({ type: SystemSupportTicketActionResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Not a system mutator' })
+  @ApiNotFoundResponse({ description: 'Ticket not found' })
+  @ApiBadRequestResponse({ description: 'Assignee is not platform support staff' })
+  async assignSystemSupportTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() body: AssignTicketDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.assignSystemSupportTicketUseCase.execute(
+        accessToken,
+        ticketId,
+        body.assigneeId ?? null,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.support_ticket.assigned',
+        entityType: 'support_ticket',
+        entityId: ticketId,
+        summary: body.assigneeId ? 'Ticket assigned' : 'Ticket assignment cleared',
+        metadata: { assignedTo: body.assigneeId ?? null },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof AssigneeNotSupportStaffError) throw new BadRequestException(error.message);
       throw error;
     }
   }

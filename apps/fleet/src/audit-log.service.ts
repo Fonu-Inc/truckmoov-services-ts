@@ -1,4 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { AUDIT_LOG_REPOSITORY, type AuditLogFilters, type AuditLogRepository } from "./audit-log.repository";
 
 export type AuditEntityType =
   | "job"
@@ -24,28 +26,28 @@ export type AuditEntry = {
 
 @Injectable()
 export class AuditLogService {
-  private readonly entries: AuditEntry[] = [];
+  private readonly logger = new Logger(AuditLogService.name);
 
-  record(entry: Omit<AuditEntry, "id">): void {
-    this.entries.push({ id: crypto.randomUUID(), ...entry });
+  constructor(
+    @Inject(AUDIT_LOG_REPOSITORY) private readonly repository: AuditLogRepository,
+  ) {}
+
+  /**
+   * Writes one audit entry. A failure is logged rather than thrown: losing the
+   * record of an action is bad, but failing the action the caller already
+   * completed is worse, and the caller has no way to undo it here.
+   */
+  async record(entry: Omit<AuditEntry, "id">): Promise<void> {
+    try {
+      await this.repository.append({ id: randomUUID(), ...entry });
+    } catch (error) {
+      this.logger.error(
+        `audit_log_append_failed:${entry.entityType}:${entry.action}:${(error as Error).message}`,
+      );
+    }
   }
 
-  query(tenantId: string, filters: {
-    entityType?: AuditEntityType;
-    entityId?: string;
-    action?: string;
-    limit?: number;
-  }): AuditEntry[] {
-    const limit = filters.limit ?? 100;
-    return this.entries
-      .filter((e) => {
-        if (e.tenantId !== tenantId) return false;
-        if (filters.entityType && e.entityType !== filters.entityType) return false;
-        if (filters.entityId && e.entityId !== filters.entityId) return false;
-        if (filters.action && e.action !== filters.action) return false;
-        return true;
-      })
-      .slice(-limit)
-      .reverse();
+  async query(tenantId: string, filters: AuditLogFilters): Promise<AuditEntry[]> {
+    return this.repository.query(tenantId, filters);
   }
 }

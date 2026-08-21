@@ -153,6 +153,7 @@ import { GetSystemSupportDashboardUseCase } from './get-system-support-dashboard
 import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
 import { GetSystemSupportTicketUseCase } from './get-system-support-ticket.use-case';
 import { UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
+import { AssignSystemSupportTicketUseCase } from './assign-system-support-ticket.use-case';
 import { EscalateSystemSupportTicketUseCase } from './escalate-system-support-ticket.use-case';
 import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ticket-messages.use-case';
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
@@ -697,6 +698,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListSystemSupportTicketsUseCase,
     GetSystemSupportTicketUseCase,
     UpdateSystemSupportTicketStatusUseCase,
+    AssignSystemSupportTicketUseCase,
     EscalateSystemSupportTicketUseCase,
     ListSystemSupportTicketMessagesUseCase,
     SendSystemSupportMessageUseCase,

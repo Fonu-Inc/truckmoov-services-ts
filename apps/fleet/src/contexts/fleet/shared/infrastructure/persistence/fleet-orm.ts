@@ -349,6 +349,8 @@ export class ComplianceDocumentRecord {
   fileSize!: number | null;
   notes!: string | null;
   reminderSentAt!: Date | null;
+  supersededAt!: Date | null;
+  supersededById!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -369,8 +371,36 @@ export const ComplianceDocumentRecordSchema = new EntitySchema<ComplianceDocumen
     fileSize: { type: "integer", nullable: true },
     notes: { type: "text", nullable: true },
     reminderSentAt: { type: "datetime", nullable: true },
+    supersededAt: { type: "datetime", nullable: true },
+    supersededById: { type: "string", length: 255, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+});
+
+export class AuditLogRecord {
+  id!: string;
+  tenantId!: string;
+  entityType!: string;
+  entityId!: string;
+  action!: string;
+  actorId!: string;
+  metadata!: Record<string, unknown>;
+  occurredAt!: Date;
+}
+
+export const AuditLogRecordSchema = new EntitySchema<AuditLogRecord>({
+  class: AuditLogRecord,
+  tableName: "fleet_audit_logs",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64, index: true },
+    entityType: { type: "string", length: 64 },
+    entityId: { type: "string", length: 255 },
+    action: { type: "string", length: 128 },
+    actorId: { type: "string", length: 64 },
+    metadata: { type: "json" },
+    occurredAt: { type: "datetime", defaultRaw: "now()" },
   },
 });
 
@@ -637,6 +667,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       GeofenceAssignmentRecordSchema,
       MaintenanceRecordOrmSchema,
       ComplianceDocumentRecordSchema,
+      AuditLogRecordSchema,
       DocumentRecordSchema,
       DocumentAccessLogRecordSchema,
       FleetFinancialConfigRecordSchema,

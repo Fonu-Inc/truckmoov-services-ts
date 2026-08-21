@@ -168,6 +168,9 @@ import { IntegrationHealthService } from "./integration-health.service";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { TenantGuard } from "./tenant.guard";
 import { AuditLogService } from "./audit-log.service";
+import { AUDIT_LOG_REPOSITORY } from "./audit-log.repository";
+import { InMemoryAuditLogRepository } from "./in-memory-audit-log.repository";
+import { MikroAuditLogRepository } from "./mikro-audit-log.repository";
 import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
 
@@ -265,6 +268,17 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     // Applied explicitly via @TenantScoped() on FleetController (not a global
     // APP_GUARD). Still a no-op for unauthenticated/health requests.
     TenantGuard,
+    InMemoryAuditLogRepository,
+    MikroAuditLogRepository,
+    {
+      provide: AUDIT_LOG_REPOSITORY,
+      inject: [InMemoryAuditLogRepository, MikroAuditLogRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAuditLogRepository,
+        mikro: MikroAuditLogRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
     AuditLogService,
     AuditEventListener,
     InMemoryAlertRepository,

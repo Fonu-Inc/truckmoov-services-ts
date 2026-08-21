@@ -30,6 +30,7 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     const where: Record<string, unknown> = { tenantId };
     if (filters?.vehicleId) where.vehicleId = filters.vehicleId;
     if (filters?.documentType) where.documentType = filters.documentType;
+    if (!filters?.includeSuperseded) where.supersededAt = null;
     const records = await em.find(ComplianceDocumentRecord, where as any);
     let result = records as unknown as StoredComplianceDocument[];
     if (filters?.search) {
@@ -58,6 +59,7 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
         where expiry_date is not null
           and expiry_date <= ?
           and reminder_sent_at is null
+          and superseded_at is null
         order by tenant_id asc, expiry_date asc`,
       [onOrBeforeDate],
     );

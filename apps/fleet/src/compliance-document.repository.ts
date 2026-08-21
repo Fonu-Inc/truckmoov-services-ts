@@ -13,6 +13,8 @@ export type StoredComplianceDocument = {
   fileSize: number | null;
   notes: string | null;
   reminderSentAt: Date | null;
+  supersededAt: Date | null;
+  supersededById: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -26,6 +28,11 @@ export type ComplianceDocumentFilters = {
   issueDateTo?: string;
   expiryDateFrom?: string;
   expiryDateTo?: string;
+  /**
+   * Superseded documents are hidden unless asked for. A renewal keeps the old
+   * record so it can be produced later, but it is history, not current state.
+   */
+  includeSuperseded?: boolean;
 };
 
 export interface ComplianceDocumentRepository {

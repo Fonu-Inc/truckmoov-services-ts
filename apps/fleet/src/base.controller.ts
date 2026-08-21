@@ -48,7 +48,7 @@ export abstract class BaseFleetController {
       const occurredAt = activity.occurredAt ?? new Date().toISOString();
       const metadata = { ...(activity.metadata ?? {}) };
 
-      this.auditLog.record({
+      await this.auditLog.record({
         tenantId,
         entityType: activity.entityType,
         entityId: activity.entityId,

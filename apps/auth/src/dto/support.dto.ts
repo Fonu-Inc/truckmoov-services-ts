@@ -13,6 +13,16 @@ export const TICKET_CATEGORIES = [
   'other',
 ] as const;
 
+export class AssignTicketDto {
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Platform staff user id. Null or omitted clears the assignment.',
+  })
+  @IsOptional()
+  @IsString()
+  assigneeId?: string | null;
+}
+
 export class UpdateTicketStatusDto {
   @ApiProperty({ enum: TICKET_STATUSES })
   @IsIn(TICKET_STATUSES)

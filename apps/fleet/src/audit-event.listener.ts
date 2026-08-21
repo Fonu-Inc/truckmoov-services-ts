@@ -26,7 +26,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: { previousStatus: d["previous_status"], newStatus: d["new_status"], source: d["source"] },
           occurredAt: event.occurred_at,
         };
-        this.audit.record(entry);
+        await this.audit.record(entry);
         await this.publishCentralActivity(event.tenant_id, {
           service: "dispatch",
           action: "job.status.changed",
@@ -49,7 +49,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: { type: d["type"], severity: d["severity"], vehicleId: d["vehicle_id"] },
           occurredAt: event.occurred_at,
         };
-        this.audit.record(entry);
+        await this.audit.record(entry);
         await this.publishCentralActivity(event.tenant_id, {
           service: "tracking",
           action: "alert.triggered",
@@ -72,7 +72,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: { vehicleId: d["vehicle_id"], lat: d["lat"], lng: d["lng"] },
           occurredAt: event.occurred_at,
         };
-        this.audit.record(entry);
+        await this.audit.record(entry);
         await this.publishCentralActivity(event.tenant_id, {
           service: "tracking",
           action: "vehicle.geofence.exited",
@@ -95,7 +95,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: { vehicleId: d["vehicle_id"], lat: d["lat"], lng: d["lng"] },
           occurredAt: event.occurred_at,
         };
-        this.audit.record(entry);
+        await this.audit.record(entry);
         await this.publishCentralActivity(event.tenant_id, {
           service: "tracking",
           action: "vehicle.geofence.entered",

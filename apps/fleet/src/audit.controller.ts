@@ -39,14 +39,14 @@ export class AuditController extends BaseFleetController {
   @ApiQuery({ name: "action", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiOkResponse({ description: "Audit entries (newest first)", type: AuditEntryListResponse })
-  getAuditLog(
+  async getAuditLog(
     @Req() req: FleetRequestContext,
     @Query("entityType") entityType?: string,
     @Query("entityId") entityId?: string,
     @Query("action") action?: string,
     @Query("limit") limit?: string,
   ) {
-    const entries = this.auditLog.query(this.tenantIdFromRequest(req), {
+    const entries = await this.auditLog.query(this.tenantIdFromRequest(req), {
       entityType: entityType as AuditEntityType | undefined,
       entityId,
       action,

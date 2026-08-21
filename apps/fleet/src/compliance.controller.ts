@@ -86,6 +86,26 @@ export class ComplianceController extends BaseFleetController {
     return { status: true, message: "success", data };
   }
 
+  @Get("documents/history")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "List compliance documents including superseded ones",
+    description: "Renewing a document supersedes the previous record rather than overwriting it. This returns the whole chain, which is what proves cover on a past date.",
+  })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "documentType", required: false, type: String })
+  @ApiOkResponse({ description: "Compliance documents array", type: ComplianceDocumentListResponse })
+  async listComplianceDocumentHistory(
+    @Query("vehicleId") vehicleId: string,
+    @Query("documentType") documentType: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const data = await this.complianceDocumentsUseCase.history(this.tenantIdFromRequest(req), {
+      vehicleId, documentType,
+    });
+    return { status: true, message: "success", data };
+  }
+
   @Get("documents/summary")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Compliance documents summary" })

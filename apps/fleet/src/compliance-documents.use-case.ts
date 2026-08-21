@@ -58,6 +58,8 @@ export class ComplianceDocumentsUseCase {
       fileSize: data.fileSize ?? null,
       notes: data.notes ?? null,
       reminderSentAt: null,
+      supersededAt: null,
+      supersededById: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -74,6 +76,15 @@ export class ComplianceDocumentsUseCase {
     if (updated.expiryDate !== existing.expiryDate) updated.reminderSentAt = null;
     await this.repo.save(updated);
     return this.withStatus(updated);
+  }
+
+  /** The full chain for a vehicle, superseded records included, for audit. */
+  async history(tenantId: string, filters?: ComplianceDocumentFilters) {
+    const docs = await this.repo.findAllByTenant(tenantId, {
+      ...filters,
+      includeSuperseded: true,
+    });
+    return docs.map((d) => this.withStatus(d));
   }
 
   async delete(tenantId: string, id: string) {
@@ -105,16 +116,32 @@ export class ComplianceDocumentsUseCase {
       d.setFullYear(d.getFullYear() + 1);
       return d.toISOString().slice(0, 10);
     })();
-    const updated: StoredComplianceDocument = {
+    // A renewal supersedes rather than overwrites. Proving a vehicle was
+    // covered on the date of an incident needs the document that was in force
+    // then, not only the one in force now.
+    const now = new Date();
+    const replacement: StoredComplianceDocument = {
       ...existing,
+      id: randomUUID(),
       expiryDate: newExpiry,
       fileUrl: data.fileUrl ?? existing.fileUrl,
       fileSize: data.fileSize ?? existing.fileSize,
-      reminderSentAt: newExpiry !== existing.expiryDate ? null : existing.reminderSentAt,
-      updatedAt: new Date(),
+      reminderSentAt: null,
+      supersededAt: null,
+      supersededById: null,
+      createdAt: now,
+      updatedAt: now,
     };
-    await this.repo.save(updated);
-    return this.withStatus(updated);
+    await this.repo.save(replacement);
+
+    await this.repo.save({
+      ...existing,
+      supersededAt: now,
+      supersededById: replacement.id,
+      updatedAt: now,
+    });
+
+    return this.withStatus(replacement);
   }
 
   async setFileUrl(tenantId: string, id: string, fileUrl: string, fileSize: number | null) {

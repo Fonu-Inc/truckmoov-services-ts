@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AuditEventListener } from "../../../apps/fleet/src/audit-event.listener";
 import { AuditLogService } from "../../../apps/fleet/src/audit-log.service";
+import { InMemoryAuditLogRepository } from "../../../apps/fleet/src/in-memory-audit-log.repository";
 
 function buildListener() {
   const handlers = new Map<string, (event: any) => Promise<void>>();
@@ -11,7 +12,7 @@ function buildListener() {
       return Promise.resolve(unsubFn);
     }),
   };
-  const audit = new AuditLogService();
+  const audit = new AuditLogService(new InMemoryAuditLogRepository());
   const listener = new AuditEventListener(bus as any, audit);
   return { listener, bus, audit, handlers, unsubFn };
 }
@@ -33,7 +34,7 @@ describe("AuditEventListener", () => {
     await handlers.get("tm.*.job.status.changed")!(
       makeEvent("t1", { job_id: "j1", new_status: "assigned", previous_status: "pending", driver_id: "d1" }),
     );
-    const entries = audit.query("t1", { entityType: "job" });
+    const entries = await audit.query("t1", { entityType: "job" });
     expect(entries).toHaveLength(1);
     expect(entries[0].action).toBe("status.changed.assigned");
     expect(entries[0].actorId).toBe("d1");
@@ -45,7 +46,7 @@ describe("AuditEventListener", () => {
     await handlers.get("tm.*.alert.triggered")!(
       makeEvent("t1", { alert_id: "a1", type: "geofence_exit", severity: "high" }),
     );
-    const entries = audit.query("t1", { entityType: "alert" });
+    const entries = await audit.query("t1", { entityType: "alert" });
     expect(entries[0].action).toBe("alert.triggered");
   });
 
@@ -55,7 +56,7 @@ describe("AuditEventListener", () => {
     await handlers.get("tm.*.vehicle.geofence.exited")!(
       makeEvent("t1", { vehicle_id: "v1", lat: 6.5, lng: 3.4 }),
     );
-    const entries = audit.query("t1", { entityType: "geofence" });
+    const entries = await audit.query("t1", { entityType: "geofence" });
     expect(entries[0].action).toBe("geofence.exited");
   });
 
@@ -65,7 +66,7 @@ describe("AuditEventListener", () => {
     await handlers.get("tm.*.vehicle.geofence.entered")!(
       makeEvent("t1", { vehicle_id: "v1", lat: 6.5, lng: 3.4 }),
     );
-    expect(audit.query("t1", { entityType: "geofence" })[0].action).toBe("geofence.entered");
+    expect((await audit.query("t1", { entityType: "geofence" }))[0].action).toBe("geofence.entered");
   });
 
   it("uses system as actorId when no driver_id or source", async () => {
@@ -74,7 +75,7 @@ describe("AuditEventListener", () => {
     await handlers.get("tm.*.job.status.changed")!(
       makeEvent("t1", { job_id: "j1", new_status: "pending" }),
     );
-    expect(audit.query("t1", {})[0].actorId).toBe("system");
+    expect((await audit.query("t1", {}))[0].actorId).toBe("system");
   });
 
   it("calls all unsub functions on shutdown", async () => {
