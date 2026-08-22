@@ -76,7 +76,11 @@ async function bootstrap() {
   new JsonLogger("auth-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });
   const sentryEnabled = initializeSentry(cfg);
 
-  app.enableCors(createCorsOptions(cfg.server.corsAllowedOrigins));
+  // Kong owns CORS in every deployed environment. Set SERVICE_CORS_ENABLED=true
+  // to handle it here instead, which is what a local run without Kong needs.
+  if (cfg.server.corsEnabled) {
+    app.enableCors(createCorsOptions(cfg.server.corsAllowedOrigins));
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({

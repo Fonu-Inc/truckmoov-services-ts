@@ -49,6 +49,13 @@ export class AppConfigService {
       authPort: this.config.get<number>("AUTH_PORT", 3001),
       fleetPort: this.config.get<number>("FLEET_PORT", 3002),
       corsAllowedOrigins: this.config.get<string | undefined>("CORS_ALLOWED_ORIGINS", undefined),
+      /**
+       * Kong answers CORS for every deployed environment, and two layers both
+       * setting Access-Control-Allow-Origin makes a browser reject the response
+       * for carrying two values. This service therefore stays quiet unless it is
+       * reached directly, which is the local development case.
+       */
+      corsEnabled: this.config.get<string>("SERVICE_CORS_ENABLED", "false") === "true",
     };
   }
 
