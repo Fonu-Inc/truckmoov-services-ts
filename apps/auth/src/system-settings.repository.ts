@@ -11,6 +11,10 @@ export type SystemBackupFrequency =
 export const DEFAULT_COMPLIANCE_REMINDER_DAYS = 7;
 export const MAX_COMPLIANCE_REMINDER_DAYS = 180;
 
+/** Bounds a platform admin can move. Stored in kobo, like every other amount. */
+export const DEFAULT_WALLET_TOP_UP_MIN_KOBO = 10_000;
+export const DEFAULT_WALLET_TOP_UP_MAX_KOBO = 500_000_000;
+
 export type SystemSettingsDefaults = {
   timezone: string;
   language: string;
@@ -20,6 +24,13 @@ export type SystemSettingsDefaults = {
    * `reminderDays` column it replaced is retained but no longer consulted.
    */
   complianceReminderDays: number;
+  /** Smallest top-up a tenant may start, in kobo. */
+  walletTopUpMinKobo: number;
+  /**
+   * Largest top-up a tenant may start, in kobo. A ceiling exists so a mistyped
+   * amount is refused rather than accepted and then chased.
+   */
+  walletTopUpMaxKobo: number;
 };
 
 export type SystemSettingsFeatures = {
@@ -54,6 +65,8 @@ export function buildDefaultSystemSettings(): SystemSettings {
       timezone: 'Africa/Lagos',
       language: 'en',
       complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
+      walletTopUpMinKobo: DEFAULT_WALLET_TOP_UP_MIN_KOBO,
+      walletTopUpMaxKobo: DEFAULT_WALLET_TOP_UP_MAX_KOBO,
     },
     features: {
       allowNewTenantRegistration: true,
@@ -75,14 +88,26 @@ export function buildDefaultSystemSettings(): SystemSettings {
  * object without it. Fill it on read so callers never see it missing.
  */
 export function normalizeSystemSettings(settings: SystemSettings): SystemSettings {
-  if (typeof settings.defaults?.complianceReminderDays === 'number') return settings;
+  // Each key is filled on its own. A row written before one setting existed can
+  // still carry the others, so a single check on one key would leave the rest
+  // undefined.
+  const defaults = settings.defaults ?? ({} as SystemSettings['defaults']);
   return {
     ...settings,
     defaults: {
-      ...settings.defaults,
-      complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
+      ...defaults,
+      complianceReminderDays: numberOr(
+        defaults.complianceReminderDays,
+        DEFAULT_COMPLIANCE_REMINDER_DAYS,
+      ),
+      walletTopUpMinKobo: numberOr(defaults.walletTopUpMinKobo, DEFAULT_WALLET_TOP_UP_MIN_KOBO),
+      walletTopUpMaxKobo: numberOr(defaults.walletTopUpMaxKobo, DEFAULT_WALLET_TOP_UP_MAX_KOBO),
     },
   };
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 export interface SystemSettingsRepository {

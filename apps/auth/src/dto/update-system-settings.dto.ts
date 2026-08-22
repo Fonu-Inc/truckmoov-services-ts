@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -32,6 +33,18 @@ class SystemSettingsDefaultsDto {
   @Max(MAX_COMPLIANCE_REMINDER_DAYS)
   @Type(() => Number)
   complianceReminderDays?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  walletTopUpMin?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  walletTopUpMax?: number;
 }
 
 class SystemSettingsFeaturesDto {

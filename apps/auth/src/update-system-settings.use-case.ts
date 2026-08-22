@@ -26,6 +26,8 @@ export type UpdateSystemSettingsCommand = {
     timezone?: string;
     language?: string;
     complianceReminderDays?: number;
+    walletTopUpMin?: number;
+    walletTopUpMax?: number;
   };
   features?: {
     allowNewTenantRegistration?: boolean;
@@ -73,6 +75,15 @@ export class UpdateSystemSettingsUseCase {
           command.defaults?.complianceReminderDays ??
           current.defaults.complianceReminderDays ??
           DEFAULT_COMPLIANCE_REMINDER_DAYS,
+        // The interface works in naira; storage stays in kobo like every amount.
+        walletTopUpMinKobo:
+          command.defaults?.walletTopUpMin !== undefined
+            ? Math.round(command.defaults.walletTopUpMin * 100)
+            : current.defaults.walletTopUpMinKobo,
+        walletTopUpMaxKobo:
+          command.defaults?.walletTopUpMax !== undefined
+            ? Math.round(command.defaults.walletTopUpMax * 100)
+            : current.defaults.walletTopUpMaxKobo,
       },
       features: {
         allowNewTenantRegistration:
@@ -107,6 +118,12 @@ export class UpdateSystemSettingsUseCase {
     }
     if (merged.retention.logRetentionDays < 1) {
       throw new InvalidSettingsError('logRetentionDays must be greater than 0');
+    }
+    if (merged.defaults.walletTopUpMinKobo < 1) {
+      throw new InvalidSettingsError('walletTopUpMin must be greater than 0');
+    }
+    if (merged.defaults.walletTopUpMaxKobo <= merged.defaults.walletTopUpMinKobo) {
+      throw new InvalidSettingsError('walletTopUpMax must be greater than walletTopUpMin');
     }
     if (
       !Number.isInteger(merged.defaults.complianceReminderDays) ||

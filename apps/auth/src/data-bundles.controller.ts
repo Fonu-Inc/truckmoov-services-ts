@@ -32,6 +32,7 @@ import { AllocateBundleUseCase } from './allocate-bundle.use-case';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { SpendingLimitExceededError } from './spending-limit.service';
+import { TopUpAmountOutOfRangeError } from './topup-wallet.use-case';
 import { ListWalletLedgerUseCase } from './list-wallet-ledger.use-case';
 import { WALLET_LEDGER_CATEGORIES } from './wallet-ledger.repository';
 import { DisableAutoTopupUseCase } from './disable-auto-topup.use-case';
@@ -167,6 +168,7 @@ export class DataBundlesController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TopUpAmountOutOfRangeError) throw new BadRequestException(error.message);
       throw error;
     }
   }
