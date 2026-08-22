@@ -298,6 +298,10 @@ import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
 import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
 import { SpendingLimitService } from './spending-limit.service';
+import { ListWalletLedgerUseCase } from './list-wallet-ledger.use-case';
+import { WALLET_LEDGER_REPOSITORY } from './wallet-ledger.repository';
+import { InMemoryWalletLedgerRepository } from './in-memory-wallet-ledger.repository';
+import { MikroWalletLedgerRepository } from './mikro-wallet-ledger.repository';
 import { INVOICE_NUMBER_REPOSITORY } from './invoice-number.repository';
 import { InMemoryInvoiceNumberRepository } from './in-memory-invoice-number.repository';
 import { MikroInvoiceNumberRepository } from './mikro-invoice-number.repository';
@@ -916,6 +920,18 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     InvoiceNumberService,
+    InMemoryWalletLedgerRepository,
+    MikroWalletLedgerRepository,
+    {
+      provide: WALLET_LEDGER_REPOSITORY,
+      inject: [InMemoryWalletLedgerRepository, MikroWalletLedgerRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryWalletLedgerRepository,
+        mikro: MikroWalletLedgerRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    ListWalletLedgerUseCase,
     SpendingLimitService,
     TopupWalletUseCase,
     SettleWalletTopUpUseCase,

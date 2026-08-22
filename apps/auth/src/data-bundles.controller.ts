@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiOkResponse,
+  ApiQuery,
   ApiTags,
   ApiProduces,
   ApiBearerAuth,
@@ -31,6 +32,8 @@ import { AllocateBundleUseCase } from './allocate-bundle.use-case';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { SpendingLimitExceededError } from './spending-limit.service';
+import { ListWalletLedgerUseCase } from './list-wallet-ledger.use-case';
+import { WALLET_LEDGER_CATEGORIES } from './wallet-ledger.repository';
 import { DisableAutoTopupUseCase } from './disable-auto-topup.use-case';
 import { DisableSpendingLimitUseCase } from './disable-spending-limit.use-case';
 import {
@@ -106,6 +109,7 @@ export class DataBundlesController extends BaseAuthController {
     @Inject(AllocateBundleUseCase) private readonly allocateBundleUseCase: AllocateBundleUseCase,
     @Inject(ListSimsForAllocationUseCase) private readonly listSimsForAllocationUseCase: ListSimsForAllocationUseCase,
     @Inject(ListBundleTransactionsUseCase) private readonly listBundleTransactionsUseCase: ListBundleTransactionsUseCase,
+    @Inject(ListWalletLedgerUseCase) private readonly listWalletLedgerUseCase: ListWalletLedgerUseCase,
     @Inject(ExportBundleTransactionsUseCase) private readonly exportBundleTransactionsUseCase: ExportBundleTransactionsUseCase,
     @Inject(GetSpendTrendUseCase) private readonly getSpendTrendUseCase: GetSpendTrendUseCase,
     @Inject(GetSpendBreakdownUseCase) private readonly getSpendBreakdownUseCase: GetSpendBreakdownUseCase,
@@ -347,6 +351,41 @@ export class DataBundlesController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('ledger')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Wallet ledger',
+    description:
+      'Every movement on the wallet, newest first. Each line carries the balance after it applied and the rate that was charged at the time, so a later rate change cannot re-price history.',
+  })
+  @ApiQuery({ name: 'category', required: false, enum: WALLET_LEDGER_CATEGORIES })
+  @ApiQuery({ name: 'direction', required: false, enum: ['debit', 'credit'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ description: 'Wallet ledger entries' })
+  async listWalletLedger(
+    @Query('category') category?: string,
+    @Query('direction') direction?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.listWalletLedgerUseCase.execute(accessToken, {
+        category: category as never,
+        direction: direction as never,
+        page: page ? Number(page) : undefined,
+        limit: limit ? Number(limit) : undefined,
+      });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       throw error;
     }
   }

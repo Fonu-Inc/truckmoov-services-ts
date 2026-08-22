@@ -46,8 +46,16 @@ export class AllocateBundleUseCase {
 
     // Atomic debit up front prevents concurrent double-spend: the balance is
     // reserved before any allocation, and unused funds are refunded per failure.
-    const debited = await this.tenantWalletRepository.debit(tenantId, totalCostKobo);
-    if (!debited) throw new Error('Insufficient wallet balance');
+    const debited = await this.tenantWalletRepository.debit(tenantId, totalCostKobo, {
+      category: 'data_bundle',
+      quantity: payload.mobileNumbers.length,
+      // The bundle price at this moment, so a later catalogue change cannot
+      // re-price what the tenant already paid.
+      unitRateKobo: bundle.priceKobo,
+      reason: `${bundle.name} for ${payload.mobileNumbers.length} SIM(s)`,
+      reference: bundle.id,
+    });
+    if (!debited.ok) throw new Error('Insufficient wallet balance');
 
     const now = new Date();
     const allocationIds: string[] = [];
@@ -85,7 +93,13 @@ export class AllocateBundleUseCase {
         allocationIds.push(id);
       } catch (err) {
         // Refund the reserved cost for this failed allocation.
-        await this.tenantWalletRepository.credit(tenantId, bundle.priceKobo);
+        await this.tenantWalletRepository.credit(tenantId, bundle.priceKobo, {
+          category: 'refund',
+          quantity: 1,
+          unitRateKobo: bundle.priceKobo,
+          reason: `Refund: ${bundle.name} could not be allocated to ${mobileNumber}`,
+          reference: bundle.id,
+        });
         failures.push({ mobileNumber, reason: err instanceof Error ? err.message : 'Unknown error' });
       }
     }

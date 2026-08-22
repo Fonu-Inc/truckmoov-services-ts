@@ -44,7 +44,13 @@ export class SettleWalletTopUpUseCase {
     const won = await this.walletTopUpRepository.markSettled(topUp.id, new Date());
     if (!won) return { outcome: 'already_settled', tenantId: topUp.tenantId };
 
-    await this.tenantWalletRepository.credit(topUp.tenantId, topUp.amountKobo);
+    await this.tenantWalletRepository.credit(topUp.tenantId, topUp.amountKobo, {
+      category: 'top_up',
+      quantity: 1,
+      unitRateKobo: topUp.amountKobo,
+      reason: `Wallet top-up via ${topUp.provider}`,
+      reference: topUp.reference,
+    });
     this.logger.log(
       `wallet_top_up_settled:${topUp.id}:tenant=${topUp.tenantId}:kobo=${topUp.amountKobo}`,
     );

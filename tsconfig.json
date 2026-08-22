@@ -27,6 +27,7 @@
       "@shared/object-storage": ["libs/shared/object-storage/src"],
       "@shared/geofence": ["libs/shared/geofence/src"],
       "@shared/sms": ["libs/shared/sms/src"],
+      "@shared/crypto": ["libs/shared/crypto/src"],
       "@auth/session/*": ["apps/auth/src/contexts/auth/session/*"],
       "@fleet/shared/*": ["apps/fleet/src/contexts/fleet/shared/*"],
       "@auth/templates/*": ["apps/auth/src/templates/*"]

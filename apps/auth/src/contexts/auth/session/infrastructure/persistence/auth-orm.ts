@@ -1259,6 +1259,42 @@ export const WalletTopUpRecordSchema = new EntitySchema<WalletTopUpRecord>({
   },
 });
 
+/* ── Wallet Ledger ──────────────────────────────────── */
+
+export class WalletLedgerEntryRecord {
+  id!: string;
+  seq!: number;
+  tenantId!: string;
+  direction!: string;
+  category!: string;
+  amountKobo!: number;
+  balanceAfterKobo!: number;
+  unitRateKobo!: number;
+  quantity!: number;
+  reason!: string;
+  reference!: string | null;
+  createdAt!: Date;
+}
+
+export const WalletLedgerEntryRecordSchema = new EntitySchema<WalletLedgerEntryRecord>({
+  class: WalletLedgerEntryRecord,
+  tableName: 'wallet_ledger_entries',
+  properties: {
+    id: { type: 'string', primary: true },
+    seq: { type: 'bigint', autoincrement: true, nullable: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    direction: { type: 'string', length: 16 },
+    category: { type: 'string', length: 32 },
+    amountKobo: { fieldName: 'amount_kobo', type: 'bigint' },
+    balanceAfterKobo: { fieldName: 'balance_after_kobo', type: 'bigint' },
+    unitRateKobo: { fieldName: 'unit_rate_kobo', type: 'bigint', default: 0 },
+    quantity: { type: 'number', default: 1 },
+    reason: { type: 'string', length: 255 },
+    reference: { type: 'string', length: 255, nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
 /* ── Spending Limit Settings ────────────────────────── */
 
 export class SpendingLimitSettingsRecord {
@@ -1437,6 +1473,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       BundleCatalogRecordSchema,
       TenantWalletRecordSchema,
       WalletTopUpRecordSchema,
+      WalletLedgerEntryRecordSchema,
       SpendingLimitSettingsRecordSchema,
       AutoTopUpSettingsRecordSchema,
       BundleAllocationRecordSchema,

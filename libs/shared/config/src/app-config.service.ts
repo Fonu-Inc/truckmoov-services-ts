@@ -113,6 +113,19 @@ export class AppConfigService {
     };
   }
 
+  get security() {
+    const raw = this.config.get<string>("SECRET_ENCRYPTION_KEY", "");
+    if (!raw) return { secretEncryptionKey: null as Buffer | null };
+
+    const key = Buffer.from(raw, "base64");
+    // AES-256 needs exactly 32 bytes. A short key would otherwise fail deep
+    // inside the cipher, long after the misconfiguration was introduced.
+    if (key.length !== 32) {
+      throw new Error("SECRET_ENCRYPTION_KEY must decode to exactly 32 bytes (base64 AES-256 key)");
+    }
+    return { secretEncryptionKey: key };
+  }
+
   get mail() {
     return {
       transport: this.config.get<string>("MAIL_TRANSPORT", "null"),

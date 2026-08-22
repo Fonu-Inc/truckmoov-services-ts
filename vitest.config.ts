@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@shared/config": path.resolve(__dirname, "libs/shared/config/src"),
+      "@shared/crypto": path.resolve(__dirname, "libs/shared/crypto/src"),
       "@shared/logger": path.resolve(__dirname, "libs/shared/logger/src"),
       "@shared/db": path.resolve(__dirname, "libs/shared/db/src"),
       "@shared/rbac": path.resolve(__dirname, "libs/shared/rbac/src"),
