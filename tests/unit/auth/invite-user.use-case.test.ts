@@ -15,6 +15,8 @@ function build() {
     tokenService as any,
     notifier as any,
     idGenerator as any,
+    // no existing account for the invited address
+    { findByEmail: async () => null } as any,
   );
   return { uc, inviteRepo, notifier, caller };
 }

@@ -52,6 +52,7 @@ import {
   InviteNotFoundError,
   InviteUserUseCase,
   InvalidVerificationTokenError,
+  TokenBelongsToInviteError,
   GetMeUseCase,
   CompleteProfileUseCase,
   VerifyEmailUseCase,
@@ -295,6 +296,8 @@ export class AuthController extends BaseAuthController {
       return result;
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
+      if (error instanceof EmailTakenError)
+        throw new ConflictException(error.message);
       if (error instanceof TenantSeatLimitReachedError)
         throw new ConflictException(error.message);
       if (error instanceof ForbiddenError)
@@ -436,6 +439,8 @@ export class AuthController extends BaseAuthController {
       });
       return { message: result.message };
     } catch (error) {
+      if (error instanceof TokenBelongsToInviteError)
+        throw new ConflictException(error.message);
       if (error instanceof InvalidVerificationTokenError)
         throw new BadRequestException(error.message);
       throw error;

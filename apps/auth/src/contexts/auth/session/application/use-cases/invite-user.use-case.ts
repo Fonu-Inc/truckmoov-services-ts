@@ -3,6 +3,8 @@ import { Role, INVITABLE_ROLES, hasPermission, Permission } from "@shared/rbac";
 import { AUTH_NOTIFIER, type AuthNotifier } from "@auth/session/domain/ports/auth-notifier.port";
 import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
+import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
+import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
@@ -24,6 +26,8 @@ export class InviteUserUseCase {
     private readonly notifier: AuthNotifier,
     @Inject(ID_GENERATOR)
     private readonly idGenerator: IdGenerator,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: UserRepository,
   ) {}
 
   async execute(command: InviteUserCommand) {
@@ -41,6 +45,13 @@ export class InviteUserUseCase {
     }
 
     const email = command.email.trim();
+
+    // Registration already refuses an email that has an account. Without the
+    // same check here, one address ends up holding both a verification token
+    // and an invite token, and only one of them works on any given endpoint.
+    const existingUser = await this.userRepo.findByEmail(email);
+    if (existingUser) throw new EmailTakenError();
+
     const existing = await this.inviteRepo.findPendingByEmailForTenant(
       caller.tenantId,
       email,

@@ -1,7 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
+import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
 import { InvalidVerificationTokenError } from "../../domain/errors/invalid-verification-token.error";
+import { TokenBelongsToInviteError } from "../../domain/errors/token-belongs-to-invite.error";
 
 export type CompleteProfileCommand = {
   token: string;
@@ -16,6 +18,8 @@ export class CompleteProfileUseCase {
     private readonly userRepo: UserRepository,
     @Inject(PASSWORD_HASHER)
     private readonly passwordHasher: PasswordHasher,
+    @Inject(INVITE_REPOSITORY)
+    private readonly inviteRepo: InviteRepository,
   ) {}
 
   async execute(command: CompleteProfileCommand): Promise<{
@@ -26,7 +30,14 @@ export class CompleteProfileUseCase {
     role: string;
   }> {
     const user = await this.userRepo.findByVerificationToken(command.token);
-    if (!user) throw new InvalidVerificationTokenError();
+    if (!user) {
+      // Invite tokens and verification tokens are both opaque UUIDs, so a
+      // caller holding the wrong one cannot tell it apart from an expired one.
+      // Only checked once the verification lookup has already missed.
+      const invite = await this.inviteRepo.findByToken(command.token);
+      if (invite) throw new TokenBelongsToInviteError();
+      throw new InvalidVerificationTokenError();
+    }
 
     const passwordHash = await this.passwordHasher.hash(command.password);
 

@@ -6,6 +6,7 @@ export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
 export { InvalidVerificationTokenError } from "./domain/errors/invalid-verification-token.error";
+export { TokenBelongsToInviteError } from "./domain/errors/token-belongs-to-invite.error";
 export { UserNotFoundError } from "./domain/errors/user-not-found.error";
 export { ForbiddenError } from "./domain/errors/forbidden.error";
 export { InvalidSettingsError } from "./domain/errors/invalid-settings.error";

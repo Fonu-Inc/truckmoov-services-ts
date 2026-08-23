@@ -451,6 +451,8 @@ describe("InviteUserUseCase", () => {
       tokenService,
       notifier as any,
       new FakeIdGenerator() as any,
+      // no existing account for the invited address
+      { findByEmail: async () => null } as any,
     );
   });
 
