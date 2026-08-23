@@ -46,6 +46,8 @@ describe("Fleet HTTP contract", () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    // mirrors main.ts: this service owns the /fleet namespace
+    app.setGlobalPrefix("fleet");
     app.enableCors(createCorsOptions());
     app.useGlobalPipes(
       new ValidationPipe({
@@ -88,7 +90,7 @@ describe("Fleet HTTP contract", () => {
     // comfortably under 5s in isolation, but the default timeout has been
     // observed to flake under full-suite CPU contention.
     const createVehicle = await request(app.getHttpServer())
-      .post("/vehicles")
+      .post("/fleet/vehicles")
       .set("Authorization", authToken("admin"))
       .send({
         registrationNumber: "TM-909",
@@ -110,7 +112,7 @@ describe("Fleet HTTP contract", () => {
     expect(createVehicle.body.capacity).toBe(18);
 
     const fetchedVehicle = await request(app.getHttpServer())
-      .get(`/vehicles/${createVehicle.body.id}`)
+      .get(`/fleet/vehicles/${createVehicle.body.id}`)
       .set("Authorization", authToken("dispatcher"));
     expect(fetchedVehicle.status).toBe(200);
     expect(fetchedVehicle.body.registrationNumber).toBe("TM-909");
@@ -118,7 +120,7 @@ describe("Fleet HTTP contract", () => {
     expect(fetchedVehicle.body.make).toBe("Volvo");
 
     const createDriver = await request(app.getHttpServer())
-      .post("/drivers")
+      .post("/fleet/drivers")
       .set("Authorization", authToken("admin"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -142,7 +144,7 @@ describe("Fleet HTTP contract", () => {
     expect(createDriver.body.status).toBe("available");
 
     const assignment = await request(app.getHttpServer())
-      .patch(`/vehicles/${createVehicle.body.id}/assignment`)
+      .patch(`/fleet/vehicles/${createVehicle.body.id}/assignment`)
       .set("Authorization", authToken("dispatcher"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -153,7 +155,7 @@ describe("Fleet HTTP contract", () => {
     expect(assignment.body.driver.assignedVehicleId).toBe(createVehicle.body.id);
 
     const gpsUpdate = await request(app.getHttpServer())
-      .patch(`/vehicles/${createVehicle.body.id}/gps-device`)
+      .patch(`/fleet/vehicles/${createVehicle.body.id}/gps-device`)
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -169,7 +171,7 @@ describe("Fleet HTTP contract", () => {
     expect(gpsUpdate.body.gpsDevice.firmwareVersion).toBe("3.28.07");
 
     const listGpsDevices = await request(app.getHttpServer())
-      .get("/gps-devices?query=359779090012345")
+      .get("/fleet/gps-devices?query=359779090012345")
       .set("Authorization", authToken("dispatcher"));
     expect(listGpsDevices.status).toBe(200);
     expect(listGpsDevices.body.data).toHaveLength(1);
@@ -185,7 +187,7 @@ describe("Fleet HTTP contract", () => {
     });
 
     const contactUpdate = await request(app.getHttpServer())
-      .patch(`/drivers/${createDriver.body.id}/contact-channels`)
+      .patch(`/fleet/drivers/${createDriver.body.id}/contact-channels`)
       .set("Authorization", authToken("dispatcher"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -198,7 +200,7 @@ describe("Fleet HTTP contract", () => {
     );
 
     const deactivateVehicle = await request(app.getHttpServer())
-      .patch(`/vehicles/${createVehicle.body.id}/status`)
+      .patch(`/fleet/vehicles/${createVehicle.body.id}/status`)
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
       .send({ status: "inactive" });
@@ -206,7 +208,7 @@ describe("Fleet HTTP contract", () => {
     expect(deactivateVehicle.body.status).toBe("inactive");
 
     const driverAfterDeactivate = await request(app.getHttpServer())
-      .get(`/drivers/${createDriver.body.id}`)
+      .get(`/fleet/drivers/${createDriver.body.id}`)
       .set("Authorization", authToken("dispatcher"));
     expect(driverAfterDeactivate.status).toBe(200);
     expect(driverAfterDeactivate.body.assignedVehicleId).toBeNull();
@@ -235,7 +237,7 @@ describe("Fleet HTTP contract", () => {
     }));
 
     const response = await request(app.getHttpServer())
-      .get("/alerts")
+      .get("/fleet/alerts")
       .set("Authorization", authToken("dispatcher"));
 
     expect(response.status).toBe(200);
@@ -248,7 +250,7 @@ describe("Fleet HTTP contract", () => {
     const duplicateKey = randomUUID();
 
     const first = await request(app.getHttpServer())
-      .post("/vehicles")
+      .post("/fleet/vehicles")
       .set("Authorization", authToken("admin"))
       .set("Idempotency-Key", duplicateKey)
       .send({
@@ -264,7 +266,7 @@ describe("Fleet HTTP contract", () => {
     expect(first.status).toBe(201);
 
     const second = await request(app.getHttpServer())
-      .post("/vehicles")
+      .post("/fleet/vehicles")
       .set("Authorization", authToken("admin"))
       .set("Idempotency-Key", duplicateKey)
       .send({
@@ -286,7 +288,7 @@ describe("Fleet HTTP contract", () => {
     // comfortably under 5s in isolation, but the default timeout has been
     // observed to flake under full-suite CPU contention.
     const createVehicle = await request(app.getHttpServer())
-      .post("/vehicles")
+      .post("/fleet/vehicles")
       .set("Authorization", authToken("fleet_manager"))
       .send({
         registrationNumber: "TM-930",
@@ -300,7 +302,7 @@ describe("Fleet HTTP contract", () => {
     expect(createVehicle.status).toBe(201);
 
     const createDevice = await request(app.getHttpServer())
-      .post("/devices")
+      .post("/fleet/devices")
       .set("Authorization", authToken("fleet_manager"))
       .send({
         imei: "359779090012399",
@@ -313,7 +315,7 @@ describe("Fleet HTTP contract", () => {
     expect(createDevice.body.status).toBe("registered");
 
     const listDevices = await request(app.getHttpServer())
-      .get("/devices?query=359779090012399")
+      .get("/fleet/devices?query=359779090012399")
       .set("Authorization", authToken("dispatcher"));
     expect(listDevices.status).toBe(200);
     expect(listDevices.body).toHaveLength(1);
@@ -327,7 +329,7 @@ describe("Fleet HTTP contract", () => {
 
     for (const lifecycleStatus of ["config_pending", "configured", "verified_online", "assignable"] as const) {
       const transition = await request(app.getHttpServer())
-        .patch(`/devices/${createDevice.body.id}/lifecycle`)
+        .patch(`/fleet/devices/${createDevice.body.id}/lifecycle`)
         .set("Authorization", authToken("fleet_manager"))
         .send({ lifecycleStatus });
       expect(transition.status).toBe(200);
@@ -335,14 +337,14 @@ describe("Fleet HTTP contract", () => {
     }
 
     const validation = await request(app.getHttpServer())
-      .get(`/devices/${createDevice.body.id}/assignment/validate`)
+      .get(`/fleet/devices/${createDevice.body.id}/assignment/validate`)
       .set("Authorization", authToken("dispatcher"))
       .query({ vehicleId: createVehicle.body.id });
     expect(validation.status).toBe(200);
     expect(validation.body).toEqual({ canAssign: true });
 
     const assign = await request(app.getHttpServer())
-      .patch(`/devices/${createDevice.body.id}/assignment`)
+      .patch(`/fleet/devices/${createDevice.body.id}/assignment`)
       .set("Authorization", authToken("fleet_manager"))
       .send({ vehicleId: createVehicle.body.id });
     expect(assign.status).toBe(200);
@@ -350,7 +352,7 @@ describe("Fleet HTTP contract", () => {
     expect(assign.body.vehicleId).toBe(createVehicle.body.id);
 
     const legacyGpsList = await request(app.getHttpServer())
-      .get("/gps-devices?query=359779090012399")
+      .get("/fleet/gps-devices?query=359779090012399")
       .set("Authorization", authToken("dispatcher"));
     expect(legacyGpsList.status).toBe(200);
     expect(legacyGpsList.body.data[0]).toMatchObject({
@@ -362,20 +364,20 @@ describe("Fleet HTTP contract", () => {
     });
 
     const unassign = await request(app.getHttpServer())
-      .delete(`/devices/${createDevice.body.id}/assignment`)
+      .delete(`/fleet/devices/${createDevice.body.id}/assignment`)
       .set("Authorization", authToken("fleet_manager"));
     expect(unassign.status).toBe(200);
     expect(unassign.body.vehicleId).toBeNull();
     expect(unassign.body.lifecycleStatus).toBe("assignable");
 
     const vehicleAfterUnassign = await request(app.getHttpServer())
-      .get(`/vehicles/${createVehicle.body.id}`)
+      .get(`/fleet/vehicles/${createVehicle.body.id}`)
       .set("Authorization", authToken("dispatcher"));
     expect(vehicleAfterUnassign.status).toBe(200);
     expect(vehicleAfterUnassign.body.gpsDevice).toBeNull();
 
     const bulkImport = await request(app.getHttpServer())
-      .post("/devices/import")
+      .post("/fleet/devices/import")
       .set("Authorization", authToken("fleet_manager"))
       .send({
         items: [
@@ -391,7 +393,7 @@ describe("Fleet HTTP contract", () => {
     expect(bulkImport.body.created).toBe(1);
 
     const deleteDevice = await request(app.getHttpServer())
-      .delete(`/devices/${createDevice.body.id}`)
+      .delete(`/fleet/devices/${createDevice.body.id}`)
       .set("Authorization", authToken("fleet_manager"));
     expect(deleteDevice.status).toBe(200);
     expect(deleteDevice.body.id).toBe(createDevice.body.id);
@@ -399,7 +401,7 @@ describe("Fleet HTTP contract", () => {
 
   it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
     const importVehicles = await request(app.getHttpServer())
-      .post("/vehicles/import")
+      .post("/fleet/vehicles/import")
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -412,7 +414,7 @@ describe("Fleet HTTP contract", () => {
     expect(importVehicles.body.created).toBe(2);
 
     const importDrivers = await request(app.getHttpServer())
-      .post("/drivers/import")
+      .post("/fleet/drivers/import")
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
       .send({
@@ -440,7 +442,7 @@ describe("Fleet HTTP contract", () => {
     expect(importDrivers.body.created).toBe(2);
 
     const search = await request(app.getHttpServer())
-      .get("/dispatch/search?query=TM-11&driverStatus=active")
+      .get("/fleet/dispatch/search?query=TM-11&driverStatus=active")
       .set("Authorization", authToken("dispatcher"));
     expect(search.status).toBe(200);
     expect(Array.isArray(search.body.vehicles)).toBe(true);
@@ -449,7 +451,7 @@ describe("Fleet HTTP contract", () => {
 
   it("POST /vehicles rejects unauthorized role", async () => {
     const response = await request(app.getHttpServer())
-      .post("/vehicles")
+      .post("/fleet/vehicles")
       .set("Authorization", authToken("operator"))
       .set("Idempotency-Key", randomUUID())
       .send({

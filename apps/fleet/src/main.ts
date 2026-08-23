@@ -120,6 +120,12 @@ async function bootstrap() {
   new JsonLogger("fleet-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });
   const sentryEnabled = initializeSentry(cfg);
 
+  // This service owns the /fleet namespace at the gateway. Keeping the
+  // prefix on the URL is what stops two services claiming the same path: both
+  // apps have a data-bundles controller, and only the prefix tells them apart.
+  // Controllers name their own domain and never repeat the service name.
+  app.setGlobalPrefix("fleet");
+
   // Kong owns CORS in every deployed environment. Set SERVICE_CORS_ENABLED=true
   // to handle it here instead, which is what a local run without Kong needs.
   if (cfg.server.corsEnabled) {

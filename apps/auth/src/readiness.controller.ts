@@ -9,7 +9,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Public } from "@shared/rbac";
 import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
 
-@Controller("auth")
+@Controller()
 @Public()
 export class ReadinessController {
   constructor(

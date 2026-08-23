@@ -9,7 +9,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Public } from "@shared/rbac";
 import { getFleetOrm } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 
-@Controller("fleet")
+@Controller()
 @Public()
 export class ReadinessController {
   constructor(

@@ -13,7 +13,7 @@ import { FleetHealthResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
 @ApiTags("Fleet")
-@Controller("fleet")
+@Controller()
 @TenantScoped()
 @UseGuards(RolesGuard)
 export class FleetController extends BaseFleetController {

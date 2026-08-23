@@ -88,7 +88,7 @@ import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 
 @ApiTags('Auth')
-@Controller('auth')
+@Controller()
 export class AuthController extends BaseAuthController {
   constructor(
     @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,

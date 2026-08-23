@@ -458,7 +458,9 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(AuthContextMiddleware)
-      .exclude({ path: "fleet/health", method: RequestMethod.GET })
+      // Matched against the path the controller declares, before the global
+      // "fleet" prefix is applied. The liveness probe is unauthenticated.
+      .exclude({ path: "health", method: RequestMethod.GET })
       .forRoutes(
         FleetController,
         RoutesController,
