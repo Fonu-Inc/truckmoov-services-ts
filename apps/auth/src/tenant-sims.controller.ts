@@ -19,6 +19,7 @@ import {
   Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MAX_CSV_IMPORT_BYTES, uploadLimits } from '@shared/http';
 import {
   ApiConsumes,
   ApiOkResponse,
@@ -148,7 +149,7 @@ export class TenantSimsController extends BaseAuthController {
   @ApiOperation({ summary: 'Import SIMs from CSV' })
   @ApiCreatedResponse({ type: ImportSimsResponse })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_CSV_IMPORT_BYTES)))
   async importTenantSimsCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -225,7 +226,7 @@ export class TenantSimsController extends BaseAuthController {
   @ApiOperation({ summary: 'Upload device mapping CSV' })
   @ApiCreatedResponse({ type: DeviceMappingUploadResponse })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_CSV_IMPORT_BYTES)))
   async uploadDeviceMappingCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');

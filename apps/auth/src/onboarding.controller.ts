@@ -22,6 +22,7 @@ import {
   Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
 import {
   ApiConsumes,
   ApiBody,
@@ -359,7 +360,7 @@ export class OnboardingController extends BaseAuthController {
   @ApiCreatedResponse({ type: KycDocumentsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiBadRequestResponse({ description: 'Missing file or invalid document_type' })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApiBody({
     schema: {
       type: 'object',
@@ -478,7 +479,7 @@ export class OnboardingController extends BaseAuthController {
   @ApiCreatedResponse({ type: ImportSimsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiBadRequestResponse({ description: 'Invalid CSV or missing required column: iccid' })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApiBody({
     schema: {
       type: 'object',

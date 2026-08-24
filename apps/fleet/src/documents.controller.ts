@@ -12,6 +12,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from "@shared/http";
 import {
   ApiConsumes,
   ApiCreatedResponse,
@@ -44,13 +45,6 @@ import {
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
-/**
- * Stops an oversized body being buffered before the use case can refuse it.
- * The authoritative limit is DOCUMENT_MAX_BYTES, checked in the use case; this
- * matches its default so the two do not disagree in the common case.
- */
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-
 @ApiTags("Documents")
 @Controller("documents")
 @TenantScoped()
@@ -69,7 +63,7 @@ export class DocumentsController extends BaseFleetController {
 
   @Post()
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
-  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_UPLOAD_BYTES } }))
+  @UseInterceptors(FileInterceptor("file", uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } })
   @ApiOperation({ summary: "Upload document — J01" })

@@ -41,6 +41,7 @@ describe('Auth HTTP contract', () => {
   let app: INestApplication;
   let userRepo: {
     save(user: Record<string, unknown>): Promise<void>;
+    findByEmail(email: string): Promise<{ emailVerificationToken?: string | null } | null>;
   };
   let inviteRepo: {
     findByEmail(email: string): Promise<{ token: string } | null>;
@@ -101,6 +102,15 @@ describe('Auth HTTP contract', () => {
     process.env.SUPERADMIN_TENANT_ID = previousSuperadminTenantId;
     vi.resetModules();
   });
+
+  // Login now refuses an unverified address, so a test that registers and then
+  // signs in has to follow the link the same way a real user would.
+  async function verifyRegisteredEmail(email: string): Promise<void> {
+    const stored = await userRepo.findByEmail(email);
+    const token = stored?.emailVerificationToken;
+    if (!token) return;
+    await request(app.getHttpServer()).post('/auth/verify-email').send({ token });
+  }
 
   async function fetchPlanCode(
     token: string,
@@ -208,6 +218,8 @@ describe('Auth HTTP contract', () => {
           organizationName: 'Login Fleet',
         }),
       );
+
+    await verifyRegisteredEmail('logintest@contract.com');
 
     const loginRes = await request(app.getHttpServer())
       .post('/auth/login')
@@ -1522,6 +1534,7 @@ describe('Auth HTTP contract', () => {
 
     expect(tenantRegisterRes.status).toBe(201);
     const tenantId = tenantRegisterRes.body.user.tenantId as string;
+    await verifyRegisteredEmail('tenant-status@contract.com');
 
     const forbiddenRefDataRes = await request(app.getHttpServer())
       .get('/auth/system/reference-data/tenant-onboarding')
@@ -1831,6 +1844,7 @@ describe('Auth HTTP contract', () => {
 
     expect(registerRes.status).toBe(201);
 
+    await verifyRegisteredEmail('activity-admin@contract.com');
     const loginRes = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'activity-admin@contract.com', password: 'Str0ngPass!' });
@@ -2453,6 +2467,7 @@ describe('Auth HTTP contract', () => {
       .send({ targetUserId, newRole: 'DISPATCHER' });
     expect(roleRes.status).toBe(201);
 
+    await verifyRegisteredEmail('dispatch-pref@contract.com');
     const loginRes = await request(app.getHttpServer())
       .post('/auth/login')
       .send({
@@ -2569,6 +2584,7 @@ describe('Auth HTTP contract', () => {
       .send({ targetUserId: userId, newRole: 'DISPATCHER' });
     expect(roleRes.status).toBe(201);
 
+    await verifyRegisteredEmail('org-denied@contract.com');
     const loginRes = await request(app.getHttpServer())
       .post('/auth/login')
       .send({

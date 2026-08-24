@@ -97,6 +97,9 @@ export class GetSystemDeviceSummaryUseCase {
       };
     }
 
+    // Counts read lifecycle_status alone. The status column is a derived
+    // projection of it, so an "or status = ..." arm double-counts any row where
+    // the two have drifted apart.
     const rows = await connection.execute<CountRow[]>(
       `
         select
@@ -105,7 +108,6 @@ export class GetSystemDeviceSummaryUseCase {
           count(*) filter (where lifecycle_status = 'configured')::int as configured_devices,
           count(*) filter (
             where lifecycle_status in ('verified_online', 'assignable', 'assigned')
-              or status = 'active'
           )::int as verified_active_devices,
           count(*) filter (
             where lifecycle_status in ('registered', 'config_pending', 'configured')
@@ -114,13 +116,11 @@ export class GetSystemDeviceSummaryUseCase {
             where last_seen is not null and last_seen >= now() - interval '15 minutes'
           )::int as online_now_devices,
           count(*) filter (where lifecycle_status = 'assignable')::int as assignable_devices,
+          count(*) filter (where lifecycle_status = 'assigned')::int as assigned_devices,
           count(*) filter (
-            where lifecycle_status = 'assigned' or vehicle_id is not null
-          )::int as assigned_devices,
-          count(*) filter (where status = 'active')::int as active_devices,
-          count(*) filter (
-            where lifecycle_status = 'faulty' or status = 'faulty'
-          )::int as faulty_devices
+            where lifecycle_status in ('verified_online', 'assignable')
+          )::int as active_devices,
+          count(*) filter (where lifecycle_status = 'faulty')::int as faulty_devices
         from fleet_devices
       `,
     );

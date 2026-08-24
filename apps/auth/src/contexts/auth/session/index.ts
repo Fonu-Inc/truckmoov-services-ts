@@ -5,6 +5,7 @@ export { InvalidAccessTokenError } from "./domain/errors/invalid-access-token.er
 export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
+export { EmailNotVerifiedError } from "./domain/errors/email-not-verified.error";
 export { InvalidVerificationTokenError } from "./domain/errors/invalid-verification-token.error";
 export { TokenBelongsToInviteError } from "./domain/errors/token-belongs-to-invite.error";
 export { UserNotFoundError } from "./domain/errors/user-not-found.error";
@@ -54,6 +55,7 @@ export { InviteUserUseCase } from "./application/use-cases/invite-user.use-case"
 export { ValidateInviteUseCase } from "./application/use-cases/validate-invite.use-case";
 export { RegisterInvitedUseCase } from "./application/use-cases/register-invited.use-case";
 export { ForgotPasswordUseCase } from "./application/use-cases/forgot-password.use-case";
+export { ResendVerificationUseCase } from "./application/use-cases/resend-verification.use-case";
 export { VerifyResetUseCase } from "./application/use-cases/verify-reset.use-case";
 export { VerifyEmailUseCase } from "./application/use-cases/verify-email.use-case";
 export { CompleteProfileUseCase } from "./application/use-cases/complete-profile.use-case";

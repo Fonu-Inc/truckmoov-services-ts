@@ -30,6 +30,7 @@ import {
   ApiQuery,
   ApiCreatedResponse,
 } from '@nestjs/swagger';
+import { DEVICE_LIFECYCLE_STATUSES, DEVICE_STATUSES } from '@shared/devices';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -115,28 +116,14 @@ export class SystemDevicesController extends BaseAuthController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: [
-      'registered',
-      'configured',
-      'assigned',
-      'active',
-      'faulty',
-      'decommissioned',
-    ],
+    enum: [...DEVICE_STATUSES],
+    description:
+      'Coarse status. Resolves to the lifecycle states that present as it.',
   })
   @ApiQuery({
     name: 'lifecycleStatus',
     required: false,
-    enum: [
-      'registered',
-      'config_pending',
-      'configured',
-      'verified_online',
-      'assignable',
-      'assigned',
-      'faulty',
-      'decommissioned',
-    ],
+    enum: [...DEVICE_LIFECYCLE_STATUSES],
   })
   @ApiOkResponse({ type: SystemDeviceInventoryListResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -182,28 +169,14 @@ export class SystemDevicesController extends BaseAuthController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: [
-      'registered',
-      'configured',
-      'assigned',
-      'active',
-      'faulty',
-      'decommissioned',
-    ],
+    enum: [...DEVICE_STATUSES],
+    description:
+      'Coarse status. Resolves to the lifecycle states that present as it.',
   })
   @ApiQuery({
     name: 'lifecycleStatus',
     required: false,
-    enum: [
-      'registered',
-      'config_pending',
-      'configured',
-      'verified_online',
-      'assignable',
-      'assigned',
-      'faulty',
-      'decommissioned',
-    ],
+    enum: [...DEVICE_LIFECYCLE_STATUSES],
   })
   @ApiProduces('text/csv')
   @ApiOkResponse({

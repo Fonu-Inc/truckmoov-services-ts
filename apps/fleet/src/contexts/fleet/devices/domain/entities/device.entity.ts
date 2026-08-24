@@ -1,59 +1,25 @@
-export const DEVICE_LIFECYCLE_STATUSES = [
-  "registered",
-  "config_pending",
-  "configured",
-  "verified_online",
-  "assignable",
-  "assigned",
-  "faulty",
-  "decommissioned",
-] as const;
+export {
+  DEVICE_LIFECYCLE_STATUSES,
+  DEVICE_PROVISION_STATUSES,
+  DEVICE_STATUSES,
+  deviceStatusFromLifecycle,
+  isDeviceLifecycleStatus,
+  isDeviceProvisionStatus,
+  isDeviceStatus,
+} from "@shared/devices";
+import {
+  DEVICE_LIFECYCLE_STATUSES,
+  DEVICE_STATUSES,
+  deviceStatusFromLifecycle,
+  isDeviceLifecycleStatus,
+  isDeviceStatus,
+  type DeviceLifecycleStatus,
+  type DeviceProvisionStatus,
+  type DeviceStatus,
+} from "@shared/devices";
 
-export const DEVICE_STATUSES = [
-  "registered",
-  "configured",
-  "assigned",
-  "active",
-  "faulty",
-  "decommissioned",
-] as const;
+export type { DeviceLifecycleStatus, DeviceProvisionStatus, DeviceStatus };
 
-export const DEVICE_PROVISION_STATUSES = ["pending", "registered", "failed"] as const;
-
-export type DeviceLifecycleStatus = (typeof DEVICE_LIFECYCLE_STATUSES)[number];
-export type DeviceStatus = (typeof DEVICE_STATUSES)[number];
-export type DeviceProvisionStatus = (typeof DEVICE_PROVISION_STATUSES)[number];
-
-export function isDeviceProvisionStatus(value: string): value is DeviceProvisionStatus {
-  return DEVICE_PROVISION_STATUSES.includes(value as DeviceProvisionStatus);
-}
-
-export function isDeviceLifecycleStatus(value: string): value is DeviceLifecycleStatus {
-  return DEVICE_LIFECYCLE_STATUSES.includes(value as DeviceLifecycleStatus);
-}
-
-export function isDeviceStatus(value: string): value is DeviceStatus {
-  return DEVICE_STATUSES.includes(value as DeviceStatus);
-}
-
-export function deviceStatusFromLifecycle(status: DeviceLifecycleStatus): DeviceStatus {
-  switch (status) {
-    case "registered":
-    case "config_pending":
-      return "registered";
-    case "configured":
-      return "configured";
-    case "verified_online":
-    case "assignable":
-      return "active";
-    case "assigned":
-      return "assigned";
-    case "faulty":
-      return "faulty";
-    case "decommissioned":
-      return "decommissioned";
-  }
-}
 
 export const VALID_DEVICE_LIFECYCLE_TRANSITIONS: Record<
   DeviceLifecycleStatus,

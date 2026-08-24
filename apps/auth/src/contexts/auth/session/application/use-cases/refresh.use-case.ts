@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { EmailNotVerifiedError } from "../../domain/errors/email-not-verified.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidRefreshTokenError } from "../../domain/errors/invalid-refresh-token.error";
 import {
@@ -39,6 +40,12 @@ export class RefreshUseCase {
     if (storedUser.accountStatus === "disabled") {
       await this.sessionStore.deleteByRefreshToken(refreshToken);
       throw new ForbiddenError("This account has been disabled");
+    }
+    // Registration hands out a session before the address is verified. Without
+    // this the holder renews it indefinitely and never has to open the email.
+    if (storedUser.emailVerificationToken) {
+      await this.sessionStore.deleteByRefreshToken(refreshToken);
+      throw new EmailNotVerifiedError();
     }
 
     // Rotate on every use: the old refresh token is invalidated and a new

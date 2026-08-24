@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { lifecycleStatusesFor } from '@shared/devices';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -113,11 +114,15 @@ export class ListSystemDeviceInventoryUseCase {
       params.push(filters.lifecycleStatus.trim());
     }
 
+    // The coarse status filter resolves to the lifecycle states that present as
+    // that status, so both filters read the one authoritative column.
     if (filters.status?.trim()) {
+      const lifecycles = lifecycleStatusesFor(filters.status);
+      if (lifecycles.length === 0) return [];
       conditions.push(
-        '(lower(status) = lower(?) or lower(lifecycle_status) = lower(?))',
+        `lifecycle_status in (${lifecycles.map(() => '?').join(', ')})`,
       );
-      params.push(filters.status.trim(), filters.status.trim());
+      params.push(...lifecycles);
     }
 
     const whereClause =

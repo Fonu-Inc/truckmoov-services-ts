@@ -19,6 +19,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
 import {
   ApiConsumes,
   ApiForbiddenResponse,
@@ -48,6 +49,7 @@ import {
   RefreshUseCase,
   EmailTakenError,
   ForgotPasswordUseCase,
+  ResendVerificationUseCase,
   ForbiddenError,
   InviteNotFoundError,
   InviteUserUseCase,
@@ -81,6 +83,7 @@ import { LogoutDto } from './dto/logout.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterInvitedDto } from './dto/register-invited.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ValidateInviteDto } from './dto/validate-invite.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -101,6 +104,7 @@ export class AuthController extends BaseAuthController {
     @Inject(ValidateInviteUseCase) private readonly validateInviteUseCase: ValidateInviteUseCase,
     @Inject(RegisterInvitedUseCase) private readonly registerInvitedUseCase: RegisterInvitedUseCase,
     @Inject(ForgotPasswordUseCase) private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
+    @Inject(ResendVerificationUseCase) private readonly resendVerificationUseCase: ResendVerificationUseCase,
     @Inject(VerifyResetUseCase) private readonly verifyResetUseCase: VerifyResetUseCase,
     @Inject(GetHealthUseCase) private readonly getHealthUseCase: GetHealthUseCase,
     @Inject(ResetPasswordUseCase) private readonly resetPasswordUseCase: ResetPasswordUseCase,
@@ -148,7 +152,7 @@ export class AuthController extends BaseAuthController {
   })
   @ApiCreatedResponse({ type: UploadedMediaResponse })
   @ApiBadRequestResponse({ description: 'Missing upload file' })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApiBody({
     schema: {
       type: 'object',
@@ -375,6 +379,15 @@ export class AuthController extends BaseAuthController {
         throw new NotFoundException(error.message);
       throw error;
     }
+  }
+
+  /** Request a new email verification link */
+
+  @Post('resend-verification')
+  @UseGuards(LoginRateLimitGuard)
+  @ApiOkResponse({ type: MessageResponse })
+  async resendVerification(@Body(BodyOrDataPipe) payload: ResendVerificationDto) {
+    return await this.resendVerificationUseCase.execute(payload);
   }
 
   /** Verify a password reset token */

@@ -197,7 +197,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Post("reminders/send")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Send compliance reminder emails" })
   @ApiOkResponse({ description: "Reminders queued", type: ReminderQueuedResponse })
   async sendComplianceReminders() {

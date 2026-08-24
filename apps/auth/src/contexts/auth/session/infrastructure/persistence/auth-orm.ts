@@ -358,6 +358,7 @@ export class TenantBusinessInfoRecord {
   yearEstablished!: number | null;
   numberOfEmployees!: number | null;
   verificationStatus!: string;
+  verifiedAt!: Date | null;
   updatedAt!: Date;
 }
 
@@ -385,6 +386,7 @@ export const TenantBusinessInfoRecordSchema =
       yearEstablished: { fieldName: 'year_established', type: 'number', nullable: true },
       numberOfEmployees: { fieldName: 'number_of_employees', type: 'number', nullable: true },
       verificationStatus: { fieldName: 'verification_status', type: 'string', length: 32, default: 'pending' },
+      verifiedAt: { fieldName: 'verified_at', type: 'datetime', nullable: true },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
   });

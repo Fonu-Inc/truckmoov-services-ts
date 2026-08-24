@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuthUser } from "../domain/entities/auth-user.entity";
+import { EmailNotVerifiedError } from "../domain/errors/email-not-verified.error";
 import { ForbiddenError } from "../domain/errors/forbidden.error";
 import { InvalidCredentialsError } from "../domain/errors/invalid-credentials.error";
 import type { IdentityProvider } from "../domain/ports/identity-provider.port";
@@ -27,6 +28,12 @@ export class DbIdentityProvider implements IdentityProvider {
 
     const valid = await this.passwordHasher.verify(password, stored.passwordHash);
     if (!valid) throw new InvalidCredentialsError();
+
+    // Checked after the password, so an unverified address cannot be
+    // distinguished from an unregistered one without the right password.
+    if (stored.emailVerificationToken) {
+      throw new EmailNotVerifiedError();
+    }
 
     return AuthUser.create({
       id: stored.id,

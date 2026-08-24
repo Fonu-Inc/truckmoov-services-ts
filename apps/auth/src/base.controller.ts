@@ -1,6 +1,7 @@
 import { ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
 import { ActivityLogService } from './activity-log.service';
 import {
+  EmailNotVerifiedError,
   ForbiddenError,
   InvalidAccessTokenError,
   InvalidCredentialsError,
@@ -21,6 +22,9 @@ export abstract class BaseAuthController {
         error instanceof InvalidRefreshTokenError
       ) {
         throw new UnauthorizedException(error.message);
+      }
+      if (error instanceof EmailNotVerifiedError) {
+        throw new ForbiddenException(error.message);
       }
       if (error instanceof ForbiddenError) {
         throw new ForbiddenException(error.message);
