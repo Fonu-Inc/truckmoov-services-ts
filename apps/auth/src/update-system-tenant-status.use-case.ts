@@ -1,4 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Role } from "@shared/rbac";
 import { resolveActorUser } from "./contexts/auth/session/application/use-cases/support/resolve-actor-user";
 import { ForbiddenError } from "./contexts/auth/session/domain/errors/forbidden.error";
@@ -39,6 +41,8 @@ export class UpdateSystemTenantStatusUseCase {
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(GetSystemTenantUseCase)
     private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
+    @Inject(EVENT_BUS)
+    private readonly bus: EventBus,
   ) {}
 
   async execute(command: UpdateSystemTenantStatusCommand) {
@@ -66,6 +70,11 @@ export class UpdateSystemTenantStatusUseCase {
       }
     }));
 
+    // Other services verify the access token locally, so a token minted before
+    // this moment stays valid to them until it expires. The event closes that
+    // window; their cache TTL is the fallback for an event that never arrives.
+    await this.announceStatusChange(command.tenantId, command.status, actor.id);
+
     const detail = await this.getSystemTenantUseCase.execute(command.accessToken, command.tenantId);
     return {
       ...detail,
@@ -73,5 +82,28 @@ export class UpdateSystemTenantStatusUseCase {
         ? "Tenant reactivated successfully"
         : "Tenant suspended successfully",
     };
+  }
+
+  // A failed announcement must not undo a suspension that is already written.
+  // The status change is the authoritative act; this only speeds up its reach.
+  private async announceStatusChange(
+    tenantId: string,
+    status: "active" | "suspended",
+    actorId: string,
+  ): Promise<void> {
+    const type = status === "suspended" ? "tenant.suspended" : "tenant.reinstated";
+    try {
+      await this.bus.publish(`tm.${tenantId}.${type}`, {
+        id: randomUUID(),
+        type,
+        version: 1,
+        occurred_at: new Date().toISOString(),
+        tenant_id: tenantId,
+        actor: { id: actorId },
+        data: { tenant_id: tenantId, status },
+      });
+    } catch {
+      // Swallowed on purpose: see above.
+    }
   }
 }

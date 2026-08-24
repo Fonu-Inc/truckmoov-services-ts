@@ -113,6 +113,7 @@ import { SIM_ACTIVATION_BATCH_REPOSITORY } from './sim-activation-batch.reposito
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
+import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
 import { GetSystemDeviceCatalogReferenceDataUseCase } from './get-system-device-catalog-reference-data.use-case';
 import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
@@ -651,6 +652,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     RegisterInvitedUseCase,
     ForgotPasswordUseCase,
     ResendVerificationUseCase,
+    GetTenantStatusUseCase,
     VerifyResetUseCase,
     ResetPasswordUseCase,
     ChangeRoleUseCase,

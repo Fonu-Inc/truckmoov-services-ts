@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
-import { DiscoveryModule } from "@nestjs/core";
+import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EventBusModule } from "@shared/eventbus";
 import { MetricsModule } from "@shared/metrics";
@@ -168,6 +168,8 @@ import { ScheduledReportService } from "./scheduled-report.service";
 import { WebhookController } from "./webhook.controller";
 import { IntegrationHealthService } from "./integration-health.service";
 import { RateLimitGuard } from "./rate-limit.guard";
+import { TenantActiveGuard } from "./tenant-active.guard";
+import { TenantStatusService } from "./tenant-status.service";
 import { TenantGuard } from "./tenant.guard";
 import { AuditLogService } from "./audit-log.service";
 import { AUDIT_LOG_REPOSITORY } from "./audit-log.repository";
@@ -271,6 +273,12 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     // Applied explicitly via @TenantScoped() on FleetController (not a global
     // APP_GUARD). Still a no-op for unauthenticated/health requests.
     TenantGuard,
+    TenantStatusService,
+    // Global, unlike TenantGuard. A suspended tenant must be refused on every
+    // route, so this cannot depend on a new controller remembering a decorator.
+    // It is a no-op when the request carries no authenticated tenant, which
+    // leaves the readiness probe and the external webhooks untouched.
+    { provide: APP_GUARD, useClass: TenantActiveGuard },
     InMemoryAuditLogRepository,
     MikroAuditLogRepository,
     {

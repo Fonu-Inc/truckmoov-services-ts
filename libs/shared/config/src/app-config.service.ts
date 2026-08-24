@@ -200,6 +200,18 @@ export class AppConfigService {
       // tuning to get a safe-by-default value.
       loginRateLimitRps: this.config.get<number>("LOGIN_RATE_LIMIT_RPS", 0.1),
       loginRateLimitBurst: this.config.get<number>("LOGIN_RATE_LIMIT_BURST", 5),
+      // Where other services ask whether a tenant is still active. Auth owns
+      // the tenant record, so it is the only service that can answer.
+      //
+      // Defaults to the in-cluster address, not localhost: this is a security
+      // control, and an unset variable must not leave a service quietly unable
+      // to reach auth and admitting every tenant it has not seen. A local run
+      // sets AUTH_SERVICE_URL in .env instead.
+      serviceUrl: this.config.get<string>("AUTH_SERVICE_URL", "http://auth-service:3001"),
+      // How long a service may trust a cached "tenant is active" answer. The
+      // suspension event invalidates it sooner; this bounds the case where the
+      // event was missed, so it is the worst-case delay, not the usual one.
+      tenantStatusCacheSeconds: this.config.get<number>("TENANT_STATUS_CACHE_SECONDS", 30),
     };
   }
 

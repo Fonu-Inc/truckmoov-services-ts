@@ -89,6 +89,7 @@ import { ValidateInviteDto } from './dto/validate-invite.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetDto } from './dto/verify-reset.dto';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
+import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 
 @ApiTags('Auth')
@@ -105,6 +106,7 @@ export class AuthController extends BaseAuthController {
     @Inject(RegisterInvitedUseCase) private readonly registerInvitedUseCase: RegisterInvitedUseCase,
     @Inject(ForgotPasswordUseCase) private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
     @Inject(ResendVerificationUseCase) private readonly resendVerificationUseCase: ResendVerificationUseCase,
+    @Inject(GetTenantStatusUseCase) private readonly getTenantStatusUseCase: GetTenantStatusUseCase,
     @Inject(VerifyResetUseCase) private readonly verifyResetUseCase: VerifyResetUseCase,
     @Inject(GetHealthUseCase) private readonly getHealthUseCase: GetHealthUseCase,
     @Inject(ResetPasswordUseCase) private readonly resetPasswordUseCase: ResetPasswordUseCase,
@@ -377,6 +379,36 @@ export class AuthController extends BaseAuthController {
     } catch (error) {
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Asked by other services, which verify the access token locally and so have
+   * no way to see a suspension that happened after the token was issued.
+   */
+
+  @Get('tenant-status')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Whether the token holder\'s tenant is still active',
+    description:
+      'Used by other services to refuse a token minted before the tenant was suspended.',
+  })
+  @ApiOkResponse({ description: 'Tenant status' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async getTenantStatus(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return {
+        status: true,
+        message: 'success',
+        data: await this.getTenantStatusUseCase.execute(accessToken),
+      };
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       throw error;
     }
   }
