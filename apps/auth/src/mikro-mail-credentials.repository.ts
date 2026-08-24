@@ -46,6 +46,15 @@ export class MikroMailCredentialsRepository implements MailCredentialsRepository
     return record ? toStored(record) : null;
   }
 
+  async listConnectedTenantIds(): Promise<string[]> {
+    const orm = await getAuthOrm(this.config.db);
+    // Ids only: the sync does not need the ciphertext until it reaches a tenant.
+    const rows = await orm.em
+      .fork()
+      .find(TenantMailCredentialRecord, {}, { fields: ['tenantId'] });
+    return rows.map((row) => row.tenantId);
+  }
+
   async save(credentials: StoredMailCredentials): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     await orm.em.fork().upsert(TenantMailCredentialRecord, {

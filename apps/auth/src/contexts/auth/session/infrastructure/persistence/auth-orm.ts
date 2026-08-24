@@ -303,6 +303,101 @@ export const TenantMailCredentialRecordSchema =
     },
   });
 
+
+/* ── Mailbox ────────────────────────────────────────── */
+
+export class MailThreadRecord {
+  id!: string;
+  tenantId!: string;
+  subject!: string;
+  participants!: unknown[];
+  messageCount!: number;
+  lastMessageAt!: Date;
+  hasUnread!: boolean;
+  updatedAt!: Date;
+}
+
+export const MailThreadRecordSchema = new EntitySchema<MailThreadRecord>({
+  class: MailThreadRecord,
+  tableName: 'tenant_mail_threads',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    id: { type: 'string', primary: true },
+    subject: { type: 'string', length: 998 },
+    participants: { type: 'json', defaultRaw: "'[]'" },
+    messageCount: { fieldName: 'message_count', type: 'number', defaultRaw: '0' },
+    lastMessageAt: { fieldName: 'last_message_at', type: 'datetime' },
+    hasUnread: { fieldName: 'has_unread', type: 'boolean', defaultRaw: 'false' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+export class MailMessageRecord {
+  id!: string;
+  tenantId!: string;
+  threadId!: string;
+  messageId!: string;
+  inReplyTo!: string | null;
+  references!: unknown[];
+  folder!: string;
+  subject!: string;
+  fromAddress!: unknown;
+  toAddresses!: unknown[];
+  ccAddresses!: unknown[];
+  bccAddresses!: unknown[];
+  bodyText!: string | null;
+  bodyHtml!: string | null;
+  attachments!: unknown[];
+  sentAt!: Date;
+  receivedAt!: Date;
+  seen!: boolean;
+}
+
+export const MailMessageRecordSchema = new EntitySchema<MailMessageRecord>({
+  class: MailMessageRecord,
+  tableName: 'tenant_mail_messages',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+    threadId: { fieldName: 'thread_id', type: 'string', index: true },
+    messageId: { fieldName: 'message_id', type: 'string', length: 998 },
+    inReplyTo: { fieldName: 'in_reply_to', type: 'string', length: 998, nullable: true },
+    references: { type: 'json', defaultRaw: "'[]'" },
+    folder: { type: 'string', length: 255 },
+    subject: { type: 'string', length: 998 },
+    fromAddress: { fieldName: 'from_address', type: 'json' },
+    toAddresses: { fieldName: 'to_addresses', type: 'json', defaultRaw: "'[]'" },
+    ccAddresses: { fieldName: 'cc_addresses', type: 'json', defaultRaw: "'[]'" },
+    bccAddresses: { fieldName: 'bcc_addresses', type: 'json', defaultRaw: "'[]'" },
+    bodyText: { fieldName: 'body_text', type: 'text', nullable: true },
+    bodyHtml: { fieldName: 'body_html', type: 'text', nullable: true },
+    attachments: { type: 'json', defaultRaw: "'[]'" },
+    sentAt: { fieldName: 'sent_at', type: 'datetime' },
+    receivedAt: { fieldName: 'received_at', type: 'datetime', defaultRaw: 'now()' },
+    seen: { type: 'boolean', defaultRaw: 'false' },
+  },
+});
+
+export class MailSyncStateRecord {
+  tenantId!: string;
+  folder!: string;
+  lastUid!: number;
+  lastSyncedAt!: Date | null;
+  lastError!: string | null;
+}
+
+export const MailSyncStateRecordSchema = new EntitySchema<MailSyncStateRecord>({
+  class: MailSyncStateRecord,
+  tableName: 'tenant_mail_sync_state',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    folder: { type: 'string', length: 255, primary: true },
+    lastUid: { fieldName: 'last_uid', type: 'bigint', defaultRaw: '0' },
+    lastSyncedAt: { fieldName: 'last_synced_at', type: 'datetime', nullable: true },
+    lastError: { fieldName: 'last_error', type: 'text', nullable: true },
+  },
+});
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1509,6 +1604,9 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      MailThreadRecordSchema,
+      MailMessageRecordSchema,
+      MailSyncStateRecordSchema,
       TenantMailCredentialRecordSchema,
       AuthSessionRecordSchema,
       AuthUserRecordSchema,

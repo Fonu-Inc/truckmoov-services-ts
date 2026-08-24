@@ -59,6 +59,8 @@ export function toMailCredentialsView(stored: StoredMailCredentials): MailCreden
 
 export interface MailCredentialsRepository {
   findByTenant(tenantId: string): Promise<StoredMailCredentials | null>;
+  /** Every tenant with a mailbox connected, for the sync to walk. */
+  listConnectedTenantIds(): Promise<string[]>;
   save(credentials: StoredMailCredentials): Promise<void>;
   delete(tenantId: string): Promise<void>;
   recordVerification(tenantId: string, verifiedAt: Date | null, error: string | null): Promise<void>;

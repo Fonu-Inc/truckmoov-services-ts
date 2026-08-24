@@ -12,6 +12,10 @@ export class InMemoryMailCredentialsRepository implements MailCredentialsReposit
     return this.byTenant.get(tenantId) ?? null;
   }
 
+  async listConnectedTenantIds(): Promise<string[]> {
+    return [...this.byTenant.keys()];
+  }
+
   async save(credentials: StoredMailCredentials): Promise<void> {
     this.byTenant.set(credentials.tenantId, { ...credentials });
   }

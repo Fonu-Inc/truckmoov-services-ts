@@ -114,6 +114,15 @@ export class AppConfigService {
     };
   }
 
+  get mailbox() {
+    return {
+      // Off unless a deployment asks for it: a local run should not start
+      // connecting to tenants' real mail servers.
+      syncEnabled: this.config.get<string>("MAILBOX_SYNC_ENABLED", "false") === "true",
+      syncIntervalSeconds: this.config.get<number>("MAILBOX_SYNC_INTERVAL_SECONDS", 300),
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),

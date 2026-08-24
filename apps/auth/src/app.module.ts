@@ -122,6 +122,21 @@ import {
   PaystackGateway,
 } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
+import { MailboxController } from './mailbox.controller';
+import { ImapMailboxReader } from './contexts/mailbox/imap-mailbox.reader';
+import { MAILBOX_READER } from './contexts/mailbox/mailbox-reader.port';
+import { MAILBOX_SENDER } from './contexts/mailbox/mailbox-sender.port';
+import { SmtpImapMailSender } from './contexts/mailbox/smtp-imap.mail-sender';
+import {
+  MAILBOX_REPOSITORY,
+  type MailboxRepository,
+} from './contexts/mailbox/mailbox.repository';
+import { InMemoryMailboxRepository } from './contexts/mailbox/in-memory-mailbox.repository';
+import { MikroMailboxRepository } from './contexts/mailbox/mikro-mailbox.repository';
+import { SyncMailboxUseCase } from './contexts/mailbox/sync-mailbox.use-case';
+import { SendMailUseCase } from './contexts/mailbox/send-mail.use-case';
+import { ListMailboxUseCase } from './contexts/mailbox/list-mailbox.use-case';
+import { MailboxSyncScheduler } from './contexts/mailbox/mailbox-sync.scheduler';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
   type MailCredentialsRepository,
@@ -360,6 +375,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   controllers: [
     AuthController,
     MailCredentialsController,
+    MailboxController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -687,6 +703,28 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SaveMailCredentialsUseCase,
     GetMailCredentialsUseCase,
     DeleteMailCredentialsUseCase,
+    ImapMailboxReader,
+    SmtpImapMailSender,
+    { provide: MAILBOX_READER, useExisting: ImapMailboxReader },
+    { provide: MAILBOX_SENDER, useExisting: SmtpImapMailSender },
+    InMemoryMailboxRepository,
+    MikroMailboxRepository,
+    {
+      provide: MAILBOX_REPOSITORY,
+      inject: [InMemoryMailboxRepository, MikroMailboxRepository, AppConfigService],
+      useFactory: (
+        inMemory: MailboxRepository,
+        mikro: MailboxRepository,
+        config: AppConfigService,
+      ): MailboxRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
+    SyncMailboxUseCase,
+    SendMailUseCase,
+    ListMailboxUseCase,
+    // The only piece that decides where the sync runs. Moving the mail work to
+    // its own service means moving this registration, not the logic.
+    MailboxSyncScheduler,
     InMemoryMailCredentialsRepository,
     MikroMailCredentialsRepository,
     {

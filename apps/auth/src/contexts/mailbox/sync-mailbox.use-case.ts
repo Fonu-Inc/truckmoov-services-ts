@@ -20,6 +20,12 @@ export type SyncResult = {
   lastUid: number;
 };
 
+export type MailboxSyncSummary = {
+  tenantId: string;
+  folders: SyncResult[];
+  failed: Array<{ folder: string; reason: string }>;
+};
+
 /**
  * Pulls new mail for one tenant and files it into threads.
  *
@@ -39,6 +45,48 @@ export class SyncMailboxUseCase {
     @Inject(MAILBOX_REPOSITORY) private readonly repository: MailboxRepository,
     @Inject(SecretCipherService) private readonly cipher: SecretCipherService,
   ) {}
+
+  /**
+   * Syncs the folders the platform reads, each on its own cursor.
+   *
+   * Sent and Trash matter as much as the inbox: a reply the tenant sent from
+   * their own mail client exists only in Sent, and a thread that shows only
+   * inbound messages reads as though nobody ever answered.
+   *
+   * A folder that fails does not stop the rest. One unreachable folder should
+   * not leave the inbox unsynced.
+   */
+  async syncAllFolders(tenantId: string): Promise<MailboxSyncSummary> {
+    const stored = await this.credentials.findByTenant(tenantId);
+    if (!stored) return { tenantId, folders: [], failed: [] };
+
+    const folders = await this.reader.discoverFolders({
+      host: stored.imap.host,
+      port: stored.imap.port,
+      username: stored.imap.username,
+      password: this.cipher.decrypt(stored.imap.passwordCiphertext),
+      secure: stored.imap.secure,
+    });
+
+    const wanted = [folders.inbox, folders.sent, folders.trash].filter(
+      (folder): folder is string => Boolean(folder),
+    );
+
+    const results: SyncResult[] = [];
+    const failed: Array<{ folder: string; reason: string }> = [];
+
+    for (const folder of wanted) {
+      try {
+        results.push(await this.execute(tenantId, folder));
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'sync failed';
+        this.logger.warn(`mailbox_folder_sync_failed:${tenantId}:${folder}:${reason}`);
+        failed.push({ folder, reason });
+      }
+    }
+
+    return { tenantId, folders: results, failed };
+  }
 
   async execute(tenantId: string, folder = DEFAULT_FOLDER): Promise<SyncResult> {
     const stored = await this.credentials.findByTenant(tenantId);
