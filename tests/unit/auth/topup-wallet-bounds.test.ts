@@ -60,6 +60,16 @@ describe('TopupWalletUseCase amount bounds', () => {
       userRepo() as never,
       topUps as never,
       settings as never,
+      // Gateway is not what these tests exercise; the bounds are checked before
+      // any charge is initiated.
+      {
+        name: 'stub',
+        initiateCharge: async () => ({
+          reference: 'TOPUP-1',
+          authorizationUrl: null,
+          provider: 'stub',
+        }),
+      } as never,
     );
   }
 

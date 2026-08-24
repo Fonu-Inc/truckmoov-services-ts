@@ -115,6 +115,7 @@ import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inven
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
+import { PAYMENT_GATEWAY, PaystackGateway } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
@@ -666,6 +667,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ForgotPasswordUseCase,
     ResendVerificationUseCase,
     GetTenantStatusUseCase,
+    PaystackGateway,
+    // Bound once, here. Every use case that takes money depends on the port, so
+    // a second provider is a change to this line rather than to those flows.
+    { provide: PAYMENT_GATEWAY, useExisting: PaystackGateway },
     SaveMailCredentialsUseCase,
     GetMailCredentialsUseCase,
     DeleteMailCredentialsUseCase,

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { AppConfigService } from '@shared/config';
+import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
 import {
   TOKEN_SERVICE,
   USER_REPOSITORY,
@@ -21,12 +21,6 @@ import {
 export class InvalidPaymentGatewayError extends Error {}
 export class PlanNotFoundError extends Error {}
 
-type PaystackInitializeResponse = {
-  status: boolean;
-  data?: { authorization_url: string; access_code: string; reference: string };
-  message?: string;
-};
-
 @Injectable()
 export class CreatePaymentIntentUseCase {
   private readonly logger = new Logger(CreatePaymentIntentUseCase.name);
@@ -39,6 +33,7 @@ export class CreatePaymentIntentUseCase {
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboardingRepository: TenantOnboardingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
   ) {}
 
   async execute(
@@ -92,57 +87,40 @@ export class CreatePaymentIntentUseCase {
       };
     }
 
-    const secretKey = this.config.payment.paystackSecretKey;
-    if (!secretKey) {
-      this.logger.warn('PAYSTACK_SECRET_KEY not set');
+    const amountKobo = priceNgn != null ? priceNgn * 100 : 0;
+    const charge = await this.paymentGateway.initiateCharge({
+      reference,
+      amountKobo,
+      customerEmail: actor.email,
+      redirectUrl: payload.redirectUrl,
+      metadata: {
+        purpose: 'subscription',
+        tenantId: actor.tenantId,
+        planCode: payload.planCode,
+        billingCycle: payload.billingCycle,
+      },
+    });
+
+    if (!charge.authorizationUrl) {
       return {
         status: true,
         message: 'success',
         data: {
-          gateway: 'paystack' as const,
-          reference,
+          gateway: charge.provider,
+          reference: charge.reference,
           authorizationUrl: null,
           message: 'Payment gateway not configured',
         },
       };
     }
 
-    const amountKobo = priceNgn != null ? priceNgn * 100 : 0;
-    const paystackBaseUrl = this.config.payment.paystackBaseUrl.replace(/\/+$/, '');
-    const { data: json } = await axios.post<PaystackInitializeResponse>(
-      `${paystackBaseUrl}/transaction/initialize`,
-      {
-        email: actor.email,
-        amount: amountKobo,
-        reference,
-        ...(payload.redirectUrl ? { callback_url: payload.redirectUrl } : {}),
-        metadata: {
-          tenantId: actor.tenantId,
-          planCode: payload.planCode,
-          billingCycle: payload.billingCycle,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        validateStatus: () => true,
-      },
-    );
-
-    if (!json.status || !json.data) {
-      throw new Error(json.message ?? 'Paystack initialization failed');
-    }
-
     return {
       status: true,
       message: 'success',
       data: {
-        gateway: 'paystack' as const,
-        reference: json.data.reference,
-        authorizationUrl: json.data.authorization_url,
-        accessCode: json.data.access_code,
+        gateway: charge.provider,
+        reference: charge.reference,
+        authorizationUrl: charge.authorizationUrl,
       },
     };
   }

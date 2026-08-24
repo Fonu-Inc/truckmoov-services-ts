@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
 import { Inject, Injectable } from '@nestjs/common';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
@@ -12,7 +13,13 @@ import {
 } from './system-settings.repository';
 import { WALLET_TOP_UP_REPOSITORY, type WalletTopUpRepository } from './wallet-top-up.repository';
 
-type Payload = { amount: number; mobileMoneyProvider: string; mobileNumber: string };
+type Payload = {
+  amount: number;
+  mobileMoneyProvider: string;
+  mobileNumber: string;
+  /** Where the customer lands after paying. Optional: the provider has a default. */
+  redirectUrl?: string;
+};
 
 export class TopUpAmountOutOfRangeError extends Error {
   constructor(minKobo: number, maxKobo: number) {
@@ -27,6 +34,7 @@ export class TopupWalletUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(WALLET_TOP_UP_REPOSITORY) private readonly walletTopUpRepository: WalletTopUpRepository,
     @Inject(SYSTEM_SETTINGS_REPOSITORY) private readonly systemSettingsRepository: SystemSettingsRepository,
+    @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
   ) {}
 
   async execute(accessToken: string, payload: Payload) {
@@ -53,9 +61,12 @@ export class TopupWalletUseCase {
     }
 
     const id = randomUUID();
-    const reference = `MOMO-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const reference = `TOPUP-${randomUUID().slice(0, 8).toUpperCase()}`;
     const now = new Date();
 
+    // Recorded before the charge is initiated, never after. The provider's
+    // callback arrives against this reference, and a callback for a row that
+    // does not exist yet is settled as an unknown reference and lost.
     await this.walletTopUpRepository.save({
       id,
       tenantId: actor.tenantId!,
@@ -68,6 +79,21 @@ export class TopupWalletUseCase {
       createdAt: now,
     });
 
+    // Until this existed, a top-up recorded a pending row and charged nobody:
+    // the wallet could only ever be credited by a callback that never came.
+    const charge = await this.paymentGateway.initiateCharge({
+      reference,
+      amountKobo,
+      customerEmail: actor.email,
+      redirectUrl: payload.redirectUrl,
+      metadata: {
+        purpose: 'wallet_topup',
+        tenantId: actor.tenantId,
+        topUpId: id,
+        mobileNumber: payload.mobileNumber,
+      },
+    });
+
     return {
       status: true,
       message: 'success',
@@ -76,8 +102,9 @@ export class TopupWalletUseCase {
         paymentReference: reference,
         amount: payload.amount,
         status: 'pending',
-        paymentProvider: payload.mobileMoneyProvider,
+        paymentProvider: this.paymentGateway.name,
         mobileNumber: payload.mobileNumber,
+        authorizationUrl: charge.authorizationUrl,
         createdAt: now.toISOString(),
       },
     };

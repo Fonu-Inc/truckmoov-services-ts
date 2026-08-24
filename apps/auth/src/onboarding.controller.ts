@@ -1,4 +1,4 @@
-import { timingSafeEqual, randomUUID, createHmac } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import {
   Sse,
@@ -76,6 +76,7 @@ import {
   SubmitDeviceProvisioningRequestDto,
 } from './dto/onboarding.dto';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
+import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
 import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
@@ -105,6 +106,7 @@ export class OnboardingController extends BaseAuthController {
     @Inject(CreatePaymentIntentUseCase) private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
     @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
+    @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
     @Inject(SubscribePaymentEventsUseCase) private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
@@ -181,16 +183,16 @@ export class OnboardingController extends BaseAuthController {
     @Req() req: RawBodyRequest<{ headers: Record<string, string | undefined> }>,
     @Body() body: Record<string, unknown>,
   ) {
-    const secretKey = this.appConfig.payment.paystackSecretKey;
-    if (!secretKey) throw new ServiceUnavailableException('Paystack not configured');
+    if (!this.paymentGateway.isConfigured()) {
+      throw new ServiceUnavailableException('Paystack not configured');
+    }
     const sig = req.headers['x-paystack-signature'] as string | undefined;
     if (!sig) throw new ForbiddenException('Missing signature');
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+    // The raw bytes, not a re-serialised body: re-encoding JSON can reorder
+    // keys or change spacing, and the signature is over what was actually sent.
     const payload = rawBody ?? Buffer.from(JSON.stringify(body));
-    const hash = createHmac('sha512', secretKey).update(payload).digest('hex');
-    const expected = Buffer.from(hash, 'hex');
-    const provided = Buffer.from(sig, 'hex');
-    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+    if (!this.paymentGateway.verifyCallbackSignature(payload, sig)) {
       throw new ForbiddenException('Invalid webhook signature');
     }
 
