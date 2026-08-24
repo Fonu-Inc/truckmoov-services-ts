@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { AUDIT_LOG_REPOSITORY, type AuditLogFilters, type AuditLogRepository } from "./audit-log.repository";
+import {
+  AUDIT_LOG_REPOSITORY,
+  type AuditLogFilters,
+  type AuditLogRepository,
+  type ChainVerification,
+} from "./audit-log.repository";
 
 export type AuditEntityType =
   | "job"
@@ -49,5 +54,10 @@ export class AuditLogService {
 
   async query(tenantId: string, filters: AuditLogFilters): Promise<AuditEntry[]> {
     return this.repository.query(tenantId, filters);
+  }
+
+  /** Recomputes the tenant's hash chain and reports the first entry that fails. */
+  async verifyChain(tenantId: string): Promise<ChainVerification> {
+    return this.repository.verifyChain(tenantId);
   }
 }

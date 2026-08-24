@@ -940,7 +940,9 @@ describe('Auth HTTP contract', () => {
       'Tenant onboarding created successfully',
     );
     expect(createRes.body.data.status).toBe('pending_activation');
-    expect(createRes.body.data.bootstrapRole).toBe('PLATFORM_ADMIN');
+    // A fleet provider bootstraps into its own admin role. PLATFORM_ADMIN is the
+    // internal system role and no customer organisation is issued it.
+    expect(createRes.body.data.bootstrapRole).toBe('FLEET_ADMIN');
     expect(createRes.body.data.company.companyName).toBe('Swift Logistics Ltd');
     expect(createRes.body.data.company.contactName).toBe('Swift Contact');
     expect(createRes.body.data.subscription.planCode).toBe(planCode);
@@ -954,7 +956,7 @@ describe('Auth HTTP contract', () => {
     );
     expect(onboarding).toBeTruthy();
     expect(onboarding?.invitedEmail).toBe('tenant-owner@swiftlogistics.com');
-    expect(onboarding?.bootstrapRole).toBe('PLATFORM_ADMIN');
+    expect(onboarding?.bootstrapRole).toBe('FLEET_ADMIN');
 
     const invite = await inviteRepo.findByEmail(
       'tenant-owner@swiftlogistics.com',

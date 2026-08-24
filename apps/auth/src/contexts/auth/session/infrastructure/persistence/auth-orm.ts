@@ -224,6 +224,9 @@ export class ActivityLogRecord {
   metadata!: Record<string, unknown>;
   occurredAt!: Date;
   recordedAt!: Date;
+  seq!: number;
+  prevHash!: string;
+  rowHash!: string;
 }
 
 export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
@@ -242,6 +245,9 @@ export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
     metadata: { type: 'json', defaultRaw: "'{}'" },
     occurredAt: { type: 'datetime', index: true },
     recordedAt: { type: 'datetime', defaultRaw: 'now()' },
+    seq: { type: 'bigint', defaultRaw: "nextval('activity_logs_seq_seq')" },
+    prevHash: { fieldName: 'prev_hash', type: 'string', length: 64 },
+    rowHash: { fieldName: 'row_hash', type: 'string', length: 64 },
   },
 });
 

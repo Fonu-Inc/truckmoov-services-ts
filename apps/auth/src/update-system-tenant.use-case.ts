@@ -24,6 +24,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import {
   DEFAULT_TENANT_FEATURES,
+  ORG_TYPE_TO_BOOTSTRAP_ROLE,
   TENANT_ONBOARDING_REPOSITORY,
   type StoredTenantOnboarding,
   type TenantFeatureFlags,
@@ -43,13 +44,6 @@ const SYSTEM_MUTATOR_ROLES = new Set<string>([
   Role.SYSTEM_ADMIN,
 ]);
 const ONBOARDING_INVITE_TTL_MS = 72 * 60 * 60 * 1000;
-
-const ORG_TYPE_TO_BOOTSTRAP_ROLE: Record<TenantOrganizationType, Role> = {
-  fleet_provider: Role.PLATFORM_ADMIN,
-  enterprise: Role.ENTERPRISE_ADMIN,
-  aggregator: Role.AGGREGATOR_ADMIN,
-  owner_operator: Role.OWNER_OPERATOR,
-};
 
 export class SystemTenantUpdateConflictError extends Error {
   constructor(message: string) {

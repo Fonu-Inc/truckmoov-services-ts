@@ -551,6 +551,42 @@ export class AuthController extends BaseAuthController {
 
   /** Returns current authenticated user's editable profile details */
 
+  /**
+   * A hash chain nobody recomputes proves nothing, so the check is exposed
+   * rather than left to a one-off script. Read-only, and it reads the whole
+   * chain: a partial check cannot tell a removed entry from one never written.
+   */
+
+  @Get('activity-log/verify')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Verify the activity log has not been tampered with',
+    description:
+      "Recomputes the caller's own tenant chain and reports the first entry that fails.",
+  })
+  @ApiOkResponse({ description: 'Chain verification result' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to verify activity logs',
+  })
+  async verifyActivityLog(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.activityLogService.verifyChainForAccessToken(accessToken);
+      return {
+        status: true,
+        message: result.intact ? 'activity chain intact' : 'activity chain broken',
+        data: result,
+      };
+    } catch (error) {
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      this.rethrowInvalidAccessToken(error);
+      throw error;
+    }
+  }
+
   @Get('activity-log')
   @ApiBearerAuth()
   @ApiOperation({

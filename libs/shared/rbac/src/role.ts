@@ -1,16 +1,20 @@
 export enum Role {
-  // System Roles
+  // Internal system roles. Never held by a customer organisation: these govern
+  // the platform itself — tenant provisioning, billing, SIM approval, global
+  // RBAC. PLATFORM_ADMIN belongs here, not with the fleet provider roles it
+  // was once grouped with; that grouping is what led to fleet providers being
+  // bootstrapped into it.
   SUPER_ADMIN        = "SUPER_ADMIN",
   SYSTEM_ADMIN       = "SYSTEM_ADMIN",
+  PLATFORM_ADMIN     = "PLATFORM_ADMIN",
 
-  // Multi-Stakeholder Roles
+  // Stakeholder organisation roles. One per organisation type.
   ENTERPRISE_ADMIN   = "ENTERPRISE_ADMIN",
   AGGREGATOR_ADMIN   = "AGGREGATOR_ADMIN",
   OWNER_OPERATOR     = "OWNER_OPERATOR",
-
-  // Fleet Provider Roles
-  PLATFORM_ADMIN     = "PLATFORM_ADMIN",
   FLEET_ADMIN        = "FLEET_ADMIN",
+
+  // Sub-roles, assigned within a stakeholder organisation.
   OPERATIONS_MANAGER = "OPERATIONS_MANAGER",
   DISPATCHER         = "DISPATCHER",
   FINANCE_VIEWER     = "FINANCE_VIEWER",

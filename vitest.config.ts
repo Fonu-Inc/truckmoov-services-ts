@@ -9,6 +9,7 @@ export default defineConfig({
       "@shared/config": path.resolve(__dirname, "libs/shared/config/src"),
       "@shared/crypto": path.resolve(__dirname, "libs/shared/crypto/src"),
       "@shared/devices": path.resolve(__dirname, "libs/shared/devices/src"),
+      "@shared/audit": path.resolve(__dirname, "libs/shared/audit/src"),
       "@shared/logger": path.resolve(__dirname, "libs/shared/logger/src"),
       "@shared/db": path.resolve(__dirname, "libs/shared/db/src"),
       "@shared/rbac": path.resolve(__dirname, "libs/shared/rbac/src"),

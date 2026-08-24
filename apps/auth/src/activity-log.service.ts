@@ -9,7 +9,11 @@ import {
 import { resolveActorUser } from "./contexts/auth/session/application/use-cases/support/resolve-actor-user";
 import type { TokenService } from "./contexts/auth/session/domain/ports/token-service.port";
 import type { UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
-import { ACTIVITY_LOG_REPOSITORY, type ActivityLogRepository } from "./activity-log.repository";
+import {
+  ACTIVITY_LOG_REPOSITORY,
+  type ActivityLogRepository,
+  type ChainVerification,
+} from "./activity-log.repository";
 import type { ActivityLogEntry, ActivityLogMetadata, ActivityLogQuery } from "./activity-log.types";
 
 export type RecordActivityCommand = {
@@ -104,5 +108,25 @@ export class ActivityLogService {
       throw new ForbiddenError("You are not permitted to view system activity logs");
     }
     return this.repository.query(SYSTEM_TENANT_ID, filters);
+  }
+
+  /**
+   * Recomputes the caller's own chain. Scoped to the actor's tenant, never a
+   * tenant they name, so this cannot be used to probe another tenant's log.
+   * Restricted to the tenant's own admin: the answer says whether their records
+   * were altered, which is not something every viewer role needs.
+   */
+  async verifyChainForAccessToken(accessToken: string): Promise<ChainVerification> {
+    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
+    if (actor.tenantId === SYSTEM_TENANT_ID) {
+      if (!SYSTEM_VIEWER_ROLES.has(actor.role)) {
+        throw new ForbiddenError("You are not permitted to verify system activity logs");
+      }
+      return this.repository.verifyChain(SYSTEM_TENANT_ID);
+    }
+    if (actor.role !== Role.ENTERPRISE_ADMIN) {
+      throw new ForbiddenError("You are not permitted to verify activity logs");
+    }
+    return this.repository.verifyChain(actor.tenantId);
   }
 }

@@ -387,6 +387,9 @@ export class AuditLogRecord {
   actorId!: string;
   metadata!: Record<string, unknown>;
   occurredAt!: Date;
+  seq!: number;
+  prevHash!: string;
+  rowHash!: string;
 }
 
 export const AuditLogRecordSchema = new EntitySchema<AuditLogRecord>({
@@ -401,6 +404,9 @@ export const AuditLogRecordSchema = new EntitySchema<AuditLogRecord>({
     actorId: { type: "string", length: 64 },
     metadata: { type: "json" },
     occurredAt: { type: "datetime", defaultRaw: "now()" },
+    seq: { type: "bigint", defaultRaw: "nextval('fleet_audit_logs_seq_seq')" },
+    prevHash: { fieldName: "prev_hash", type: "string", length: 64 },
+    rowHash: { fieldName: "row_hash", type: "string", length: 64 },
   },
 });
 

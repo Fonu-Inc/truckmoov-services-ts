@@ -31,6 +31,24 @@ export class AuditController extends BaseFleetController {
     super(auditLog, bus);
   }
 
+  /**
+   * A hash chain nobody recomputes proves nothing, so the check is exposed
+   * rather than left to a one-off script. Read-only, and it reads the whole
+   * chain: a partial check cannot tell a removed entry from one never written.
+   */
+  @Get("verify")
+  @Roles(Role.ENTERPRISE_ADMIN)
+  @ApiOperation({ summary: "Verify the audit log has not been tampered with" })
+  @ApiOkResponse({ description: "Chain verification result" })
+  async verifyAuditChain(@Req() req: FleetRequestContext) {
+    const result = await this.auditLog.verifyChain(this.tenantIdFromRequest(req));
+    return {
+      status: true,
+      message: result.intact ? "audit chain intact" : "audit chain broken",
+      data: result,
+    };
+  }
+
   @Get()
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Activity/audit log — M06" })

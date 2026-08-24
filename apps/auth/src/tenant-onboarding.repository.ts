@@ -1,9 +1,32 @@
+import { Role } from '@shared/rbac';
+
 export const TENANT_ORGANIZATION_TYPES = [
   'fleet_provider',
   'enterprise',
   'aggregator',
   'owner_operator',
 ] as const;
+
+/**
+ * The role the first user of a new tenant is given.
+ *
+ * PLATFORM_ADMIN is deliberately absent. It is the internal Telconix/MTN
+ * system role — it suspends tenants, manages billing and configures global
+ * RBAC — and is not a stakeholder role, so no customer organisation bootstraps
+ * into it. A fleet provider's own administrator is FLEET_ADMIN.
+ *
+ * Defined once. Two copies of this map is how a tenant ends up with one role on
+ * create and a different one after an edit.
+ */
+export const ORG_TYPE_TO_BOOTSTRAP_ROLE: Record<
+  (typeof TENANT_ORGANIZATION_TYPES)[number],
+  Role
+> = {
+  fleet_provider: Role.FLEET_ADMIN,
+  enterprise: Role.ENTERPRISE_ADMIN,
+  aggregator: Role.AGGREGATOR_ADMIN,
+  owner_operator: Role.OWNER_OPERATOR,
+};
 
 export const TENANT_BILLING_CYCLES = ['monthly', 'yearly'] as const;
 
