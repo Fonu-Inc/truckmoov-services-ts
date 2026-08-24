@@ -32,14 +32,34 @@ export class PaymentGatewayError extends Error {
   }
 }
 
+/** A provider callback, reduced to what the platform acts on. */
+export type PaymentCallback = {
+  provider: string;
+  /** True only for a completed payment. Other events are recorded, not acted on. */
+  succeeded: boolean;
+  reference: string;
+  metadata: Record<string, unknown>;
+};
+
 export interface PaymentGateway {
   /** Identifies which adapter answered, for the audit trail and the response. */
   readonly name: string;
+  /**
+   * The header this provider signs with. Used only to decide which adapter to
+   * try first — never to decide whether a callback is genuine. A header is
+   * attacker-controlled; the signature is not.
+   */
+  readonly signatureHeader: string;
   /** False when credentials are absent, so a caller can degrade rather than throw. */
   isConfigured(): boolean;
   initiateCharge(request: ChargeRequest): Promise<ChargeInitiated>;
   /** Whether a callback body genuinely came from this provider. */
   verifyCallbackSignature(rawBody: string | Buffer, signature: string | undefined): boolean;
+  /** Reads a verified callback into the shape the platform acts on. */
+  parseCallback(body: Record<string, unknown>): PaymentCallback | null;
 }
 
 export const PAYMENT_GATEWAY = Symbol('PAYMENT_GATEWAY');
+
+/** Every adapter the deployment knows about, for callback identification. */
+export const PAYMENT_GATEWAYS = Symbol('PAYMENT_GATEWAYS');

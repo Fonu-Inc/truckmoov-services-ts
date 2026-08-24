@@ -115,7 +115,12 @@ import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inven
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
-import { PAYMENT_GATEWAY, PaystackGateway } from './contexts/payments';
+import {
+  PAYMENT_GATEWAY,
+  PAYMENT_GATEWAYS,
+  PaymentGatewayRegistry,
+  PaystackGateway,
+} from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
@@ -668,9 +673,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ResendVerificationUseCase,
     GetTenantStatusUseCase,
     PaystackGateway,
+    PaymentGatewayRegistry,
     // Bound once, here. Every use case that takes money depends on the port, so
     // a second provider is a change to this line rather than to those flows.
     { provide: PAYMENT_GATEWAY, useExisting: PaystackGateway },
+    // Every adapter that could have sent a callback. Adding a provider means
+    // adding it to this list; the webhook endpoint itself does not change.
+    {
+      provide: PAYMENT_GATEWAYS,
+      inject: [PaystackGateway],
+      useFactory: (paystack: PaystackGateway) => [paystack],
+    },
     SaveMailCredentialsUseCase,
     GetMailCredentialsUseCase,
     DeleteMailCredentialsUseCase,

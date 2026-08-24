@@ -76,7 +76,7 @@ import {
   SubmitDeviceProvisioningRequestDto,
 } from './dto/onboarding.dto';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
-import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
+import { PaymentGatewayRegistry } from './contexts/payments';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
 import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
@@ -106,7 +106,7 @@ export class OnboardingController extends BaseAuthController {
     @Inject(CreatePaymentIntentUseCase) private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
     @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
-    @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
+    @Inject(PaymentGatewayRegistry) private readonly gatewayRegistry: PaymentGatewayRegistry,
     @Inject(SubscribePaymentEventsUseCase) private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
@@ -175,32 +175,37 @@ export class OnboardingController extends BaseAuthController {
     return this.subscribePaymentEventsUseCase.execute(accessToken);
   }
 
+  /**
+   * One endpoint for every payment provider.
+   *
+   * The sender is established by verifying the signature against each
+   * configured provider, not by the path, a header or the source address. A
+   * header only decides which adapter is tried first.
+   */
   @Post('payment/webhook')
-  @ApiOperation({ summary: 'Paystack payment webhook (no auth)', description: 'Receives charge.success events from Paystack. Validates HMAC signature, activates subscription, emits SSE to tenant.' })
+  @ApiOperation({ summary: 'Payment provider webhook (no auth)', description: 'Receives payment callbacks from any configured provider. The sender is identified by verifying its signature; a callback no provider claims is refused.' })
   @ApiBody({ type: PaystackWebhookDto })
   @ApiCreatedResponse({ description: 'Acknowledged', type: PaystackWebhookAckSchema })
   async paystackWebhook(
     @Req() req: RawBodyRequest<{ headers: Record<string, string | undefined> }>,
     @Body() body: Record<string, unknown>,
   ) {
-    if (!this.paymentGateway.isConfigured()) {
-      throw new ServiceUnavailableException('Paystack not configured');
+    if (this.gatewayRegistry.configured().length === 0) {
+      throw new ServiceUnavailableException('No payment provider is configured');
     }
-    const sig = req.headers['x-paystack-signature'] as string | undefined;
-    if (!sig) throw new ForbiddenException('Missing signature');
+
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     // The raw bytes, not a re-serialised body: re-encoding JSON can reorder
     // keys or change spacing, and the signature is over what was actually sent.
     const payload = rawBody ?? Buffer.from(JSON.stringify(body));
-    if (!this.paymentGateway.verifyCallbackSignature(payload, sig)) {
-      throw new ForbiddenException('Invalid webhook signature');
-    }
 
-    if (body['event'] === 'charge.success') {
-      const data = body['data'] as Record<string, unknown> | undefined;
-      const metadata = data?.['metadata'] as Record<string, unknown> | undefined;
-      const tenantId = metadata?.['tenantId'] as string | undefined;
-      const reference = data?.['reference'] as string | undefined;
+    const callback = this.gatewayRegistry.parse(payload, req.headers, body);
+    if (!callback) throw new ForbiddenException('Invalid webhook signature');
+
+    if (callback.succeeded) {
+      const metadata = callback.metadata;
+      const tenantId = metadata['tenantId'] as string | undefined;
+      const reference = callback.reference;
       if (tenantId && reference) {
         try {
           await this.activateSubscriptionUseCase.execute(tenantId, reference);

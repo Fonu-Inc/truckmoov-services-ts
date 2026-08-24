@@ -4,6 +4,7 @@ import axios from 'axios';
 import { AppConfigService } from '@shared/config';
 import {
   PaymentGatewayError,
+  type PaymentCallback,
   type ChargeInitiated,
   type ChargeRequest,
   type PaymentGateway,
@@ -18,6 +19,7 @@ type PaystackInitializeResponse = {
 @Injectable()
 export class PaystackGateway implements PaymentGateway {
   readonly name = 'paystack';
+  readonly signatureHeader = 'x-paystack-signature';
   private readonly logger = new Logger(PaystackGateway.name);
 
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
@@ -77,5 +79,18 @@ export class PaystackGateway implements PaymentGateway {
     // returning false, and the length is not the secret.
     if (expected.length !== provided.length) return false;
     return timingSafeEqual(expected, provided);
+  }
+
+  parseCallback(body: Record<string, unknown>): PaymentCallback | null {
+    const data = body['data'] as Record<string, unknown> | undefined;
+    const reference = typeof data?.['reference'] === 'string' ? data['reference'] : null;
+    if (!reference) return null;
+
+    return {
+      provider: this.name,
+      succeeded: body['event'] === 'charge.success',
+      reference,
+      metadata: (data?.['metadata'] as Record<string, unknown>) ?? {},
+    };
   }
 }
