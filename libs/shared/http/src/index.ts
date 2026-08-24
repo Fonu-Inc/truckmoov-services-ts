@@ -5,3 +5,8 @@ export {
   MAX_DOCUMENT_UPLOAD_BYTES,
   uploadLimits,
 } from "./upload-limits";
+export {
+  isMailPort,
+  isPubliclyRoutableHost,
+  isPubliclyRoutableIp,
+} from "./private-network-guard";

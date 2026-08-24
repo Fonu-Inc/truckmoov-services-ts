@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CryptoModule } from "@shared/crypto";
 import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { IdempotencyGuard, RedisClientProvider } from '@shared/rbac';
@@ -114,6 +115,16 @@ import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inven
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
+import { MailCredentialsController } from './mail-credentials.controller';
+import {
+  MAIL_CREDENTIALS_REPOSITORY,
+  type MailCredentialsRepository,
+} from './mail-credentials.repository';
+import { InMemoryMailCredentialsRepository } from './in-memory-mail-credentials.repository';
+import { MikroMailCredentialsRepository } from './mikro-mail-credentials.repository';
+import { SaveMailCredentialsUseCase } from './save-mail-credentials.use-case';
+import { GetMailCredentialsUseCase } from './get-mail-credentials.use-case';
+import { DeleteMailCredentialsUseCase } from './delete-mail-credentials.use-case';
 import { GetSystemDeviceCatalogReferenceDataUseCase } from './get-system-device-catalog-reference-data.use-case';
 import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
@@ -332,6 +343,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
 @Module({
   imports: [
     ConfigModule,
+    CryptoModule,
     LoggerModule,
     MailerModule,
     ObjectStorageModule,
@@ -341,6 +353,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   controllers: [
     AuthController,
+    MailCredentialsController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -653,6 +666,21 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ForgotPasswordUseCase,
     ResendVerificationUseCase,
     GetTenantStatusUseCase,
+    SaveMailCredentialsUseCase,
+    GetMailCredentialsUseCase,
+    DeleteMailCredentialsUseCase,
+    InMemoryMailCredentialsRepository,
+    MikroMailCredentialsRepository,
+    {
+      provide: MAIL_CREDENTIALS_REPOSITORY,
+      inject: [InMemoryMailCredentialsRepository, MikroMailCredentialsRepository, AppConfigService],
+      useFactory: (
+        inMemory: MailCredentialsRepository,
+        mikro: MailCredentialsRepository,
+        config: AppConfigService,
+      ): MailCredentialsRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     VerifyResetUseCase,
     ResetPasswordUseCase,
     ChangeRoleUseCase,

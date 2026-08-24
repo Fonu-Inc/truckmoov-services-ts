@@ -251,6 +251,58 @@ export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
   },
 });
 
+
+/* ── Tenant Mail Credentials ────────────────────────── */
+
+export class TenantMailCredentialRecord {
+  tenantId!: string;
+  emailAddress!: string;
+  displayName!: string | null;
+  imapHost!: string;
+  imapPort!: number;
+  imapUsername!: string;
+  imapPasswordCiphertext!: string;
+  imapPasswordPreview!: string;
+  imapSecure!: boolean;
+  smtpHost!: string;
+  smtpPort!: number;
+  smtpUsername!: string;
+  smtpPasswordCiphertext!: string;
+  smtpPasswordPreview!: string;
+  smtpSecure!: boolean;
+  lastVerifiedAt!: Date | null;
+  lastError!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TenantMailCredentialRecordSchema =
+  new EntitySchema<TenantMailCredentialRecord>({
+    class: TenantMailCredentialRecord,
+    tableName: 'tenant_mail_credentials',
+    properties: {
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+      emailAddress: { fieldName: 'email_address', type: 'string', length: 255 },
+      displayName: { fieldName: 'display_name', type: 'string', length: 255, nullable: true },
+      imapHost: { fieldName: 'imap_host', type: 'string', length: 255 },
+      imapPort: { fieldName: 'imap_port', type: 'number' },
+      imapUsername: { fieldName: 'imap_username', type: 'string', length: 255 },
+      imapPasswordCiphertext: { fieldName: 'imap_password_ciphertext', type: 'text' },
+      imapPasswordPreview: { fieldName: 'imap_password_preview', type: 'string', length: 32 },
+      imapSecure: { fieldName: 'imap_secure', type: 'boolean', defaultRaw: 'true' },
+      smtpHost: { fieldName: 'smtp_host', type: 'string', length: 255 },
+      smtpPort: { fieldName: 'smtp_port', type: 'number' },
+      smtpUsername: { fieldName: 'smtp_username', type: 'string', length: 255 },
+      smtpPasswordCiphertext: { fieldName: 'smtp_password_ciphertext', type: 'text' },
+      smtpPasswordPreview: { fieldName: 'smtp_password_preview', type: 'string', length: 32 },
+      smtpSecure: { fieldName: 'smtp_secure', type: 'boolean', defaultRaw: 'true' },
+      lastVerifiedAt: { fieldName: 'last_verified_at', type: 'datetime', nullable: true },
+      lastError: { fieldName: 'last_error', type: 'text', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1457,6 +1509,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      TenantMailCredentialRecordSchema,
       AuthSessionRecordSchema,
       AuthUserRecordSchema,
       InviteRecordSchema,
