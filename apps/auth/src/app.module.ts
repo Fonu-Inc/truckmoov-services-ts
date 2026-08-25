@@ -126,6 +126,8 @@ import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { CommunicationRateService } from './communication-rate.service';
+import { ChargeUsageUseCase } from './charge-usage.use-case';
+import { SimRecurringChargeService } from './sim-recurring-charge.service';
 import {
   COMMUNICATION_RATES_REPOSITORY,
   type CommunicationRatesRepository,
@@ -747,6 +749,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     DownloadAttachmentUseCase,
     PlatformAlertSettingsUseCase,
     CommunicationRateService,
+    ChargeUsageUseCase,
+    SimRecurringChargeService,
     InMemoryCommunicationRatesRepository,
     MikroCommunicationRatesRepository,
     {
