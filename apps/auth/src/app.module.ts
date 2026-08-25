@@ -125,8 +125,16 @@ import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
+import { InternalUsageController } from './internal-usage.controller';
 import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
+import { EntitlementService } from './entitlement.service';
+import {
+  PLAN_ENTITLEMENTS_REPOSITORY,
+  type PlanEntitlementsRepository,
+} from './plan-entitlements.repository';
+import { InMemoryPlanEntitlementsRepository } from './in-memory-plan-entitlements.repository';
+import { MikroPlanEntitlementsRepository } from './mikro-plan-entitlements.repository';
 import { SimRecurringChargeService } from './sim-recurring-charge.service';
 import {
   COMMUNICATION_RATES_REPOSITORY,
@@ -400,6 +408,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailboxController,
     PlatformAlertsController,
     CommunicationRatesController,
+    InternalUsageController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -750,6 +759,23 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     PlatformAlertSettingsUseCase,
     CommunicationRateService,
     ChargeUsageUseCase,
+    EntitlementService,
+    InMemoryPlanEntitlementsRepository,
+    MikroPlanEntitlementsRepository,
+    {
+      provide: PLAN_ENTITLEMENTS_REPOSITORY,
+      inject: [
+        InMemoryPlanEntitlementsRepository,
+        MikroPlanEntitlementsRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: PlanEntitlementsRepository,
+        mikro: PlanEntitlementsRepository,
+        config: AppConfigService,
+      ): PlanEntitlementsRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     SimRecurringChargeService,
     InMemoryCommunicationRatesRepository,
     MikroCommunicationRatesRepository,

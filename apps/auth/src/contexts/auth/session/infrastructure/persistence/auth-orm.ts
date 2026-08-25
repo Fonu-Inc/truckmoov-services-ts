@@ -464,6 +464,61 @@ export const CommunicationRateRecordSchema = new EntitySchema<CommunicationRateR
   },
 });
 
+
+/* ── Plan Entitlements ──────────────────────────────── */
+
+export class PlanEntitlementRecord {
+  planCode!: string;
+  paymentModel!: string;
+  inheritsFromCode!: string | null;
+  quotas!: Record<string, unknown>;
+  limitBehaviour!: Record<string, unknown>;
+  features!: unknown[];
+  allowances!: unknown[];
+  availableFor!: unknown[];
+  trialDays!: number;
+  updatedAt!: Date;
+  updatedBy!: string | null;
+}
+
+export const PlanEntitlementRecordSchema = new EntitySchema<PlanEntitlementRecord>({
+  class: PlanEntitlementRecord,
+  tableName: 'plan_entitlements',
+  properties: {
+    planCode: { fieldName: 'plan_code', type: 'string', length: 80, primary: true },
+    paymentModel: { fieldName: 'payment_model', type: 'string', length: 16, defaultRaw: "'prepaid'" },
+    inheritsFromCode: { fieldName: 'inherits_from_code', type: 'string', length: 80, nullable: true },
+    quotas: { type: 'json', defaultRaw: "'{}'" },
+    limitBehaviour: { fieldName: 'limit_behaviour', type: 'json', defaultRaw: "'{}'" },
+    features: { type: 'json', defaultRaw: "'[]'" },
+    allowances: { type: 'json', defaultRaw: "'[]'" },
+    availableFor: { fieldName: 'available_for', type: 'json', defaultRaw: "'[]'" },
+    trialDays: { fieldName: 'trial_days', type: 'number', defaultRaw: '0' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    updatedBy: { fieldName: 'updated_by', type: 'string', length: 128, nullable: true },
+  },
+});
+
+export class TenantUsageAllowanceRecord {
+  tenantId!: string;
+  item!: string;
+  billingMonth!: string;
+  used!: number;
+  updatedAt!: Date;
+}
+
+export const TenantUsageAllowanceRecordSchema = new EntitySchema<TenantUsageAllowanceRecord>({
+  class: TenantUsageAllowanceRecord,
+  tableName: 'tenant_usage_allowance',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    item: { type: 'string', length: 32, primary: true },
+    billingMonth: { fieldName: 'billing_month', type: 'string', length: 7, primary: true },
+    used: { type: 'bigint', defaultRaw: '0' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1670,6 +1725,8 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      PlanEntitlementRecordSchema,
+      TenantUsageAllowanceRecordSchema,
       CommunicationRateRecordSchema,
       PlatformAlertSettingRecordSchema,
       MailThreadRecordSchema,
