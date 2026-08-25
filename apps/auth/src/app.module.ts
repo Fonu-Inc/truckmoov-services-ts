@@ -123,6 +123,14 @@ import {
 } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
+import { PlatformAlertsController } from './platform-alerts.controller';
+import { PlatformAlertSettingsUseCase } from './platform-alert-settings.use-case';
+import {
+  PLATFORM_ALERT_SETTINGS_REPOSITORY,
+  type PlatformAlertSettingsRepository,
+} from './platform-alert-settings.repository';
+import { InMemoryPlatformAlertSettingsRepository } from './in-memory-platform-alert-settings.repository';
+import { MikroPlatformAlertSettingsRepository } from './mikro-platform-alert-settings.repository';
 import { ImapMailboxReader } from './contexts/mailbox/imap-mailbox.reader';
 import { MAILBOX_READER } from './contexts/mailbox/mailbox-reader.port';
 import { MAILBOX_SENDER } from './contexts/mailbox/mailbox-sender.port';
@@ -380,6 +388,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AuthController,
     MailCredentialsController,
     MailboxController,
+    PlatformAlertsController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -727,6 +736,23 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SendMailUseCase,
     ListMailboxUseCase,
     DownloadAttachmentUseCase,
+    PlatformAlertSettingsUseCase,
+    InMemoryPlatformAlertSettingsRepository,
+    MikroPlatformAlertSettingsRepository,
+    {
+      provide: PLATFORM_ALERT_SETTINGS_REPOSITORY,
+      inject: [
+        InMemoryPlatformAlertSettingsRepository,
+        MikroPlatformAlertSettingsRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: PlatformAlertSettingsRepository,
+        mikro: PlatformAlertSettingsRepository,
+        config: AppConfigService,
+      ): PlatformAlertSettingsRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     // The only piece that decides where the sync runs. Moving the mail work to
     // its own service means moving this registration, not the logic.
     MailboxSyncScheduler,

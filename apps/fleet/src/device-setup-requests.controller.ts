@@ -48,7 +48,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Request device setup",
     description: "Submits a tracking-device provisioning request (manufacturer, tracker type, optional SIM carrier/data bundle, vehicle, location, use case).",
@@ -75,7 +75,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "List device setup requests",
     description: "Lists submitted device setup requests with their provisioning status timeline (My Device Requests).",
@@ -95,7 +95,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Get(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Get device setup request" })
   @ApiOkResponse({ type: DeviceSetupRequestResponse })
   async getDeviceSetupRequest(
@@ -108,7 +108,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Advance device setup request",
     description: "Transitions a setup request through its provisioning lifecycle (pending_review → in_progress → provisioned → assigned, or cancelled).",

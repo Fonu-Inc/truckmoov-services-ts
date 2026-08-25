@@ -34,7 +34,7 @@ export class DataBundlesController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "List SIM data bundles catalog" })
   @ApiQuery({ name: "carrierId", required: false, type: String })
   @ApiOkResponse({ type: DataBundleListResponse })

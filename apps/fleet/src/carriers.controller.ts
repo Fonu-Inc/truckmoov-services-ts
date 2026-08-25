@@ -27,7 +27,7 @@ export class CarriersController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.PLATFORM_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "List SIM carriers catalog" })
   @ApiOkResponse({ type: CarrierListResponse })
   async listCarriers(): Promise<CarrierListResponse> {

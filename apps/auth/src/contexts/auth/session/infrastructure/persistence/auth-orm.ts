@@ -404,6 +404,34 @@ export const MailSyncStateRecordSchema = new EntitySchema<MailSyncStateRecord>({
   },
 });
 
+
+/* ── Platform Alert Settings ────────────────────────── */
+
+export class PlatformAlertSettingRecord {
+  alertType!: string;
+  enabled!: boolean;
+  channels!: unknown[];
+  recipients!: unknown[];
+  minSeverity!: string;
+  updatedAt!: Date;
+  updatedBy!: string | null;
+}
+
+export const PlatformAlertSettingRecordSchema =
+  new EntitySchema<PlatformAlertSettingRecord>({
+    class: PlatformAlertSettingRecord,
+    tableName: 'platform_alert_settings',
+    properties: {
+      alertType: { fieldName: 'alert_type', type: 'string', length: 64, primary: true },
+      enabled: { type: 'boolean', defaultRaw: 'true' },
+      channels: { type: 'json', defaultRaw: "'[]'" },
+      recipients: { type: 'json', defaultRaw: "'[]'" },
+      minSeverity: { fieldName: 'min_severity', type: 'string', length: 16, defaultRaw: "'high'" },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+      updatedBy: { fieldName: 'updated_by', type: 'string', length: 128, nullable: true },
+    },
+  });
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1610,6 +1638,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      PlatformAlertSettingRecordSchema,
       MailThreadRecordSchema,
       MailMessageRecordSchema,
       MailSyncStateRecordSchema,
