@@ -142,6 +142,8 @@ import {
 import { InMemoryOrganisationUpgradeRepository } from './in-memory-organisation-upgrade.repository';
 import { MikroOrganisationUpgradeRepository } from './mikro-organisation-upgrade.repository';
 import { FleetFactsService } from './fleet-facts.service';
+import { PlatformAlertPublisher } from './platform-alert.publisher';
+import { TenantNotificationPublisher } from './tenant-notification.publisher';
 import { StorageReconciliationService } from './storage-reconciliation.service';
 import {
   STORAGE_USAGE_REPOSITORY,
@@ -784,6 +786,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     EntitlementService,
     StorageQuotaService,
     FleetFactsService,
+    PlatformAlertPublisher,
+    TenantNotificationPublisher,
     RequestOrganisationUpgradeUseCase,
     ReviewOrganisationUpgradeUseCase,
     InMemoryOrganisationUpgradeRepository,

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   ForbiddenException,
   Headers,
   HttpException,
@@ -15,6 +16,11 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
 import { EntitlementService, PlanNotEntitledError } from './entitlement.service';
 import { StorageQuotaService } from './storage-quota.service';
+import {
+  PLATFORM_ALERT_SETTINGS_REPOSITORY,
+  type PlatformAlertSettingsRepository,
+  type PlatformAlertType,
+} from './platform-alert-settings.repository';
 import {
   STORAGE_SOURCES,
   StorageQuotaExceededError,
@@ -51,6 +57,8 @@ export class InternalUsageController extends BaseAuthController {
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboarding: TenantOnboardingRepository,
     @Inject(StorageQuotaService) private readonly storage: StorageQuotaService,
+    @Inject(PLATFORM_ALERT_SETTINGS_REPOSITORY)
+    private readonly alertSettingsRepository: PlatformAlertSettingsRepository,
   ) {
     super(activityLogService);
   }
@@ -157,6 +165,30 @@ export class InternalUsageController extends BaseAuthController {
       payload.bytesUsed,
     );
     return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
+  }
+
+  /**
+   * The alert settings for one alert type, for the service that sends them.
+   *
+   * The notification service does the sending but auth owns who is told and on
+   * which channel. Copying that configuration into the sender would give the
+   * platform two answers to "who gets told about billing failures".
+   */
+  @Get('alert-settings/:alertType')
+  async alertSettings(
+    @Param('alertType') alertType: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!this.tokenService.resolveAccessToken(accessToken)) {
+      throw new UnauthorizedException('Invalid service token');
+    }
+
+    const setting = await this.alertSettingsRepository.findByType(alertType as PlatformAlertType);
+    // Null rather than 404: an unknown alert type means nothing is configured
+    // to be sent, which the caller handles the same way as one switched off.
+    return { status: true, message: 'success', data: setting };
   }
 
   @Post('charge')

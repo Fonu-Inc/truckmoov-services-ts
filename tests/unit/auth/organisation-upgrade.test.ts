@@ -51,17 +51,21 @@ function harness(options: { orgType?: string; role?: string; vehicles?: number |
   } as never;
 
   const tokenService = { resolveAccessToken: () => ({ id: 'actor-1' }) } as never;
+  const raise = vi.fn(async () => {});
+  const notify = vi.fn(async () => {});
 
   return {
+    raise,
+    notify,
     requests,
     saved,
     onboardingSaves,
     fleet,
     request: new RequestOrganisationUpgradeUseCase(
-      tokenService, userRepository, requests, onboarding, fleet,
+      tokenService, userRepository, requests, onboarding, fleet, { raise } as never,
     ),
     review: new ReviewOrganisationUpgradeUseCase(
-      tokenService, userRepository, requests, onboarding, fleet,
+      tokenService, userRepository, requests, onboarding, fleet, { notify } as never,
     ),
   };
 }
@@ -184,5 +188,48 @@ describe('reviewing', () => {
 
     expect(queue.pending[0].currentVehicleCount).toBe(9);
     expect(h.fleet.activeVehicleCount).toHaveBeenCalled();
+  });
+});
+
+describe('telling people what happened', () => {
+  it('alerts staff that a request is waiting', async () => {
+    const h = harness();
+
+    await h.request.execute('token', 'Fleet has grown to 9 vehicles');
+
+    expect(h.raise).toHaveBeenCalledTimes(1);
+    expect(h.raise.mock.calls[0][0]).toMatchObject({ alertType: 'new_tenant_signup' });
+  });
+
+  // A decision nobody hears about leaves the requester capped with no idea why.
+  it('tells the requester when it is approved', async () => {
+    const h = harness({ role: 'PLATFORM_ADMIN' });
+    const created = await harness().request.execute('token', 'Fleet has grown to 9 vehicles');
+    await h.requests.save(created);
+
+    await h.review.approve('token', created.id, null);
+
+    expect(h.notify).toHaveBeenCalledTimes(1);
+    expect(h.notify.mock.calls[0][0]).toMatchObject({ notificationType: 'organisation_upgrade_decision' });
+  });
+
+  it('tells the requester why it was refused', async () => {
+    const h = harness({ role: 'PLATFORM_ADMIN' });
+    const created = await harness().request.execute('token', 'Fleet has grown to 9 vehicles');
+    await h.requests.save(created);
+
+    await h.review.reject('token', created.id, 'only 3 vehicles');
+
+    expect(h.notify.mock.calls[0][0].content).toContain('only 3 vehicles');
+  });
+
+  it('says nothing when the decision was refused for lack of a live count', async () => {
+    const h = harness({ role: 'PLATFORM_ADMIN', vehicles: null });
+    const created = await harness().request.execute('token', 'Fleet has grown to 9 vehicles');
+    await h.requests.save(created);
+
+    await expect(h.review.approve('token', created.id, null)).rejects.toThrow();
+
+    expect(h.notify).not.toHaveBeenCalled();
   });
 });

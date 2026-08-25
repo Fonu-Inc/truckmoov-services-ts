@@ -6,6 +6,8 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { FleetFactsService } from './fleet-facts.service';
+import { PlatformAlertPublisher } from './platform-alert.publisher';
+import { TenantNotificationPublisher } from './tenant-notification.publisher';
 import {
   ORGANISATION_UPGRADE_REPOSITORY,
   UpgradeAlreadyDecidedError,
@@ -47,6 +49,7 @@ export class RequestOrganisationUpgradeUseCase {
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboarding: TenantOnboardingRepository,
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+    @Inject(PlatformAlertPublisher) private readonly alerts: PlatformAlertPublisher,
   ) {}
 
   async execute(accessToken: string, reason: string): Promise<OrganisationUpgradeRequest> {
@@ -82,6 +85,17 @@ export class RequestOrganisationUpgradeUseCase {
     };
 
     await this.requests.save(request);
+
+    // Staff are told a request is waiting. Nobody watches a queue that never
+    // announces itself, which is how a request sits for weeks.
+    await this.alerts.raise({
+      alertType: 'new_tenant_signup',
+      severity: 'low',
+      subject: 'Organisation upgrade requested',
+      body: `A tenant asked to be promoted to fleet provider with ${statedVehicleCount} active vehicle(s).`,
+      context: { tenantId: actor.tenantId, requestId: request.id },
+    });
+
     return request;
   }
 }
@@ -98,6 +112,8 @@ export class ReviewOrganisationUpgradeUseCase {
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboarding: TenantOnboardingRepository,
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+    @Inject(TenantNotificationPublisher)
+    private readonly notifications: TenantNotificationPublisher,
   ) {}
 
   async list(accessToken: string) {
@@ -159,6 +175,8 @@ export class ReviewOrganisationUpgradeUseCase {
     };
     await this.requests.save(decided);
 
+    await this.tellRequester(decided, 'Your organisation is now a fleet provider.');
+
     this.logger.log(`organisation_promoted:${request.tenantId}:vehicles=${liveCount}`);
     return decided;
   }
@@ -178,7 +196,34 @@ export class ReviewOrganisationUpgradeUseCase {
       vehicleCountAtReview: await this.fleet.activeVehicleCount(request.tenantId),
     };
     await this.requests.save(decided);
+    await this.tellRequester(
+      decided,
+      `Your upgrade request was not approved.${decided.reviewerNotes ? ` Reason: ${decided.reviewerNotes}` : ''}`,
+    );
     return decided;
+  }
+
+  /**
+   * Tells the person who asked what was decided.
+   *
+   * A decision nobody hears about is the same as no decision: the requester is
+   * still capped and has no idea why. Failure to send never undoes the
+   * decision, which is already recorded.
+   */
+  private async tellRequester(
+    request: OrganisationUpgradeRequest,
+    message: string,
+  ): Promise<void> {
+    const requester = await this.userRepository.findById(request.requestedBy);
+    if (!requester?.email) return;
+
+    await this.notifications.notify({
+      tenantId: request.tenantId,
+      recipient: requester.email,
+      channel: 'email',
+      content: `Organisation upgrade decision\n\n${message}`,
+      notificationType: 'organisation_upgrade_decision',
+    });
   }
 
   private async loadOpen(requestId: string): Promise<OrganisationUpgradeRequest> {
