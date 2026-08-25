@@ -125,6 +125,7 @@ import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
+import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
 import { InternalUsageController } from './internal-usage.controller';
 import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
@@ -433,6 +434,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CommunicationRatesController,
     OrganisationUpgradesController,
     InternalUsageController,
+    InternalDeviceCatalogController,
     ProfileController,
     OrganizationController,
     SystemController,

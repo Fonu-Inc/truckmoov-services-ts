@@ -15,6 +15,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { SystemDeviceModelConflictError } from './system-device-model.errors';
 import { ensureSystemActor } from './system-authz';
+import { toSystemDeviceModelResponse } from './system-device-model.presenter';
 
 export type CreateSystemDeviceModelCommand = {
   accessToken: string;
@@ -25,6 +26,9 @@ export type CreateSystemDeviceModelCommand = {
   supportedFeatures: SystemDeviceFeatureKey[];
   status: 'supported' | 'deprecated' | 'blocked';
   configurationInstructions?: string | null;
+  smsCommands?: string[];
+  wiringNotes?: string | null;
+  diagramUrls?: string[];
 };
 
 @Injectable()
@@ -72,6 +76,9 @@ export class CreateSystemDeviceModelUseCase {
       status: command.status,
       configurationInstructions:
         command.configurationInstructions?.trim() || null,
+      smsCommands: [...(command.smsCommands ?? [])],
+      wiringNotes: command.wiringNotes?.trim() || null,
+      diagramUrls: [...(command.diagramUrls ?? [])],
       createdByUserId: actor.id,
       createdAt: now,
       updatedAt: now,
@@ -82,18 +89,7 @@ export class CreateSystemDeviceModelUseCase {
     return {
       status: true,
       message: 'Device model created successfully',
-      data: {
-        id: deviceModel.id,
-        manufacturer: deviceModel.manufacturer,
-        model: deviceModel.model,
-        protocolType: deviceModel.protocolType,
-        defaultPort: deviceModel.defaultPort,
-        supportedFeatures: deviceModel.supportedFeatures,
-        status: deviceModel.status,
-        configurationInstructions: deviceModel.configurationInstructions,
-        createdAt: deviceModel.createdAt.toISOString(),
-        updatedAt: deviceModel.updatedAt.toISOString(),
-      },
+      data: toSystemDeviceModelResponse(deviceModel),
     };
   }
 }

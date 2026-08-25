@@ -4,7 +4,9 @@ import {
   Device,
   isDeviceLifecycleStatus,
   isDeviceProvisionStatus,
+  isDeviceProtocol,
   isDeviceStatus,
+  isDeviceVerificationStatus,
 } from "../../domain/entities/device.entity";
 import type { DeviceFilters, DeviceRepository } from "../../domain/repositories/device.repository";
 import { DeviceRecord, getFleetOrm } from "../../../shared/infrastructure/persistence/fleet-orm";
@@ -31,6 +33,15 @@ export class MikroDeviceRepository implements DeviceRepository {
       batteryLevel: device.batteryLevel,
       lastSeen: device.lastSeen ? new Date(device.lastSeen) : null,
       assignedAt: device.assignedAt ? new Date(device.assignedAt) : null,
+      protocol: device.protocol,
+      port: device.port,
+      configuredAt: device.configuredAt ? new Date(device.configuredAt) : null,
+      verificationStatus: device.verificationStatus,
+      verificationDeadline: device.verificationDeadline
+        ? new Date(device.verificationDeadline)
+        : null,
+      verificationError: device.verificationError,
+      verifiedAt: device.verifiedAt ? new Date(device.verifiedAt) : null,
       traccarDeviceId: device.traccarDeviceId,
       provisionStatus: device.provisionStatus,
       createdAt: new Date(device.createdAt),
@@ -48,6 +59,13 @@ export class MikroDeviceRepository implements DeviceRepository {
         ...(filters?.manufacturer ? { manufacturer: filters.manufacturer } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
         ...(filters?.lifecycleStatus ? { lifecycleStatus: filters.lifecycleStatus } : {}),
+        ...(filters?.lifecycleStatusIn
+          ? { lifecycleStatus: { $in: filters.lifecycleStatusIn } }
+          : {}),
+        ...(filters?.verificationStatus
+          ? { verificationStatus: filters.verificationStatus }
+          : {}),
+        ...(filters?.verifiedAfter ? { verifiedAt: { $gte: filters.verifiedAfter } } : {}),
         ...(filters?.vehicleId ? { vehicleId: filters.vehicleId } : {}),
         ...(filters?.assigned === undefined
           ? {}
@@ -103,6 +121,17 @@ export class MikroDeviceRepository implements DeviceRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async findAwaitingVerificationPastDeadline(now: Date, limit: number): Promise<Device[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(
+      DeviceRecord,
+      { verificationStatus: "waiting", verificationDeadline: { $lte: now } },
+      { orderBy: { verificationDeadline: "asc" }, limit },
+    );
+    return records.map((record) => this.toDomain(record));
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
@@ -126,6 +155,17 @@ export class MikroDeviceRepository implements DeviceRepository {
       batteryLevel: record.batteryLevel ?? null,
       lastSeen: record.lastSeen?.toISOString() ?? null,
       assignedAt: record.assignedAt?.toISOString() ?? null,
+      protocol:
+        record.protocol && isDeviceProtocol(record.protocol) ? record.protocol : null,
+      port: record.port ?? null,
+      configuredAt: record.configuredAt?.toISOString() ?? null,
+      verificationStatus:
+        record.verificationStatus && isDeviceVerificationStatus(record.verificationStatus)
+          ? record.verificationStatus
+          : null,
+      verificationDeadline: record.verificationDeadline?.toISOString() ?? null,
+      verificationError: record.verificationError ?? null,
+      verifiedAt: record.verifiedAt?.toISOString() ?? null,
       traccarDeviceId: record.traccarDeviceId ?? null,
       provisionStatus:
         record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)

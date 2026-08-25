@@ -13,6 +13,7 @@ import {
   SystemDeviceModelNotFoundError,
 } from './system-device-model.errors';
 import { ensureSystemActor } from './system-authz';
+import { toSystemDeviceModelResponse } from './system-device-model.presenter';
 
 export type UpdateSystemDeviceModelCommand = {
   accessToken: string;
@@ -24,6 +25,9 @@ export type UpdateSystemDeviceModelCommand = {
   supportedFeatures?: SystemDeviceFeatureKey[];
   status?: 'supported' | 'deprecated' | 'blocked';
   configurationInstructions?: string | null;
+  smsCommands?: string[];
+  wiringNotes?: string | null;
+  diagramUrls?: string[];
 };
 
 @Injectable()
@@ -84,6 +88,18 @@ export class UpdateSystemDeviceModelUseCase {
         command.configurationInstructions === undefined
           ? existing.configurationInstructions
           : command.configurationInstructions?.trim() || null,
+      smsCommands:
+        command.smsCommands === undefined
+          ? existing.smsCommands
+          : [...command.smsCommands],
+      wiringNotes:
+        command.wiringNotes === undefined
+          ? existing.wiringNotes
+          : command.wiringNotes?.trim() || null,
+      diagramUrls:
+        command.diagramUrls === undefined
+          ? existing.diagramUrls
+          : [...command.diagramUrls],
       updatedAt: new Date(),
     };
 
@@ -92,18 +108,7 @@ export class UpdateSystemDeviceModelUseCase {
     return {
       status: true,
       message: 'Device model updated successfully',
-      data: {
-        id: updated.id,
-        manufacturer: updated.manufacturer,
-        model: updated.model,
-        protocolType: updated.protocolType,
-        defaultPort: updated.defaultPort,
-        supportedFeatures: updated.supportedFeatures,
-        status: updated.status,
-        configurationInstructions: updated.configurationInstructions,
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
-      },
+      data: toSystemDeviceModelResponse(updated),
     };
   }
 }

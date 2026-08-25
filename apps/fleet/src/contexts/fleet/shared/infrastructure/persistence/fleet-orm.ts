@@ -67,6 +67,13 @@ export class DeviceRecord {
   batteryLevel?: number | null;
   lastSeen?: Date | null;
   assignedAt?: Date | null;
+  protocol?: string | null;
+  port?: number | null;
+  configuredAt?: Date | null;
+  verificationStatus?: string | null;
+  verificationDeadline?: Date | null;
+  verificationError?: string | null;
+  verifiedAt?: Date | null;
   traccarDeviceId?: string | null;
   provisionStatus?: string | null;
   createdAt!: Date;
@@ -160,6 +167,13 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     batteryLevel: { type: "integer", nullable: true },
     lastSeen: { type: "datetime", nullable: true },
     assignedAt: { type: "datetime", nullable: true },
+    protocol: { type: "string", length: 16, nullable: true },
+    port: { type: "integer", nullable: true },
+    configuredAt: { type: "datetime", nullable: true },
+    verificationStatus: { type: "string", length: 16, nullable: true },
+    verificationDeadline: { type: "datetime", nullable: true },
+    verificationError: { type: "text", nullable: true },
+    verifiedAt: { type: "datetime", nullable: true },
     traccarDeviceId: { type: "string", length: 64, nullable: true },
     provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
     createdAt: { type: "datetime", defaultRaw: "now()" },
@@ -173,9 +187,51 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     { properties: ["tenantId", "imei"], options: { unique: true } },
     { properties: ["tenantId", "status"] },
     { properties: ["tenantId", "lifecycleStatus"] },
+    { properties: ["tenantId", "verificationStatus"] },
+    { properties: ["verificationDeadline"] },
     { properties: ["vehicleId"] },
   ],
 });
+
+/**
+ * Why a device failed verification, and what it actually sent.
+ *
+ * The raw payload is kept as text and never parsed on the way in. A device
+ * that is misconfigured sends bytes we cannot read, and those bytes are the
+ * only evidence of what is wrong with it.
+ */
+export class DeviceVerificationFailureRecord {
+  id!: string;
+  tenantId!: string;
+  deviceId!: string;
+  imei!: string;
+  reason!: string;
+  detail?: string | null;
+  rawPayload?: string | null;
+  sourceAddress?: string | null;
+  createdAt!: Date;
+}
+
+export const DeviceVerificationFailureRecordSchema =
+  new EntitySchema<DeviceVerificationFailureRecord>({
+    class: DeviceVerificationFailureRecord,
+    tableName: "fleet_device_verification_failures",
+    properties: {
+      id: { type: "string", primary: true },
+      tenantId: { type: "string", length: 64 },
+      deviceId: { type: "string", length: 64 },
+      imei: { type: "string", length: 32 },
+      reason: { type: "string", length: 64 },
+      detail: { type: "text", nullable: true },
+      rawPayload: { type: "text", nullable: true },
+      sourceAddress: { type: "string", length: 64, nullable: true },
+      createdAt: { type: "datetime", defaultRaw: "now()" },
+    },
+    indexes: [
+      { properties: ["tenantId", "deviceId"] },
+      { properties: ["createdAt"] },
+    ],
+  });
 
 export class MaintenanceProfileRecord {
   id!: string;
@@ -682,6 +738,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       DeviceSetupRequestRecordSchema,
       CarrierRecordSchema,
       DataBundleRecordSchema,
+      DeviceVerificationFailureRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

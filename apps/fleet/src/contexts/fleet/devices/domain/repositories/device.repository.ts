@@ -1,4 +1,9 @@
-import type { Device, DeviceLifecycleStatus, DeviceStatus } from "../entities/device.entity";
+import type {
+  Device,
+  DeviceLifecycleStatus,
+  DeviceStatus,
+  DeviceVerificationStatus,
+} from "../entities/device.entity";
 
 export type DeviceFilters = {
   tenantId?: string;
@@ -6,6 +11,9 @@ export type DeviceFilters = {
   manufacturer?: string;
   status?: DeviceStatus;
   lifecycleStatus?: DeviceLifecycleStatus;
+  lifecycleStatusIn?: DeviceLifecycleStatus[];
+  verificationStatus?: DeviceVerificationStatus;
+  verifiedAfter?: Date;
   assigned?: boolean;
   vehicleId?: string;
   lastSeenAfter?: Date;
@@ -19,6 +27,11 @@ export interface DeviceRepository {
   findByImei(imei: string, tenantId: string): Promise<Device | null>;
   findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null>;
   deleteById(id: string, tenantId: string): Promise<void>;
+  /**
+   * Devices whose waiting window has closed, across every tenant. The sweep
+   * that fails them runs platform-wide, so this deliberately takes no tenant.
+   */
+  findAwaitingVerificationPastDeadline(now: Date, limit: number): Promise<Device[]>;
 }
 
 export const DEVICE_REPOSITORY = Symbol("DEVICE_REPOSITORY");

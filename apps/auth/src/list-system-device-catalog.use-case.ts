@@ -8,24 +8,16 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
+import { toSystemDeviceModelResponse } from './system-device-model.presenter';
 
 export type SystemDeviceCatalogFilters = {
   search?: string;
   status?: 'supported' | 'deprecated' | 'blocked';
 };
 
-export type SystemDeviceCatalogRow = {
-  id: string;
-  manufacturer: string;
-  model: string;
-  protocolType: StoredSystemDeviceModel['protocolType'];
-  defaultPort: number | null;
-  supportedFeatures: StoredSystemDeviceModel['supportedFeatures'];
-  status: StoredSystemDeviceModel['status'];
-  configurationInstructions: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+export type SystemDeviceCatalogRow = ReturnType<
+  typeof toSystemDeviceModelResponse
+>;
 
 @Injectable()
 export class ListSystemDeviceCatalogUseCase {
@@ -76,17 +68,6 @@ export class ListSystemDeviceCatalogUseCase {
           !filters.status || entry.status === filters.status;
         return matchesSearch && matchesStatus;
       })
-      .map((entry) => ({
-        id: entry.id,
-        manufacturer: entry.manufacturer,
-        model: entry.model,
-        protocolType: entry.protocolType,
-        defaultPort: entry.defaultPort,
-        supportedFeatures: [...entry.supportedFeatures],
-        status: entry.status,
-        configurationInstructions: entry.configurationInstructions,
-        createdAt: entry.createdAt.toISOString(),
-        updatedAt: entry.updatedAt.toISOString(),
-      }));
+      .map((entry) => toSystemDeviceModelResponse(entry));
   }
 }

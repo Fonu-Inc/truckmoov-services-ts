@@ -26,6 +26,29 @@ export class InMemoryDeviceRepository implements DeviceRepository {
       if (filters?.lifecycleStatus && device.lifecycleStatus !== filters.lifecycleStatus) {
         return false;
       }
+      if (
+        filters?.lifecycleStatusIn
+        && !filters.lifecycleStatusIn.includes(device.lifecycleStatus)
+      ) {
+        return false;
+      }
+      if (
+        filters?.verificationStatus
+        && device.verificationStatus !== filters.verificationStatus
+      ) {
+        return false;
+      }
+      if (filters?.verifiedAfter) {
+        if (!device.verifiedAt) return false;
+        if (Date.parse(device.verifiedAt) < filters.verifiedAfter.getTime()) return false;
+      }
+      if (filters?.lastSeenIsNull && device.lastSeen) {
+        return false;
+      }
+      if (filters?.lastSeenAfter) {
+        if (!device.lastSeen) return false;
+        if (Date.parse(device.lastSeen) < filters.lastSeenAfter.getTime()) return false;
+      }
       if (filters?.vehicleId && device.vehicleId !== filters.vehicleId) {
         return false;
       }
@@ -73,6 +96,17 @@ export class InMemoryDeviceRepository implements DeviceRepository {
         (device) => device.vehicleId === vehicleId && device.tenantId === tenantId,
       ) ?? null
     );
+  }
+
+  async findAwaitingVerificationPastDeadline(now: Date, limit: number): Promise<Device[]> {
+    return Array.from(this.data.values())
+      .filter((device) => device.hasVerificationExpired(now.toISOString()))
+      .sort(
+        (left, right) =>
+          Date.parse(left.verificationDeadline ?? "")
+          - Date.parse(right.verificationDeadline ?? ""),
+      )
+      .slice(0, limit);
   }
 
   async deleteById(id: string, tenantId: string): Promise<void> {

@@ -86,6 +86,23 @@ import {
 import { FleetController } from "./fleet.controller";
 import { RoutesController } from "./routes.controller";
 import { VehiclesController } from "./vehicles.controller";
+import { DeviceInstallationController } from "./device-installation.controller";
+import { DeviceVerificationSweepService } from "./device-verification-sweep.service";
+import { BulkConfigureDevicesUseCase } from "./contexts/fleet/devices/application/use-cases/bulk-configure-devices.use-case";
+import { ConfigureDeviceUseCase } from "./contexts/fleet/devices/application/use-cases/configure-device.use-case";
+import { ExpireDeviceVerificationsUseCase } from "./contexts/fleet/devices/application/use-cases/expire-device-verifications.use-case";
+import { GetDeviceDiagnosticsUseCase } from "./contexts/fleet/devices/application/use-cases/get-device-diagnostics.use-case";
+import { GetInstallationQueueUseCase } from "./contexts/fleet/devices/application/use-cases/get-installation-queue.use-case";
+import { GetInstallerGuideUseCase } from "./contexts/fleet/devices/application/use-cases/get-installer-guide.use-case";
+import { GetVerificationMonitorUseCase } from "./contexts/fleet/devices/application/use-cases/get-verification-monitor.use-case";
+import { RecordDeviceTelemetryUseCase } from "./contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
+import { RecordVerificationFailureUseCase } from "./contexts/fleet/devices/application/use-cases/record-verification-failure.use-case";
+import { StartDeviceVerificationUseCase } from "./contexts/fleet/devices/application/use-cases/start-device-verification.use-case";
+import { DEVICE_CATALOG_PORT } from "./contexts/fleet/devices/domain/ports/device-catalog.port";
+import { DEVICE_VERIFICATION_FAILURE_REPOSITORY } from "./contexts/fleet/devices/domain/repositories/device-verification-failure.repository";
+import { HttpDeviceCatalogAdapter } from "./contexts/fleet/devices/infrastructure/http-device-catalog.adapter";
+import { InMemoryDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/in-memory-device-verification-failure.repository";
+import { MikroDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/mikro-device-verification-failure.repository";
 import { DevicesController } from "./devices.controller";
 import { DeviceSetupRequestsController } from "./device-setup-requests.controller";
 import { CarriersController } from "./carriers.controller";
@@ -106,6 +123,7 @@ import { AuditController } from "./audit.controller";
 import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtime.port";
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
 import { VehicleHealthService } from "./vehicle-health.service";
+import { DeviceTelemetryListener } from "./device-telemetry.listener";
 import { VehicleLocationListener } from "./vehicle-location.listener";
 import { AlertDetectionListener } from "./alert-detection.listener";
 import { AlertEscalationService } from "./alert-escalation.service";
@@ -191,6 +209,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     RoutesController,
     VehiclesController,
     DevicesController,
+    DeviceInstallationController,
     DeviceSetupRequestsController,
     CarriersController,
     DataBundlesController,
@@ -213,6 +232,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
   providers: [
     VehicleHealthService,
     VehicleLocationListener,
+    DeviceTelemetryListener,
     AlertDetectionListener,
     AlertEscalationService,
     ScheduledReportService,
@@ -361,6 +381,33 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
         config: AppConfigService,
       ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
     },
+    InMemoryDeviceVerificationFailureRepository,
+    MikroDeviceVerificationFailureRepository,
+    {
+      provide: DEVICE_VERIFICATION_FAILURE_REPOSITORY,
+      inject: [
+        InMemoryDeviceVerificationFailureRepository,
+        MikroDeviceVerificationFailureRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemoryRepository: InMemoryDeviceVerificationFailureRepository,
+        mikroRepository: MikroDeviceVerificationFailureRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    { provide: DEVICE_CATALOG_PORT, useClass: HttpDeviceCatalogAdapter },
+    ConfigureDeviceUseCase,
+    BulkConfigureDevicesUseCase,
+    StartDeviceVerificationUseCase,
+    RecordDeviceTelemetryUseCase,
+    RecordVerificationFailureUseCase,
+    ExpireDeviceVerificationsUseCase,
+    GetInstallationQueueUseCase,
+    GetVerificationMonitorUseCase,
+    GetInstallerGuideUseCase,
+    GetDeviceDiagnosticsUseCase,
+    DeviceVerificationSweepService,
     HttpTraccarDeviceProvisioner,
     NoopTraccarDeviceProvisioner,
     {
@@ -484,6 +531,7 @@ export class AppModule implements NestModule {
         RoutesController,
         VehiclesController,
         DevicesController,
+        DeviceInstallationController,
         DeviceSetupRequestsController,
         CarriersController,
         DataBundlesController,

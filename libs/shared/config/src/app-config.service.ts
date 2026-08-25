@@ -71,6 +71,25 @@ export class AppConfigService {
       documentScanRequired: this.config.get<string>("DOCUMENT_SCAN_REQUIRED", "false") === "true",
       rateLimitRps: this.config.get<number>("RATE_LIMIT_RPS", 100),
       rateLimitBurst: this.config.get<number>("RATE_LIMIT_BURST", 200),
+      // The server address an installer programs into a tracker. It is the
+      // public ingest endpoint, not an in-cluster name: the device dials it
+      // over the mobile network from wherever the vehicle is.
+      telemetryIngestHost: this.config.get<string>("TELEMETRY_INGEST_HOST", ""),
+      // How long the platform waits for a newly configured device to report
+      // before it calls the attempt failed. Nothing here makes the device
+      // speak, so this window is the whole of the verification logic.
+      deviceVerificationWindowMinutes: this.config.get<number>(
+        "DEVICE_VERIFICATION_WINDOW_MINUTES",
+        30,
+      ),
+      // How often the sweep looks for windows that have closed.
+      deviceVerificationSweepSeconds: this.config.get<number>(
+        "DEVICE_VERIFICATION_SWEEP_SECONDS",
+        60,
+      ),
+      // Device models change rarely. Caching them keeps the installer queue
+      // from calling auth once per row.
+      deviceCatalogCacheSeconds: this.config.get<number>("DEVICE_CATALOG_CACHE_SECONDS", 300),
     };
   }
 

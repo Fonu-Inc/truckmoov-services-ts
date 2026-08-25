@@ -1,4 +1,5 @@
 export {
+  DEVICE_INSTALLATION_QUEUE_STATUSES,
   DEVICE_LIFECYCLE_STATUSES,
   DEVICE_PROVISION_STATUSES,
   DEVICE_STATUSES,
@@ -6,34 +7,66 @@ export {
   isDeviceLifecycleStatus,
   isDeviceProvisionStatus,
   isDeviceStatus,
+  isDeviceProtocol,
+  isDeviceVerificationStatus,
+  nextInstallationAction,
+  protocolNeedsPort,
 } from "@shared/devices";
+import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import {
   DEVICE_LIFECYCLE_STATUSES,
+  DEVICE_PROTOCOLS,
   DEVICE_STATUSES,
+  DEVICE_VERIFICATION_STATUSES,
   deviceStatusFromLifecycle,
   isDeviceLifecycleStatus,
   isDeviceStatus,
+  isDeviceProtocol,
+  isDeviceVerificationStatus,
+  nextInstallationAction,
+  protocolNeedsPort,
   type DeviceLifecycleStatus,
+  type DeviceNextAction,
+  type DeviceProtocol,
   type DeviceProvisionStatus,
   type DeviceStatus,
+  type DeviceVerificationStatus,
 } from "@shared/devices";
 
-export type { DeviceLifecycleStatus, DeviceProvisionStatus, DeviceStatus };
+export type {
+  DeviceLifecycleStatus,
+  DeviceNextAction,
+  DeviceProtocol,
+  DeviceProvisionStatus,
+  DeviceStatus,
+  DeviceVerificationStatus,
+};
 
 
 export const VALID_DEVICE_LIFECYCLE_TRANSITIONS: Record<
   DeviceLifecycleStatus,
   DeviceLifecycleStatus[]
 > = {
-  registered: ["config_pending"],
+  registered: ["config_pending", "configured"],
   config_pending: ["configured", "faulty"],
   configured: ["verified_online", "faulty"],
   verified_online: ["assignable", "faulty"],
   assignable: ["assigned", "faulty"],
   assigned: ["assignable", "faulty", "decommissioned"],
-  faulty: ["config_pending", "decommissioned"],
+  faulty: ["config_pending", "configured", "decommissioned"],
   decommissioned: [],
 };
+
+/**
+ * A device can be configured before it has been fitted and again after a
+ * failed attempt. It cannot be configured once it is carrying a vehicle.
+ */
+const CONFIGURABLE_LIFECYCLE_STATUSES: readonly DeviceLifecycleStatus[] = [
+  "registered",
+  "config_pending",
+  "configured",
+  "faulty",
+];
 
 export type DeviceProps = {
   id: string;
@@ -49,6 +82,13 @@ export type DeviceProps = {
   batteryLevel: number | null;
   lastSeen: string | null;
   assignedAt: string | null;
+  protocol?: DeviceProtocol | null;
+  port?: number | null;
+  configuredAt?: string | null;
+  verificationStatus?: DeviceVerificationStatus | null;
+  verificationDeadline?: string | null;
+  verificationError?: string | null;
+  verifiedAt?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: DeviceProvisionStatus;
   createdAt?: string;
@@ -88,6 +128,22 @@ export class Device {
     if (props.assignedAt && Number.isNaN(Date.parse(props.assignedAt))) {
       throw new Error("assignedAt must be a valid ISO date");
     }
+    if (props.protocol && !isDeviceProtocol(props.protocol)) {
+      throw new Error(`protocol must be one of: ${DEVICE_PROTOCOLS.join(", ")}`);
+    }
+    if (props.port !== null && props.port !== undefined) {
+      if (!Number.isInteger(props.port) || props.port < 1 || props.port > 65535) {
+        throw new Error("port must be between 1 and 65535");
+      }
+    }
+    if (
+      props.verificationStatus &&
+      !isDeviceVerificationStatus(props.verificationStatus)
+    ) {
+      throw new Error(
+        `verificationStatus must be one of: ${DEVICE_VERIFICATION_STATUSES.join(", ")}`,
+      );
+    }
     if (props.signalStrength !== null && props.signalStrength !== undefined) {
       if (props.signalStrength < 0 || props.signalStrength > 100) {
         throw new Error("signalStrength must be between 0 and 100");
@@ -125,6 +181,13 @@ export class Device {
       batteryLevel: props.batteryLevel ?? null,
       lastSeen: props.lastSeen ?? null,
       assignedAt: vehicleId ? (props.assignedAt ?? new Date().toISOString()) : null,
+      protocol: props.protocol ?? null,
+      port: props.port ?? null,
+      configuredAt: props.configuredAt ?? null,
+      verificationStatus: props.verificationStatus ?? null,
+      verificationDeadline: props.verificationDeadline ?? null,
+      verificationError: props.verificationError ?? null,
+      verifiedAt: props.verifiedAt ?? null,
       traccarDeviceId: props.traccarDeviceId ?? null,
       provisionStatus: props.provisionStatus ?? "pending",
       createdAt: props.createdAt ?? new Date().toISOString(),
@@ -182,6 +245,38 @@ export class Device {
 
   get assignedAt() {
     return this.props.assignedAt;
+  }
+
+  get protocol(): DeviceProtocol | null {
+    return this.props.protocol ?? null;
+  }
+
+  get port(): number | null {
+    return this.props.port ?? null;
+  }
+
+  get configuredAt(): string | null {
+    return this.props.configuredAt ?? null;
+  }
+
+  get verificationStatus(): DeviceVerificationStatus | null {
+    return this.props.verificationStatus ?? null;
+  }
+
+  get verificationDeadline(): string | null {
+    return this.props.verificationDeadline ?? null;
+  }
+
+  get verificationError(): string | null {
+    return this.props.verificationError ?? null;
+  }
+
+  get verifiedAt(): string | null {
+    return this.props.verifiedAt ?? null;
+  }
+
+  get nextAction(): DeviceNextAction {
+    return nextInstallationAction(this.lifecycleStatus, this.verificationStatus);
   }
 
   get traccarDeviceId() {
@@ -290,6 +385,113 @@ export class Device {
     });
   }
 
+  /**
+   * Records that the installer programmed the device with a protocol and port.
+   * The values are stored on the device, not read from the catalogue on every
+   * view: the catalogue default can change later, and what matters when a
+   * device will not report is what was actually programmed into it.
+   */
+  configure(values: {
+    protocol: DeviceProtocol;
+    port: number | null;
+    at?: string;
+  }): Device {
+    if (!CONFIGURABLE_LIFECYCLE_STATUSES.includes(this.lifecycleStatus)) {
+      throw new FleetRuleError(
+        `device cannot be configured from ${this.lifecycleStatus}`,
+      );
+    }
+    if (protocolNeedsPort(values.protocol) && values.port === null) {
+      throw new FleetRuleError(`${values.protocol} devices need a port`);
+    }
+
+    const at = values.at ?? new Date().toISOString();
+    return Device.create({
+      ...this.toPrimitives(),
+      lifecycleStatus: "configured",
+      status: deviceStatusFromLifecycle("configured"),
+      protocol: values.protocol,
+      port: protocolNeedsPort(values.protocol) ? values.port : null,
+      configuredAt: at,
+      // A new configuration starts a new attempt. The previous outcome says
+      // nothing about the settings now on the device.
+      verificationStatus: null,
+      verificationDeadline: null,
+      verificationError: null,
+      verifiedAt: null,
+      updatedAt: at,
+    });
+  }
+
+  /**
+   * Opens the waiting window. Nothing is checked here — the device reports or
+   * it does not, and the deadline is what turns silence into a failure.
+   */
+  beginVerification(values: { deadline: string; at?: string }): Device {
+    if (this.lifecycleStatus !== "configured") {
+      throw new FleetRuleError("only a configured device can be verified");
+    }
+    if (Number.isNaN(Date.parse(values.deadline))) {
+      throw new Error("deadline must be a valid ISO date");
+    }
+
+    const at = values.at ?? new Date().toISOString();
+    return Device.create({
+      ...this.toPrimitives(),
+      verificationStatus: "waiting",
+      verificationDeadline: values.deadline,
+      verificationError: null,
+      updatedAt: at,
+    });
+  }
+
+  /**
+   * The device reported for the first time. This is the only path to
+   * verified_online: a person clicking a button is not evidence that a tracker
+   * is on the network.
+   */
+  recordFirstTelemetry(at: string): Device {
+    if (this.verificationStatus !== "waiting") {
+      throw new FleetRuleError("device is not waiting for verification");
+    }
+
+    return Device.create({
+      ...this.toPrimitives(),
+      lifecycleStatus: "verified_online",
+      status: deviceStatusFromLifecycle("verified_online"),
+      verificationStatus: "verified",
+      verificationDeadline: null,
+      verificationError: null,
+      verifiedAt: at,
+      lastSeen: at,
+      updatedAt: at,
+    });
+  }
+
+  /**
+   * The attempt did not succeed. The device stays configured so the installer
+   * can correct the settings and try again; only a physical fault moves it to
+   * faulty, and that is a separate decision.
+   */
+  failVerification(reason: string, at?: string): Device {
+    const failedAt = at ?? new Date().toISOString();
+    return Device.create({
+      ...this.toPrimitives(),
+      verificationStatus: "failed",
+      verificationDeadline: null,
+      verificationError: reason.trim() || "verification failed",
+      updatedAt: failedAt,
+    });
+  }
+
+  /** True once the deadline has passed with no telemetry. */
+  hasVerificationExpired(now: string): boolean {
+    if (this.verificationStatus !== "waiting" || !this.verificationDeadline) {
+      return false;
+    }
+    return Date.parse(this.verificationDeadline) <= Date.parse(now);
+  }
+
   toPrimitives(): DeviceProps {
     return {
       id: this.id,
@@ -305,6 +507,13 @@ export class Device {
       batteryLevel: this.batteryLevel,
       lastSeen: this.lastSeen,
       assignedAt: this.assignedAt,
+      protocol: this.protocol,
+      port: this.port,
+      configuredAt: this.configuredAt,
+      verificationStatus: this.verificationStatus,
+      verificationDeadline: this.verificationDeadline,
+      verificationError: this.verificationError,
+      verifiedAt: this.verifiedAt,
       traccarDeviceId: this.traccarDeviceId,
       provisionStatus: this.provisionStatus,
       createdAt: this.createdAt,

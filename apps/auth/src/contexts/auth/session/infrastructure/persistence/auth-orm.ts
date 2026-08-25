@@ -809,6 +809,9 @@ export class SystemDeviceModelRecord {
   supportedFeatures!: string[];
   status!: string;
   configurationInstructions!: string | null;
+  smsCommands!: string[];
+  wiringNotes!: string | null;
+  diagramUrls!: string[];
   createdByUserId!: string;
   createdAt!: Date;
   updatedAt!: Date;
@@ -838,6 +841,17 @@ export const SystemDeviceModelRecordSchema =
         fieldName: 'configuration_instructions',
         type: 'text',
         nullable: true,
+      },
+      smsCommands: {
+        fieldName: 'sms_commands',
+        type: 'json',
+        defaultRaw: "'[]'",
+      },
+      wiringNotes: { fieldName: 'wiring_notes', type: 'text', nullable: true },
+      diagramUrls: {
+        fieldName: 'diagram_urls',
+        type: 'json',
+        defaultRaw: "'[]'",
       },
       createdByUserId: {
         fieldName: 'created_by_user_id',

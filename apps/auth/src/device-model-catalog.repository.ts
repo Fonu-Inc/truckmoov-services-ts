@@ -3,6 +3,8 @@ export const SYSTEM_DEVICE_PROTOCOL_TYPES = [
   'HTTP',
   'MQTT',
   'UDP',
+  'WEBSOCKET',
+  'SDK',
 ] as const;
 export const SYSTEM_DEVICE_CATALOG_STATUSES = [
   'supported',
@@ -27,6 +29,9 @@ export type StoredSystemDeviceModel = {
   supportedFeatures: SystemDeviceFeatureKey[];
   status: SystemDeviceCatalogStatus;
   configurationInstructions: string | null;
+  smsCommands: string[];
+  wiringNotes: string | null;
+  diagramUrls: string[];
   createdByUserId: string;
   createdAt: Date;
   updatedAt: Date;
