@@ -542,6 +542,46 @@ export const TenantStorageUsageRecordSchema = new EntitySchema<TenantStorageUsag
   },
 });
 
+
+/* ── Organisation Upgrade Requests ──────────────────── */
+
+export class OrganisationUpgradeRequestRecord {
+  id!: string;
+  tenantId!: string;
+  fromOrganisationType!: string;
+  toOrganisationType!: string;
+  reason!: string;
+  statedVehicleCount!: number;
+  status!: string;
+  requestedBy!: string;
+  requestedAt!: Date;
+  reviewedBy!: string | null;
+  reviewedAt!: Date | null;
+  reviewerNotes!: string | null;
+  vehicleCountAtReview!: number | null;
+}
+
+export const OrganisationUpgradeRequestRecordSchema =
+  new EntitySchema<OrganisationUpgradeRequestRecord>({
+    class: OrganisationUpgradeRequestRecord,
+    tableName: 'organisation_upgrade_requests',
+    properties: {
+      id: { type: 'string', primary: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      fromOrganisationType: { fieldName: 'from_organisation_type', type: 'string', length: 32 },
+      toOrganisationType: { fieldName: 'to_organisation_type', type: 'string', length: 32 },
+      reason: { type: 'text' },
+      statedVehicleCount: { fieldName: 'stated_vehicle_count', type: 'number', defaultRaw: '0' },
+      status: { type: 'string', length: 16, defaultRaw: "'pending'" },
+      requestedBy: { fieldName: 'requested_by', type: 'string', length: 128 },
+      requestedAt: { fieldName: 'requested_at', type: 'datetime', defaultRaw: 'now()' },
+      reviewedBy: { fieldName: 'reviewed_by', type: 'string', length: 128, nullable: true },
+      reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
+      reviewerNotes: { fieldName: 'reviewer_notes', type: 'text', nullable: true },
+      vehicleCountAtReview: { fieldName: 'vehicle_count_at_review', type: 'number', nullable: true },
+    },
+  });
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1748,6 +1788,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      OrganisationUpgradeRequestRecordSchema,
       TenantStorageUsageRecordSchema,
       PlanEntitlementRecordSchema,
       TenantUsageAllowanceRecordSchema,

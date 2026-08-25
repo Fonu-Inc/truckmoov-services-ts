@@ -170,6 +170,7 @@ import { IntegrationHealthService } from "./integration-health.service";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { EntitlementReaderService } from "./entitlement-reader.service";
 import { QuotaService } from "./quota.service";
+import { InternalFleetController } from "./internal-fleet.controller";
 import { StorageReconciliationService } from "./storage-reconciliation.service";
 import { StorageReporterService } from "./storage-reporter.service";
 import { TenantActiveGuard } from "./tenant-active.guard";
@@ -185,6 +186,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
 @Module({
   imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule],
   controllers: [
+    InternalFleetController,
     FleetController,
     RoutesController,
     VehiclesController,

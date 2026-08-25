@@ -240,6 +240,10 @@ export class AppConfigService {
       // to reach auth and admitting every tenant it has not seen. A local run
       // sets AUTH_SERVICE_URL in .env instead.
       serviceUrl: this.config.get<string>("AUTH_SERVICE_URL", "http://auth-service:3001"),
+      // In-cluster by default for the same reason as the auth URL: an unset
+      // variable must not leave a decision being made on stale, self-reported
+      // numbers.
+      fleetServiceUrl: this.config.get<string>("FLEET_SERVICE_URL", "http://fleet-service:3002"),
       // How long a service may trust a cached "tenant is active" answer. The
       // suspension event invalidates it sooner; this bounds the case where the
       // event was missed, so it is the worst-case delay, not the usual one.

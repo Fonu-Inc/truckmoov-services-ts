@@ -130,6 +130,18 @@ import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
 import { EntitlementService } from './entitlement.service';
 import { StorageQuotaService } from './storage-quota.service';
+import { OrganisationUpgradesController } from './organisation-upgrades.controller';
+import {
+  RequestOrganisationUpgradeUseCase,
+  ReviewOrganisationUpgradeUseCase,
+} from './organisation-upgrade.use-cases';
+import {
+  ORGANISATION_UPGRADE_REPOSITORY,
+  type OrganisationUpgradeRepository,
+} from './organisation-upgrade.repository';
+import { InMemoryOrganisationUpgradeRepository } from './in-memory-organisation-upgrade.repository';
+import { MikroOrganisationUpgradeRepository } from './mikro-organisation-upgrade.repository';
+import { FleetFactsService } from './fleet-facts.service';
 import { StorageReconciliationService } from './storage-reconciliation.service';
 import {
   STORAGE_USAGE_REPOSITORY,
@@ -417,6 +429,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailboxController,
     PlatformAlertsController,
     CommunicationRatesController,
+    OrganisationUpgradesController,
     InternalUsageController,
     ProfileController,
     OrganizationController,
@@ -770,6 +783,25 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ChargeUsageUseCase,
     EntitlementService,
     StorageQuotaService,
+    FleetFactsService,
+    RequestOrganisationUpgradeUseCase,
+    ReviewOrganisationUpgradeUseCase,
+    InMemoryOrganisationUpgradeRepository,
+    MikroOrganisationUpgradeRepository,
+    {
+      provide: ORGANISATION_UPGRADE_REPOSITORY,
+      inject: [
+        InMemoryOrganisationUpgradeRepository,
+        MikroOrganisationUpgradeRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: OrganisationUpgradeRepository,
+        mikro: OrganisationUpgradeRepository,
+        config: AppConfigService,
+      ): OrganisationUpgradeRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     StorageReconciliationService,
     InMemoryStorageUsageRepository,
     MikroStorageUsageRepository,
