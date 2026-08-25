@@ -194,19 +194,7 @@ plan and the wallet behaviour does not change with them.
 
 ---
 
-## TD-6 — The media upload route has no authentication
-
-`POST /auth/media/upload` carries no guard: no `@Roles`, no bearer requirement,
-no tenant. Anyone who can reach the gateway can write objects into the bucket.
-
-Storage accounting now attributes an upload when a token happens to be present
-and charges nobody when it is not, which is honest but not a fix. The route
-itself needs a guard, and once it has one the optional-token branch in
-`storeUploadedMedia` can go.
-
----
-
-## TD-7 — Admin editing of plan entitlements is not built
+## TD-6 — Admin editing of plan entitlements is not built
 
 **Status:** deferred by decision, 25 August 2026.
 

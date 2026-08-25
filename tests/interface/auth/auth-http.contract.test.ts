@@ -145,6 +145,27 @@ describe('Auth HTTP contract', () => {
     expect(response.status).toBe(500);
   });
 
+
+  // The route used to accept an upload from anyone. Without a token the file
+  // has no owner: nobody is charged and nothing stops a caller filling the
+  // bucket.
+  it('POST /auth/media/upload refuses an upload with no token', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/media/upload')
+      .attach('file', Buffer.from('image-bytes'), 'logo.png');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('POST /auth/media/upload refuses a token it cannot verify', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/media/upload')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .attach('file', Buffer.from('image-bytes'), 'logo.png');
+
+    expect(response.status).toBe(401);
+  });
+
   // ── Register (enterprise admin) ──────────────────────
 
   it('POST /auth/register creates an enterprise admin', async () => {

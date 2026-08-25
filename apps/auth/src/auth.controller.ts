@@ -158,8 +158,10 @@ export class AuthController extends BaseAuthController {
   @ApiOperation({
     summary: 'Upload media',
     description:
-      'Uploads a media file to object storage and returns a link to it.',
+      'Uploads a media file to object storage and returns a link to it. The file is charged to the tenant named in the access token.',
   })
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiCreatedResponse({ type: UploadedMediaResponse })
   @ApiBadRequestResponse({ description: 'Missing upload file' })
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
@@ -185,7 +187,16 @@ export class AuthController extends BaseAuthController {
     },
     @Headers('authorization') authorization?: string,
   ) {
-    return this.storeUploadedMedia('auth', file, authorization);
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    // The tenant comes from the verified token. Without one the upload has no
+    // owner: nobody is charged for the bytes and nothing stops a caller filling
+    // the bucket.
+    const tenantId = this.tokenService.resolveAccessToken(accessToken)?.tenantId;
+    if (!tenantId) throw new UnauthorizedException('Invalid access token');
+
+    return this.storeUploadedMedia('auth', tenantId, file);
   }
 
   /** Register an enterprise admin (creates new tenant) */
@@ -679,13 +690,13 @@ export class AuthController extends BaseAuthController {
 
   private async storeUploadedMedia(
     service: 'auth' | 'fleet',
+    tenantId: string,
     file?: {
       originalname: string;
       mimetype: string;
       size: number;
       buffer: Buffer;
     },
-    authorization?: string,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Missing upload file');
@@ -704,23 +715,15 @@ export class AuthController extends BaseAuthController {
     const key = `${service}/media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
     const usePublicMediaUrl = this.objectStorageService.hasPublicBaseUrl();
 
-    // This route carries no auth guard, so a caller may present no token at
-    // all. An upload that names no tenant is stored but charged to nobody,
-    // which is the honest outcome rather than charging an arbitrary tenant.
-    const tenantId = authorization
-      ? (this.tokenService.resolveAccessToken(this.extractBearerToken(authorization) ?? '')
-          ?.tenantId ?? null)
-      : null;
-
-    if (tenantId) {
-      try {
-        await this.storageQuota.assertRoomFor(tenantId, file.buffer.byteLength);
-      } catch (error) {
-        if (error instanceof StorageQuotaExceededError) {
-          throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
-        }
-        throw error;
+    // Reserved before the bytes are written, so a refused upload leaves nothing
+    // in the bucket to clean up.
+    try {
+      await this.storageQuota.assertRoomFor(tenantId, file.buffer.byteLength);
+    } catch (error) {
+      if (error instanceof StorageQuotaExceededError) {
+        throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
       }
+      throw error;
     }
 
     try {
@@ -733,6 +736,8 @@ export class AuthController extends BaseAuthController {
         // such as fleet attachments still use presigned URLs elsewhere.
         visibility: usePublicMediaUrl ? 'public' : 'private',
       });
+
+      await this.storageQuota.record(tenantId, 'media', file.buffer.byteLength);
 
       const url =
         (usePublicMediaUrl ? this.objectStorageService.publicUrl(key) : null) ??
