@@ -433,6 +433,37 @@ export const PlatformAlertSettingRecordSchema =
     },
   });
 
+
+/* ── Communication Rates ────────────────────────────── */
+
+export class CommunicationRateRecord {
+  id!: string;
+  channel!: string;
+  unit!: string;
+  rateKobo!: number;
+  enabled!: boolean;
+  description!: string;
+  effectiveFrom!: Date;
+  createdBy!: string | null;
+  createdAt!: Date;
+}
+
+export const CommunicationRateRecordSchema = new EntitySchema<CommunicationRateRecord>({
+  class: CommunicationRateRecord,
+  tableName: 'communication_rates',
+  properties: {
+    id: { type: 'string', primary: true },
+    channel: { type: 'string', length: 32, index: true },
+    unit: { type: 'string', length: 32 },
+    rateKobo: { fieldName: 'rate_kobo', type: 'bigint' },
+    enabled: { type: 'boolean', defaultRaw: 'true' },
+    description: { type: 'string', length: 255, defaultRaw: "''" },
+    effectiveFrom: { fieldName: 'effective_from', type: 'datetime', defaultRaw: 'now()' },
+    createdBy: { fieldName: 'created_by', type: 'string', length: 128, nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1639,6 +1670,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      CommunicationRateRecordSchema,
       PlatformAlertSettingRecordSchema,
       MailThreadRecordSchema,
       MailMessageRecordSchema,

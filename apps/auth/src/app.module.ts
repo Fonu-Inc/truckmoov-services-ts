@@ -124,6 +124,14 @@ import {
 import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
+import { CommunicationRatesController } from './communication-rates.controller';
+import { CommunicationRateService } from './communication-rate.service';
+import {
+  COMMUNICATION_RATES_REPOSITORY,
+  type CommunicationRatesRepository,
+} from './communication-rates.repository';
+import { InMemoryCommunicationRatesRepository } from './in-memory-communication-rates.repository';
+import { MikroCommunicationRatesRepository } from './mikro-communication-rates.repository';
 import { PlatformAlertSettingsUseCase } from './platform-alert-settings.use-case';
 import {
   PLATFORM_ALERT_SETTINGS_REPOSITORY,
@@ -389,6 +397,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailCredentialsController,
     MailboxController,
     PlatformAlertsController,
+    CommunicationRatesController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -737,6 +746,23 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListMailboxUseCase,
     DownloadAttachmentUseCase,
     PlatformAlertSettingsUseCase,
+    CommunicationRateService,
+    InMemoryCommunicationRatesRepository,
+    MikroCommunicationRatesRepository,
+    {
+      provide: COMMUNICATION_RATES_REPOSITORY,
+      inject: [
+        InMemoryCommunicationRatesRepository,
+        MikroCommunicationRatesRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: CommunicationRatesRepository,
+        mikro: CommunicationRatesRepository,
+        config: AppConfigService,
+      ): CommunicationRatesRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     InMemoryPlatformAlertSettingsRepository,
     MikroPlatformAlertSettingsRepository,
     {
