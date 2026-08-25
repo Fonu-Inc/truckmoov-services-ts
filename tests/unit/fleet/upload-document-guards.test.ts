@@ -9,6 +9,15 @@ import { InMemoryDocumentRepository } from "../../../apps/fleet/src/contexts/fle
 import { InMemoryAccessLogRepository } from "../../../apps/fleet/src/contexts/fleet/documents/infrastructure/in-memory-access-log.repository";
 import type { FileScanner, FileScanVerdict } from "../../../apps/fleet/src/contexts/fleet/documents/domain/file-scanner.port";
 
+/**
+ * Reports nothing. Storage accounting has its own tests; these exercise the
+ * upload guards around it.
+ */
+const storageReporter = {
+  recordUpload: async () => {},
+  recordDeletion: async () => {},
+} as never;
+
 function config(maxBytes = 1024, scanRequired = false) {
   return { fleet: { documentRetentionDays: 365, documentMaxBytes: maxBytes, documentScanRequired: scanRequired } };
 }
@@ -45,7 +54,7 @@ describe("UploadDocumentUseCase guards", () => {
   });
 
   function build(cfg = config(), scanner: FileScanner = scannerOf(unscanned)) {
-    return new UploadDocumentUseCase(docs, logs, storage as never, cfg as never, scanner);
+    return new UploadDocumentUseCase(docs, logs, storage as never, cfg as never, scanner, storageReporter);
   }
 
   it("stores an allowed file under the cap", async () => {

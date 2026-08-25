@@ -3,6 +3,8 @@ import { extname } from 'node:path';
 import {
   Sse,
   Body,
+  HttpException,
+  HttpStatus,
   Put,
   Param,
   BadRequestException,
@@ -77,6 +79,10 @@ import {
 } from './dto/onboarding.dto';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
 import { PaymentGatewayRegistry } from './contexts/payments';
+import { StorageQuotaService } from './storage-quota.service';
+import { StorageQuotaExceededError } from './storage-usage.repository';
+import { TOKEN_SERVICE } from './contexts/auth/session';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
 import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
@@ -107,6 +113,8 @@ export class OnboardingController extends BaseAuthController {
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
     @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
     @Inject(PaymentGatewayRegistry) private readonly gatewayRegistry: PaymentGatewayRegistry,
+    @Inject(StorageQuotaService) private readonly storageQuota: StorageQuotaService,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(SubscribePaymentEventsUseCase) private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
@@ -392,6 +400,21 @@ export class OnboardingController extends BaseAuthController {
 
     const ext = extname(file.originalname).toLowerCase();
     const key = `auth/kyc/${randomUUID()}${ext}`;
+
+    const tenantId = this.tokenService.resolveAccessToken(accessToken)?.tenantId;
+    if (!tenantId) throw new UnauthorizedException('Invalid access token');
+
+    // Reserved before the bytes are written, so a refused upload leaves nothing
+    // in object storage to clean up.
+    try {
+      await this.storageQuota.assertRoomFor(tenantId, file.buffer.byteLength);
+    } catch (error) {
+      if (error instanceof StorageQuotaExceededError) {
+        throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
+      }
+      throw error;
+    }
+
     try {
       await this.objectStorageService.putObject({
         key,
@@ -402,6 +425,8 @@ export class OnboardingController extends BaseAuthController {
     } catch {
       throw new ServiceUnavailableException('File upload failed');
     }
+
+    await this.storageQuota.record(tenantId, 'kyc', file.buffer.byteLength);
 
     try {
       return await this.saveKycDocumentUseCase.execute(accessToken, {

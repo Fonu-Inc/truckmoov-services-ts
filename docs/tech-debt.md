@@ -136,3 +136,59 @@ crossings.
 boundary and costs latency on vehicle creation plus a fail-open or fail-closed
 decision. The same-database read has no new failure mode, since a failure there
 means the database is unreachable and the vehicle write fails regardless.
+
+---
+
+## TD-3 — A tenant who downgrades is instantly over their storage quota
+
+**Status:** deferred by decision, 25 August 2026. Recorded so it is not
+rediscovered as a bug.
+
+Storage quota enforcement refuses new uploads and leaves stored data alone. A
+tenant moving from a 50 GB plan to a 10 GB one therefore keeps 50 GB and cannot
+upload anything until they delete 40 GB.
+
+That is deliberate. Deleting a tenant's files because they changed plan is worse
+than the alternative, and the alternative is at least visible to them.
+
+What it needs before it is settled:
+
+- A grace period, or a read-only state, rather than a hard stop on the next
+  upload.
+- Something that tells the tenant they are over, since today they only find out
+  when an upload is refused.
+- A policy for a tenant who stays over indefinitely.
+
+`StorageQuotaService.assertRoomFor` is the one place this behaviour lives.
+
+---
+
+## TD-4 — Storage subtotals drift and nothing reconciles them yet
+
+`tenant_storage_usage` holds a running byte total per tenant per source, moved
+by a signed delta on upload and delete. The design allows each service to
+recompute its own source from its own tables — `setBytes` exists for exactly
+that — but no reconciliation job calls it.
+
+Until one does, a missed delete leaves the total permanently high, and a tenant
+eventually gets refused with room to spare.
+
+Each service can fix its own row without reading another service's data:
+
+- fleet recomputes `fleet_documents` by summing `size_bytes` per tenant.
+- auth recomputes `kyc`, `media` and `mailbox` the same way.
+
+A sweep per service, running daily, is enough. The counter stays the fast path;
+reconciliation is what makes it eventually correct.
+
+---
+
+## TD-5 — Payment model is not enforced when a tenant changes plan
+
+Plan entitlements carry a payment model, prepaid or postpaid, and the
+requirements document is explicit that prepaid and postpaid are separate plan
+sets: a tenant switching model is changing plan, not flipping a billing flag.
+
+Nothing enforces that today. A tenant can move between a prepaid and a postpaid
+plan and the wallet behaviour does not change with them.
+

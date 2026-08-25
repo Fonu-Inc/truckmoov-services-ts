@@ -1,4 +1,6 @@
 import {
+  HttpException,
+  HttpStatus,
   UploadedFile,
   UseInterceptors,
   Param,
@@ -12,6 +14,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { StorageQuotaExceededError } from "./storage-reporter.service";
 import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from "@shared/http";
 import {
   ApiConsumes,
@@ -99,6 +102,11 @@ export class DocumentsController extends BaseFleetController {
         uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
       });
     } catch (error) {
+      if (error instanceof StorageQuotaExceededError) {
+        // 413 rather than 400: the request was well formed and the tenant is
+        // simply out of room, which the caller has to tell apart from a bug.
+        throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
+      }
       if (
         error instanceof DocumentTooLargeError ||
         error instanceof DocumentTypeNotAllowedError ||

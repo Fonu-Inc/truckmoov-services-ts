@@ -4,12 +4,18 @@ import { UploadDocumentUseCase, type UploadDocumentCommand } from "../../../apps
 import { InMemoryDocumentRepository } from "../../../apps/fleet/src/contexts/fleet/documents/infrastructure/in-memory-document.repository";
 import { InMemoryAccessLogRepository } from "../../../apps/fleet/src/contexts/fleet/documents/infrastructure/in-memory-access-log.repository";
 
+/** Reports nothing; storage accounting is tested separately. */
+const storageReporter = {
+  recordUpload: async () => {},
+  recordDeletion: async () => {},
+} as never;
+
 function makeUseCase(retentionDays = 365) {
   const config = { fleet: { documentRetentionDays: retentionDays, documentMaxBytes: 10 * 1024 * 1024, documentScanRequired: false } } as AppConfigService;
   const docRepo = new InMemoryDocumentRepository();
   const logRepo = new InMemoryAccessLogRepository();
   const storage = { putObject: vi.fn().mockResolvedValue(undefined), createPresignedDownloadUrl: vi.fn(), createPresignedUploadUrl: vi.fn() };
-  return { uc: new UploadDocumentUseCase(docRepo, logRepo, storage as any, config, { scan: async () => ({ scanned: false, clean: false }) }), docRepo, logRepo, storage };
+  return { uc: new UploadDocumentUseCase(docRepo, logRepo, storage as any, config, { scan: async () => ({ scanned: false, clean: false }) }, storageReporter), docRepo, logRepo, storage };
 }
 
 const baseCmd: UploadDocumentCommand = {

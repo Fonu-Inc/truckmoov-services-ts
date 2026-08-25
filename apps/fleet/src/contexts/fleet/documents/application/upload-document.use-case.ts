@@ -5,6 +5,7 @@ import { Document, type DocumentType, type EntityType } from "../domain/document
 import { DOCUMENT_REPOSITORY, type DocumentRepository } from "../domain/document.repository";
 import { ACCESS_LOG_REPOSITORY, type AccessLogRepository } from "../domain/access-log.repository";
 import { FILE_SCANNER, type FileScanner } from "../domain/file-scanner.port";
+import { StorageReporterService } from "../../../../storage-reporter.service";
 
 /** Documents arrive from outside the platform, so the accepted types are listed rather than filtered. */
 export const ALLOWED_DOCUMENT_CONTENT_TYPES = [
@@ -55,6 +56,7 @@ export class UploadDocumentUseCase {
     private readonly storage: ObjectStorageService,
     @Inject(AppConfigService) config: AppConfigService,
     @Inject(FILE_SCANNER) private readonly scanner: FileScanner,
+    @Inject(StorageReporterService) private readonly storageReporter: StorageReporterService,
   ) {
     this.retentionDays = config.fleet.documentRetentionDays;
     this.maxBytes = config.fleet.documentMaxBytes;
@@ -65,6 +67,10 @@ export class UploadDocumentUseCase {
     // Every check runs before the file reaches storage, so a refused upload
     // leaves nothing behind to clean up.
     await this.assertAcceptable(cmd);
+
+    // Reserved with auth before the bytes are written, for the same reason as
+    // the checks above: a refused upload must leave nothing behind.
+    await this.storageReporter.recordUpload(cmd.tenantId, cmd.buffer.byteLength);
 
     const id = crypto.randomUUID();
     const key = `${cmd.tenantId}/${cmd.entityType}/${cmd.entityId}/${cmd.docType}/${id}-${cmd.filename}`;
