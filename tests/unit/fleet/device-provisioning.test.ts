@@ -9,6 +9,12 @@ import type {
   DeviceIdentityEventPublisher,
 } from "../../../apps/fleet/src/contexts/fleet/devices/domain/ports/device-identity-event.publisher";
 
+/**
+ * Enforces nothing. The quota rules have their own tests; these exercise the
+ * behaviour around them.
+ */
+const unlimitedQuota = { assertWithinQuota: async () => {} } as never;
+
 let counter = 0;
 const runtime = {
   generateId: () => `dev-${++counter}`,
@@ -51,7 +57,7 @@ describe("CreateDeviceUseCase provisioning + identity emit", () => {
   it("marks registered and stores the traccar id on success", async () => {
     const repo = new InMemoryDeviceRepository();
     const publisher = new RecordingPublisher();
-    const result = await new CreateDeviceUseCase(repo, runtime, okProvisioner, publisher).execute(baseCommand());
+    const result = await new CreateDeviceUseCase(repo, runtime, okProvisioner, publisher, unlimitedQuota).execute(baseCommand());
 
     expect(result.provisionStatus).toBe("registered");
     expect(result.traccarDeviceId).toBe("tc-99");
@@ -63,7 +69,7 @@ describe("CreateDeviceUseCase provisioning + identity emit", () => {
   it("does not block creation when traccar is unreachable", async () => {
     const repo = new InMemoryDeviceRepository();
     const publisher = new RecordingPublisher();
-    const result = await new CreateDeviceUseCase(repo, runtime, failingProvisioner, publisher).execute(baseCommand());
+    const result = await new CreateDeviceUseCase(repo, runtime, failingProvisioner, publisher, unlimitedQuota).execute(baseCommand());
 
     expect(result.provisionStatus).toBe("failed");
     expect(result.traccarDeviceId).toBeNull();
@@ -73,7 +79,7 @@ describe("CreateDeviceUseCase provisioning + identity emit", () => {
   it("stays pending when no traccar is configured (noop)", async () => {
     const repo = new InMemoryDeviceRepository();
     const publisher = new RecordingPublisher();
-    const result = await new CreateDeviceUseCase(repo, runtime, noopProvisioner, publisher).execute(baseCommand());
+    const result = await new CreateDeviceUseCase(repo, runtime, noopProvisioner, publisher, unlimitedQuota).execute(baseCommand());
 
     expect(result.provisionStatus).toBe("pending");
     expect(result.traccarDeviceId).toBeNull();

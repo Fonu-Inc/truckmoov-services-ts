@@ -9,6 +9,12 @@ import { AssignDriverToVehicleUseCase } from "../../../apps/fleet/src/contexts/f
 import { SetDriverStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/set-driver-status.use-case";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
 
+/**
+ * Enforces nothing. The quota rules have their own tests; these exercise the
+ * behaviour around them.
+ */
+const unlimitedQuota = { assertWithinQuota: async () => {} } as never;
+
 const fakeRuntime = {
   generateId: () => "generated-id",
   getDefaultTenantId: () => "default",
@@ -18,7 +24,7 @@ describe("Fleet driver and assignment use-cases", () => {
   it("creates and deletes a driver", async () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
-    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
+    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any, unlimitedQuota);
     const deleteUseCase = new DeleteDriverUseCase(driverRepository, vehicleRepository);
 
     const created = await createUseCase.execute({
@@ -49,7 +55,7 @@ describe("Fleet driver and assignment use-cases", () => {
   it("does not delete a driver belonging to a different tenant", async () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
-    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
+    const createUseCase = new CreateDriverUseCase(driverRepository, fakeRuntime as any, unlimitedQuota);
     const deleteUseCase = new DeleteDriverUseCase(driverRepository, vehicleRepository);
 
     const created = await createUseCase.execute({
@@ -71,10 +77,8 @@ describe("Fleet driver and assignment use-cases", () => {
   it("assigns a driver to a vehicle and unassigns on driver deactivation", async () => {
     const driverRepository = new InMemoryDriverRepository();
     const vehicleRepository = new InMemoryVehicleRepository();
-    const createDriver = new CreateDriverUseCase(driverRepository, fakeRuntime as any);
-    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeRuntime as any, {
-      findActiveVehicleLimit: async () => null,
-    });
+    const createDriver = new CreateDriverUseCase(driverRepository, fakeRuntime as any, unlimitedQuota);
+    const createVehicle = new CreateVehicleUseCase(vehicleRepository, fakeRuntime as any, unlimitedQuota);
     const assignDriver = new AssignDriverToVehicleUseCase(vehicleRepository, driverRepository);
     const setDriverStatus = new SetDriverStatusUseCase(driverRepository, vehicleRepository);
 

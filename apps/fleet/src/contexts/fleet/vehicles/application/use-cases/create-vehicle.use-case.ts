@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../domain/repositories/vehicle.repository";
-import { VEHICLE_QUOTA_READER, type VehicleQuotaReader } from "../../domain/ports/vehicle-quota-reader.port";
+import { FleetQuotaExceededError, QuotaService } from "../../../../../quota.service";
 import { Vehicle, type FleetVehicleType, type FleetFuelType } from "../../domain/entities/vehicle.entity";
 
 export class VehicleQuotaExceededError extends Error {
@@ -35,8 +35,8 @@ export class CreateVehicleUseCase {
     private readonly vehicleRepository: VehicleRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
-    @Inject(VEHICLE_QUOTA_READER)
-    private readonly quotaReader: VehicleQuotaReader,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async execute(command: CreateVehicleCommand) {
@@ -71,13 +71,20 @@ export class CreateVehicleUseCase {
     return vehicle.toPrimitives();
   }
 
+  /**
+   * Counts active vehicles, not every vehicle ever created: a decommissioned
+   * vehicle does not occupy a seat on the plan.
+   */
   private async assertQuotaAllowsAnotherActiveVehicle(tenantId: string): Promise<void> {
-    const limit = await this.quotaReader.findActiveVehicleLimit(tenantId);
-    if (limit === null) return;
-
     const active = await this.vehicleRepository.findAll({ tenantId, status: "active" });
-    if (active.length >= limit) {
-      throw new VehicleQuotaExceededError(limit, active.length);
+
+    try {
+      await this.quotaService.assertWithinQuota(tenantId, "vehicles", active.length);
+    } catch (error) {
+      if (error instanceof FleetQuotaExceededError) {
+        throw new VehicleQuotaExceededError(error.limit, error.current);
+      }
+      throw error;
     }
   }
 }

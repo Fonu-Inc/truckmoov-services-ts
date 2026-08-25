@@ -11,6 +11,7 @@ import {
   buildPreferredContactChannelUpdate,
   composeDriverName,
 } from "../support/driver-input";
+import { QuotaService } from "../../../../../quota.service";
 
 export type CreateDriverCommand = {
   name?: string;
@@ -32,9 +33,13 @@ export class CreateDriverUseCase {
     private readonly driverRepository: DriverRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async execute(command: CreateDriverCommand) {
+    await this.assertQuotaAllowsAnotherDriver(command);
+
     const communicationPreference = command.communicationPreference ?? "whatsapp";
     const driver = Driver.create({
       id: this.runtime.generateId(),
@@ -63,5 +68,12 @@ export class CreateDriverUseCase {
 
     await this.driverRepository.save(driver);
     return driver.toPrimitives();
+  }
+
+  /** Counted per tenant, so one organisation's drivers never affect another. */
+  private async assertQuotaAllowsAnotherDriver(command: CreateDriverCommand): Promise<void> {
+    const tenantId = command.tenantId ?? this.runtime.getDefaultTenantId();
+    const existing = await this.driverRepository.findAll({ tenantId });
+    await this.quotaService.assertWithinQuota(tenantId, "drivers", existing.length);
   }
 }

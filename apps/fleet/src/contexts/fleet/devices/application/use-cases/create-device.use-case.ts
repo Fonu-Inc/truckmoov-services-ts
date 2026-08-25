@@ -12,6 +12,7 @@ import {
 } from "../../domain/ports/traccar-device.port";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
 import { emitDeviceIdentity } from "./device-identity-emit";
+import { QuotaService } from "../../../../../quota.service";
 
 export type CreateDeviceCommand = {
   imei: string;
@@ -33,6 +34,8 @@ export class CreateDeviceUseCase {
     private readonly traccar: TraccarDeviceProvisioner,
     @Inject(DEVICE_IDENTITY_EVENT_PUBLISHER)
     private readonly identityPublisher: DeviceIdentityEventPublisher,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async execute(command: CreateDeviceCommand) {
@@ -41,6 +44,11 @@ export class CreateDeviceUseCase {
     if (existing) {
       throw new FleetRuleError(`device with IMEI ${command.imei} already exists`);
     }
+
+    // Checked after the duplicate test: re-registering a device the tenant
+    // already has is a different failure from being out of device seats.
+    const owned = await this.deviceRepository.findAll({ tenantId });
+    await this.quotaService.assertWithinQuota(tenantId, "devices", owned.length);
 
     const device = Device.create({
       id: this.runtime.generateId(),

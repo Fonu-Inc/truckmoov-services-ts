@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   ForbiddenException,
   Headers,
   HttpException,
@@ -12,6 +13,11 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
+import { EntitlementService, PlanNotEntitledError } from './entitlement.service';
+import {
+  TENANT_ONBOARDING_REPOSITORY,
+  type TenantOnboardingRepository,
+} from './tenant-onboarding.repository';
 import { ChannelDisabledError, type CommunicationChannel } from './communication-rates.repository';
 import { RateNotConfiguredError } from './communication-rate.service';
 import { BaseAuthController } from './base.controller';
@@ -33,8 +39,47 @@ export class InternalUsageController extends BaseAuthController {
     protected readonly activityLogService: ActivityLogService,
     @Inject(ChargeUsageUseCase) private readonly chargeUsage: ChargeUsageUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(EntitlementService) private readonly entitlements: EntitlementService,
+    @Inject(TENANT_ONBOARDING_REPOSITORY)
+    private readonly onboarding: TenantOnboardingRepository,
   ) {
     super(activityLogService);
+  }
+
+  /**
+   * What the caller's tenant is entitled to.
+   *
+   * Exists so another service can enforce a quota without reading the auth
+   * database directly. The plan and its entitlements belong to auth, and a
+   * second service querying those tables is how two services come to disagree
+   * about what a plan allows.
+   */
+  @Get('entitlements')
+  async entitlementsForTenant(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    const actor = this.tokenService.resolveAccessToken(accessToken);
+    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+
+    const onboarding = await this.onboarding.findByTenantId(actor.tenantId);
+    const planCode = onboarding?.subscription?.planCode;
+    // No plan means no entitlements to enforce. Returning null rather than an
+    // error lets the caller allow the action: refusing every create because a
+    // tenant has no subscription row would be worse than not enforcing.
+    if (!planCode) {
+      return { status: true, message: 'success', data: null };
+    }
+
+    try {
+      const effective = await this.entitlements.effectiveFor(planCode);
+      return { status: true, message: 'success', data: effective };
+    } catch (error) {
+      if (error instanceof PlanNotEntitledError) {
+        return { status: true, message: 'success', data: null };
+      }
+      throw error;
+    }
   }
 
   @Post('charge')

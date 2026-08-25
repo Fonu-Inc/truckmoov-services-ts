@@ -4,7 +4,7 @@ import {
   VehicleQuotaExceededError,
 } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/create-vehicle.use-case";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
-import type { VehicleQuotaReader } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/ports/vehicle-quota-reader.port";
+import { FleetQuotaExceededError } from "../../../apps/fleet/src/quota.service";
 
 const runtime = {
   generateId: () => `veh-${Math.floor(performance.now() * 1000)}-${counter++}`,
@@ -13,8 +13,19 @@ const runtime = {
 
 let counter = 0;
 
-function quotaOf(limit: number | null): VehicleQuotaReader {
-  return { findActiveVehicleLimit: async () => limit };
+/**
+ * Stands in for the entitlement lookup. A null limit means the plan sets none,
+ * which must not be read as zero.
+ */
+function quotaOf(limit: number | null) {
+  return {
+    assertWithinQuota: async (_tenantId: string, resource: string, currentCount: number) => {
+      if (limit === null) return;
+      if (currentCount >= limit) {
+        throw new FleetQuotaExceededError(resource as never, limit, currentCount);
+      }
+    },
+  } as never;
 }
 
 describe("CreateVehicleUseCase quota enforcement", () => {
