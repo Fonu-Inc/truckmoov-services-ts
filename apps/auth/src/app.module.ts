@@ -138,6 +138,9 @@ import { SendMailUseCase } from './contexts/mailbox/send-mail.use-case';
 import { ListMailboxUseCase } from './contexts/mailbox/list-mailbox.use-case';
 import { DownloadAttachmentUseCase } from './contexts/mailbox/download-attachment.use-case';
 import { MailboxSyncScheduler } from './contexts/mailbox/mailbox-sync.scheduler';
+import { MailboxIdleSupervisor } from './contexts/mailbox/mailbox-idle.supervisor';
+import { ImapMailboxWatcher } from './contexts/mailbox/imap-mailbox.watcher';
+import { MAILBOX_WATCHER } from './contexts/mailbox/mailbox-watcher.port';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
   type MailCredentialsRepository,
@@ -727,6 +730,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // The only piece that decides where the sync runs. Moving the mail work to
     // its own service means moving this registration, not the logic.
     MailboxSyncScheduler,
+    ImapMailboxWatcher,
+    { provide: MAILBOX_WATCHER, useExisting: ImapMailboxWatcher },
+    MailboxIdleSupervisor,
     InMemoryMailCredentialsRepository,
     MikroMailCredentialsRepository,
     {

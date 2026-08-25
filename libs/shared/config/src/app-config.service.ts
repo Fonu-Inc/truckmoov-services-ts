@@ -120,6 +120,10 @@ export class AppConfigService {
       // connecting to tenants' real mail servers.
       syncEnabled: this.config.get<string>("MAILBOX_SYNC_ENABLED", "false") === "true",
       syncIntervalSeconds: this.config.get<number>("MAILBOX_SYNC_INTERVAL_SECONDS", 300),
+      // IDLE holds a socket open per watched mailbox for the life of the
+      // process, so it is opt-in and capped rather than on by default.
+      idleEnabled: this.config.get<string>("MAILBOX_IDLE_ENABLED", "false") === "true",
+      maxIdleConnections: this.config.get<number>("MAILBOX_MAX_IDLE_CONNECTIONS", 200),
     };
   }
 
