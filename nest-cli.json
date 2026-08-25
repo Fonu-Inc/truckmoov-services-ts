@@ -5,15 +5,22 @@
   "monorepo": true,
   "root": "apps",
   "compilerOptions": {
-    "plugins": [{
-      "name": "@nestjs/swagger",
-      "options": {
-        "classValidatorShim": true,
-        "introspectComments": true,
-        "dtoFileNameSuffix": [".dto.ts", ".schema.ts"],
-        "controllerFileNameSuffix": [".controller.ts"]
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "classValidatorShim": true,
+          "introspectComments": true,
+          "dtoFileNameSuffix": [
+            ".dto.ts",
+            ".schema.ts"
+          ],
+          "controllerFileNameSuffix": [
+            ".controller.ts"
+          ]
+        }
       }
-    }]
+    ]
   },
   "projects": {
     "auth": {
@@ -30,6 +37,15 @@
       "root": "apps/fleet",
       "entryFile": "main",
       "sourceRoot": "apps/fleet/src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.json"
+      }
+    },
+    "realtime": {
+      "type": "application",
+      "root": "apps/realtime",
+      "entryFile": "main",
+      "sourceRoot": "apps/realtime/src",
       "compilerOptions": {
         "tsConfigPath": "tsconfig.json"
       }

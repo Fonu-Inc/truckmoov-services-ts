@@ -75,6 +75,31 @@ export class MailboxController extends BaseAuthController {
     return { status: true, message: 'success', data: page };
   }
 
+  @Get('threads/since')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Threads changed after a cursor',
+    description:
+      'The recovery path for a client that was disconnected. The push is at-most-once, so a client reconnecting asks from its last cursor and receives whatever it missed.',
+  })
+  @ApiQuery({ name: 'cursor', required: true, type: String, description: 'ISO timestamp of the newest thread the client already has.' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOkResponse({ description: 'Threads changed since the cursor, oldest first' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async listThreadsSince(
+    @Query('cursor') cursor: string,
+    @Headers('authorization') authorization?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const accessToken = this.requireBearerToken(authorization);
+    const page = await this.listUseCase.listThreadsSince(
+      accessToken,
+      cursor ?? new Date(0).toISOString(),
+      this.parseNumericQuery(limit) ?? 50,
+    );
+    return { status: true, message: 'success', data: page };
+  }
+
   @Get('threads/:threadId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Messages in one thread, oldest first' })

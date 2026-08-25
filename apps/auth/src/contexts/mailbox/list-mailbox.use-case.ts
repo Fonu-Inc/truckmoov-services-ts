@@ -26,6 +26,20 @@ export class ListMailboxUseCase {
     return this.repository.listThreads(actor.tenantId, bounded, Math.max(offset, 0));
   }
 
+  /**
+   * Everything that changed after the cursor the client last saw.
+   *
+   * The push is at-most-once, so this is the recovery path rather than an
+   * optimisation: a client reconnecting after any gap calls this and is whole
+   * again, whatever it missed.
+   */
+  async listThreadsSince(accessToken: string, since: string, limit = 50): Promise<ThreadPage> {
+    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
+    const bounded = Math.min(Math.max(limit, 1), MAX_THREADS_PER_PAGE);
+    const cursor = Number.isNaN(Date.parse(since)) ? new Date(0).toISOString() : since;
+    return this.repository.listThreadsSince(actor.tenantId, cursor, bounded);
+  }
+
   async readThread(accessToken: string, threadId: string): Promise<MailMessage[]> {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
     return this.repository.listMessagesInThread(actor.tenantId, threadId);

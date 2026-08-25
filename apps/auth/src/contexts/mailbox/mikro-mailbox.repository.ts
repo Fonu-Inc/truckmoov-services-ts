@@ -131,6 +131,31 @@ export class MikroMailboxRepository implements MailboxRepository {
     };
   }
 
+  async listThreadsSince(tenantId: string, since: string, limit: number): Promise<ThreadPage> {
+    const orm = await getAuthOrm(this.config.db);
+    // Ascending, so a client that hits the limit can advance its cursor to the
+    // last row it received and ask again. Descending would make the gap
+    // unrecoverable without paging the whole set.
+    const [rows, total] = await orm.em.fork().findAndCount(
+      MailThreadRecord,
+      { tenantId, lastMessageAt: { $gt: new Date(since) } } as never,
+      { orderBy: { lastMessageAt: 'asc' }, limit },
+    );
+
+    return {
+      total,
+      threads: rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        subject: row.subject,
+        participants: (row.participants ?? []) as MailAddress[],
+        messageCount: row.messageCount,
+        lastMessageAt: row.lastMessageAt.toISOString(),
+        hasUnread: row.hasUnread,
+      })),
+    };
+  }
+
   async listMessagesInThread(tenantId: string, threadId: string): Promise<MailMessage[]> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em

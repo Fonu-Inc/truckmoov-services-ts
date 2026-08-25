@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prepare": "husky || true",
-    "build": "nest build auth && nest build fleet",
+    "build": "nest build auth && nest build fleet && nest build realtime",
     "build:auth": "nest build auth",
     "build:fleet": "nest build fleet",
     "start:auth": "nest start auth --watch",
@@ -27,7 +27,10 @@
     "migration:run:fleet": "mikro-orm migration:up --config apps/fleet/mikro-orm.config.ts",
     "migration:revert:auth": "mikro-orm migration:down --config apps/auth/mikro-orm.config.ts",
     "migration:revert:fleet": "mikro-orm migration:down --config apps/fleet/mikro-orm.config.ts",
-    "migration:run": "pnpm migration:run:auth && pnpm migration:run:fleet"
+    "migration:run": "pnpm migration:run:auth && pnpm migration:run:fleet",
+    "build:realtime": "nest build realtime",
+    "start:realtime": "nest start realtime --watch",
+    "start:realtime:prod": "node dist/apps/realtime/src/main.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1005.0",
@@ -41,7 +44,9 @@
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.20",
     "@nestjs/platform-express": "^10.4.20",
+    "@nestjs/platform-socket.io": "^10.4.22",
     "@nestjs/swagger": "^7.4.2",
+    "@nestjs/websockets": "^10.4.22",
     "@sentry/node": "^10.43.0",
     "@willsoto/nestjs-prometheus": "^6.1.0",
     "axios": "^1.18.0",
@@ -57,6 +62,7 @@
     "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {

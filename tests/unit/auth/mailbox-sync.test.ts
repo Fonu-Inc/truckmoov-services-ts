@@ -57,13 +57,15 @@ function build(messagesByFolder: Record<string, unknown[]>, folders?: Record<str
     })),
     fetchMessages: vi.fn(async ({ folder }: { folder: string }) => messagesByFolder[folder] ?? []),
   };
+  const publish = vi.fn(async () => {});
   const useCase = new SyncMailboxUseCase(
     credentials(),
     reader as never,
     repository,
     { decrypt: () => 'plain' } as never,
+    { publish, subscribe: vi.fn(), isReady: vi.fn() } as never,
   );
-  return { useCase, repository, reader };
+  return { useCase, repository, reader, publish };
 }
 
 describe('multi-folder sync', () => {
@@ -124,6 +126,7 @@ describe('multi-folder sync', () => {
     };
     const useCase = new SyncMailboxUseCase(
       credentials(), reader as never, repository, { decrypt: () => 'plain' } as never,
+      { publish: vi.fn(async () => {}), subscribe: vi.fn(), isReady: vi.fn() } as never,
     );
 
     const summary = await useCase.syncAllFolders('tenant-a');
@@ -202,6 +205,62 @@ describe('multi-folder sync', () => {
     expect(await repository.findByMessageId('tenant-a', '<never-sent@elsewhere.com>')).toBeNull();
   });
 
+
+  it('announces new mail on the tenant subject, so connected browsers hear it', async () => {
+    const { useCase, publish } = build({
+      INBOX: [fetched({ uid: 1, messageId: '<new@mail>' })],
+    });
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0]).toBe('tm.tenant-a.mailbox.updated');
+  });
+
+  it('announces counts and thread ids, never message content', async () => {
+    const { useCase, publish } = build({
+      INBOX: [fetched({ uid: 1, messageId: '<new@mail>', bodyText: 'confidential body' })],
+    });
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    const envelope = JSON.stringify(publish.mock.calls[0][1]);
+    expect(envelope).not.toContain('confidential body');
+    expect(publish.mock.calls[0][1]).toMatchObject({ data: { newMessages: 1 } });
+  });
+
+  it('says nothing when there was no new mail', async () => {
+    const { useCase, publish } = build({ INBOX: [] });
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('still stores the mail when the announcement fails', async () => {
+    const repository = new InMemoryMailboxRepository();
+    const useCase = new SyncMailboxUseCase(
+      credentials(),
+      {
+        discoverFolders: vi.fn(async () => ({
+          all: [], inbox: 'INBOX', sent: null, trash: null, drafts: null, junk: null,
+        })),
+        fetchMessages: vi.fn(async () => [fetched({ uid: 1, messageId: '<kept@mail>' })]),
+      } as never,
+      repository,
+      { decrypt: () => 'plain' } as never,
+      {
+        publish: vi.fn(async () => {
+          throw new Error('nats down');
+        }),
+      } as never,
+    );
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    expect(await repository.findByMessageId('tenant-a', '<kept@mail>')).not.toBeNull();
+  });
+
   it('does nothing for a tenant with no mailbox connected', async () => {
     const repository = new InMemoryMailboxRepository();
     const useCase = new SyncMailboxUseCase(
@@ -209,6 +268,7 @@ describe('multi-folder sync', () => {
       { discoverFolders: vi.fn(), fetchMessages: vi.fn() } as never,
       repository,
       { decrypt: () => 'plain' } as never,
+      { publish: vi.fn(async () => {}), subscribe: vi.fn(), isReady: vi.fn() } as never,
     );
 
     await expect(useCase.syncAllFolders('tenant-a')).resolves.toMatchObject({ folders: [] });

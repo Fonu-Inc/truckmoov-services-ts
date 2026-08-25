@@ -127,6 +127,25 @@ export class AppConfigService {
     };
   }
 
+  get realtime() {
+    return {
+      port: this.config.get<number>("REALTIME_PORT", 3006),
+      // Fixed rather than autoscaled: a pod holding sockets must not be chosen
+      // for termination by a CPU-based autoscaler that cannot see them.
+      maxConnections: this.config.get<number>("REALTIME_MAX_CONNECTIONS", 2000),
+      // CORS does not apply to a WebSocket handshake, so this list is the only
+      // thing that refuses a cross-origin socket. Empty means refuse everything.
+      allowedOrigins: this.config
+        .get<string>("CORS_ALLOWED_ORIGINS", "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+      // How long a draining pod keeps serving before it tells clients to
+      // reconnect. Must stay under terminationGracePeriodSeconds.
+      drainSeconds: this.config.get<number>("REALTIME_DRAIN_SECONDS", 10),
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),

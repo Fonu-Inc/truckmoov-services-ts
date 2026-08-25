@@ -8,6 +8,7 @@ on:
       - "libs/shared/**"
       - "tests/**"
       - "Dockerfile.auth"
+      - "Dockerfile.realtime"
       - "Dockerfile.fleet"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -26,6 +27,7 @@ on:
       - "libs/shared/**"
       - "tests/**"
       - "Dockerfile.auth"
+      - "Dockerfile.realtime"
       - "Dockerfile.fleet"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -154,6 +156,8 @@ jobs:
             dockerfile: Dockerfile.auth
           - service: fleet
             dockerfile: Dockerfile.fleet
+          - service: realtime
+            dockerfile: Dockerfile.realtime
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -193,7 +197,7 @@ jobs:
       - name: Bump image tags
         run: |
           set -euo pipefail
-          for service in auth fleet; do
+          for service in auth fleet realtime; do
             (cd gitops/manifests/$service && kustomize edit set image "ghcr.io/fonu-inc/truckmoov-${service}:sha-${GIT_SHA}")
           done
           cd gitops

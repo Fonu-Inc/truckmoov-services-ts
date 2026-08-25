@@ -47,6 +47,14 @@ export class InMemoryMailboxRepository implements MailboxRepository {
     return { threads: all.slice(offset, offset + limit), total: all.length };
   }
 
+  async listThreadsSince(tenantId: string, since: string, limit: number): Promise<ThreadPage> {
+    const all = [...this.threads.values()]
+      .filter((thread) => thread.tenantId === tenantId && thread.lastMessageAt > since)
+      .sort((left, right) => left.lastMessageAt.localeCompare(right.lastMessageAt));
+
+    return { threads: all.slice(0, limit), total: all.length };
+  }
+
   async listMessagesInThread(tenantId: string, threadId: string): Promise<MailMessage[]> {
     return [...this.messages.values()]
       .filter((message) => message.tenantId === tenantId && message.threadId === threadId)

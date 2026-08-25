@@ -27,6 +27,14 @@ export interface MailboxRepository {
   saveMessages(messages: readonly MailMessage[]): Promise<void>;
   saveThreads(threads: readonly MailThread[]): Promise<void>;
   listThreads(tenantId: string, limit: number, offset: number): Promise<ThreadPage>;
+  /**
+   * Threads that changed after a cursor.
+   *
+   * This is what makes a missed push recoverable. The socket is at-most-once:
+   * a message announced while a laptop was shut is gone. On reconnect the
+   * client asks from its last cursor and gets everything it missed.
+   */
+  listThreadsSince(tenantId: string, since: string, limit: number): Promise<ThreadPage>;
   listMessagesInThread(tenantId: string, threadId: string): Promise<MailMessage[]>;
   messagesForThreads(tenantId: string, threadIds: readonly string[]): Promise<MailMessage[]>;
   findByMessageId(tenantId: string, messageId: string): Promise<MailMessage | null>;

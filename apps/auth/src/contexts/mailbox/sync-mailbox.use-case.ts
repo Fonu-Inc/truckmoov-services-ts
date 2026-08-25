@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { SecretCipherService } from '@shared/crypto';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
@@ -49,6 +50,7 @@ export class SyncMailboxUseCase {
     @Inject(MAILBOX_READER) private readonly reader: MailboxReader,
     @Inject(MAILBOX_REPOSITORY) private readonly repository: MailboxRepository,
     @Inject(SecretCipherService) private readonly cipher: SecretCipherService,
+    @Inject(EVENT_BUS) private readonly bus: EventBus,
   ) {}
 
   /**
@@ -148,6 +150,7 @@ export class SyncMailboxUseCase {
 
     const lastUid = Math.max(sinceUid, ...fetched.map((message) => message.uid));
     await this.markSynced(tenantId, folder, lastUid);
+    await this.announce(tenantId, folder, messages.length, threadIds);
 
     return {
       tenantId,
@@ -187,6 +190,35 @@ export class SyncMailboxUseCase {
     });
   }
 
+
+
+  /**
+   * Tells connected browsers that this tenant has new mail.
+   *
+   * Carries counts and thread ids, never message content. A socket is a poor
+   * place for mail bodies, and the client refetches only the threads it is
+   * showing. Failure is swallowed: the mail is already stored, and the client
+   * would find it on its next refetch anyway.
+   */
+  private async announce(
+    tenantId: string,
+    folder: string,
+    newMessages: number,
+    threadIds: readonly string[],
+  ): Promise<void> {
+    try {
+      await this.bus.publish(`tm.${tenantId}.mailbox.updated`, {
+        id: randomUUID(),
+        type: 'mailbox.updated',
+        version: 1,
+        occurred_at: new Date().toISOString(),
+        tenant_id: tenantId,
+        data: { folder, newMessages, threadIds: [...threadIds] },
+      });
+    } catch {
+      // See above.
+    }
+  }
 
   /**
    * Marks a sent message as failed when its bounce arrives.
