@@ -4,6 +4,8 @@ import { simpleParser, type AddressObject, type ParsedMail } from 'mailparser';
 import { isPubliclyRoutableHost } from '@shared/http';
 import type { MailAddress, MailAttachment } from './mailbox.domain';
 import type {
+  AttachmentBytes,
+  AttachmentRequest,
   FetchRequest,
   FetchedMessage,
   MailboxConnection,
@@ -55,6 +57,31 @@ export class ImapMailboxReader implements MailboxReader {
       await client.logout().catch(() => {
         // The messages are already read; a failed logout must not lose them.
       });
+    }
+  }
+
+  async fetchAttachment(request: AttachmentRequest): Promise<AttachmentBytes | null> {
+    const client = await this.connect(request.connection);
+    try {
+      const lock = await client.getMailboxLock(request.folder);
+      try {
+        const message = await client.fetchOne(String(request.uid), { source: true }, { uid: true });
+        if (!message || !message.source) return null;
+
+        const parsed = await simpleParser(message.source);
+        const attachment = parsed.attachments?.[request.index];
+        if (!attachment) return null;
+
+        return {
+          filename: attachment.filename ?? `attachment-${request.index + 1}`,
+          contentType: attachment.contentType ?? 'application/octet-stream',
+          content: attachment.content as Buffer,
+        };
+      } finally {
+        lock.release();
+      }
+    } finally {
+      await client.logout().catch(() => {});
     }
   }
 
@@ -128,6 +155,10 @@ function toFetchedMessage(
     receivedAt: new Date().toISOString(),
     seen: flags?.has('\\Seen') ?? false,
     uid,
+    // Nothing is known about an inbound message's onward delivery, and an
+    // outbound one only learns it later, from a bounce.
+    deliveryStatus: 'unknown',
+    deliveryDetail: null,
   };
 }
 

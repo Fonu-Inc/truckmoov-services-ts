@@ -136,6 +136,7 @@ import { MikroMailboxRepository } from './contexts/mailbox/mikro-mailbox.reposit
 import { SyncMailboxUseCase } from './contexts/mailbox/sync-mailbox.use-case';
 import { SendMailUseCase } from './contexts/mailbox/send-mail.use-case';
 import { ListMailboxUseCase } from './contexts/mailbox/list-mailbox.use-case';
+import { DownloadAttachmentUseCase } from './contexts/mailbox/download-attachment.use-case';
 import { MailboxSyncScheduler } from './contexts/mailbox/mailbox-sync.scheduler';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
@@ -722,6 +723,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SyncMailboxUseCase,
     SendMailUseCase,
     ListMailboxUseCase,
+    DownloadAttachmentUseCase,
     // The only piece that decides where the sync runs. Moving the mail work to
     // its own service means moving this registration, not the logic.
     MailboxSyncScheduler,

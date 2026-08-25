@@ -37,6 +37,8 @@ function fetched(overrides: Record<string, unknown> = {}) {
     sentAt: '2026-08-24T10:00:00.000Z',
     receivedAt: '2026-08-24T10:00:01.000Z',
     seen: false,
+    deliveryStatus: 'unknown',
+    deliveryDetail: null,
     ...overrides,
   };
 }
@@ -144,6 +146,60 @@ describe('multi-folder sync', () => {
     const page = await repository.listThreads('tenant-a', 10, 0);
     expect(page.total).toBe(1);
     expect(page.threads[0].messageCount).toBe(2);
+  });
+
+
+  it('marks a sent message as bounced when its report arrives', async () => {
+    const { useCase, repository } = build({
+      INBOX: [
+        fetched({ uid: 1, messageId: '<sent@tenant.com>', folder: 'INBOX' }),
+        fetched({
+          uid: 2,
+          messageId: '<bounce@daemon>',
+          from: { address: 'mailer-daemon@googlemail.com', name: null },
+          subject: 'Delivery Status Notification (Failure)',
+          bodyText: 'Message-ID: <sent@tenant.com>\nDiagnostic-Code: smtp; 550 no such user',
+          sentAt: '2026-08-24T11:00:00.000Z',
+        }),
+      ],
+    });
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    const original = await repository.findByMessageId('tenant-a', '<sent@tenant.com>');
+    expect(original?.deliveryStatus).toBe('bounced');
+    expect(original?.deliveryDetail).toBe('smtp; 550 no such user');
+  });
+
+  it('leaves an ordinary message alone', async () => {
+    const { useCase, repository } = build({
+      INBOX: [fetched({ uid: 1, messageId: '<normal@mail>' })],
+    });
+
+    await useCase.execute('tenant-a', 'INBOX');
+
+    expect((await repository.findByMessageId('tenant-a', '<normal@mail>'))?.deliveryStatus).toBe(
+      'unknown',
+    );
+  });
+
+  it('ignores a report for a message this mailbox never sent', async () => {
+    const { useCase, repository } = build({
+      INBOX: [
+        fetched({
+          uid: 1,
+          messageId: '<bounce@daemon>',
+          from: { address: 'mailer-daemon@x.com', name: null },
+          subject: 'Delivery Status Notification (Failure)',
+          bodyText: 'Message-ID: <never-sent@elsewhere.com>',
+        }),
+      ],
+    });
+
+    // Does not throw, and stores nothing against an unknown message.
+    await useCase.execute('tenant-a', 'INBOX');
+
+    expect(await repository.findByMessageId('tenant-a', '<never-sent@elsewhere.com>')).toBeNull();
   });
 
   it('does nothing for a tenant with no mailbox connected', async () => {

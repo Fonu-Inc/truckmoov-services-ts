@@ -23,6 +23,10 @@ import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ActivityLogService } from './activity-log.service';
 import { ListMailboxUseCase } from './contexts/mailbox/list-mailbox.use-case';
 import {
+  AttachmentNotFoundError,
+  DownloadAttachmentUseCase,
+} from './contexts/mailbox/download-attachment.use-case';
+import {
   MailboxNotConnectedError,
   ReplyTargetNotFoundError,
   SendMailUseCase,
@@ -40,6 +44,8 @@ export class MailboxController extends BaseAuthController {
     protected readonly activityLogService: ActivityLogService,
     @Inject(ListMailboxUseCase) private readonly listUseCase: ListMailboxUseCase,
     @Inject(SendMailUseCase) private readonly sendUseCase: SendMailUseCase,
+    @Inject(DownloadAttachmentUseCase)
+    private readonly downloadAttachmentUseCase: DownloadAttachmentUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
   ) {
@@ -80,6 +86,36 @@ export class MailboxController extends BaseAuthController {
     const messages = await this.listUseCase.readThread(accessToken, threadId);
     if (messages.length === 0) throw new NotFoundException('Thread not found');
     return { status: true, message: 'success', data: messages };
+  }
+
+  @Get('messages/:messageId/attachments/:index')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'A short-lived link to one attachment',
+    description:
+      'Fetches the bytes from the tenant mail server on first request, then serves them from storage.',
+  })
+  @ApiOkResponse({ description: 'Presigned download link' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async downloadAttachment(
+    @Param('messageId') messageId: string,
+    @Param('index') index: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireBearerToken(authorization);
+
+    try {
+      const data = await this.downloadAttachmentUseCase.execute(
+        accessToken,
+        decodeURIComponent(messageId),
+        Number.parseInt(index, 10),
+      );
+      return { status: true, message: 'success', data };
+    } catch (error) {
+      if (error instanceof AttachmentNotFoundError) throw new NotFoundException(error.message);
+      this.rethrowInvalidAccessToken(error);
+      throw error;
+    }
   }
 
   @Post('send')

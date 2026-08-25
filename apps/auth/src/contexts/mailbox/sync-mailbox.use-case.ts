@@ -5,7 +5,12 @@ import {
   MAIL_CREDENTIALS_REPOSITORY,
   type MailCredentialsRepository,
 } from '../../mail-credentials.repository';
-import { resolveThreadId, summariseThread, type MailMessage } from './mailbox.domain';
+import {
+  readBounceReport,
+  resolveThreadId,
+  summariseThread,
+  type MailMessage,
+} from './mailbox.domain';
 import { MAILBOX_READER, type MailboxReader } from './mailbox-reader.port';
 import { MAILBOX_REPOSITORY, type MailboxRepository } from './mailbox.repository';
 
@@ -136,6 +141,8 @@ export class SyncMailboxUseCase {
     const messages = await this.assignThreads(tenantId, fetched);
     await this.repository.saveMessages(messages);
 
+    await this.recordBounces(tenantId, messages);
+
     const threadIds = [...new Set(messages.map((message) => message.threadId))];
     await this.rebuildThreads(tenantId, threadIds);
 
@@ -178,6 +185,33 @@ export class SyncMailboxUseCase {
       known.set(message.messageId, threadId);
       return { ...message, id: randomUUID(), tenantId, threadId };
     });
+  }
+
+
+  /**
+   * Marks a sent message as failed when its bounce arrives.
+   *
+   * This is the only signal there is. SMTP accepting a message says the relay
+   * took it, not that anyone received it, and no provider calls back to say a
+   * message landed — a failure comes back as an ordinary email quoting the
+   * original, which is what this reads.
+   */
+  private async recordBounces(tenantId: string, messages: readonly MailMessage[]): Promise<void> {
+    for (const message of messages) {
+      const report = readBounceReport(message);
+      if (!report) continue;
+
+      const original = await this.repository.findByMessageId(tenantId, report.originalMessageId);
+      if (!original) {
+        // A report for something this mailbox never sent, or sent before the
+        // sync began. Nothing to attach it to.
+        this.logger.warn(`bounce_for_unknown_message:${tenantId}:${report.originalMessageId}`);
+        continue;
+      }
+
+      await this.repository.recordDelivery(tenantId, original.messageId, 'bounced', report.reason);
+      this.logger.log(`mail_bounced:${tenantId}:${original.messageId}`);
+    }
   }
 
   /** Recomputed from every message in the thread, not just the new ones. */

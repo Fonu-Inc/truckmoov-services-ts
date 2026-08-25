@@ -29,6 +29,9 @@ function toMessage(record: MailMessageRecord): MailMessage {
     sentAt: record.sentAt.toISOString(),
     receivedAt: record.receivedAt.toISOString(),
     seen: record.seen,
+    uid: Number(record.uid ?? 0),
+    deliveryStatus: (record.deliveryStatus ?? 'unknown') as MailMessage['deliveryStatus'],
+    deliveryDetail: record.deliveryDetail ?? null,
   };
 }
 
@@ -79,6 +82,9 @@ export class MikroMailboxRepository implements MailboxRepository {
         sentAt: new Date(message.sentAt),
         receivedAt: new Date(message.receivedAt),
         seen: message.seen,
+        uid: message.uid,
+        deliveryStatus: message.deliveryStatus,
+        deliveryDetail: message.deliveryDetail,
       })),
       { onConflictFields: ['tenantId', 'messageId'] } as never,
     );
@@ -146,6 +152,28 @@ export class MikroMailboxRepository implements MailboxRepository {
       .find(MailMessageRecord, { tenantId, threadId: { $in: [...threadIds] } } as never);
 
     return rows.map(toMessage);
+  }
+
+  async findByMessageId(tenantId: string, messageId: string): Promise<MailMessage | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const row = await orm.em.fork().findOne(MailMessageRecord, { tenantId, messageId } as never);
+    return row ? toMessage(row) : null;
+  }
+
+  async recordDelivery(
+    tenantId: string,
+    messageId: string,
+    status: MailMessage['deliveryStatus'],
+    detail: string | null,
+  ): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em
+      .fork()
+      .nativeUpdate(
+        MailMessageRecord,
+        { tenantId, messageId } as never,
+        { deliveryStatus: status, deliveryDetail: detail },
+      );
   }
 
   async getSyncState(tenantId: string, folder: string): Promise<SyncState | null> {

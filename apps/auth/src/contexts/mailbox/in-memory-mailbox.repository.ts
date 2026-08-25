@@ -63,6 +63,25 @@ export class InMemoryMailboxRepository implements MailboxRepository {
     );
   }
 
+  async findByMessageId(tenantId: string, messageId: string): Promise<MailMessage | null> {
+    return this.messages.get(this.messageKey(tenantId, messageId)) ?? null;
+  }
+
+  async recordDelivery(
+    tenantId: string,
+    messageId: string,
+    status: MailMessage['deliveryStatus'],
+    detail: string | null,
+  ): Promise<void> {
+    const existing = this.messages.get(this.messageKey(tenantId, messageId));
+    if (!existing) return;
+    this.messages.set(this.messageKey(tenantId, messageId), {
+      ...existing,
+      deliveryStatus: status,
+      deliveryDetail: detail,
+    });
+  }
+
   async getSyncState(tenantId: string, folder: string): Promise<SyncState | null> {
     return this.syncState.get(`${tenantId}::${folder}`) ?? null;
   }

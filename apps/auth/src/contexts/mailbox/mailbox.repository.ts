@@ -29,6 +29,13 @@ export interface MailboxRepository {
   listThreads(tenantId: string, limit: number, offset: number): Promise<ThreadPage>;
   listMessagesInThread(tenantId: string, threadId: string): Promise<MailMessage[]>;
   messagesForThreads(tenantId: string, threadIds: readonly string[]): Promise<MailMessage[]>;
+  findByMessageId(tenantId: string, messageId: string): Promise<MailMessage | null>;
+  recordDelivery(
+    tenantId: string,
+    messageId: string,
+    status: MailMessage['deliveryStatus'],
+    detail: string | null,
+  ): Promise<void>;
   getSyncState(tenantId: string, folder: string): Promise<SyncState | null>;
   saveSyncState(state: SyncState): Promise<void>;
 }

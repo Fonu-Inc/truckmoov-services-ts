@@ -49,6 +49,27 @@ export interface MailboxReader {
    */
   discoverFolders(connection: MailboxConnection): Promise<MailboxFolders>;
   fetchMessages(request: FetchRequest): Promise<FetchedMessage[]>;
+  /**
+   * The bytes of one attachment, fetched when something asks for them.
+   *
+   * Identified by position within the message rather than by a MIME part path:
+   * the whole message is re-read and re-parsed, which costs a download but
+   * cannot mis-address a part.
+   */
+  fetchAttachment(request: AttachmentRequest): Promise<AttachmentBytes | null>;
 }
+
+export type AttachmentRequest = {
+  connection: MailboxConnection;
+  folder: string;
+  uid: number;
+  index: number;
+};
+
+export type AttachmentBytes = {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+};
 
 export const MAILBOX_READER = Symbol('MAILBOX_READER');
