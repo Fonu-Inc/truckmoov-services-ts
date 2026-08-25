@@ -5,11 +5,13 @@ import { AppModule } from "./app.module";
 import { RealtimeGateway } from "./realtime.gateway";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  app.useLogger(app.get(JsonLogger));
+  // Constructed, not resolved from the container: LoggerModule provides
+  // AppLogger, and JsonLogger is a plain class the other services instantiate
+  // the same way. app.get(JsonLogger) has no provider to find.
+  const logger = new JsonLogger("realtime-service");
+  const app = await NestFactory.create(AppModule, { logger });
 
   const config = app.get(AppConfigService);
-  const logger = app.get(JsonLogger);
 
   // This service owns the /realtime namespace at the gateway, matching the
   // socket.io path so Kong routes both the handshake and the health probe.

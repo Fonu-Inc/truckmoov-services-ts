@@ -1,6 +1,7 @@
 import { EntitySchema } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { ROLE_SEED_ROWS, roleFromId, roleToId } from '@shared/rbac';
+import { runMigrationsExclusively } from "@shared/db";
 
 export type DbConfig = {
   host: string;
@@ -1690,7 +1691,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       glob: '!(*.d).{js,ts}',
     },
   }).then(async (orm) => {
-    await orm.getMigrator().up();
+    await runMigrationsExclusively(orm);
     const em = orm.em.fork();
     for (const role of ROLE_SEED_ROWS) {
       await em.upsert(AuthRoleRecord, role);

@@ -1,5 +1,6 @@
 import { EntitySchema } from "@mikro-orm/core";
 import { MikroORM } from "@mikro-orm/postgresql";
+import { runMigrationsExclusively } from "@shared/db";
 
 export type DbConfig = {
   host: string;
@@ -696,7 +697,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       glob: "!(*.d).{js,ts}",
     },
   }).then(async (orm) => {
-    await orm.getMigrator().up();
+    await runMigrationsExclusively(orm);
     return orm;
   });
 
