@@ -129,6 +129,7 @@ import { InternalUsageController } from './internal-usage.controller';
 import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
 import { EntitlementService } from './entitlement.service';
+import { PlanEntitlementsBootstrapService } from './plan-entitlements-bootstrap.service';
 import {
   PLAN_ENTITLEMENTS_REPOSITORY,
   type PlanEntitlementsRepository,
@@ -760,6 +761,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CommunicationRateService,
     ChargeUsageUseCase,
     EntitlementService,
+    PlanEntitlementsBootstrapService,
     InMemoryPlanEntitlementsRepository,
     MikroPlanEntitlementsRepository,
     {
