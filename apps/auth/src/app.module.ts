@@ -129,6 +129,13 @@ import { InternalUsageController } from './internal-usage.controller';
 import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
 import { EntitlementService } from './entitlement.service';
+import { StorageQuotaService } from './storage-quota.service';
+import {
+  STORAGE_USAGE_REPOSITORY,
+  type StorageUsageRepository,
+} from './storage-usage.repository';
+import { InMemoryStorageUsageRepository } from './in-memory-storage-usage.repository';
+import { MikroStorageUsageRepository } from './mikro-storage-usage.repository';
 import { PlanEntitlementsBootstrapService } from './plan-entitlements-bootstrap.service';
 import {
   PLAN_ENTITLEMENTS_REPOSITORY,
@@ -761,6 +768,19 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CommunicationRateService,
     ChargeUsageUseCase,
     EntitlementService,
+    StorageQuotaService,
+    InMemoryStorageUsageRepository,
+    MikroStorageUsageRepository,
+    {
+      provide: STORAGE_USAGE_REPOSITORY,
+      inject: [InMemoryStorageUsageRepository, MikroStorageUsageRepository, AppConfigService],
+      useFactory: (
+        inMemory: StorageUsageRepository,
+        mikro: StorageUsageRepository,
+        config: AppConfigService,
+      ): StorageUsageRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
     PlanEntitlementsBootstrapService,
     InMemoryPlanEntitlementsRepository,
     MikroPlanEntitlementsRepository,

@@ -14,6 +14,12 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
 import { EntitlementService, PlanNotEntitledError } from './entitlement.service';
+import { StorageQuotaService } from './storage-quota.service';
+import {
+  STORAGE_SOURCES,
+  StorageQuotaExceededError,
+  type StorageSource,
+} from './storage-usage.repository';
 import {
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
@@ -26,6 +32,7 @@ import { BodyOrDataPipe } from './body-or-data.pipe';
 import { TOKEN_SERVICE } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { ChargeUsageDto } from './dto/charge-usage.dto';
+import { RecordStorageDto } from './dto/record-storage.dto';
 
 /**
  * Service-to-service only. Hidden from the public API documentation because no
@@ -42,6 +49,7 @@ export class InternalUsageController extends BaseAuthController {
     @Inject(EntitlementService) private readonly entitlements: EntitlementService,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboarding: TenantOnboardingRepository,
+    @Inject(StorageQuotaService) private readonly storage: StorageQuotaService,
   ) {
     super(activityLogService);
   }
@@ -80,6 +88,45 @@ export class InternalUsageController extends BaseAuthController {
       }
       throw error;
     }
+  }
+
+  /**
+   * Reports bytes another service stored or removed for a tenant.
+   *
+   * Each service owns its own source total, so fleet reports its documents and
+   * auth reports its own files. Auth sums them, because only auth knows the
+   * plan the total is measured against.
+   */
+  @Post('storage')
+  async recordStorage(
+    @Body(BodyOrDataPipe) payload: RecordStorageDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    const actor = this.tokenService.resolveAccessToken(accessToken);
+    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+    if (!STORAGE_SOURCES.includes(payload.source as StorageSource)) {
+      throw new BadRequestException(`${payload.source} is not a storage source`);
+    }
+
+    // A check and a record in one call, so a caller cannot record bytes it was
+    // never allowed to store. deltaBytes is negative on delete, and a delete is
+    // always permitted.
+    if (payload.deltaBytes > 0) {
+      try {
+        await this.storage.assertRoomFor(actor.tenantId, payload.deltaBytes);
+      } catch (error) {
+        if (error instanceof StorageQuotaExceededError) {
+          throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
+        }
+        throw error;
+      }
+    }
+
+    await this.storage.record(actor.tenantId, payload.source as StorageSource, payload.deltaBytes);
+    return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
   }
 
   @Post('charge')

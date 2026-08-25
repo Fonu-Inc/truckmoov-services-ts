@@ -519,6 +519,29 @@ export const TenantUsageAllowanceRecordSchema = new EntitySchema<TenantUsageAllo
   },
 });
 
+
+/* ── Tenant Storage Usage ───────────────────────────── */
+
+export class TenantStorageUsageRecord {
+  tenantId!: string;
+  source!: string;
+  bytesUsed!: number;
+  reconciledAt!: Date | null;
+  updatedAt!: Date;
+}
+
+export const TenantStorageUsageRecordSchema = new EntitySchema<TenantStorageUsageRecord>({
+  class: TenantStorageUsageRecord,
+  tableName: 'tenant_storage_usage',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    source: { type: 'string', length: 32, primary: true },
+    bytesUsed: { fieldName: 'bytes_used', type: 'bigint', defaultRaw: '0' },
+    reconciledAt: { fieldName: 'reconciled_at', type: 'datetime', nullable: true },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
 /* ── System Tenant Onboarding ───────────────────────── */
 
 export class SystemTenantOnboardingRecord {
@@ -1725,6 +1748,7 @@ export async function getAuthOrm(cfg: DbConfig) {
   ormPromise = MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
+      TenantStorageUsageRecordSchema,
       PlanEntitlementRecordSchema,
       TenantUsageAllowanceRecordSchema,
       CommunicationRateRecordSchema,

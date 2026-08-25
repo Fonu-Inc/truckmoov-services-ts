@@ -9,6 +9,11 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import { EntitlementService, QuotaExceededError } from './entitlement.service';
+import {
+  TENANT_ONBOARDING_REPOSITORY,
+  type TenantOnboardingRepository,
+} from './tenant-onboarding.repository';
 
 export type SimRegistrationInput = {
   iccid: string;
@@ -22,6 +27,9 @@ export class RegisterSimsUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SIM_REPOSITORY) private readonly simRepository: SimRepository,
+    @Inject(EntitlementService) private readonly entitlements: EntitlementService,
+    @Inject(TENANT_ONBOARDING_REPOSITORY)
+    private readonly onboarding: TenantOnboardingRepository,
   ) {}
 
   async execute(accessToken: string, sims: SimRegistrationInput[]) {
@@ -33,6 +41,10 @@ export class RegisterSimsUseCase {
     if (actor.tenantId === 'system') {
       throw new ForbiddenError('System actors cannot register SIMs');
     }
+
+    // Checked for the whole batch before any SIM is written, so a registration
+    // that would cross the plan limit is refused rather than half applied.
+    await this.assertQuotaAllowsMoreSims(actor.tenantId, sims.length);
 
     const now = new Date();
     const registered: string[] = [];
@@ -79,5 +91,29 @@ export class RegisterSimsUseCase {
       message: 'success',
       data: { registered: registered.length },
     };
+  }
+
+  /**
+   * Counts the SIMs a tenant holds, excluding decommissioned ones: a retired
+   * SIM does not occupy a seat on the plan, the same way a decommissioned
+   * vehicle does not.
+   *
+   * A tenant with no plan or no configured entitlements is not limited, rather
+   * than being refused: an absent quota is not a quota of zero.
+   */
+  private async assertQuotaAllowsMoreSims(tenantId: string, adding: number): Promise<void> {
+    const onboarding = await this.onboarding.findByTenantId(tenantId);
+    const planCode = onboarding?.subscription?.planCode;
+    if (!planCode) return;
+
+    const { items } = await this.simRepository.findAll({ tenantId, limit: 100_000 });
+    const inUse = items.filter((sim) => sim.status !== 'decommissioned').length;
+
+    try {
+      await this.entitlements.assertQuota(planCode, 'sims', inUse + adding - 1);
+    } catch (error) {
+      if (error instanceof QuotaExceededError) throw error;
+      // No entitlements configured for the plan. Not a reason to refuse.
+    }
   }
 }

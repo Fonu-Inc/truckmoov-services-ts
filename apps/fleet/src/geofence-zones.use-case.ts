@@ -8,6 +8,7 @@ import {
   type GeofenceZoneStatus,
   type StoredGeofenceZone,
 } from "./geofence-zone.repository";
+import { QuotaService } from "./quota.service";
 
 export class GeofenceZoneNotFoundError extends Error {}
 
@@ -72,6 +73,8 @@ export class GeofenceZonesUseCase {
   constructor(
     @Inject(GEOFENCE_ZONE_REPOSITORY)
     private readonly repo: GeofenceZoneRepository,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async list(tenantId: string, filters?: GeofenceZoneFilters) {
@@ -86,6 +89,13 @@ export class GeofenceZonesUseCase {
   }
 
   async create(tenantId: string, data: GeofenceZoneInput) {
+    // The plan card shows geofencing "up to 5 zones", so the limit is a quota
+    // even though it reads as a feature. The quota is authoritative; the
+    // feature limit mirrors it rather than being a second number to keep in step.
+    // Active zones only: an archived zone does not occupy a plan seat.
+    const existing = await this.repo.findAllByTenant(tenantId, { status: "ACTIVE" });
+    await this.quotaService.assertWithinQuota(tenantId, "geofences", existing.length);
+
     const id = randomUUID();
     const now = new Date();
     const zone: StoredGeofenceZone = {
