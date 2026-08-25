@@ -78,6 +78,8 @@ async function build(message: MailMessage | null = storedMessage()) {
     { fetchAttachment } as never,
     { putObject, createPresignedDownloadUrl } as never,
     { decrypt: () => 'plain' } as never,
+    // Storage accounting has its own tests; this exercises the fetch and cache.
+    { record: async () => {}, assertRoomFor: async () => {} } as never,
   );
 
   return { useCase, repository, fetchAttachment, putObject, createPresignedDownloadUrl };

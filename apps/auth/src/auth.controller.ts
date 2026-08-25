@@ -3,6 +3,8 @@ import { extname } from 'node:path';
 import {
   ConflictException,
   Body,
+  HttpException,
+  HttpStatus,
   BadRequestException,
   Post,
   Headers,
@@ -50,6 +52,7 @@ import {
   EmailTakenError,
   ForgotPasswordUseCase,
   ResendVerificationUseCase,
+  TOKEN_SERVICE,
   ForbiddenError,
   InviteNotFoundError,
   InviteUserUseCase,
@@ -90,6 +93,9 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetDto } from './dto/verify-reset.dto';
 import { GetActivityLogUseCase } from './get-activity-log.use-case';
 import { GetTenantStatusUseCase } from './get-tenant-status.use-case';
+import { StorageQuotaService } from './storage-quota.service';
+import { StorageQuotaExceededError } from './storage-usage.repository';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 
 @ApiTags('Auth')
@@ -107,6 +113,8 @@ export class AuthController extends BaseAuthController {
     @Inject(ForgotPasswordUseCase) private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
     @Inject(ResendVerificationUseCase) private readonly resendVerificationUseCase: ResendVerificationUseCase,
     @Inject(GetTenantStatusUseCase) private readonly getTenantStatusUseCase: GetTenantStatusUseCase,
+    @Inject(StorageQuotaService) private readonly storageQuota: StorageQuotaService,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(VerifyResetUseCase) private readonly verifyResetUseCase: VerifyResetUseCase,
     @Inject(GetHealthUseCase) private readonly getHealthUseCase: GetHealthUseCase,
     @Inject(ResetPasswordUseCase) private readonly resetPasswordUseCase: ResetPasswordUseCase,
@@ -175,8 +183,9 @@ export class AuthController extends BaseAuthController {
       size: number;
       buffer: Buffer;
     },
+    @Headers('authorization') authorization?: string,
   ) {
-    return this.storeUploadedMedia('auth', file);
+    return this.storeUploadedMedia('auth', file, authorization);
   }
 
   /** Register an enterprise admin (creates new tenant) */
@@ -676,6 +685,7 @@ export class AuthController extends BaseAuthController {
       size: number;
       buffer: Buffer;
     },
+    authorization?: string,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Missing upload file');
@@ -693,6 +703,25 @@ export class AuthController extends BaseAuthController {
         .slice(0, 80) || 'file';
     const key = `${service}/media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
     const usePublicMediaUrl = this.objectStorageService.hasPublicBaseUrl();
+
+    // This route carries no auth guard, so a caller may present no token at
+    // all. An upload that names no tenant is stored but charged to nobody,
+    // which is the honest outcome rather than charging an arbitrary tenant.
+    const tenantId = authorization
+      ? (this.tokenService.resolveAccessToken(this.extractBearerToken(authorization) ?? '')
+          ?.tenantId ?? null)
+      : null;
+
+    if (tenantId) {
+      try {
+        await this.storageQuota.assertRoomFor(tenantId, file.buffer.byteLength);
+      } catch (error) {
+        if (error instanceof StorageQuotaExceededError) {
+          throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
+        }
+        throw error;
+      }
+    }
 
     try {
       await this.objectStorageService.putObject({

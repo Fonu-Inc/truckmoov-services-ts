@@ -192,3 +192,30 @@ sets: a tenant switching model is changing plan, not flipping a billing flag.
 Nothing enforces that today. A tenant can move between a prepaid and a postpaid
 plan and the wallet behaviour does not change with them.
 
+---
+
+## TD-6 — The media upload route has no authentication
+
+`POST /auth/media/upload` carries no guard: no `@Roles`, no bearer requirement,
+no tenant. Anyone who can reach the gateway can write objects into the bucket.
+
+Storage accounting now attributes an upload when a token happens to be present
+and charges nobody when it is not, which is honest but not a fix. The route
+itself needs a guard, and once it has one the optional-token branch in
+`storeUploadedMedia` can go.
+
+---
+
+## TD-7 — Admin editing of plan entitlements is not built
+
+**Status:** deferred by decision, 25 August 2026.
+
+Screen 24 is an editing screen: a "New Plan" button, and a form for quotas,
+features, availability and trial length. The store, the inheritance resolver and
+the seed exist, and every quota check reads them, but there is no endpoint a
+platform administrator can use to change any of it.
+
+Entitlements can currently be altered only by editing `plan-entitlement-seeds.ts`
+and redeploying. The seed deliberately fills absences only, so an operator edit
+would survive once the endpoints exist.
+

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -30,6 +31,23 @@ export class ObjectStorageService {
         secretAccessKey: this.config.secretKey,
       },
     });
+  }
+
+  /**
+   * Removes an object.
+   *
+   * Until this existed, deleting a record left its bytes in the bucket for
+   * ever: the tenant saw the file disappear, the storage bill did not. Deleting
+   * an object that is already gone is not an error, so a repeated delete is
+   * safe.
+   */
+  async deleteObject(key: string, visibility: "private" | "public" = "private"): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.resolveBucket(visibility),
+        Key: this.buildKey(key),
+      }),
+    );
   }
 
   async putObject(input: PutObjectInput): Promise<string> {

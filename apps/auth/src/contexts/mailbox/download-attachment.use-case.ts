@@ -11,6 +11,7 @@ import type { TokenService } from '../auth/session/domain/ports/token-service.po
 import type { UserRepository } from '../auth/session/domain/ports/user-repository.port';
 import { MAILBOX_READER, type MailboxReader } from './mailbox-reader.port';
 import { MAILBOX_REPOSITORY, type MailboxRepository } from './mailbox.repository';
+import { StorageQuotaService } from '../../storage-quota.service';
 
 export class AttachmentNotFoundError extends Error {
   constructor() {
@@ -41,6 +42,7 @@ export class DownloadAttachmentUseCase {
     @Inject(MAILBOX_READER) private readonly reader: MailboxReader,
     @Inject(ObjectStorageService) private readonly storage: ObjectStorageService,
     @Inject(SecretCipherService) private readonly cipher: SecretCipherService,
+    @Inject(StorageQuotaService) private readonly storageQuota: StorageQuotaService,
   ) {}
 
   async execute(accessToken: string, messageId: string, index: number) {
@@ -82,6 +84,10 @@ export class DownloadAttachmentUseCase {
       contentType: bytes.contentType,
       visibility: 'private',
     });
+
+    // Counted once, when the bytes first land in storage. A later download
+    // serves the cached object and stores nothing new.
+    await this.storageQuota.record(actor.tenantId, 'mailbox', bytes.content.byteLength);
 
     await this.repository.saveMessages([
       {
