@@ -60,7 +60,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: entry.metadata,
           occurredAt: entry.occurredAt,
         });
-      }),
+      }, "audit_log"),
       this.bus.subscribe("tm.*.vehicle.geofence.exited", async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {
@@ -83,7 +83,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: entry.metadata,
           occurredAt: entry.occurredAt,
         });
-      }),
+      }, "audit_log"),
       this.bus.subscribe("tm.*.vehicle.geofence.entered", async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {

@@ -5,9 +5,18 @@ export interface EventBus {
     subject: string,
     envelope: EventEnvelope<TData>,
   ): Promise<void>;
+  /**
+   * @param consumer Names this subscriber's own durable consumer.
+   *
+   * Two subscribers to the same subject WITHOUT distinct names share one
+   * durable consumer. Delivery is then split between them: each message
+   * reaches one handler and not the other. Pass a name whenever a subject has
+   * more than one logical subscriber.
+   */
   subscribe(
     subject: string,
     handler: (envelope: EventEnvelope) => Promise<void>,
+    consumer?: string,
   ): Promise<() => Promise<void>>;
   isReady(): Promise<boolean>;
 }

@@ -23,7 +23,7 @@ export class AlertDetectionListener implements OnApplicationBootstrap {
         jobId: (envelope.data["job_id"] as string) || undefined,
         details: envelope.data,
       });
-    });
+    }, "alert_detection");
 
     await this.bus.subscribe("tm.*.vehicle.geofence.exited", async (envelope) => {
       const vehicleId = envelope.data["vehicle_id"] as string;
@@ -48,6 +48,6 @@ export class AlertDetectionListener implements OnApplicationBootstrap {
         vehicleId,
         details: { lat: envelope.data["lat"], lng: envelope.data["lng"] },
       });
-    });
+    }, "alert_detection");
   }
 }

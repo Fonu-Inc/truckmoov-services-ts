@@ -51,6 +51,7 @@ export class NatsJetStreamEventBus implements EventBus {
   async subscribe(
     subject: string,
     handler: (envelope: EventEnvelope) => Promise<void>,
+    consumer?: string,
   ): Promise<() => Promise<void>> {
     const js = await this.getJetStream();
     if (!js || !this.connection) {
@@ -58,7 +59,16 @@ export class NatsJetStreamEventBus implements EventBus {
       return async () => Promise.resolve();
     }
 
-    const durable = subject.replace(/[.*>]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    // The consumer name is part of the durable, so two subscribers to one
+    // subject get one consumer each. Derived from the subject alone, they would
+    // share a consumer and JetStream would give each message to exactly one of
+    // them — silently, and differently on each restart.
+    const durable = [subject, consumer]
+      .filter(Boolean)
+      .join("_")
+      .replace(/[.*>]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
     const manager = await this.connection.jetstreamManager();
 
     try {
@@ -72,8 +82,8 @@ export class NatsJetStreamEventBus implements EventBus {
       });
     }
 
-    const consumer = await js.consumers.get(this.streamName, durable);
-    const sub = await consumer.consume();
+    const jetStreamConsumer = await js.consumers.get(this.streamName, durable);
+    const sub = await jetStreamConsumer.consume();
 
     (async () => {
       for await (const msg of sub) {
