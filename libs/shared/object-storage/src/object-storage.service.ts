@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   DeleteObjectCommand,
+  ListObjectsV2Command,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -41,6 +42,35 @@ export class ObjectStorageService {
    * an object that is already gone is not an error, so a repeated delete is
    * safe.
    */
+  /**
+   * Total bytes stored under a prefix.
+   *
+   * Used to recompute a subtotal where object storage is the only record of
+   * what was stored. Pages through the listing, because a bucket returns at
+   * most a thousand keys per call and a silent truncation would report a total
+   * that is quietly too low.
+   */
+  async totalBytesUnder(prefix: string, visibility: "private" | "public" = "private"): Promise<number> {
+    const bucket = this.resolveBucket(visibility);
+    let continuationToken: string | undefined;
+    let total = 0;
+
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: this.buildKey(prefix),
+          ContinuationToken: continuationToken,
+        }),
+      );
+
+      for (const object of page.Contents ?? []) total += object.Size ?? 0;
+      continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    return total;
+  }
+
   async deleteObject(key: string, visibility: "private" | "public" = "private"): Promise<void> {
     await this.client.send(
       new DeleteObjectCommand({

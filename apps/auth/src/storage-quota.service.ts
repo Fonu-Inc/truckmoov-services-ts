@@ -49,6 +49,17 @@ export class StorageQuotaService {
     await this.usage.addBytes(tenantId, source, deltaBytes);
   }
 
+  /**
+   * Replaces a subtotal outright, rather than moving it.
+   *
+   * Only a recomputation may do this. Adding a delta can never bring a drifted
+   * counter back to the truth, because the drift is exactly the amount nobody
+   * knows about.
+   */
+  async reconcile(tenantId: string, source: StorageSource, bytesUsed: number): Promise<void> {
+    await this.usage.setBytes(tenantId, source, bytesUsed);
+  }
+
   async report(tenantId: string) {
     const [used, breakdown, limitGb] = await Promise.all([
       this.usage.totalBytes(tenantId),

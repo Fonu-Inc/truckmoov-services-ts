@@ -163,27 +163,7 @@ What it needs before it is settled:
 
 ---
 
-## TD-4 — Storage subtotals drift and nothing reconciles them yet
-
-`tenant_storage_usage` holds a running byte total per tenant per source, moved
-by a signed delta on upload and delete. The design allows each service to
-recompute its own source from its own tables — `setBytes` exists for exactly
-that — but no reconciliation job calls it.
-
-Until one does, a missed delete leaves the total permanently high, and a tenant
-eventually gets refused with room to spare.
-
-Each service can fix its own row without reading another service's data:
-
-- fleet recomputes `fleet_documents` by summing `size_bytes` per tenant.
-- auth recomputes `kyc`, `media` and `mailbox` the same way.
-
-A sweep per service, running daily, is enough. The counter stays the fast path;
-reconciliation is what makes it eventually correct.
-
----
-
-## TD-5 — Payment model is not enforced when a tenant changes plan
+## TD-4 — Payment model is not enforced when a tenant changes plan
 
 Plan entitlements carry a payment model, prepaid or postpaid, and the
 requirements document is explicit that prepaid and postpaid are separate plan
@@ -194,7 +174,7 @@ plan and the wallet behaviour does not change with them.
 
 ---
 
-## TD-6 — Admin editing of plan entitlements is not built
+## TD-5 — Admin editing of plan entitlements is not built
 
 **Status:** deferred by decision, 25 August 2026.
 

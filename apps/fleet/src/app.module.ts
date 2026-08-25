@@ -170,6 +170,7 @@ import { IntegrationHealthService } from "./integration-health.service";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { EntitlementReaderService } from "./entitlement-reader.service";
 import { QuotaService } from "./quota.service";
+import { StorageReconciliationService } from "./storage-reconciliation.service";
 import { StorageReporterService } from "./storage-reporter.service";
 import { TenantActiveGuard } from "./tenant-active.guard";
 import { TenantStatusService } from "./tenant-status.service";
@@ -280,6 +281,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     EntitlementReaderService,
     QuotaService,
     StorageReporterService,
+    StorageReconciliationService,
     // Global, unlike TenantGuard. A suspended tenant must be refused on every
     // route, so this cannot depend on a new controller remembering a decorator.
     // It is a no-op when the request carries no authenticated tenant, which

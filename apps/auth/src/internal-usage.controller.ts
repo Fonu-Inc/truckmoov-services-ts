@@ -33,6 +33,7 @@ import { TOKEN_SERVICE } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { ChargeUsageDto } from './dto/charge-usage.dto';
 import { RecordStorageDto } from './dto/record-storage.dto';
+import { ReconcileStorageDto } from './dto/reconcile-storage.dto';
 
 /**
  * Service-to-service only. Hidden from the public API documentation because no
@@ -126,6 +127,35 @@ export class InternalUsageController extends BaseAuthController {
     }
 
     await this.storage.record(actor.tenantId, payload.source as StorageSource, payload.deltaBytes);
+    return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
+  }
+
+  /**
+   * Replaces a source's subtotal with a freshly recomputed one.
+   *
+   * Each service recomputes its own source from its own tables and reports the
+   * result here. That is what makes a drifted counter recoverable without auth
+   * ever reading another service's data.
+   */
+  @Post('storage/reconcile')
+  async reconcileStorage(
+    @Body(BodyOrDataPipe) payload: ReconcileStorageDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    const actor = this.tokenService.resolveAccessToken(accessToken);
+    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+    if (!STORAGE_SOURCES.includes(payload.source as StorageSource)) {
+      throw new BadRequestException(`${payload.source} is not a storage source`);
+    }
+
+    await this.storage.reconcile(
+      actor.tenantId,
+      payload.source as StorageSource,
+      payload.bytesUsed,
+    );
     return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
   }
 

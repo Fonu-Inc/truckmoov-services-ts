@@ -43,6 +43,32 @@ export class StorageReporterService {
     }
   }
 
+  /**
+   * Reports a freshly recomputed total for this service's own source.
+   *
+   * Replaces the counter rather than moving it, which is the only way a
+   * drifted total returns to the truth: the drift is exactly the amount nobody
+   * knows about.
+   */
+  async reconcile(tenantId: string, bytesUsed: number): Promise<void> {
+    const token = this.mintServiceToken(tenantId);
+    if (!token) return;
+
+    const response = await axios.post(
+      `${this.config.auth.serviceUrl}/auth/internal/storage/reconcile`,
+      { source: "fleet_documents", bytesUsed },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+        validateStatus: () => true,
+      },
+    );
+
+    if (response.status !== 200 && response.status !== 201) {
+      this.logger.warn(`storage_reconcile_failed:${tenantId}:status=${response.status}`);
+    }
+  }
+
   private async report(tenantId: string, deltaBytes: number, reference: string): Promise<void> {
     const token = this.mintServiceToken(tenantId);
     if (!token) return;

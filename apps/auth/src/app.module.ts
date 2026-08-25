@@ -130,6 +130,7 @@ import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
 import { EntitlementService } from './entitlement.service';
 import { StorageQuotaService } from './storage-quota.service';
+import { StorageReconciliationService } from './storage-reconciliation.service';
 import {
   STORAGE_USAGE_REPOSITORY,
   type StorageUsageRepository,
@@ -769,6 +770,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ChargeUsageUseCase,
     EntitlementService,
     StorageQuotaService,
+    StorageReconciliationService,
     InMemoryStorageUsageRepository,
     MikroStorageUsageRepository,
     {

@@ -712,7 +712,10 @@ export class AuthController extends BaseAuthController {
         .replace(/[^a-zA-Z0-9-_]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 80) || 'file';
-    const key = `${service}/media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
+    // The tenant is part of the key because object storage is the only record
+    // a media upload leaves. Without it the bytes cannot be attributed to
+    // anyone later, and the media subtotal could never be recomputed.
+    const key = `${service}/media/${tenantId}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}-${normalizedBaseName}${extension.toLowerCase()}`;
     const usePublicMediaUrl = this.objectStorageService.hasPublicBaseUrl();
 
     // Reserved before the bytes are written, so a refused upload leaves nothing
