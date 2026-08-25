@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  AttachmentsTooLargeError,
   SendMailUseCase,
   MailboxNotConnectedError,
   ReplyTargetNotFoundError,
@@ -221,5 +222,59 @@ describe('replying threads on the recipient side', () => {
 
     expect(send.mock.calls[0][0].inReplyTo).toBeNull();
     expect(send.mock.calls[0][0].references).toEqual([]);
+  });
+});
+
+describe('sending attachments', () => {
+  const attachment = (bytes: number) => ({
+    filename: 'invoice.pdf',
+    contentType: 'application/pdf',
+    content: Buffer.alloc(bytes),
+  });
+
+  it('passes attachments through to the sender', async () => {
+    const { useCase, send } = build();
+
+    await useCase.execute({ ...base, attachments: [attachment(1024)] });
+
+    expect(send.mock.calls[0][0].attachments).toHaveLength(1);
+    expect(send.mock.calls[0][0].attachments[0].filename).toBe('invoice.pdf');
+  });
+
+  it('sends none when none are given', async () => {
+    const { useCase, send } = build();
+
+    await useCase.execute(base);
+
+    expect(send.mock.calls[0][0].attachments).toEqual([]);
+  });
+
+  it('refuses a set over the total size limit', async () => {
+    const { useCase } = build();
+
+    await expect(
+      useCase.execute({ ...base, attachments: [attachment(21 * 1024 * 1024)] }),
+    ).rejects.toBeInstanceOf(AttachmentsTooLargeError);
+  });
+
+  it('measures the total, not each one', async () => {
+    const { useCase } = build();
+
+    await expect(
+      useCase.execute({
+        ...base,
+        attachments: [attachment(11 * 1024 * 1024), attachment(11 * 1024 * 1024)],
+      }),
+    ).rejects.toBeInstanceOf(AttachmentsTooLargeError);
+  });
+
+  it('sends nothing when the attachments are refused', async () => {
+    const { useCase, send } = build();
+
+    await expect(
+      useCase.execute({ ...base, attachments: [attachment(21 * 1024 * 1024)] }),
+    ).rejects.toThrow();
+
+    expect(send).not.toHaveBeenCalled();
   });
 });

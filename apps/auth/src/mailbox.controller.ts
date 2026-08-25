@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -27,6 +28,7 @@ import {
   DownloadAttachmentUseCase,
 } from './contexts/mailbox/download-attachment.use-case';
 import {
+  AttachmentsTooLargeError,
   MailboxNotConnectedError,
   ReplyTargetNotFoundError,
   SendMailUseCase,
@@ -144,6 +146,13 @@ export class MailboxController extends BaseAuthController {
         bodyText: payload.bodyText ?? null,
         bodyHtml: payload.bodyHtml ?? null,
         replyToThreadId: payload.replyToThreadId,
+        attachments: (payload.attachments ?? []).map((attachment) => ({
+          filename: attachment.filename,
+          contentType: attachment.contentType,
+          // Base64 in, bytes out. Anything undecodable becomes an empty buffer
+          // rather than throwing, and the size check then sees its real length.
+          content: Buffer.from(attachment.content, 'base64'),
+        })),
       });
 
       await this.tryRecordActivity({
@@ -159,11 +168,13 @@ export class MailboxController extends BaseAuthController {
           to: payload.to.map((address) => address.address),
           subject: payload.subject,
           filedToSent: result.filedToSent,
+          attachmentCount: payload.attachments?.length ?? 0,
         },
       });
 
       return { status: true, message: 'success', data: result };
     } catch (error) {
+      if (error instanceof AttachmentsTooLargeError) throw new BadRequestException(error.message);
       if (error instanceof MailboxNotConnectedError) throw new NotFoundException(error.message);
       if (error instanceof ReplyTargetNotFoundError) throw new NotFoundException(error.message);
       this.rethrowInvalidAccessToken(error);

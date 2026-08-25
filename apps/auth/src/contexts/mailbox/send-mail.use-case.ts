@@ -16,6 +16,12 @@ export class MailboxNotConnectedError extends Error {
   }
 }
 
+export class AttachmentsTooLargeError extends Error {
+  constructor(limitBytes: number) {
+    super(`Attachments exceed ${Math.floor(limitBytes / (1024 * 1024))} MB in total`);
+  }
+}
+
 export class ReplyTargetNotFoundError extends Error {
   constructor(threadId: string) {
     super(`No thread ${threadId} to reply to`);
@@ -43,6 +49,14 @@ export type SendMailCommand = {
  */
 const SENT_FOLDER_OF_LAST_RESORT = 'Sent';
 
+/**
+ * The whole message is composed in memory before it is sent, and the same bytes
+ * are then appended to Sent, so an oversized attachment set is held twice. Most
+ * mail servers refuse above this anyway; refusing here gives a clear reason
+ * rather than an SMTP rejection the sender cannot read.
+ */
+const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
 @Injectable()
 export class SendMailUseCase {
   constructor(
@@ -57,6 +71,8 @@ export class SendMailUseCase {
   async execute(command: SendMailCommand) {
     const stored = await this.credentials.findByTenant(command.tenantId);
     if (!stored) throw new MailboxNotConnectedError();
+
+    this.assertAttachmentsFit(command.attachments ?? []);
 
     const thread = await this.resolveReplyHeaders(command);
 
@@ -106,6 +122,13 @@ export class SendMailUseCase {
       filingError: outcome.filingError,
       threadId: thread.threadId,
     };
+  }
+
+  private assertAttachmentsFit(attachments: readonly OutgoingAttachment[]): void {
+    const total = attachments.reduce((sum, attachment) => sum + attachment.content.length, 0);
+    if (total > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new AttachmentsTooLargeError(MAX_TOTAL_ATTACHMENT_BYTES);
+    }
   }
 
   /**

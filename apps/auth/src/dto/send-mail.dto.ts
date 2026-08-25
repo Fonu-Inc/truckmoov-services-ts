@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsEmail,
@@ -17,6 +18,20 @@ export class MailAddressDto {
   @IsString()
   @MaxLength(255)
   name?: string | null;
+}
+
+export class OutgoingAttachmentDto {
+  @IsString()
+  @MaxLength(255)
+  filename!: string;
+
+  @IsString()
+  @MaxLength(255)
+  contentType!: string;
+
+  /** Base64. The whole message is held in memory while it is composed. */
+  @IsString()
+  content!: string;
 }
 
 export class SendMailDto {
@@ -53,4 +68,11 @@ export class SendMailDto {
   @IsOptional()
   @IsString()
   replyToThreadId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => OutgoingAttachmentDto)
+  attachments?: OutgoingAttachmentDto[];
 }
