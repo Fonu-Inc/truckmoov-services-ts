@@ -101,6 +101,16 @@ export class MikroWaybillRepository implements WaybillRepository {
     return { items: records.map(toDomain), total };
   }
 
+  async findPendingCapturedBefore(cutoff: Date, limit: number): Promise<Waybill[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(
+      WaybillRecord,
+      { status: "pending", createdAt: { $lte: cutoff } },
+      { orderBy: { createdAt: "asc" }, limit },
+    );
+    return records.map(toDomain);
+  }
+
   async countByStatus(tenantId: string): Promise<Record<WaybillStatus, number>> {
     const orm = await getFleetOrm(this.config.db);
     // Grouped in SQL. A tenant's waybill count is unbounded, and counting them

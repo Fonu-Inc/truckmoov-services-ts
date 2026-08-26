@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -40,6 +42,8 @@ import {
   type WaybillRepository,
 } from "./contexts/fleet/waybills/domain/repositories/waybill.repository";
 import { WAYBILL_STATUSES } from "./contexts/fleet/waybills/domain/entities/waybill.entity";
+import { ReviewWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/review-waybill.use-case";
+import { ReviewWaybillDto } from "./dto/waybill.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
 /** Reading revenue is a finance view; capturing a waybill is operations. */
@@ -77,6 +81,7 @@ export class WaybillsController extends BaseFleetController {
     @Inject(CaptureWaybillUseCase) private readonly capture: CaptureWaybillUseCase,
     @Inject(ListWaybillsUseCase) private readonly list: ListWaybillsUseCase,
     @Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository,
+    @Inject(ReviewWaybillUseCase) private readonly review: ReviewWaybillUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -181,6 +186,33 @@ export class WaybillsController extends BaseFleetController {
       const found = await this.waybills.findById(id, this.tenantIdFromRequest(req));
       if (!found) throw new WaybillNotFoundError(id);
       return found;
+    });
+
+    return { status: true, message: "success", data: toWaybillRow(waybill) };
+  }
+  @Patch(":id/review")
+  @Roles(...WAYBILL_WRITE_ROLES)
+  @ApiOperation({
+    summary: "Confirm or correct extracted fields",
+    description:
+      "Moves the waybill out of review. A person reading the page is the highest confidence available, so the corrected values are trusted outright.",
+  })
+  @ApiOkResponse()
+  async reviewWaybill(
+    @Param("id") id: string,
+    @Body() body: ReviewWaybillDto,
+    @Req() req: FleetRequestContext,
+  ) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const waybill = await this.runFleetUseCase(() =>
+      this.review.execute({ ...body, waybillId: id, tenantId }),
+    );
+
+    await this.recordActivity(req, {
+      entityType: "waybill",
+      entityId: waybill.id,
+      action: "waybill_reviewed",
+      summary: `Reviewed waybill ${waybill.waybillNumber ?? waybill.id}`,
     });
 
     return { status: true, message: "success", data: toWaybillRow(waybill) };

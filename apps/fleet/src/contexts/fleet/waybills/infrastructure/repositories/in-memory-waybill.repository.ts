@@ -57,6 +57,16 @@ export class InMemoryWaybillRepository implements WaybillRepository {
     return counts;
   }
 
+  async findPendingCapturedBefore(cutoff: Date, limit: number): Promise<Waybill[]> {
+    return [...this.data.values()]
+      .filter(
+        (waybill) =>
+          waybill.status === "pending" && Date.parse(waybill.createdAt) <= cutoff.getTime(),
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(0, limit);
+  }
+
   private matches(waybill: Waybill, filters: WaybillFilters): boolean {
     if (waybill.tenantId !== filters.tenantId) return false;
     if (filters.status && waybill.status !== filters.status) return false;

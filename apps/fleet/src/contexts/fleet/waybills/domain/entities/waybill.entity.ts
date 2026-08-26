@@ -179,6 +179,110 @@ export class Waybill {
   get createdAt() { return this.props.createdAt ?? new Date().toISOString(); }
   get updatedAt() { return this.props.updatedAt ?? this.createdAt; }
 
+  /**
+   * States where extraction may still write. A waybill that is already priced
+   * or invoiced is settled business, and a redelivered job must not rewrite it.
+   */
+  get acceptsExtraction(): boolean {
+    return this.status === "pending" || this.status === "needs_review";
+  }
+
+  /**
+   * Applies what extraction read.
+   *
+   * Every field has to clear the confidence bar, not the document on average.
+   * One unreadable destination on an otherwise clean scan still prices the
+   * waybill wrongly, and pricing is what turns it into money owed.
+   */
+  applyExtraction(input: {
+    fields: ExtractedFields;
+    confidenceThreshold: number;
+    /** Forces review whatever the confidence, e.g. a number another waybill holds. */
+    forcedReviewReason?: string | null;
+    at?: string;
+  }): Waybill {
+    if (!this.acceptsExtraction) {
+      throw new FleetRuleError(`extraction cannot be applied to a ${this.status} waybill`);
+    }
+
+    const at = input.at ?? new Date().toISOString();
+    const confident = Object.values(input.fields).every(
+      (field) => field.value !== null && field.confidence >= input.confidenceThreshold,
+    );
+    const hasFields = Object.keys(input.fields).length > 0;
+
+    const forced = input.forcedReviewReason?.trim() || null;
+
+    return Waybill.create({
+      ...this.toPrimitives(),
+      status: !forced && hasFields && confident ? "extracted" : "needs_review",
+      waybillNumber: readField(input.fields, "waybillNumber") ?? this.waybillNumber,
+      origin: readField(input.fields, "origin") ?? this.origin,
+      destination: readField(input.fields, "destination") ?? this.destination,
+      vehicleRegistration:
+        readField(input.fields, "vehicleRegistration") ?? this.vehicleRegistration,
+      customerName: readField(input.fields, "customerName") ?? this.customerName,
+      weight: readNumberField(input.fields, "weight") ?? this.weight,
+      weightUnit: readField(input.fields, "weightUnit") ?? this.weightUnit,
+      waybillDate: readDateField(input.fields, "waybillDate") ?? this.waybillDate,
+      extractedFields: input.fields,
+      extractionError: forced,
+      updatedAt: at,
+    });
+  }
+
+  /** Extraction could not run or could not read the page. A person takes over. */
+  failExtraction(reason: string, at?: string): Waybill {
+    if (!this.acceptsExtraction) {
+      throw new FleetRuleError(`extraction cannot be applied to a ${this.status} waybill`);
+    }
+
+    return Waybill.create({
+      ...this.toPrimitives(),
+      status: "needs_review",
+      extractionError: reason.trim() || "extraction failed",
+      updatedAt: at ?? new Date().toISOString(),
+    });
+  }
+
+  /**
+   * A person confirmed or corrected the fields.
+   *
+   * The result is trusted outright: a human reading the page is the highest
+   * confidence available, so the waybill leaves review even where extraction
+   * was unsure.
+   */
+  applyReview(values: {
+    waybillNumber?: string | null;
+    origin?: string | null;
+    destination?: string | null;
+    vehicleRegistration?: string | null;
+    customerName?: string | null;
+    weight?: number | null;
+    weightUnit?: string | null;
+    waybillDate?: string | null;
+    at?: string;
+  }): Waybill {
+    if (this.status === "invoiced") {
+      throw new FleetRuleError("an invoiced waybill cannot be edited");
+    }
+
+    return Waybill.create({
+      ...this.toPrimitives(),
+      status: "extracted",
+      waybillNumber: pick(values.waybillNumber, this.waybillNumber),
+      origin: pick(values.origin, this.origin),
+      destination: pick(values.destination, this.destination),
+      vehicleRegistration: pick(values.vehicleRegistration, this.vehicleRegistration),
+      customerName: pick(values.customerName, this.customerName),
+      weight: values.weight === undefined ? this.weight : values.weight,
+      weightUnit: pick(values.weightUnit, this.weightUnit),
+      waybillDate: pick(values.waybillDate, this.waybillDate),
+      extractionError: null,
+      updatedAt: values.at ?? new Date().toISOString(),
+    });
+  }
+
   toPrimitives(): WaybillProps {
     return { ...this.props };
   }
@@ -194,4 +298,27 @@ export class Waybill {
  */
 export function hashWaybillImage(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function pick(next: string | null | undefined, current: string | null): string | null {
+  return next === undefined ? current : (next?.trim() || null);
+}
+
+function readField(fields: ExtractedFields, key: string): string | null {
+  const value = fields[key]?.value?.trim();
+  return value ? value : null;
+}
+
+function readNumberField(fields: ExtractedFields, key: string): number | null {
+  const raw = readField(fields, key);
+  if (raw === null) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readDateField(fields: ExtractedFields, key: string): string | null {
+  const raw = readField(fields, key);
+  if (raw === null || Number.isNaN(Date.parse(raw))) return null;
+  // Stored as a calendar date. The document carries a day, not an instant.
+  return new Date(raw).toISOString().slice(0, 10);
 }

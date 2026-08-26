@@ -104,6 +104,13 @@ import { HttpDeviceCatalogAdapter } from "./contexts/fleet/devices/infrastructur
 import { InMemoryDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/in-memory-device-verification-failure.repository";
 import { MikroDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/mikro-device-verification-failure.repository";
 import { WaybillsController } from "./waybills.controller";
+import { WaybillExtractionListener } from "./waybill-extraction.listener";
+import { WaybillStallSweepService } from "./waybill-stall-sweep.service";
+import { ApplyWaybillExtractionUseCase } from "./contexts/fleet/waybills/application/use-cases/apply-waybill-extraction.use-case";
+import { ExpireStalledWaybillsUseCase } from "./contexts/fleet/waybills/application/use-cases/expire-stalled-waybills.use-case";
+import { ReviewWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/review-waybill.use-case";
+import { WAYBILL_EXTRACTOR } from "./contexts/fleet/waybills/domain/ports/waybill-extractor.port";
+import { UnavailableWaybillExtractor } from "./contexts/fleet/waybills/infrastructure/unavailable-waybill-extractor";
 import { CaptureWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/capture-waybill.use-case";
 import { ListWaybillsUseCase } from "./contexts/fleet/waybills/application/use-cases/list-waybills.use-case";
 import { WAYBILL_REPOSITORY } from "./contexts/fleet/waybills/domain/repositories/waybill.repository";
@@ -429,8 +436,14 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
       ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
     },
     { provide: WAYBILL_EXTRACTION_QUEUE, useClass: EventBusWaybillExtractionQueue },
+    { provide: WAYBILL_EXTRACTOR, useClass: UnavailableWaybillExtractor },
     CaptureWaybillUseCase,
     ListWaybillsUseCase,
+    ApplyWaybillExtractionUseCase,
+    ReviewWaybillUseCase,
+    ExpireStalledWaybillsUseCase,
+    WaybillExtractionListener,
+    WaybillStallSweepService,
     HttpTraccarDeviceProvisioner,
     NoopTraccarDeviceProvisioner,
     {

@@ -25,6 +25,11 @@ export interface WaybillRepository {
   search(filters: WaybillFilters): Promise<WaybillPage>;
   /** Counts per status for the summary figures, which must not be derived from a page. */
   countByStatus(tenantId: string): Promise<Record<WaybillStatus, number>>;
+  /**
+   * Waybills still pending from before a cutoff, across every tenant. The stall
+   * sweep runs platform-wide, so this deliberately takes no tenant.
+   */
+  findPendingCapturedBefore(cutoff: Date, limit: number): Promise<Waybill[]>;
 }
 
 export const WAYBILL_REPOSITORY = Symbol("WAYBILL_REPOSITORY");

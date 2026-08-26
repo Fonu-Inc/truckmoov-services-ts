@@ -90,6 +90,19 @@ export class AppConfigService {
       // Device models change rarely. Caching them keeps the installer queue
       // from calling auth once per row.
       deviceCatalogCacheSeconds: this.config.get<number>("DEVICE_CATALOG_CACHE_SECONDS", 300),
+      // How sure extraction must be about every field before a waybill skips
+      // human review. Judged per field, not per document: one misread
+      // destination prices the trip wrongly however clean the rest of the page.
+      waybillConfidenceThreshold: this.config.get<number>(
+        "WAYBILL_CONFIDENCE_THRESHOLD",
+        0.8,
+      ),
+      // How long a waybill may sit unextracted before it is handed to a person.
+      // A queue that dropped the job must not leave the row pending for ever.
+      waybillExtractionStallMinutes: this.config.get<number>(
+        "WAYBILL_EXTRACTION_STALL_MINUTES",
+        15,
+      ),
     };
   }
 
