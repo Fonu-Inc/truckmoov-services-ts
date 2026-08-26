@@ -13,12 +13,24 @@ import type {
   WalletMovementResult,
 } from './tenant-wallet.repository';
 import type { WalletLedgerDraft } from './wallet-ledger.repository';
+import {
+  DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
+  walletCreditFloorKobo,
+} from './wallet-credit';
 
 function toStored(r: TenantWalletRecord): StoredTenantWallet {
   return {
     tenantId: r.tenantId,
-    balanceKobo: r.balanceKobo,
+    balanceKobo: Number(r.balanceKobo),
     currency: r.currency,
+    creditEnabled: r.creditEnabled ?? false,
+    creditLimitKobo:
+      r.creditLimitKobo === null || r.creditLimitKobo === undefined
+        ? null
+        : Number(r.creditLimitKobo),
+    lowBalanceThresholdKobo: Number(
+      r.lowBalanceThresholdKobo ?? DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
+    ),
     updatedAt: r.updatedAt,
   };
 }
@@ -40,6 +52,29 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
     await em.upsert(TenantWalletRecord, wallet as unknown as TenantWalletRecord);
   }
 
+  async findAll(): Promise<StoredTenantWallet[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const records = await orm.em.fork().find(TenantWalletRecord, {}, { orderBy: { tenantId: 'asc' } });
+    return records.map(toStored);
+  }
+
+  async ensure(tenantId: string): Promise<StoredTenantWallet> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    // Insert-if-absent in one statement, so two callers racing to create the
+    // same wallet cannot both think they made it.
+    await em.getConnection().execute(
+      `insert into tenant_wallets (tenant_id, balance_kobo, currency, low_balance_threshold_kobo)
+         values (?, 0, 'NGN', ?)
+       on conflict (tenant_id) do nothing`,
+      [tenantId, DEFAULT_LOW_BALANCE_THRESHOLD_KOBO],
+    );
+
+    const record = await em.findOne(TenantWalletRecord, { tenantId });
+    if (!record) throw new Error(`Failed to create a wallet for ${tenantId}`);
+    return toStored(record);
+  }
+
   async debit(
     tenantId: string,
     amountKobo: number,
@@ -52,7 +87,10 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
         { tenantId },
         { lockMode: LockMode.PESSIMISTIC_WRITE },
       );
-      if (!record || record.balanceKobo < amountKobo) {
+      // The credit floor is read and applied inside the same lock as the
+      // balance. Checking it anywhere else would let two concurrent debits both
+      // pass a limit that only one of them fits under.
+      if (!record || record.balanceKobo - amountKobo < walletCreditFloorKobo(toStored(record))) {
         return { ok: false, balanceAfterKobo: null };
       }
       record.balanceKobo -= amountKobo;

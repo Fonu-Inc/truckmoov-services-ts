@@ -1568,6 +1568,9 @@ export class TenantWalletRecord {
   tenantId!: string;
   balanceKobo!: number;
   currency!: string;
+  creditEnabled!: boolean;
+  creditLimitKobo?: number | null;
+  lowBalanceThresholdKobo!: number;
   updatedAt!: Date;
 }
 
@@ -1578,6 +1581,15 @@ export const TenantWalletRecordSchema = new EntitySchema<TenantWalletRecord>({
     tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
     balanceKobo: { fieldName: 'balance_kobo', type: 'bigint', default: 0 },
     currency: { type: 'string', length: 8, default: 'NGN' },
+    creditEnabled: { fieldName: 'credit_enabled', type: 'boolean', default: false },
+    // Null means unlimited, never zero. Zero is a real setting meaning no
+    // headroom at all.
+    creditLimitKobo: { fieldName: 'credit_limit_kobo', type: 'bigint', nullable: true },
+    lowBalanceThresholdKobo: {
+      fieldName: 'low_balance_threshold_kobo',
+      type: 'bigint',
+      default: 0,
+    },
     updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
   },
 });

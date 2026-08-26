@@ -9,6 +9,10 @@ import type {
   StoredWalletLedgerEntry,
   WalletLedgerDraft,
 } from './wallet-ledger.repository';
+import {
+  DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
+  walletCreditFloorKobo,
+} from './wallet-credit';
 
 @Injectable()
 export class InMemoryTenantWalletRepository implements TenantWalletRepository {
@@ -25,13 +29,34 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
     this.store.set(wallet.tenantId, wallet);
   }
 
+  async findAll(): Promise<StoredTenantWallet[]> {
+    return [...this.store.values()];
+  }
+
+  async ensure(tenantId: string): Promise<StoredTenantWallet> {
+    const existing = this.store.get(tenantId);
+    if (existing) return existing;
+
+    const created: StoredTenantWallet = {
+      tenantId,
+      balanceKobo: 0,
+      currency: 'NGN',
+      creditEnabled: false,
+      creditLimitKobo: null,
+      lowBalanceThresholdKobo: DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
+      updatedAt: new Date(),
+    };
+    this.store.set(tenantId, created);
+    return created;
+  }
+
   async debit(
     tenantId: string,
     amountKobo: number,
     entry: WalletLedgerDraft,
   ): Promise<WalletMovementResult> {
     const wallet = this.store.get(tenantId);
-    if (!wallet || wallet.balanceKobo < amountKobo) {
+    if (!wallet || wallet.balanceKobo - amountKobo < walletCreditFloorKobo(wallet)) {
       return { ok: false, balanceAfterKobo: null };
     }
     wallet.balanceKobo -= amountKobo;

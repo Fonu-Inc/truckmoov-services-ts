@@ -8,6 +8,7 @@ import type { UsageItem } from './plan-entitlements';
 import { CommunicationRateService } from './communication-rate.service';
 import type { CommunicationChannel } from './communication-rates.repository';
 import { SpendingLimitService } from './spending-limit.service';
+import { LowBalanceNotifierService } from './low-balance-notifier.service';
 import {
   TENANT_WALLET_REPOSITORY,
   type TenantWalletRepository,
@@ -91,6 +92,7 @@ export class ChargeUsageUseCase {
   constructor(
     @Inject(CommunicationRateService) private readonly rates: CommunicationRateService,
     @Inject(SpendingLimitService) private readonly spendingLimit: SpendingLimitService,
+    @Inject(LowBalanceNotifierService) private readonly lowBalance: LowBalanceNotifierService,
     @Inject(TENANT_WALLET_REPOSITORY) private readonly wallet: TenantWalletRepository,
     @Inject(EntitlementService) private readonly entitlements: EntitlementService,
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
@@ -130,6 +132,7 @@ export class ChargeUsageUseCase {
     // channel, which was the gap.
     await this.spendingLimit.assertWithinLimit(command.tenantId, totalKobo);
 
+    const before = await this.wallet.findByTenantId(command.tenantId);
     const debited = await this.wallet.debit(command.tenantId, totalKobo, {
       category: CHANNEL_CATEGORY[command.channel],
       quantity: chargeable,
@@ -144,6 +147,12 @@ export class ChargeUsageUseCase {
       this.logger.warn(`usage_charge_refused:${command.tenantId}:${command.channel}`);
       throw new InsufficientWalletBalanceError(totalKobo);
     }
+
+    await this.lowBalance.afterDebit(
+      command.tenantId,
+      before?.balanceKobo ?? null,
+      debited.balanceAfterKobo,
+    );
 
     return {
       charged: true,

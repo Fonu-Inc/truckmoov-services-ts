@@ -4,6 +4,44 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-8 — Auto top-up is configured but can never fire
+
+**Status:** open. Blocked on a stored payment authorisation, not on a decision.
+
+### What happens
+
+A tenant switches auto top-up on and sets a threshold. The balance falls past
+it, and nothing happens. Sends start failing.
+
+`auto-topup.repository.ts` stores `enabled`, `thresholdKobo`, `topupAmountKobo`
+and a payment provider, and there are use cases to read, save and disable those
+settings. Nothing reads the threshold to act on it.
+
+### Why it cannot simply be wired up
+
+Charging a tenant without them present needs a stored payment authorisation —
+Paystack returns an `authorization_code` on a first successful charge, which can
+then be reused. Nothing in the codebase stores one. `create-payment-intent`
+starts a fresh checkout every time, which needs the tenant at the keyboard.
+
+So auto top-up cannot be made to work by connecting existing parts. It needs the
+authorisation captured and stored first, which is a change to the payment flow
+and a decision about holding a payment instrument on file.
+
+### What was built instead
+
+`LowBalanceNotifierService` publishes `wallet.balance.low` and
+`wallet.balance.negative` when a debit takes a wallet across its threshold —
+raised on the crossing, not on every charge, so the warning stays worth reading.
+That is the part that can honestly work today, and the requirements ask for it
+regardless.
+
+### When auto top-up is picked up
+
+Store the authorisation on first successful top-up, then have the notifier's
+crossing trigger a charge against it rather than only an event. The threshold
+and amount are already stored and need no change.
+
 ## TD-7 — Approving an organisation upgrade is not one action
 
 **Status:** open. Parked pending an internal decision on whether and how an

@@ -5,6 +5,7 @@ import {
   getAuthOrm,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import type {
+  CrossTenantLedgerFilters,
   StoredWalletLedgerEntry,
   WalletLedgerCategory,
   WalletLedgerDirection,
@@ -60,6 +61,40 @@ export class MikroWalletLedgerRepository implements WalletLedgerRepository {
       whereFrom(tenantId, filters) as never,
       { orderBy: { seq: 'desc' }, limit, offset: (page - 1) * limit },
     );
+    return { items: records.map(toStored), total };
+  }
+
+  async listAcrossTenants(
+    filters?: CrossTenantLedgerFilters,
+  ): Promise<{ items: StoredWalletLedgerEntry[]; total: number }> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const page = filters?.page ?? 1;
+    const limit = filters?.limit ?? 50;
+
+    const where: Record<string, unknown> = {};
+    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    if (filters?.category) where.category = filters.category;
+    if (filters?.direction) where.direction = filters.direction;
+    if (filters?.from || filters?.to) {
+      where.createdAt = {
+        ...(filters.from ? { $gte: filters.from } : {}),
+        ...(filters.to ? { $lte: filters.to } : {}),
+      };
+    }
+    const query = filters?.query?.trim();
+    if (query) {
+      const like = { $ilike: `%${query}%` };
+      where.$or = [{ tenantId: like }, { reason: like }, { reference: like }];
+    }
+
+    const [records, total] = await em.findAndCount(WalletLedgerEntryRecord, where as never, {
+      // Grouped by tenant first: the balance on each line is that tenant's
+      // running balance, and interleaving tenants would make it unreadable.
+      orderBy: { tenantId: 'asc', seq: 'desc' },
+      limit,
+      offset: (page - 1) * limit,
+    });
     return { items: records.map(toStored), total };
   }
 

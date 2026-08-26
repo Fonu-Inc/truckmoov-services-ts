@@ -126,6 +126,14 @@ import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
+import { PlatformWalletsController } from './platform-wallets.controller';
+import { LowBalanceNotifierService } from './low-balance-notifier.service';
+import {
+  ListCrossTenantLedgerUseCase,
+  ListTenantWalletsUseCase,
+  PlatformTopUpWalletUseCase,
+  UpdateWalletCreditSettingsUseCase,
+} from './platform-wallet.use-cases';
 import { InternalUsageController } from './internal-usage.controller';
 import { CommunicationRateService } from './communication-rate.service';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
@@ -435,6 +443,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     OrganisationUpgradesController,
     InternalUsageController,
     InternalDeviceCatalogController,
+    PlatformWalletsController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -1013,6 +1022,11 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     PaymentEventService,
     GetOnboardingPlansUseCase,
     GetExchangeRateUseCase,
+    LowBalanceNotifierService,
+    PlatformTopUpWalletUseCase,
+    UpdateWalletCreditSettingsUseCase,
+    ListTenantWalletsUseCase,
+    ListCrossTenantLedgerUseCase,
     CreatePaymentIntentUseCase,
     ActivateSubscriptionUseCase,
     SubscribePaymentEventsUseCase,

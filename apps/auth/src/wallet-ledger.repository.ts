@@ -58,7 +58,23 @@ export type WalletLedgerFilters = {
   limit?: number;
 };
 
+export type CrossTenantLedgerFilters = WalletLedgerFilters & {
+  tenantId?: string;
+  /** Matches tenant, description or reference. */
+  query?: string;
+};
+
 export interface WalletLedgerRepository {
+  /**
+   * Every tenant's ledger in one list, for the platform view.
+   *
+   * The balance on each line is that tenant's running balance, so rows are
+   * ordered per tenant rather than by a single platform sequence — a mixed
+   * ordering would make the balances read as nonsense.
+   */
+  listAcrossTenants(
+    filters?: CrossTenantLedgerFilters,
+  ): Promise<{ items: StoredWalletLedgerEntry[]; total: number }>;
   list(
     tenantId: string,
     filters?: WalletLedgerFilters,

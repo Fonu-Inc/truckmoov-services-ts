@@ -28,7 +28,9 @@ function build(options: {
   const useCase = new ChargeUsageUseCase(
     rates,
     { assertWithinLimit } as never,
-    { debit } as never,
+    // The low-balance warning has its own tests; here it must not affect the charge.
+    { afterDebit: async () => {} } as never,
+    { debit, findByTenantId: async () => null } as never,
     new EntitlementService(planRepo),
     planRepo,
   );
