@@ -16,6 +16,7 @@ export type AuditEntityType =
   | "fuel"
   | "alert"
   | "document"
+  | "waybill"
   | "geofence";
 
 export type AuditEntry = {

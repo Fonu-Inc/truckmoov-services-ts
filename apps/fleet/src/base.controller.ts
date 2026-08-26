@@ -4,6 +4,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import { DeviceNotFoundError } from "./contexts/fleet/devices";
+import { WaybillNotFoundError } from "./contexts/fleet/waybills/domain/errors/waybill.errors";
 import { DriverNotFoundError } from "./contexts/fleet/drivers";
 import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
@@ -105,6 +106,7 @@ export abstract class BaseFleetController {
         error instanceof VehicleNotFoundError
         || error instanceof DriverNotFoundError
         || error instanceof DeviceNotFoundError
+        || error instanceof WaybillNotFoundError
       ) {
         throw new NotFoundException(error.message);
       }

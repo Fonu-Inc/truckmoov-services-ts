@@ -233,6 +233,65 @@ export const DeviceVerificationFailureRecordSchema =
     ],
   });
 
+export class WaybillRecord {
+  id!: string;
+  tenantId!: string;
+  source!: string;
+  status!: string;
+  waybillNumber?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  vehicleRegistration?: string | null;
+  customerName?: string | null;
+  priceKobo?: string | number | null;
+  pricingRuleId?: string | null;
+  weight?: string | number | null;
+  weightUnit?: string | null;
+  waybillDate?: Date | null;
+  imageKey?: string | null;
+  imageSha256?: string | null;
+  imageBytes?: string | number | null;
+  extractedFields!: Record<string, unknown>;
+  extractionError?: string | null;
+  invoiceId?: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const WaybillRecordSchema = new EntitySchema<WaybillRecord>({
+  class: WaybillRecord,
+  tableName: "fleet_waybills",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    source: { type: "string", length: 16 },
+    status: { type: "string", length: 16, defaultRaw: "'pending'" },
+    waybillNumber: { type: "string", length: 64, nullable: true },
+    origin: { type: "string", length: 255, nullable: true },
+    destination: { type: "string", length: 255, nullable: true },
+    vehicleRegistration: { type: "string", length: 64, nullable: true },
+    customerName: { type: "string", length: 255, nullable: true },
+    priceKobo: { type: "bigint", nullable: true },
+    pricingRuleId: { type: "string", length: 64, nullable: true },
+    weight: { type: "decimal", precision: 14, scale: 3, nullable: true },
+    weightUnit: { type: "string", length: 32, nullable: true },
+    waybillDate: { type: "date", nullable: true },
+    imageKey: { type: "string", length: 512, nullable: true },
+    imageSha256: { type: "string", length: 64, nullable: true },
+    imageBytes: { type: "bigint", nullable: true },
+    extractedFields: { type: "json", defaultRaw: "'{}'" },
+    extractionError: { type: "text", nullable: true },
+    invoiceId: { type: "string", length: 64, nullable: true },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [
+    { properties: ["tenantId", "status"] },
+    { properties: ["tenantId", "waybillDate"] },
+    { properties: ["invoiceId"] },
+  ],
+});
+
 export class MaintenanceProfileRecord {
   id!: string;
   tenantId!: string;
@@ -739,6 +798,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       CarrierRecordSchema,
       DataBundleRecordSchema,
       DeviceVerificationFailureRecordSchema,
+      WaybillRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

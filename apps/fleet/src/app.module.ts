@@ -103,6 +103,14 @@ import { DEVICE_VERIFICATION_FAILURE_REPOSITORY } from "./contexts/fleet/devices
 import { HttpDeviceCatalogAdapter } from "./contexts/fleet/devices/infrastructure/http-device-catalog.adapter";
 import { InMemoryDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/in-memory-device-verification-failure.repository";
 import { MikroDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/mikro-device-verification-failure.repository";
+import { WaybillsController } from "./waybills.controller";
+import { CaptureWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/capture-waybill.use-case";
+import { ListWaybillsUseCase } from "./contexts/fleet/waybills/application/use-cases/list-waybills.use-case";
+import { WAYBILL_REPOSITORY } from "./contexts/fleet/waybills/domain/repositories/waybill.repository";
+import { WAYBILL_EXTRACTION_QUEUE } from "./contexts/fleet/waybills/domain/ports/waybill-extraction.port";
+import { EventBusWaybillExtractionQueue } from "./contexts/fleet/waybills/infrastructure/eventbus-waybill-extraction.queue";
+import { InMemoryWaybillRepository } from "./contexts/fleet/waybills/infrastructure/repositories/in-memory-waybill.repository";
+import { MikroWaybillRepository } from "./contexts/fleet/waybills/infrastructure/repositories/mikro-waybill.repository";
 import { DevicesController } from "./devices.controller";
 import { DeviceSetupRequestsController } from "./device-setup-requests.controller";
 import { CarriersController } from "./carriers.controller";
@@ -210,6 +218,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     VehiclesController,
     DevicesController,
     DeviceInstallationController,
+    WaybillsController,
     DeviceSetupRequestsController,
     CarriersController,
     DataBundlesController,
@@ -408,6 +417,20 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     GetInstallerGuideUseCase,
     GetDeviceDiagnosticsUseCase,
     DeviceVerificationSweepService,
+    InMemoryWaybillRepository,
+    MikroWaybillRepository,
+    {
+      provide: WAYBILL_REPOSITORY,
+      inject: [InMemoryWaybillRepository, MikroWaybillRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryWaybillRepository,
+        mikroRepository: MikroWaybillRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    { provide: WAYBILL_EXTRACTION_QUEUE, useClass: EventBusWaybillExtractionQueue },
+    CaptureWaybillUseCase,
+    ListWaybillsUseCase,
     HttpTraccarDeviceProvisioner,
     NoopTraccarDeviceProvisioner,
     {
@@ -532,6 +555,7 @@ export class AppModule implements NestModule {
         VehiclesController,
         DevicesController,
         DeviceInstallationController,
+        WaybillsController,
         DeviceSetupRequestsController,
         CarriersController,
         DataBundlesController,
