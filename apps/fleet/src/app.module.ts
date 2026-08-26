@@ -104,6 +104,33 @@ import { HttpDeviceCatalogAdapter } from "./contexts/fleet/devices/infrastructur
 import { InMemoryDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/in-memory-device-verification-failure.repository";
 import { MikroDeviceVerificationFailureRepository } from "./contexts/fleet/devices/infrastructure/repositories/mikro-device-verification-failure.repository";
 import { WaybillsController } from "./waybills.controller";
+import { InvoicingController } from "./invoicing.controller";
+import { PriceWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/price-waybill.use-case";
+import { GenerateInvoiceUseCase } from "./contexts/fleet/waybills/application/use-cases/generate-invoice.use-case";
+import { ListInvoicesUseCase } from "./contexts/fleet/waybills/application/use-cases/list-invoices.use-case";
+import {
+  ApproveInvoiceUseCase,
+  MarkInvoicePaidUseCase,
+  SendInvoiceUseCase,
+} from "./contexts/fleet/waybills/application/use-cases/invoice-lifecycle.use-cases";
+import {
+  GetInvoiceSettingsUseCase,
+  SaveInvoiceSettingsUseCase,
+} from "./contexts/fleet/waybills/application/use-cases/invoice-settings.use-cases";
+import {
+  DeactivatePricingRuleUseCase,
+  ListPricingRulesUseCase,
+  SavePricingRuleUseCase,
+} from "./contexts/fleet/waybills/application/use-cases/pricing-rule.use-cases";
+import { PRICING_RULE_REPOSITORY } from "./contexts/fleet/waybills/domain/repositories/pricing-rule.repository";
+import { INVOICE_SETTINGS_REPOSITORY } from "./contexts/fleet/waybills/domain/repositories/invoice-settings.repository";
+import { CUSTOMER_INVOICE_REPOSITORY } from "./contexts/fleet/waybills/domain/repositories/customer-invoice.repository";
+import { InMemoryPricingRuleRepository } from "./contexts/fleet/waybills/infrastructure/repositories/in-memory-pricing-rule.repository";
+import { MikroPricingRuleRepository } from "./contexts/fleet/waybills/infrastructure/repositories/mikro-pricing-rule.repository";
+import { InMemoryInvoiceSettingsRepository } from "./contexts/fleet/waybills/infrastructure/repositories/in-memory-invoice-settings.repository";
+import { MikroInvoiceSettingsRepository } from "./contexts/fleet/waybills/infrastructure/repositories/mikro-invoice-settings.repository";
+import { InMemoryCustomerInvoiceRepository } from "./contexts/fleet/waybills/infrastructure/repositories/in-memory-customer-invoice.repository";
+import { MikroCustomerInvoiceRepository } from "./contexts/fleet/waybills/infrastructure/repositories/mikro-customer-invoice.repository";
 import { WaybillExtractionListener } from "./waybill-extraction.listener";
 import { WaybillStallSweepService } from "./waybill-stall-sweep.service";
 import { ApplyWaybillExtractionUseCase } from "./contexts/fleet/waybills/application/use-cases/apply-waybill-extraction.use-case";
@@ -226,6 +253,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     DevicesController,
     DeviceInstallationController,
     WaybillsController,
+    InvoicingController,
     DeviceSetupRequestsController,
     CarriersController,
     DataBundlesController,
@@ -437,6 +465,50 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     },
     { provide: WAYBILL_EXTRACTION_QUEUE, useClass: EventBusWaybillExtractionQueue },
     { provide: WAYBILL_EXTRACTOR, useClass: UnavailableWaybillExtractor },
+    InMemoryPricingRuleRepository,
+    MikroPricingRuleRepository,
+    {
+      provide: PRICING_RULE_REPOSITORY,
+      inject: [InMemoryPricingRuleRepository, MikroPricingRuleRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryPricingRuleRepository,
+        mikroRepository: MikroPricingRuleRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    InMemoryInvoiceSettingsRepository,
+    MikroInvoiceSettingsRepository,
+    {
+      provide: INVOICE_SETTINGS_REPOSITORY,
+      inject: [InMemoryInvoiceSettingsRepository, MikroInvoiceSettingsRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryInvoiceSettingsRepository,
+        mikroRepository: MikroInvoiceSettingsRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    InMemoryCustomerInvoiceRepository,
+    MikroCustomerInvoiceRepository,
+    {
+      provide: CUSTOMER_INVOICE_REPOSITORY,
+      inject: [InMemoryCustomerInvoiceRepository, MikroCustomerInvoiceRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryCustomerInvoiceRepository,
+        mikroRepository: MikroCustomerInvoiceRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
+    PriceWaybillUseCase,
+    SavePricingRuleUseCase,
+    DeactivatePricingRuleUseCase,
+    ListPricingRulesUseCase,
+    GetInvoiceSettingsUseCase,
+    SaveInvoiceSettingsUseCase,
+    GenerateInvoiceUseCase,
+    ListInvoicesUseCase,
+    ApproveInvoiceUseCase,
+    SendInvoiceUseCase,
+    MarkInvoicePaidUseCase,
     CaptureWaybillUseCase,
     ListWaybillsUseCase,
     ApplyWaybillExtractionUseCase,
@@ -569,6 +641,7 @@ export class AppModule implements NestModule {
         DevicesController,
         DeviceInstallationController,
         WaybillsController,
+        InvoicingController,
         DeviceSetupRequestsController,
         CarriersController,
         DataBundlesController,

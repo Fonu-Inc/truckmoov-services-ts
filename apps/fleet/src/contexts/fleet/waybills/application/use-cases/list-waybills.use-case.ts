@@ -55,6 +55,9 @@ export function toWaybillRow(waybill: Waybill) {
     extractedFields: waybill.extractedFields,
     extractionError: waybill.extractionError,
     invoiceId: waybill.invoiceId,
+    pricingRuleId: waybill.pricingRuleId,
+    replyChannel: waybill.replyChannel,
+    replyAddress: waybill.replyAddress,
     createdAt: waybill.createdAt,
   };
 }

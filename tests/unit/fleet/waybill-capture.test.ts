@@ -7,6 +7,8 @@ import {
 import { ApplyWaybillExtractionUseCase } from "../../../apps/fleet/src/contexts/fleet/waybills/application/use-cases/apply-waybill-extraction.use-case";
 import { ReviewWaybillUseCase } from "../../../apps/fleet/src/contexts/fleet/waybills/application/use-cases/review-waybill.use-case";
 import { ExpireStalledWaybillsUseCase } from "../../../apps/fleet/src/contexts/fleet/waybills/application/use-cases/expire-stalled-waybills.use-case";
+import { PriceWaybillUseCase } from "../../../apps/fleet/src/contexts/fleet/waybills/application/use-cases/price-waybill.use-case";
+import { InMemoryPricingRuleRepository } from "../../../apps/fleet/src/contexts/fleet/waybills/infrastructure/repositories/in-memory-pricing-rule.repository";
 import { ListWaybillsUseCase } from "../../../apps/fleet/src/contexts/fleet/waybills/application/use-cases/list-waybills.use-case";
 import { InMemoryWaybillRepository } from "../../../apps/fleet/src/contexts/fleet/waybills/infrastructure/repositories/in-memory-waybill.repository";
 import { Waybill } from "../../../apps/fleet/src/contexts/fleet/waybills/domain/entities/waybill.entity";
@@ -298,6 +300,12 @@ describe("Waybill extraction", () => {
     return { extract: async () => result } as never;
   }
 
+  // No rules configured, so pricing is a no-op and these tests observe
+  // extraction alone. Pricing has its own tests.
+  function pricingFor(repository: InMemoryWaybillRepository) {
+    return new PriceWaybillUseCase(repository, new InMemoryPricingRuleRepository());
+  }
+
   async function captured(repository: InMemoryWaybillRepository, id = "wb-x") {
     const waybill = Waybill.capture({
       id,
@@ -326,6 +334,7 @@ describe("Waybill extraction", () => {
         },
       }),
       CONFIG,
+      pricingFor(repository),
     );
 
     const result = await useCase.execute({ waybillId: "wb-x", tenantId: TENANT });
@@ -350,6 +359,7 @@ describe("Waybill extraction", () => {
         },
       }),
       CONFIG,
+      pricingFor(repository),
     );
 
     const result = await useCase.execute({ waybillId: "wb-x", tenantId: TENANT });
@@ -366,6 +376,7 @@ describe("Waybill extraction", () => {
       repository,
       extractor({ ok: false, reason: "No extraction service is configured." }),
       CONFIG,
+      pricingFor(repository),
     );
 
     const result = await useCase.execute({ waybillId: "wb-x", tenantId: TENANT });
@@ -391,6 +402,7 @@ describe("Waybill extraction", () => {
       repository,
       extractor({ ok: true, fields: { destination: field("Kano", 0.99) } }),
       CONFIG,
+      pricingFor(repository),
     );
 
     // JetStream redelivers. Rewriting the destination would change the trip a
@@ -416,6 +428,7 @@ describe("Waybill extraction", () => {
         fields: { waybillNumber: field("WB-2025-001", 0.99), destination: field("Kano", 0.95) },
       }),
       CONFIG,
+      pricingFor(repository),
     );
 
     const result = await useCase.execute({ waybillId: "wb-second", tenantId: TENANT });
@@ -438,7 +451,7 @@ describe("Waybill review", () => {
     });
     await repository.save(waybill.failExtraction("could not read the page"));
 
-    const useCase = new ReviewWaybillUseCase(repository);
+    const useCase = new ReviewWaybillUseCase(repository, new PriceWaybillUseCase(repository, new InMemoryPricingRuleRepository()));
     const reviewed = await useCase.execute({
       waybillId: "wb-r",
       tenantId: TENANT,
@@ -468,7 +481,7 @@ describe("Waybill review", () => {
         }),
       );
     }
-    const useCase = new ReviewWaybillUseCase(repository);
+    const useCase = new ReviewWaybillUseCase(repository, new PriceWaybillUseCase(repository, new InMemoryPricingRuleRepository()));
     await useCase.execute({ waybillId: "wb-a", tenantId: TENANT, waybillNumber: "WB-1" });
 
     await expect(() =>
@@ -490,7 +503,7 @@ describe("Waybill review", () => {
       Waybill.create({ ...waybill.toPrimitives(), status: "invoiced", invoiceId: "inv-1" }),
     );
 
-    const useCase = new ReviewWaybillUseCase(repository);
+    const useCase = new ReviewWaybillUseCase(repository, new PriceWaybillUseCase(repository, new InMemoryPricingRuleRepository()));
     await expect(() =>
       useCase.execute({ waybillId: "wb-i", tenantId: TENANT, destination: "Kano" }),
     ).rejects.toThrow("cannot be edited");

@@ -46,6 +46,8 @@ export class MikroWaybillRepository implements WaybillRepository {
       extractedFields: waybill.extractedFields,
       extractionError: waybill.extractionError,
       invoiceId: waybill.invoiceId,
+      replyChannel: waybill.replyChannel,
+      replyAddress: waybill.replyAddress,
       createdAt: new Date(waybill.createdAt),
       updatedAt: new Date(waybill.updatedAt),
     });
@@ -155,6 +157,8 @@ function toDomain(record: WaybillRecord): Waybill {
     extractedFields: (record.extractedFields as ExtractedFields) ?? {},
     extractionError: record.extractionError ?? null,
     invoiceId: record.invoiceId ?? null,
+    replyChannel: (record.replyChannel as "whatsapp" | "email" | null) ?? null,
+    replyAddress: record.replyAddress ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   });

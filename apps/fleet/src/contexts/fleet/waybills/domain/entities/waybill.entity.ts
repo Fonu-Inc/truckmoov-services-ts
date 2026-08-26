@@ -75,6 +75,13 @@ export type WaybillProps = {
   extractedFields: ExtractedFields;
   extractionError: string | null;
   invoiceId: string | null;
+  /**
+   * Where an invoice built from this waybill goes back to, captured when the
+   * waybill arrived. There is no customer record to look an address up in, so
+   * the channel it came in on is the address we have.
+   */
+  replyChannel?: "whatsapp" | "email" | null;
+  replyAddress?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -127,6 +134,8 @@ export class Waybill {
     imageKey: string;
     imageSha256: string;
     imageBytes: number;
+    replyChannel?: "whatsapp" | "email" | null;
+    replyAddress?: string | null;
     capturedAt?: string;
   }): Waybill {
     const at = input.capturedAt ?? new Date().toISOString();
@@ -151,6 +160,8 @@ export class Waybill {
       extractedFields: {},
       extractionError: null,
       invoiceId: null,
+      replyChannel: input.replyChannel ?? null,
+      replyAddress: input.replyAddress ?? null,
       createdAt: at,
       updatedAt: at,
     });
@@ -176,6 +187,8 @@ export class Waybill {
   get extractedFields() { return this.props.extractedFields; }
   get extractionError() { return this.props.extractionError; }
   get invoiceId() { return this.props.invoiceId; }
+  get replyChannel() { return this.props.replyChannel ?? null; }
+  get replyAddress() { return this.props.replyAddress ?? null; }
   get createdAt() { return this.props.createdAt ?? new Date().toISOString(); }
   get updatedAt() { return this.props.updatedAt ?? this.createdAt; }
 
@@ -280,6 +293,47 @@ export class Waybill {
       waybillDate: pick(values.waybillDate, this.waybillDate),
       extractionError: null,
       updatedAt: values.at ?? new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Records the price a rule put on this load.
+   *
+   * The rule id and the amount are both stored. Nothing recomputes a price on
+   * read, so deactivating or editing a rule later cannot change what a customer
+   * was already told they owed.
+   */
+  applyPrice(input: { priceKobo: number; pricingRuleId: string; at?: string }): Waybill {
+    if (this.status === "invoiced") {
+      throw new FleetRuleError("an invoiced waybill cannot be repriced");
+    }
+    if (!Number.isInteger(input.priceKobo) || input.priceKobo <= 0) {
+      throw new FleetRuleError("a price must be a positive whole number of kobo");
+    }
+
+    return Waybill.create({
+      ...this.toPrimitives(),
+      status: "priced",
+      priceKobo: input.priceKobo,
+      pricingRuleId: input.pricingRuleId,
+      updatedAt: input.at ?? new Date().toISOString(),
+    });
+  }
+
+  /** Rolled into an invoice. A waybill may only ever be on one. */
+  markInvoiced(invoiceId: string, at?: string): Waybill {
+    if (this.status === "invoiced") {
+      throw new FleetRuleError("this waybill is already on an invoice");
+    }
+    if (this.status !== "priced") {
+      throw new FleetRuleError("only a priced waybill can be invoiced");
+    }
+
+    return Waybill.create({
+      ...this.toPrimitives(),
+      status: "invoiced",
+      invoiceId,
+      updatedAt: at ?? new Date().toISOString(),
     });
   }
 

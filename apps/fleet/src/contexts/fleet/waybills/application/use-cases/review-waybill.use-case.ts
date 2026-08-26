@@ -8,6 +8,7 @@ import {
   WAYBILL_REPOSITORY,
   type WaybillRepository,
 } from "../../domain/repositories/waybill.repository";
+import { PriceWaybillUseCase } from "./price-waybill.use-case";
 
 export type ReviewWaybillCommand = {
   waybillId: string;
@@ -31,7 +32,10 @@ export type ReviewWaybillCommand = {
  */
 @Injectable()
 export class ReviewWaybillUseCase {
-  constructor(@Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository) {}
+  constructor(
+    @Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository,
+    @Inject(PriceWaybillUseCase) private readonly pricing: PriceWaybillUseCase,
+  ) {}
 
   async execute(command: ReviewWaybillCommand): Promise<Waybill> {
     const waybill = await this.waybills.findById(command.waybillId, command.tenantId);
@@ -50,6 +54,8 @@ export class ReviewWaybillUseCase {
     }
 
     await this.waybills.save(reviewed);
-    return reviewed;
+    // Correcting a date or a destination can change which rule applies, so
+    // pricing runs again against the corrected values.
+    return this.pricing.execute(reviewed);
   }
 }

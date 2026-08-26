@@ -254,6 +254,8 @@ export class WaybillRecord {
   extractedFields!: Record<string, unknown>;
   extractionError?: string | null;
   invoiceId?: string | null;
+  replyChannel?: string | null;
+  replyAddress?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -282,6 +284,8 @@ export const WaybillRecordSchema = new EntitySchema<WaybillRecord>({
     extractedFields: { type: "json", defaultRaw: "'{}'" },
     extractionError: { type: "text", nullable: true },
     invoiceId: { type: "string", length: 64, nullable: true },
+    replyChannel: { type: "string", length: 16, nullable: true },
+    replyAddress: { type: "string", length: 255, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
@@ -289,6 +293,151 @@ export const WaybillRecordSchema = new EntitySchema<WaybillRecord>({
     { properties: ["tenantId", "status"] },
     { properties: ["tenantId", "waybillDate"] },
     { properties: ["invoiceId"] },
+  ],
+});
+
+export class PricingRuleRecord {
+  id!: string;
+  tenantId!: string;
+  name!: string;
+  origin?: string | null;
+  destination!: string;
+  destinationAliases!: string[];
+  mode!: string;
+  currency!: string;
+  flatPriceKobo?: string | number | null;
+  pricePerUnitKobo?: string | number | null;
+  unitType?: string | null;
+  minimumChargeKobo?: string | number | null;
+  vehicleType?: string | null;
+  customerName?: string | null;
+  effectiveFrom?: Date | null;
+  effectiveTo?: Date | null;
+  active!: boolean;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const PricingRuleRecordSchema = new EntitySchema<PricingRuleRecord>({
+  class: PricingRuleRecord,
+  tableName: "fleet_pricing_rules",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    name: { type: "string", length: 255 },
+    origin: { type: "string", length: 255, nullable: true },
+    destination: { type: "string", length: 255 },
+    destinationAliases: { type: "json", defaultRaw: "'[]'" },
+    mode: { type: "string", length: 16 },
+    currency: { type: "string", length: 8, defaultRaw: "'NGN'" },
+    flatPriceKobo: { type: "bigint", nullable: true },
+    pricePerUnitKobo: { type: "bigint", nullable: true },
+    unitType: { type: "string", length: 32, nullable: true },
+    minimumChargeKobo: { type: "bigint", nullable: true },
+    vehicleType: { type: "string", length: 64, nullable: true },
+    customerName: { type: "string", length: 255, nullable: true },
+    effectiveFrom: { type: "date", nullable: true },
+    effectiveTo: { type: "date", nullable: true },
+    active: { type: "boolean", default: true },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [{ properties: ["tenantId", "active"] }],
+});
+
+export class InvoiceSettingsRecord {
+  tenantId!: string;
+  companyName!: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  taxEnabled!: boolean;
+  taxRateBasisPoints!: number;
+  bankName?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  invoicePrefix!: string;
+  paymentTermsDays!: number;
+  defaultNotes?: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const InvoiceSettingsRecordSchema = new EntitySchema<InvoiceSettingsRecord>({
+  class: InvoiceSettingsRecord,
+  tableName: "fleet_invoice_settings",
+  properties: {
+    tenantId: { type: "string", length: 64, primary: true },
+    companyName: { type: "string", length: 255 },
+    address: { type: "text", nullable: true },
+    phone: { type: "string", length: 32, nullable: true },
+    email: { type: "string", length: 255, nullable: true },
+    taxEnabled: { type: "boolean", default: false },
+    taxRateBasisPoints: { type: "integer", default: 0 },
+    bankName: { type: "string", length: 255, nullable: true },
+    accountName: { type: "string", length: 255, nullable: true },
+    accountNumber: { type: "string", length: 32, nullable: true },
+    invoicePrefix: { type: "string", length: 16, defaultRaw: "'INV'" },
+    paymentTermsDays: { type: "integer", default: 30 },
+    defaultNotes: { type: "text", nullable: true },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+});
+
+export class CustomerInvoiceRecord {
+  id!: string;
+  tenantId!: string;
+  invoiceNumber!: string;
+  status!: string;
+  customerName!: string;
+  origin?: string | null;
+  destination?: string | null;
+  vehicleRegistration?: string | null;
+  subtotalKobo!: string | number;
+  taxKobo!: string | number;
+  totalKobo!: string | number;
+  currency!: string;
+  issuedAt?: Date | null;
+  dueAt?: Date | null;
+  sentTo?: string | null;
+  sentAt?: Date | null;
+  paidAt?: Date | null;
+  paymentReference?: string | null;
+  settingsSnapshot!: Record<string, unknown>;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const CustomerInvoiceRecordSchema = new EntitySchema<CustomerInvoiceRecord>({
+  class: CustomerInvoiceRecord,
+  tableName: "fleet_customer_invoices",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    invoiceNumber: { type: "string", length: 64 },
+    status: { type: "string", length: 16, defaultRaw: "'draft'" },
+    customerName: { type: "string", length: 255 },
+    origin: { type: "string", length: 255, nullable: true },
+    destination: { type: "string", length: 255, nullable: true },
+    vehicleRegistration: { type: "string", length: 64, nullable: true },
+    subtotalKobo: { type: "bigint" },
+    taxKobo: { type: "bigint", default: 0 },
+    totalKobo: { type: "bigint" },
+    currency: { type: "string", length: 8, defaultRaw: "'NGN'" },
+    issuedAt: { type: "datetime", nullable: true },
+    dueAt: { type: "date", nullable: true },
+    sentTo: { type: "string", length: 255, nullable: true },
+    sentAt: { type: "datetime", nullable: true },
+    paidAt: { type: "datetime", nullable: true },
+    paymentReference: { type: "string", length: 128, nullable: true },
+    settingsSnapshot: { type: "json", defaultRaw: "'{}'" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [
+    { properties: ["tenantId", "invoiceNumber"], options: { unique: true } },
+    { properties: ["tenantId", "status"] },
   ],
 });
 
@@ -799,6 +948,9 @@ export async function getFleetOrm(cfg: DbConfig) {
       DataBundleRecordSchema,
       DeviceVerificationFailureRecordSchema,
       WaybillRecordSchema,
+      PricingRuleRecordSchema,
+      InvoiceSettingsRecordSchema,
+      CustomerInvoiceRecordSchema,
     ],
     host: cfg.host,
     port: cfg.port,

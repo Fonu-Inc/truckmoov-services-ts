@@ -27,6 +27,9 @@ export type CaptureWaybillCommand = {
   buffer: Buffer;
   contentType: string;
   filename: string;
+  /** Where an invoice from this waybill goes back to. */
+  replyChannel?: "whatsapp" | "email" | null;
+  replyAddress?: string | null;
 };
 
 @Injectable()
@@ -62,6 +65,8 @@ export class CaptureWaybillUseCase {
       imageKey: key,
       imageSha256: sha256,
       imageBytes: command.buffer.byteLength,
+      replyChannel: command.replyChannel ?? null,
+      replyAddress: command.replyAddress ?? null,
     });
     await this.waybills.save(waybill);
 

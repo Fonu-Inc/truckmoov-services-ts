@@ -9,6 +9,7 @@ import {
   WAYBILL_REPOSITORY,
   type WaybillRepository,
 } from "../../domain/repositories/waybill.repository";
+import { PriceWaybillUseCase } from "./price-waybill.use-case";
 
 export type ApplyWaybillExtractionCommand = {
   waybillId: string;
@@ -30,6 +31,7 @@ export class ApplyWaybillExtractionUseCase {
     @Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository,
     @Inject(WAYBILL_EXTRACTOR) private readonly extractor: WaybillExtractor,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(PriceWaybillUseCase) private readonly pricing: PriceWaybillUseCase,
   ) {}
 
   async execute(command: ApplyWaybillExtractionCommand): Promise<Waybill | null> {
@@ -76,8 +78,10 @@ export class ApplyWaybillExtractionUseCase {
     return Boolean(existing && existing.id !== waybill.id);
   }
 
+  // Pricing follows extraction directly: a waybill the machine read cleanly
+  // should reach the invoicing queue without a person touching it.
   private async save(waybill: Waybill): Promise<Waybill> {
     await this.waybills.save(waybill);
-    return waybill;
+    return this.pricing.execute(waybill);
   }
 }
