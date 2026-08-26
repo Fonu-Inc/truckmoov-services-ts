@@ -4,6 +4,53 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-7 — Approving an organisation upgrade is not one action
+
+**Status:** open. Parked pending an internal decision on whether and how an
+organisation should be promoted at all.
+
+### What happens
+
+An owner-operator asks to become a fleet provider. An admin clicks Approve.
+Four things are then saved one at a time:
+
+1. The company's type.
+2. Each staff account at that company, one save per person.
+3. The request, marked approved.
+4. An email to the requester.
+
+Nothing ties those saves together. If anything interrupts partway — a restart,
+a deploy, a database blip — whatever already saved stays saved and the rest
+never runs. The company reads as a fleet provider while some of its staff still
+hold the old account type, and the request still sits in the queue as pending,
+so an admin sees it as untouched. Nobody is told and nothing retries.
+
+### The comment is wrong
+
+`organisation-upgrade.use-cases.ts` says the type change, the role change and
+the decision "are one unit of work". They are not. Anyone reading that file
+believes a protection exists that does not. Correct the comment whether or not
+the behaviour is changed.
+
+### The order is right, though
+
+A failure leaves staff with less access than the company implies, not more.
+Reversing the order so staff are promoted first would leave people holding fleet
+admin rights in an organisation not entitled to them. Leave the order alone.
+
+### What the fix costs
+
+Not a wrapper. Each of the three repositories opens its own forked
+EntityManager, so they do not share a database session. Making the saves one
+unit means changing how all three are called, and other screens call them. Half
+a day, touching shared code.
+
+### When it matters
+
+Approvals are rare and the window is a fraction of a second, so the odds are
+low. It is worth doing before real operators start using the upgrade queue, and
+not before.
+
 ## TD-6 — Device catalogue is empty until trackers are bought
 
 **Status:** open. Blocked on hardware, not on a decision.
