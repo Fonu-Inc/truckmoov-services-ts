@@ -4,6 +4,33 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-9 — Job offer push notification is in-app only
+
+**Status:** open. No mobile push infrastructure exists to build the rest of it.
+
+### What was built
+
+Accepting or declining a job offer, and a new offer arriving, publishes an
+event on the target tenant's own subject (`tm.<tenant>.job.offer.created` /
+`.responded`). The realtime gateway fans that out immediately to whichever of
+that tenant's browsers are connected — a carrier with the app open sees the
+offer appear without refreshing.
+
+### What is missing
+
+The requirements ask for a push notification because "an offer that expires
+unseen is a lost job." A carrier who is not looking at the app right now is
+not reached by the above. No APNs, FCM, or web-push registration exists
+anywhere in the codebase, for any tenant, on any screen — there is nothing to
+extend here, this would be new infrastructure: capturing device tokens,
+storing them per user, and a send path through Apple/Google's push services.
+
+### When this is picked up
+
+The event is already being published, so the missing piece is purely a second
+consumer: a push-token store and a sender that subscribes to
+`tm.*.job.offer.created` the same way the realtime gateway does.
+
 ## TD-8 — Auto top-up is configured but can never fire
 
 **Status:** open. Blocked on a stored payment authorisation, not on a decision.

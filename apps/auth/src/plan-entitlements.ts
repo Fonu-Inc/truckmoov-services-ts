@@ -14,6 +14,13 @@ export const QUOTA_RESOURCES = [
   'sims',
   'storage_gb',
   'geofences',
+  /**
+   * Concurrent job offers a carrier may hold accepted at once. Read by the
+   * dispatch service before an offer may be accepted, from this same source —
+   * the requirements name this and the vehicle cap as the two owner-operator
+   * limits that must not be decided in two places.
+   */
+  'active_jobs',
 ] as const;
 export type QuotaResource = (typeof QUOTA_RESOURCES)[number];
 
