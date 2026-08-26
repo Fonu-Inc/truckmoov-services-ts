@@ -4,9 +4,51 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-6 — Device catalogue is empty until trackers are bought
+
+**Status:** open. Blocked on hardware, not on a decision.
+
+### What a reader will see
+
+Every call to configure a device on the installation screen fails with
+`DeviceModelNotInCatalogError`. The screen looks broken. It is not.
+
+### Why
+
+`system_device_models` has no rows, and nothing seeds it. Protocol and port are
+properties of a device model, so `ConfigureDeviceUseCase` reads them from the
+catalogue and refuses when the model is absent. It refuses on purpose: a tracker
+programmed with a guessed port reports nothing, and the only symptom is a
+verification timeout days later with an installer already on site.
+
+No trackers have been bought, so there are no real models to enter.
+
+### What to do when the first order is placed
+
+1. Add the model to the catalogue with the port Traccar actually serves for that
+   protocol. Traccar's shipped defaults bind every protocol port inside the pod
+   — Teltonika 5027, GT06/Concox 5023, gps103/Coban 5001, tk103 5002, t55 5005,
+   OsmAnd 5055 — but `traccar-deployment.yaml` exposes only three of them
+   through `hostPort`. Open the one the model needs before entering it.
+2. Set the ingest address. One value cannot serve both paths: a hardware tracker
+   dials Traccar over TCP, while an app or SDK posts to the tracking service
+   over HTTP. `GetInstallerGuideUseCase` currently prints one host for
+   everything and needs splitting when a real address exists.
+3. Consider refusing a catalogue port that no listener serves, so a wrong port
+   is caught at entry rather than by a failed installation.
+
+### Related risk, not owned here
+
+Traccar is exposed by `hostPort` with `strategy: Recreate` over a PVC. Devices
+dial whichever node the pod runs on. If that pod moves, every fitted tracker
+points at a node with nothing behind it and stops reporting, and re-pointing a
+fitted tracker needs an SMS command per unit or a site visit. Harmless while
+nothing is fitted. It stops being harmless on the first installation.
+
 ## TD-2 — Single-currency until international currency is switched on
 
-**Status:** open. Direction agreed, not scheduled. Deferred feature rather than debt.
+**Status:** the gate is built and on. What remains is the rate machinery, which
+is only needed when the flag is switched on. Deferred feature rather than debt.
 
 ### Decision
 
@@ -23,6 +65,33 @@ The requirements document warns about the alternative. Screen 20, line 4518: if
 a second currency is ever added, every stored amount needs an explicit currency
 alongside it, not an implied one. Keeping the feature off makes that an explicit
 decision later rather than a half-built state now.
+
+### Built
+
+- `features.internationalCurrency`, default false, normalised to false on any
+  row written before it existed.
+- `defaults.platformCurrency`, default `NGN`. Any other value is refused with
+  `UnsupportedPlatformCurrencyError` rather than stored, because changing the
+  setting converts nothing: a stored `USD` would relabel every Naira figure on
+  the platform.
+- `GET /auth/onboarding/exchange-rate` reports the currency and `ngnPerUsd:
+  null`. It no longer fetches a live rate from a third party, and no longer
+  falls back to a hardcoded 1600 served as `status: true` — a figure nobody set,
+  cached per process, so two replicas could quote different prices for the same
+  plan.
+- `EXCHANGE_RATE_API_KEY` removed from config. The requirements have the rate
+  entered by an admin through an explicit "Update Rate" action, not pulled from
+  an API, so the key had no future use.
+- Tenant organisation settings defaulted to `currency: 'USD'`. Now `NGN`.
+
+### Still to build, when the flag is switched on
+
+An append-only, effective-dated rate table with the setter recorded — the same
+shape as the communication rates. The requirements are explicit that rate
+changes are versioned with an effective timestamp "so a quote given yesterday
+can be explained today", and that a rate is never applied to a stored amount or
+historical figures drift every time it moves. A stale-rate alert past a
+threshold is wanted too; the screen showing an age relies on someone noticing.
 
 ### Agreed shape
 

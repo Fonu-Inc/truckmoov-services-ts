@@ -14,9 +14,12 @@ import {
   MAX_COMPLIANCE_REMINDER_DAYS,
   SYSTEM_SETTINGS_REPOSITORY,
   buildDefaultSystemSettings,
+  isPlatformCurrency,
+  type PlatformCurrency,
   type SystemSettings,
   type SystemSettingsRepository,
 } from './system-settings.repository';
+import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 
 export type UpdateSystemSettingsCommand = {
   accessToken: string;
@@ -28,11 +31,13 @@ export type UpdateSystemSettingsCommand = {
     complianceReminderDays?: number;
     walletTopUpMin?: number;
     walletTopUpMax?: number;
+    platformCurrency?: string;
   };
   features?: {
     allowNewTenantRegistration?: boolean;
     maintenanceMode?: boolean;
     enableBetaFeatures?: boolean;
+    internationalCurrency?: boolean;
   };
   retention?: {
     gpsDataRetentionDays?: number;
@@ -84,6 +89,10 @@ export class UpdateSystemSettingsUseCase {
           command.defaults?.walletTopUpMax !== undefined
             ? Math.round(command.defaults.walletTopUpMax * 100)
             : current.defaults.walletTopUpMaxKobo,
+        platformCurrency: resolvePlatformCurrency(
+          command.defaults?.platformCurrency,
+          current.defaults.platformCurrency,
+        ),
       },
       features: {
         allowNewTenantRegistration:
@@ -94,6 +103,9 @@ export class UpdateSystemSettingsUseCase {
         enableBetaFeatures:
           command.features?.enableBetaFeatures ??
           current.features.enableBetaFeatures,
+        internationalCurrency:
+          command.features?.internationalCurrency ??
+          current.features.internationalCurrency,
       },
       retention: {
         gpsDataRetentionDays:
@@ -171,4 +183,24 @@ function normalizeTimezoneInput(timezone: string): string {
         .join('_'),
     )
     .join('/');
+}
+
+/**
+ * Refuses a currency the platform does not support rather than storing it.
+ *
+ * A rejected value is a visible error. A stored one silently relabels every
+ * Naira figure on the platform as something else, because changing this setting
+ * does not convert a single stored amount.
+ */
+function resolvePlatformCurrency(
+  requested: string | undefined,
+  current: PlatformCurrency,
+): PlatformCurrency {
+  if (requested === undefined) return current;
+
+  const normalized = requested.trim().toUpperCase();
+  if (!isPlatformCurrency(normalized)) {
+    throw new UnsupportedPlatformCurrencyError(requested);
+  }
+  return normalized;
 }

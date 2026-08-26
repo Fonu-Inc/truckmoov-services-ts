@@ -31,13 +31,43 @@ export type SystemSettingsDefaults = {
    * amount is refused rather than accepted and then chased.
    */
   walletTopUpMaxKobo: number;
+  /**
+   * The currency every financial figure on the platform is expressed in.
+   * Changing it does not reinterpret a stored amount: the stored figures stay
+   * exactly what they were, which is why only one value is accepted today.
+   */
+  platformCurrency: PlatformCurrency;
 };
 
 export type SystemSettingsFeatures = {
   allowNewTenantRegistration: boolean;
   maintenanceMode: boolean;
   enableBetaFeatures: boolean;
+  /**
+   * Off means the platform is Naira only: no endpoint returns a converted
+   * figure and no rate is applied to a stored amount. Kept as a flag rather
+   * than removed code so switching it on is one decision, not a rebuild.
+   */
+  internationalCurrency: boolean;
 };
+
+/**
+ * Currencies the platform can be set to. Only Naira is offered, but the setting
+ * is stored rather than assumed: a stored amount with no currency beside it is
+ * what makes adding a second currency a migration of every financial row.
+ */
+export const PLATFORM_CURRENCIES = ['NGN'] as const;
+
+export type PlatformCurrency = (typeof PLATFORM_CURRENCIES)[number];
+
+export const DEFAULT_PLATFORM_CURRENCY: PlatformCurrency = 'NGN';
+
+export function isPlatformCurrency(value: unknown): value is PlatformCurrency {
+  return (
+    typeof value === 'string'
+    && PLATFORM_CURRENCIES.includes(value as PlatformCurrency)
+  );
+}
 
 export type SystemSettingsRetention = {
   gpsDataRetentionDays: number;
@@ -67,11 +97,13 @@ export function buildDefaultSystemSettings(): SystemSettings {
       complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
       walletTopUpMinKobo: DEFAULT_WALLET_TOP_UP_MIN_KOBO,
       walletTopUpMaxKobo: DEFAULT_WALLET_TOP_UP_MAX_KOBO,
+      platformCurrency: DEFAULT_PLATFORM_CURRENCY,
     },
     features: {
       allowNewTenantRegistration: true,
       maintenanceMode: false,
       enableBetaFeatures: true,
+      internationalCurrency: false,
     },
     retention: {
       gpsDataRetentionDays: 365,
@@ -92,8 +124,18 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
   // still carry the others, so a single check on one key would leave the rest
   // undefined.
   const defaults = settings.defaults ?? ({} as SystemSettings['defaults']);
+  const features = settings.features ?? ({} as SystemSettings['features']);
   return {
     ...settings,
+    features: {
+      ...features,
+      allowNewTenantRegistration: booleanOr(features.allowNewTenantRegistration, true),
+      maintenanceMode: booleanOr(features.maintenanceMode, false),
+      enableBetaFeatures: booleanOr(features.enableBetaFeatures, true),
+      // Absent on every row written before the flag existed. It must read as
+      // off there: a missing flag must not switch conversion on.
+      internationalCurrency: booleanOr(features.internationalCurrency, false),
+    },
     defaults: {
       ...defaults,
       complianceReminderDays: numberOr(
@@ -102,8 +144,15 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
       ),
       walletTopUpMinKobo: numberOr(defaults.walletTopUpMinKobo, DEFAULT_WALLET_TOP_UP_MIN_KOBO),
       walletTopUpMaxKobo: numberOr(defaults.walletTopUpMaxKobo, DEFAULT_WALLET_TOP_UP_MAX_KOBO),
+      platformCurrency: isPlatformCurrency(defaults.platformCurrency)
+        ? defaults.platformCurrency
+        : DEFAULT_PLATFORM_CURRENCY,
     },
   };
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 function numberOr(value: unknown, fallback: number): number {

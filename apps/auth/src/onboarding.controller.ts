@@ -143,7 +143,11 @@ export class OnboardingController extends BaseAuthController {
   }
 
   @Get('exchange-rate')
-  @ApiOperation({ summary: 'Current NGN/USD exchange rate', description: 'Live rate from ExchangeRate-API; cached 30 min.' })
+  @ApiOperation({
+    summary: 'Platform currency',
+    description:
+      'The currency every figure on the platform is expressed in. No conversion is performed while international currency is off, so ngnPerUsd is null.',
+  })
   @ApiOkResponse({ description: 'Exchange rate data', type: ExchangeRateResponse })
   async getExchangeRate() {
     return this.getExchangeRateUseCase.execute();

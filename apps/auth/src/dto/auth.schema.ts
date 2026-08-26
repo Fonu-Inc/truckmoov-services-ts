@@ -2329,9 +2329,18 @@ export class PaymentIntentResponse extends StandardApiResponse<PaymentIntentData
 }
 
 export class ExchangeRateDataSchema {
-  @ApiProperty() ngnPerUsd!: number;
-  @ApiProperty({ description: 'Origin of the rate', example: 'live' }) source!: string;
-  @ApiProperty({ type: String, format: 'date-time' }) fetchedAt!: string;
+  @ApiProperty({ example: 'NGN', description: 'Currency every platform figure is in' })
+  currency!: string;
+
+  @ApiProperty({ description: 'Whether conversion is switched on', example: false })
+  internationalCurrency!: boolean;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Null while international currency is off. Never applied to a stored amount.',
+  })
+  ngnPerUsd!: number | null;
 }
 
 export class ExchangeRateResponse extends StandardApiResponse<ExchangeRateDataSchema> {

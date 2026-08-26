@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 import {
   MAX_COMPLIANCE_REMINDER_DAYS,
+  PLATFORM_CURRENCIES,
   SYSTEM_BACKUP_FREQUENCIES,
 } from '../system-settings.repository';
 
@@ -45,6 +46,10 @@ class SystemSettingsDefaultsDto {
   @Min(1)
   @Type(() => Number)
   walletTopUpMax?: number;
+
+  @IsOptional()
+  @IsIn(PLATFORM_CURRENCIES)
+  platformCurrency?: (typeof PLATFORM_CURRENCIES)[number];
 }
 
 class SystemSettingsFeaturesDto {
@@ -59,6 +64,10 @@ class SystemSettingsFeaturesDto {
   @IsOptional()
   @IsBoolean()
   enableBetaFeatures?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  internationalCurrency?: boolean;
 }
 
 class SystemSettingsRetentionDto {

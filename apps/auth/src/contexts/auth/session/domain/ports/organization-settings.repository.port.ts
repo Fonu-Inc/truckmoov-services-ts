@@ -57,7 +57,9 @@ export function buildDefaultOrganizationSettings(
     defaults: {
       timezone: 'UTC',
       language: 'en',
-      currency: 'USD',
+      // The platform is Naira only. A tenant that never opened its settings
+      // reported USD here, which labelled every Naira figure as dollars.
+      currency: 'NGN',
       dateFormat: 'YYYY-MM-DD',
       weekStartsOn: 'monday',
     },

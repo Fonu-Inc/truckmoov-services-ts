@@ -82,6 +82,7 @@ import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use
 import { InvalidSystemDeviceProvisioningError } from './system-device-model.errors';
 import { SystemFeatureFlagNotFoundError, UpdateSystemFeatureFlagUseCase } from './update-system-feature-flag.use-case';
 import { UpdateSystemSettingsUseCase } from './update-system-settings.use-case';
+import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 
 @ApiTags('System')
 @Controller('system')
@@ -274,7 +275,10 @@ export class SystemController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
-      if (error instanceof InvalidSettingsError)
+      if (
+        error instanceof InvalidSettingsError ||
+        error instanceof UnsupportedPlatformCurrencyError
+      )
         throw new BadRequestException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
