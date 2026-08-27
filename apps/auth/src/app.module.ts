@@ -82,6 +82,7 @@ import { SystemTenantsController } from './system-tenants.controller';
 import { SystemDevicesController } from './system-devices.controller';
 import { SystemSimsController } from './system-sims.controller';
 import { SystemSupportController } from './system-support.controller';
+import { SupportTicketsController } from './support-tickets.controller';
 import { SystemBillingController } from './system-billing.controller';
 import { SystemKycController } from './system-kyc.controller';
 import {
@@ -109,6 +110,19 @@ import { CheckTenantSeatLimitUseCase } from './check-tenant-seat-limit.use-case'
 import { SIM_REPOSITORY } from './sim.repository';
 import { SUPPORT_TICKET_REPOSITORY } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY } from './support-message.repository';
+import { SUPPORT_TICKET_ATTACHMENT_REPOSITORY } from './support-ticket-attachment.repository';
+import { TICKET_FILE_SCANNER, UnscannedTicketFileScanner } from './ticket-file-scanner.port';
+import { SupportTicketNotifierService } from './support-ticket-notifier.service';
+import { TicketAttachmentUploaderService } from './ticket-attachment-uploader.service';
+import { CreateSupportTicketUseCase } from './create-support-ticket.use-case';
+import { ListMySupportTicketsUseCase } from './list-my-support-tickets.use-case';
+import { GetMySupportTicketUseCase } from './get-my-support-ticket.use-case';
+import { AddMyTicketAttachmentUseCase } from './add-my-ticket-attachment.use-case';
+import {
+  CloseMySupportTicketUseCase,
+  ReopenMySupportTicketUseCase,
+  ReplyToMySupportTicketUseCase,
+} from './support-ticket-lifecycle.use-cases';
 import { SIM_PROVISIONING_REQUEST_REPOSITORY } from './sim-provisioning-request.repository';
 import { SIM_ACTIVATION_BATCH_REPOSITORY } from './sim-activation-batch.repository';
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
@@ -221,6 +235,7 @@ import { InMemoryDeviceModelCatalogRepository } from './in-memory-device-model-c
 import { InMemoryTenantOnboardingRepository } from './in-memory-tenant-onboarding.repository';
 import { InMemorySimRepository } from './in-memory-sim.repository';
 import { InMemorySupportTicketRepository } from './in-memory-support-ticket.repository';
+import { InMemorySupportTicketAttachmentRepository } from './in-memory-support-ticket-attachment.repository';
 import { InMemorySupportMessageRepository } from './in-memory-support-message.repository';
 import { InMemorySimProvisioningRequestRepository } from './in-memory-sim-provisioning-request.repository';
 import { InMemorySimActivationBatchRepository } from './in-memory-sim-activation-batch.repository';
@@ -235,6 +250,7 @@ import { MikroActivityLogRepository } from './mikro-activity-log.repository';
 import { MikroDeviceModelCatalogRepository } from './mikro-device-model-catalog.repository';
 import { MikroSimRepository } from './mikro-sim.repository';
 import { MikroSupportTicketRepository } from './mikro-support-ticket.repository';
+import { MikroSupportTicketAttachmentRepository } from './mikro-support-ticket-attachment.repository';
 import { MikroSupportMessageRepository } from './mikro-support-message.repository';
 import { MikroSimProvisioningRequestRepository } from './mikro-sim-provisioning-request.repository';
 import { MikroSimActivationBatchRepository } from './mikro-sim-activation-batch.repository';
@@ -452,6 +468,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemDevicesController,
     SystemSimsController,
     SystemSupportController,
+    SupportTicketsController,
     SystemBillingController,
     SystemKycController,
     OnboardingController,
@@ -733,6 +750,27 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemorySupportTicketAttachmentRepository,
+    MikroSupportTicketAttachmentRepository,
+    {
+      provide: SUPPORT_TICKET_ATTACHMENT_REPOSITORY,
+      inject: [InMemorySupportTicketAttachmentRepository, MikroSupportTicketAttachmentRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySupportTicketAttachmentRepository,
+        mikro: MikroSupportTicketAttachmentRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    { provide: TICKET_FILE_SCANNER, useClass: UnscannedTicketFileScanner },
+    SupportTicketNotifierService,
+    TicketAttachmentUploaderService,
+    CreateSupportTicketUseCase,
+    ListMySupportTicketsUseCase,
+    GetMySupportTicketUseCase,
+    ReplyToMySupportTicketUseCase,
+    CloseMySupportTicketUseCase,
+    ReopenMySupportTicketUseCase,
+    AddMyTicketAttachmentUseCase,
 
     // Use cases
     LoginUseCase,

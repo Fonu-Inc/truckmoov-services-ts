@@ -1455,6 +1455,36 @@ export const SupportMessageRecordSchema = new EntitySchema<SupportMessageRecord>
   },
 });
 
+export class SupportTicketAttachmentRecord {
+  id!: string;
+  ticketId!: string;
+  tenantId!: string;
+  messageId!: string | null;
+  key!: string;
+  filename!: string;
+  contentType!: string;
+  sizeBytes!: number;
+  uploadedBy!: string;
+  createdAt!: Date;
+}
+
+export const SupportTicketAttachmentRecordSchema = new EntitySchema<SupportTicketAttachmentRecord>({
+  class: SupportTicketAttachmentRecord,
+  tableName: 'support_ticket_attachments',
+  properties: {
+    id: { type: 'string', primary: true },
+    ticketId: { type: 'string', length: 64, fieldName: 'ticket_id' },
+    tenantId: { type: 'string', length: 64, fieldName: 'tenant_id' },
+    messageId: { type: 'string', length: 64, nullable: true, fieldName: 'message_id' },
+    key: { type: 'string', length: 512 },
+    filename: { type: 'string', length: 255 },
+    contentType: { type: 'string', length: 128, fieldName: 'content_type' },
+    sizeBytes: { type: 'bigint', fieldName: 'size_bytes' },
+    uploadedBy: { type: 'string', length: 64, fieldName: 'uploaded_by' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'created_at' },
+  },
+});
+
 /* ── Device Setup Requests ─────────────────────────── */
 
 export class DeviceSetupRequestRecord {
@@ -1840,6 +1870,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       SimActivationBatchRecordSchema,
       SupportTicketRecordSchema,
       SupportMessageRecordSchema,
+      SupportTicketAttachmentRecordSchema,
       DeviceSetupRequestRecordSchema,
       TenantBusinessInfoRecordSchema,
       TenantKycDocumentRecordSchema,

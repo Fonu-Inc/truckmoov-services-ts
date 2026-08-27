@@ -22,6 +22,11 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
     return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async findAllForTenant(tenantId: string, filters?: SupportTicketFilters): Promise<StoredSupportTicket[]> {
+    const all = await this.findAll(filters);
+    return all.filter((t) => t.tenantId === tenantId);
+  }
+
   async findById(id: string): Promise<StoredSupportTicket | null> {
     return this.store.get(id) ?? null;
   }
@@ -33,6 +38,15 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
   async countByStatus(): Promise<Record<string, number>> {
     const counts: Record<string, number> = {};
     for (const t of this.store.values()) {
+      counts[t.status] = (counts[t.status] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  async countByStatusForTenant(tenantId: string): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const t of this.store.values()) {
+      if (t.tenantId !== tenantId) continue;
       counts[t.status] = (counts[t.status] ?? 0) + 1;
     }
     return counts;

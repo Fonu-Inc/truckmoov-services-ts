@@ -88,6 +88,12 @@ export class StorageReconciliationService implements OnApplicationBootstrap, OnA
         }
       }
 
+      const ticketBytes = await this.sumTicketAttachmentBytes();
+      for (const [tenantId, bytes] of ticketBytes) {
+        await this.usage.setBytes(tenantId, 'support_tickets', bytes);
+        sources += 1;
+      }
+
       this.logger.log(`storage_reconciled:tenants=${tenantIds.size}:sources=${sources}`);
       return { tenants: tenantIds.size, sources };
     } catch (error) {
@@ -98,6 +104,13 @@ export class StorageReconciliationService implements OnApplicationBootstrap, OnA
     } finally {
       this.running = false;
     }
+  }
+
+  private async sumTicketAttachmentBytes(): Promise<Map<string, number>> {
+    return this.sumByTenant(
+      `select "tenant_id", coalesce(sum("size_bytes"), 0) as bytes
+         from "support_ticket_attachments" group by "tenant_id"`,
+    );
   }
 
   /** Summed in the database rather than in memory: the row count is unbounded. */

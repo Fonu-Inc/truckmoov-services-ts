@@ -4,6 +4,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import { SupportTicketNotifierService } from './support-ticket-notifier.service';
 
 const VALID_STATUSES = new Set(['open', 'in_progress', 'waiting_on_tenant', 'escalated', 'resolved', 'closed']);
 
@@ -19,6 +20,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
+    @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
   ) {}
 
   async execute(accessToken: string, ticketId: string, status: string) {
@@ -39,6 +41,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
     if (status === 'closed') ticket.closedAt = now;
 
     await this.ticketRepo.save(ticket);
+    await this.notifier.notifyStatusChanged(ticket.tenantId, ticketId, status);
 
     return {
       status: true,

@@ -50,6 +50,7 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
       const params: unknown[] = [q, q, q, q];
       if (filters.status) { conditions.push('status = ?'); params.push(filters.status); }
       if (filters.category) { conditions.push('category = ?'); params.push(filters.category); }
+      if (filters.priority) { conditions.push('priority = ?'); params.push(filters.priority); }
       const rows = await orm.em.getConnection().execute<SupportTicketRecord[]>(
         `select * from support_tickets where ${conditions.join(' and ')} order by created_at desc`,
         params,
@@ -60,8 +61,26 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
     const where: Record<string, unknown> = {};
     if (filters?.status) where.status = filters.status;
     if (filters?.category) where.category = filters.category;
+    if (filters?.priority) where.priority = filters.priority;
     const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc' } });
     return records.map(toStored);
+  }
+
+  async findAllForTenant(tenantId: string, filters?: SupportTicketFilters): Promise<StoredSupportTicket[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+
+    const where: Record<string, unknown> = { tenantId };
+    if (filters?.status) where.status = filters.status;
+    if (filters?.category) where.category = filters.category;
+    if (filters?.priority) where.priority = filters.priority;
+    const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc' } });
+
+    if (!filters?.search) return records.map(toStored);
+    const q = filters.search.toLowerCase();
+    return records
+      .filter((r) => r.subject.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.id.toLowerCase().includes(q))
+      .map(toStored);
   }
 
   async findById(id: string): Promise<StoredSupportTicket | null> {
@@ -81,6 +100,17 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ status: string; count: string }>>(
       'select status, count(*)::int as count from support_tickets group by status',
+    );
+    const counts: Record<string, number> = {};
+    for (const row of rows) counts[row.status] = Number(row.count);
+    return counts;
+  }
+
+  async countByStatusForTenant(tenantId: string): Promise<Record<string, number>> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ status: string; count: string }>>(
+      'select status, count(*)::int as count from support_tickets where tenant_id = ? group by status',
+      [tenantId],
     );
     const counts: Record<string, number> = {};
     for (const row of rows) counts[row.status] = Number(row.count);

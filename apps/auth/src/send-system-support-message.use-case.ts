@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
+import { SupportTicketNotifierService } from './support-ticket-notifier.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class SendSystemSupportMessageUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
+    @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
   ) {}
 
   async execute(
@@ -46,6 +48,12 @@ export class SendSystemSupportMessageUseCase {
 
     ticket.updatedAt = now;
     await this.ticketRepo.save(ticket);
+
+    // Internal notes are staff-only and must not tell the tenant anything
+    // happened — that would leak that a note exists without showing its content.
+    if (!isInternal) {
+      await this.notifier.notifyReplied(ticket.tenantId, ticketId);
+    }
 
     return {
       status: true,

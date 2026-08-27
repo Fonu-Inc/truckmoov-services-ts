@@ -1,5 +1,5 @@
 /** Which service put the bytes there. Each owns and can recompute its own row. */
-export const STORAGE_SOURCES = ['fleet_documents', 'kyc', 'media', 'mailbox'] as const;
+export const STORAGE_SOURCES = ['fleet_documents', 'kyc', 'media', 'mailbox', 'support_tickets'] as const;
 export type StorageSource = (typeof STORAGE_SOURCES)[number];
 
 export type StorageUsage = {
