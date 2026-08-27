@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky || true",
     "commitlint": "commitlint --edit",
     "build": "nest build auth && nest build fleet && nest build realtime",
     "build:auth": "nest build auth",
