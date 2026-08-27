@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ObjectStorageService } from '@shared/object-storage';
+import { AppConfigService } from '@shared/config';
 import { ID_GENERATOR } from './contexts/auth/session';
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
 import {
@@ -24,6 +25,21 @@ export type TicketAttachmentUpload = {
   buffer: Buffer;
 };
 
+/** Strips path separators, `..`, and control characters; keeps the name readable. */
+function sanitizeDisplayFilename(filename: string): string {
+  const base = filename.split(/[\\/]/).pop() ?? filename;
+  const printable = Array.from(base)
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      // Strips control characters (0x00-0x1f, 0x7f) without a regex escape,
+      // which is easy to get wrong and hard to review in a character class.
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('');
+  const cleaned = printable.replace(/\.\./g, '.').trim();
+  return (cleaned || 'file').slice(0, 128);
+}
+
 /**
  * The one place a ticket attachment is validated and stored, used by both
  * raising a ticket and replying to one — the requirements state both need
@@ -31,6 +47,8 @@ export type TicketAttachmentUpload = {
  */
 @Injectable()
 export class TicketAttachmentUploaderService {
+  private readonly scanRequired: boolean;
+
   constructor(
     @Inject(ObjectStorageService) private readonly storage: ObjectStorageService,
     @Inject(StorageQuotaService) private readonly storageQuota: StorageQuotaService,
@@ -38,7 +56,10 @@ export class TicketAttachmentUploaderService {
     @Inject(SUPPORT_TICKET_ATTACHMENT_REPOSITORY)
     private readonly attachments: SupportTicketAttachmentRepository,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
-  ) {}
+    @Inject(AppConfigService) config: AppConfigService,
+  ) {
+    this.scanRequired = config.fleet.documentScanRequired;
+  }
 
   async upload(input: {
     tenantId: string;
@@ -70,6 +91,12 @@ export class TicketAttachmentUploaderService {
     if (verdict.scanned && !verdict.clean) {
       throw new TicketAttachmentRejectedByScannerError(verdict.reason ?? 'flagged by scanner');
     }
+    // No scanner configured is not the same as clean. With scanning required,
+    // a file nobody examined must be refused rather than quietly accepted —
+    // that is the whole point of the flag.
+    if (!verdict.scanned && this.scanRequired) {
+      throw new TicketAttachmentRejectedByScannerError(verdict.reason ?? 'scanning is required but unavailable');
+    }
 
     // Reserved before the bytes are written, so a refused upload leaves
     // nothing in the bucket to clean up.
@@ -81,7 +108,12 @@ export class TicketAttachmentUploaderService {
     }
 
     const id = this.idGenerator.generate();
-    const key = `auth/support-tickets/${input.tenantId}/${input.ticketId}/${id}-${file.filename}`;
+    // The uploaded name never enters the key. It arrives from the client
+    // unsanitized, and folding it into a storage path invites both path
+    // traversal and key collisions from two files sharing a name — id alone
+    // is already unique, and the readable name is kept in the filename column
+    // for display and download.
+    const key = `auth/support-tickets/${input.tenantId}/${input.ticketId}/${id}`;
     await this.storage.putObject({ key, body: file.buffer, contentType });
     await this.storageQuota.record(input.tenantId, 'support_tickets', file.buffer.byteLength);
 
@@ -91,7 +123,10 @@ export class TicketAttachmentUploaderService {
       tenantId: input.tenantId,
       messageId: input.messageId,
       key,
-      filename: file.filename,
+      // Kept only for display and as a download's suggested filename, so path
+      // separators and control characters are stripped here too — the same
+      // reason they are kept out of the storage key above.
+      filename: sanitizeDisplayFilename(file.filename),
       contentType,
       sizeBytes: file.buffer.byteLength,
       uploadedBy: input.uploadedBy,

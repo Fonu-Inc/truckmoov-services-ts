@@ -252,15 +252,26 @@ describe("Closing and reopening", () => {
 });
 
 describe("Attachment limits", () => {
-  function attachmentHarness(scannerVerdict: { scanned: boolean; clean: boolean; reason?: string }) {
+  function attachmentHarness(
+    scannerVerdict: { scanned: boolean; clean: boolean; reason?: string },
+    options: { scanRequired?: boolean } = {},
+  ) {
     const attachments = new InMemorySupportTicketAttachmentRepository();
+    const puts: Array<{ key: string }> = [];
     const storageQuota = { assertRoomFor: async () => {}, record: async () => {} } as never;
     const scanner = { scan: async () => scannerVerdict } as never;
-    const storage = { putObject: async () => {} } as never;
+    const storage = {
+      putObject: async (input: { key: string }) => {
+        puts.push(input);
+      },
+    } as never;
+    const config = {
+      fleet: { documentScanRequired: options.scanRequired ?? false },
+    } as never;
     const uploader = new TicketAttachmentUploaderService(
-      storage, storageQuota, scanner, attachments, { generate: () => "att-1" } as never,
+      storage, storageQuota, scanner, attachments, { generate: () => "att-1" } as never, config,
     );
-    return { attachments, uploader };
+    return { attachments, uploader, puts };
   }
 
   it("refuses a file over the cap", async () => {
@@ -291,6 +302,64 @@ describe("Attachment limits", () => {
         files: [{ filename: "doc.pdf", contentType: "application/pdf", buffer: Buffer.from("x") }],
       }),
     ).rejects.toBeInstanceOf(TicketAttachmentRejectedByScannerError);
+  });
+
+  it("refuses an unscanned file when scanning is required", async () => {
+    // scanned: false is what the default UnscannedTicketFileScanner always
+    // reports. With scanning required, a file nobody examined must not be
+    // treated as clean.
+    const { uploader } = attachmentHarness({ scanned: false, clean: false }, { scanRequired: true });
+    await expect(() =>
+      uploader.upload({
+        tenantId: TENANT, ticketId: "t1", messageId: null, uploadedBy: "u1",
+        files: [{ filename: "doc.pdf", contentType: "application/pdf", buffer: Buffer.from("x") }],
+      }),
+    ).rejects.toBeInstanceOf(TicketAttachmentRejectedByScannerError);
+  });
+
+  it("accepts an unscanned file when scanning is not required", async () => {
+    const { uploader } = attachmentHarness({ scanned: false, clean: false }, { scanRequired: false });
+    const saved = await uploader.upload({
+      tenantId: TENANT, ticketId: "t1", messageId: null, uploadedBy: "u1",
+      files: [{ filename: "doc.pdf", contentType: "application/pdf", buffer: Buffer.from("x") }],
+    });
+    expect(saved).toHaveLength(1);
+  });
+
+  it("never puts the client-supplied filename into the storage key", async () => {
+    const { uploader, puts } = attachmentHarness({ scanned: true, clean: true });
+    await uploader.upload({
+      tenantId: TENANT, ticketId: "t1", messageId: null, uploadedBy: "u1",
+      files: [{ filename: "../../../etc/passwd", contentType: "image/jpeg", buffer: Buffer.from("x") }],
+    });
+
+    // The id alone addresses the object; nothing attacker-controlled reaches
+    // the storage path.
+    expect(puts[0]?.key).toBe(`auth/support-tickets/${TENANT}/t1/att-1`);
+    expect(puts[0]?.key).not.toContain("..");
+  });
+
+  it("keeps only the basename of a path-shaped filename", async () => {
+    const { uploader, attachments } = attachmentHarness({ scanned: true, clean: true });
+    await uploader.upload({
+      tenantId: TENANT, ticketId: "t1", messageId: null, uploadedBy: "u1",
+      files: [{ filename: "../../etc/passwd", contentType: "image/jpeg", buffer: Buffer.from("x") }],
+    });
+
+    const stored = (await attachments.findByTicketId("t1"))[0];
+    expect(stored?.filename).not.toContain("/");
+    expect(stored?.filename).toBe("passwd");
+  });
+
+  it("collapses a bare .. in a name with no path separators", async () => {
+    const { uploader, attachments } = attachmentHarness({ scanned: true, clean: true });
+    await uploader.upload({
+      tenantId: TENANT, ticketId: "t2", messageId: null, uploadedBy: "u1",
+      files: [{ filename: "report..pdf", contentType: "application/pdf", buffer: Buffer.from("x") }],
+    });
+
+    const stored = (await attachments.findByTicketId("t2"))[0];
+    expect(stored?.filename).toBe("report.pdf");
   });
 
   it("stores an accepted file and records it against the ticket", async () => {
