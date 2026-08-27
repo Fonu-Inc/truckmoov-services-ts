@@ -108,6 +108,26 @@ import { MikroSubscriptionPlanRepository } from './mikro-subscription-plan.repos
 import { SubscriptionPlansBootstrapService } from './subscription-plans-bootstrap.service';
 import { CheckTenantSeatLimitUseCase } from './check-tenant-seat-limit.use-case';
 import { SIM_REPOSITORY } from './sim.repository';
+import { AUTH_EVENT_REPOSITORY } from './auth-event.repository';
+import { InMemoryAuthEventRepository } from './in-memory-auth-event.repository';
+import { MikroAuthEventRepository } from './mikro-auth-event.repository';
+import { BLOCKED_IP_REPOSITORY } from './blocked-ip.repository';
+import { InMemoryBlockedIpRepository } from './in-memory-blocked-ip.repository';
+import { MikroBlockedIpRepository } from './mikro-blocked-ip.repository';
+import { AUTO_BLOCK_RULE_REPOSITORY } from './auto-block-rule.repository';
+import { InMemoryAutoBlockRuleRepository } from './in-memory-auto-block-rule.repository';
+import { MikroAutoBlockRuleRepository } from './mikro-auto-block-rule.repository';
+import { SECURITY_EVENT_REPOSITORY } from './security-event.repository';
+import { InMemorySecurityEventRepository } from './in-memory-security-event.repository';
+import { MikroSecurityEventRepository } from './mikro-security-event.repository';
+import { RecordAuthEventUseCase } from './record-auth-event.use-case';
+import { IpBlockGuard } from './ip-block.guard';
+import { ListSystemAuthEventsUseCase, ListSystemFailedLoginsUseCase } from './list-system-auth-events.use-case';
+import { ListBlockedIpsUseCase, ManuallyBlockIpUseCase, UnblockIpUseCase } from './blocked-ip.use-cases';
+import { ListAutoBlockRulesUseCase, UpdateAutoBlockRuleUseCase } from './auto-block-rule.use-cases';
+import { ListSecurityEventsUseCase } from './list-security-events.use-case';
+import { GetSecurityOverviewUseCase } from './get-security-overview.use-case';
+import { SystemSecurityController } from './system-security.controller';
 import { SUPPORT_TICKET_REPOSITORY } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY } from './support-message.repository';
 import { SUPPORT_TICKET_ATTACHMENT_REPOSITORY } from './support-ticket-attachment.repository';
@@ -468,6 +488,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemDevicesController,
     SystemSimsController,
     SystemSupportController,
+    SystemSecurityController,
     SupportTicketsController,
     SystemBillingController,
     SystemKycController,
@@ -727,6 +748,62 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+
+    InMemoryAuthEventRepository,
+    MikroAuthEventRepository,
+    {
+      provide: AUTH_EVENT_REPOSITORY,
+      inject: [InMemoryAuthEventRepository, MikroAuthEventRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAuthEventRepository,
+        mikro: MikroAuthEventRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryBlockedIpRepository,
+    MikroBlockedIpRepository,
+    {
+      provide: BLOCKED_IP_REPOSITORY,
+      inject: [InMemoryBlockedIpRepository, MikroBlockedIpRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryBlockedIpRepository,
+        mikro: MikroBlockedIpRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryAutoBlockRuleRepository,
+    MikroAutoBlockRuleRepository,
+    {
+      provide: AUTO_BLOCK_RULE_REPOSITORY,
+      inject: [InMemoryAutoBlockRuleRepository, MikroAutoBlockRuleRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAutoBlockRuleRepository,
+        mikro: MikroAutoBlockRuleRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemorySecurityEventRepository,
+    MikroSecurityEventRepository,
+    {
+      provide: SECURITY_EVENT_REPOSITORY,
+      inject: [InMemorySecurityEventRepository, MikroSecurityEventRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySecurityEventRepository,
+        mikro: MikroSecurityEventRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    RecordAuthEventUseCase,
+    IpBlockGuard,
+    ListSystemAuthEventsUseCase,
+    ListSystemFailedLoginsUseCase,
+    ListBlockedIpsUseCase,
+    ManuallyBlockIpUseCase,
+    UnblockIpUseCase,
+    ListAutoBlockRulesUseCase,
+    UpdateAutoBlockRuleUseCase,
+    ListSecurityEventsUseCase,
+    GetSecurityOverviewUseCase,
 
     InMemorySupportTicketRepository,
     MikroSupportTicketRepository,

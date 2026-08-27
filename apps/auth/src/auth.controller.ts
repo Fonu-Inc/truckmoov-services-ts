@@ -17,11 +17,12 @@ import {
   Controller,
   NotFoundException,
   Query,
+  Req,
   UseInterceptors,
   UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
+import { MAX_DOCUMENT_UPLOAD_BYTES, resolveClientIp, uploadLimits } from '@shared/http';
 import {
   ApiConsumes,
   ApiForbiddenResponse,
@@ -65,6 +66,8 @@ import {
   InvalidResetTokenError,
   LogoutUseCase,
   GetHealthUseCase,
+  InvalidCredentialsError,
+  EmailNotVerifiedError,
 } from './contexts/auth/session';
 import {
   MessageResponse,
@@ -97,6 +100,9 @@ import { StorageQuotaService } from './storage-quota.service';
 import { StorageQuotaExceededError } from './storage-usage.repository';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
+import { IpBlockGuard } from './ip-block.guard';
+import { RecordAuthEventUseCase } from './record-auth-event.use-case';
+import type { AuthFailureReason } from './auth-event.repository';
 
 @ApiTags('Auth')
 @Controller()
@@ -125,8 +131,14 @@ export class AuthController extends BaseAuthController {
     @Inject(CompleteProfileUseCase) private readonly completeProfileUseCase: CompleteProfileUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
     @Inject(ObjectStorageService) private readonly objectStorageService: ObjectStorageService,
+    @Inject(RecordAuthEventUseCase) private readonly recordAuthEventUseCase: RecordAuthEventUseCase,
   ) {
     super(activityLogService);
+  }
+
+  private mapLoginFailureReason(error: unknown): AuthFailureReason {
+    if (error instanceof EmailNotVerifiedError || error instanceof ForbiddenError) return 'account_locked';
+    return 'invalid_password';
   }
 
   @Get('health')
@@ -229,13 +241,44 @@ export class AuthController extends BaseAuthController {
 
   /** Authenticate with email and password */
 
+  // Rate limiter first: it's an in-memory token check, cheaper than the
+  // block guard's DB read, and its own burst can be exhausted by the same
+  // failures that trip auto-block — checking it first keeps that case a 429.
   @Post('login')
-  @UseGuards(LoginRateLimitGuard)
+  @UseGuards(LoginRateLimitGuard, IpBlockGuard)
   @ApiOkResponse({ type: AuthResponse })
-  async login(@Body(BodyOrDataPipe) payload: LoginDto): Promise<AuthResponse> {
-    const result = await this.runAuthUseCase(() =>
-      this.loginUseCase.execute(payload),
-    );
+  async login(
+    @Body(BodyOrDataPipe) payload: LoginDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
+  ): Promise<AuthResponse> {
+    const ipAddress = resolveClientIp(req);
+    const result = await this.runAuthUseCase(async () => {
+      try {
+        return await this.loginUseCase.execute(payload);
+      } catch (error) {
+        await this.recordAuthEventUseCase.execute({
+          tenantId: null,
+          userId: null,
+          email: payload.email,
+          eventType: 'login',
+          status: 'failed',
+          failureReason: this.mapLoginFailureReason(error),
+          ipAddress,
+          userAgent: userAgent ?? null,
+        });
+        throw error;
+      }
+    });
+    await this.recordAuthEventUseCase.execute({
+      tenantId: result.user.tenantId,
+      userId: result.user.id,
+      email: result.user.email,
+      eventType: 'login',
+      status: 'success',
+      ipAddress,
+      userAgent: userAgent ?? null,
+    });
     await this.tryRecordActivity({
       tenantId: result.user.tenantId,
       service: 'auth',
@@ -256,10 +299,36 @@ export class AuthController extends BaseAuthController {
   @ApiOkResponse({ type: AuthResponse })
   async refresh(
     @Body(BodyOrDataPipe) payload: RefreshDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
   ): Promise<AuthResponse> {
-    const result = await this.runAuthUseCase(() =>
-      this.refreshUseCase.execute(payload.refreshToken),
-    );
+    const ipAddress = resolveClientIp(req);
+    const result = await this.runAuthUseCase(async () => {
+      try {
+        return await this.refreshUseCase.execute(payload.refreshToken);
+      } catch (error) {
+        await this.recordAuthEventUseCase.execute({
+          tenantId: null,
+          userId: null,
+          email: null,
+          eventType: 'refresh',
+          status: 'failed',
+          ipAddress,
+          userAgent: userAgent ?? null,
+        });
+        throw error;
+      }
+    });
+    const refreshedUser = this.tokenService.resolveAccessToken(result.accessToken);
+    await this.recordAuthEventUseCase.execute({
+      tenantId: refreshedUser?.tenantId ?? null,
+      userId: refreshedUser?.id ?? null,
+      email: refreshedUser?.email ?? null,
+      eventType: 'refresh',
+      status: 'success',
+      ipAddress,
+      userAgent: userAgent ?? null,
+    });
     await this.tryRecordActivityFromAccessToken(result.accessToken, {
       service: 'auth',
       action: 'user.session.refreshed',
@@ -582,12 +651,24 @@ export class AuthController extends BaseAuthController {
   @ApiOkResponse({ type: MessageResponse })
   async logout(
     @Body(BodyOrDataPipe) payload: LogoutDto,
+    @Req() req: { ip?: string },
     @Headers('authorization') authorization?: string,
+    @Headers('user-agent') userAgent?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
+    const actor = accessToken ? this.tokenService.resolveAccessToken(accessToken) : null;
     const result = await this.logoutUseCase.execute({
       refreshToken: payload.refreshToken,
       accessToken: accessToken ?? undefined,
+    });
+    await this.recordAuthEventUseCase.execute({
+      tenantId: actor?.tenantId ?? null,
+      userId: actor?.id ?? result.userId ?? null,
+      email: actor?.email ?? null,
+      eventType: 'logout',
+      status: 'success',
+      ipAddress: resolveClientIp(req),
+      userAgent: userAgent ?? null,
     });
     if (accessToken) {
       await this.tryRecordActivityFromAccessToken(accessToken, {

@@ -1455,6 +1455,121 @@ export const SupportMessageRecordSchema = new EntitySchema<SupportMessageRecord>
   },
 });
 
+export class AuthEventRecord {
+  id!: string;
+  tenantId!: string | null;
+  userId!: string | null;
+  email!: string | null;
+  eventType!: string;
+  status!: string;
+  failureReason!: string | null;
+  ipAddress!: string;
+  userAgent!: string | null;
+  occurredAt!: Date;
+}
+
+export const AuthEventRecordSchema = new EntitySchema<AuthEventRecord>({
+  class: AuthEventRecord,
+  tableName: 'auth_events',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { type: 'string', length: 64, nullable: true, fieldName: 'tenant_id' },
+    userId: { type: 'string', length: 64, nullable: true, fieldName: 'user_id' },
+    email: { type: 'string', length: 255, nullable: true },
+    eventType: { type: 'string', length: 16, fieldName: 'event_type' },
+    status: { type: 'string', length: 16 },
+    failureReason: { type: 'string', length: 32, nullable: true, fieldName: 'failure_reason' },
+    ipAddress: { type: 'string', length: 64, fieldName: 'ip_address' },
+    userAgent: { type: 'text', nullable: true, fieldName: 'user_agent' },
+    occurredAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'occurred_at' },
+  },
+});
+
+export class BlockedIpRecord {
+  id!: string;
+  ipAddress!: string;
+  reason!: string;
+  blockType!: string;
+  blockedAt!: Date;
+  expiresAt!: Date | null;
+  blockedBy!: string;
+  unblockedAt!: Date | null;
+  unblockedBy!: string | null;
+}
+
+export const BlockedIpRecordSchema = new EntitySchema<BlockedIpRecord>({
+  class: BlockedIpRecord,
+  tableName: 'blocked_ips',
+  properties: {
+    id: { type: 'string', primary: true },
+    ipAddress: { type: 'string', length: 64, fieldName: 'ip_address' },
+    reason: { type: 'text' },
+    blockType: { type: 'string', length: 16, fieldName: 'block_type' },
+    blockedAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'blocked_at' },
+    expiresAt: { type: 'datetime', nullable: true, fieldName: 'expires_at' },
+    blockedBy: { type: 'string', length: 64, fieldName: 'blocked_by' },
+    unblockedAt: { type: 'datetime', nullable: true, fieldName: 'unblocked_at' },
+    unblockedBy: { type: 'string', length: 64, nullable: true, fieldName: 'unblocked_by' },
+  },
+});
+
+export class AutoBlockRuleRecord {
+  id!: string;
+  name!: string;
+  enabled!: boolean;
+  maxAttempts!: number;
+  windowMinutes!: number;
+  blockDurationHours!: number | null;
+  precedence!: number;
+  updatedAt!: Date;
+  updatedBy!: string | null;
+}
+
+export const AutoBlockRuleRecordSchema = new EntitySchema<AutoBlockRuleRecord>({
+  class: AutoBlockRuleRecord,
+  tableName: 'auto_block_rules',
+  properties: {
+    id: { type: 'string', primary: true },
+    name: { type: 'string', length: 64 },
+    enabled: { type: 'boolean', default: true },
+    maxAttempts: { type: 'integer', fieldName: 'max_attempts' },
+    windowMinutes: { type: 'integer', fieldName: 'window_minutes' },
+    blockDurationHours: { type: 'integer', nullable: true, fieldName: 'block_duration_hours' },
+    precedence: { type: 'integer' },
+    updatedAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'updated_at' },
+    updatedBy: { type: 'string', length: 64, nullable: true, fieldName: 'updated_by' },
+  },
+});
+
+export class SecurityEventRecord {
+  id!: string;
+  eventType!: string;
+  severity!: string;
+  tenantId!: string | null;
+  summary!: string;
+  relatedEntityType!: string | null;
+  relatedEntityId!: string | null;
+  metadata!: Record<string, unknown>;
+  occurredAt!: Date;
+}
+
+export const SecurityEventRecordSchema = new EntitySchema<SecurityEventRecord>({
+  class: SecurityEventRecord,
+  tableName: 'security_events',
+  properties: {
+    id: { type: 'string', primary: true },
+    eventType: { type: 'string', length: 32, fieldName: 'event_type' },
+    severity: { type: 'string', length: 16 },
+    tenantId: { type: 'string', length: 64, nullable: true, fieldName: 'tenant_id' },
+    summary: { type: 'text' },
+    relatedEntityType: { type: 'string', length: 32, nullable: true, fieldName: 'related_entity_type' },
+    relatedEntityId: { type: 'string', length: 64, nullable: true, fieldName: 'related_entity_id' },
+    metadata: { type: 'json', defaultRaw: "'{}'" },
+    occurredAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'occurred_at' },
+  },
+  indexes: [{ properties: ['severity', 'occurredAt'] }],
+});
+
 export class SupportTicketAttachmentRecord {
   id!: string;
   ticketId!: string;
@@ -1871,6 +1986,10 @@ export async function getAuthOrm(cfg: DbConfig) {
       SupportTicketRecordSchema,
       SupportMessageRecordSchema,
       SupportTicketAttachmentRecordSchema,
+      AuthEventRecordSchema,
+      BlockedIpRecordSchema,
+      AutoBlockRuleRecordSchema,
+      SecurityEventRecordSchema,
       DeviceSetupRequestRecordSchema,
       TenantBusinessInfoRecordSchema,
       TenantKycDocumentRecordSchema,
