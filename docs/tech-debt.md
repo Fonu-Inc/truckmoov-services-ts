@@ -4,6 +4,44 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-10 — Device Provisioning Queue (Screen 19) is not built
+
+**Status:** deferred by decision, 27 August 2026. Blocked on an unknown, not
+on effort.
+
+### What exists today
+
+Device setup requests already have an approval workflow — `pending_review`,
+`in_progress`, `assigned`, `rejected` — built for Screen 9's installation flow
+(`device-setup-request.repository.ts`, `system-support.controller.ts`'s
+`device-setup` routes). Device *verification* after configuration also has an
+expiry sweep (`ExpireDeviceVerificationsUseCase`).
+
+### What Screen 19 asks for that neither of those is
+
+A platform-wide queue view across every stage a device passes through from
+order to verified-in-field, with items flagged once they have sat in a stage
+too long. That flagging is the point of the screen — a queue with no aging
+signal is just the existing request list again.
+
+### Why it cannot be built yet
+
+Flagging "too long" needs a number: how long each stage is expected to take.
+Nothing in the requirements or the existing code states it, and it is not
+something to guess at — a wrong threshold either buries real delays in noise
+or pages someone over normal shipping time. `ExpireDeviceVerificationsUseCase`
+could state its own window because verification is a short, local, in-app
+step; provisioning spans procurement and courier delivery, which this
+codebase has no visibility into and no stated SLA for.
+
+### When this is picked up
+
+Get the expected duration per stage from whoever runs provisioning today
+(likely: order confirmation, shipping, on-site install, verification). Once
+that exists, the queue itself is a straightforward read across the existing
+device-setup and verification tables plus the durations, no new domain
+concept required.
+
 ## TD-9 — Job offer push notification is in-app only
 
 **Status:** open. No mobile push infrastructure exists to build the rest of it.
