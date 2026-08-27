@@ -4,6 +4,42 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-12 — Driver Fatigue Detection (Screen 4) is not built
+
+**Status:** deferred by decision, 27 August 2026. Blocked on hardware, same
+as TD-11 — not a modelling problem.
+
+### What the screen needs
+
+A per-driver fatigue score (0-10) and a rest-compliance score, computed over
+a driving period, with the reasoning behind the score and a recommended
+action attached.
+
+### Why it cannot be built yet
+
+Scoring fatigue needs driving-hours and rest-period data. Checked directly:
+there is no shift, hours-of-service, or rest-period concept anywhere in
+either repo. The one thing that could approximate it is `engine_on`
+transitions in the Go tracking service's `telemetry_samples` table
+(`internal/tracking/infrastructure/timescale_telemetry_repository.go:13-32`)
+— on/off periods over a day roughly sketch driving vs. resting. That column
+only populates once a real tracker is fitted and reporting, and per TD-11 /
+TD-6 zero trackers are deployed. Same blocker, different screen.
+
+There is also no formula to build against yet even once the data exists —
+how many consecutive driving hours before risk starts, how rest-compliance
+weights against duration — and guessing at those thresholds with no real
+telemetry to validate them would ship a screen that looks confident and
+is not.
+
+### When this is picked up
+
+Same trigger as TD-11 and TD-6: the first tracker order. Once `engine_on`
+starts populating for real, this becomes: deriving driving/rest windows per
+driver from engine state, a scoring formula (needs the thresholds above
+defined against real data), and the reasoning/recommendation text generated
+from which factors tripped.
+
 ## TD-11 — Sustainability Dashboard (Screen 1) is not built
 
 **Status:** deferred by decision, 27 August 2026. Blocked on hardware, not on
