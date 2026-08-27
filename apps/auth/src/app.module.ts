@@ -93,6 +93,12 @@ import {
 import { OnboardingController } from './onboarding.controller';
 import { TenantSimsController } from './tenant-sims.controller';
 import { DataBundlesController } from './data-bundles.controller';
+import { CommunicationsWalletController } from './communications-wallet.controller';
+import { GetCommunicationsRatesUseCase } from './get-communications-rates.use-case';
+import {
+  GetCommunicationsSpendBreakdownUseCase,
+  GetCommunicationsSpendTrendUseCase,
+} from './get-communications-spend-analytics.use-case';
 import { ActivityLogListener } from './activity-log.listener';
 import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
@@ -495,6 +501,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     OnboardingController,
     TenantSimsController,
     DataBundlesController,
+    CommunicationsWalletController,
     ReadinessController,
   ],
   providers: [
@@ -1319,6 +1326,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ExportBundleTransactionsUseCase,
     GetSpendTrendUseCase,
     GetSpendBreakdownUseCase,
+    GetCommunicationsRatesUseCase,
+    GetCommunicationsSpendBreakdownUseCase,
+    GetCommunicationsSpendTrendUseCase,
     GetCarrierDistributionUseCase,
     GetSubscriptionUsageUseCase,
     ListBundleRatesUseCase,
