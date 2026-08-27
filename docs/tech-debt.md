@@ -4,6 +4,71 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-13 — Voice/IVR (Screen 6) is not built
+
+**Status:** deferred by decision, 27 August 2026. Blocked on fonu-api, not
+on this codebase — the counterpart work is a different repo/team.
+
+### What the screen needs
+
+Call logs, an automated IVR that offers a job by phone and captures the
+driver's keypad response, recordings with transcription, and the
+inbound WhatsApp/SMS keyword protocol (which already exists, built earlier
+this session as part of job offers).
+
+### What was checked, in fonu-api (`/home/urizen/fonu-work/fonu-api`)
+
+fonu-api places no general call today. Two things exist, neither fits:
+
+- A human-agent bulk-dial CRM — a person places the call via a browser
+  softphone, not automated.
+- A voice-OTP endpoint (`modules/api/api.service.ts:340-561`) that only
+  reads a fixed code aloud and hangs up. No IVR menu, no DTMF capture beyond
+  the OTP itself, no recording. Request shape is fixed to
+  `{request_id, domain, did_number, customer_number, otp, company_uuid, lang}`
+  — not extensible to an arbitrary prompt/menu.
+
+Actual dialing runs on a separate FreeSWITCH "media-host" service fonu-api
+only sends NATS originate requests to; fonu-api itself holds no telephony
+logic beyond that.
+
+### What's needed before this can be built
+
+On fonu-api (new work, not TruckMoov's repos):
+- A general IVR dialplan — plays a prompt, captures a digit, branches on it.
+- An originate request shape carrying a flow/menu definition, not a fixed OTP.
+- Call recording capture and storage.
+- A completion callback reporting the outcome (digit, duration, recording
+  URL) — OTP's callback only reports answered/not for billing.
+- Real per-call billing (OTP is a flat answered-or-not charge; the bulk-dial
+  product's `CallHistory` carries no cost field at all).
+
+Isolation and billing attribution do NOT need new work — every relevant
+fonu-api entity already carries a `company` FK
+(`carriers.entity.ts:27-31`, `call-history.entity.ts:26-30`), and voice-OTP
+already verifies the calling company owns the DID it dials from
+(`assertVoiceDidOwned`, `api.service.ts:388-399`). TruckMoov getting its own
+Company row, API key and owned DID is provisioning, not development.
+
+On TruckMoov's side, once the above exists:
+- A "call carrier with job offer" use case, same shape as
+  `CreateJobOfferUseCase` in the Go dispatch service, placing a call instead
+  of a WhatsApp push.
+- A webhook receiver for fonu-api's completion callback, mapping the
+  captured digit to Accept/Decline — reuses the existing
+  `AcceptJobOfferUseCase`/`DeclineJobOfferUseCase` directly, no new
+  job-offer logic.
+- New call-log storage (direction, outcome, duration, notes) — nothing like
+  it exists yet.
+
+### When this is picked up
+
+Once fonu-api ships a general IVR capability. The TruckMoov-side work is
+small and reuses what job offers already built; the real work is fonu-api
+standing up a second call product alongside its existing OTP one.
+
+---
+
 ## TD-12 — Driver Fatigue Detection (Screen 4) is not built
 
 **Status:** deferred by decision, 27 August 2026. Blocked on hardware, same
