@@ -4,6 +4,60 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-11 — Sustainability Dashboard (Screen 1) is not built
+
+**Status:** deferred by decision, 27 August 2026. Blocked on hardware, not on
+effort — same class of problem as TD-6.
+
+### What the screen needs
+
+CO₂ overview, an eco-driving leaderboard, an EV fleet view, and a targets
+form. Emissions are derived, not stored directly: distance travelled ×
+fuel consumed × a versioned emission factor, per vehicle, per day. The
+eco-score needs driving-behaviour signal (idling, acceleration, speed) to
+produce the five-axis breakdown the screen shows.
+
+### What already exists, checked directly
+
+- `FuelRecord` (`apps/fleet/src/contexts/fleet/fuel/domain/entities/fuel-record.entity.ts`)
+  — liters, price/liter, odometer, per vehicle. Manually logged by a driver
+  or admin, not automatic. Sparse: whenever someone remembers to log a
+  fill-up, not daily-granularity telemetry an emissions trend needs.
+- Trip distance (`apps/fleet/src/contexts/fleet/devices/domain/ports/traccar-trips.port.ts`,
+  `list-vehicle-trips.use-case.ts`) — real capability, computed live from
+  Traccar per vehicle. Requires the vehicle to have a `Device` row with a
+  `traccarDeviceId` set, i.e. a real tracker actually reporting.
+- `telemetry_samples` (Go, `internal/tracking/infrastructure/timescale_telemetry_repository.go:13-32`)
+  already has `fuel_level` and `engine_on` columns sitting next to
+  lat/lng/speed — the pipeline is shaped to carry this, whenever a device
+  reports it.
+
+### Why it cannot be built yet
+
+All three paths above depend on a tracker actually being fitted and
+reporting. TD-6 already records that `system_device_models` is empty — no
+trackers have been bought, so `traccarDeviceId` is never set on any vehicle,
+Traccar trips return nothing, and `fuel_level`/`engine_on` never populate.
+The schema and read paths exist and sit empty, not missing.
+
+`engine_on` is a feature on even cheap GPS trackers (no OBD needed).
+`fuel_level` typically needs an OBD/CAN adapter — a pricier device class.
+Building the CO₂ derivation now would mean shipping a screen with either
+zeros in every panel or numbers built from the sparse manual `FuelRecord`
+log, which is not what a "daily emissions trend" chart is supposed to show.
+
+### When this is picked up
+
+Same trigger as TD-6: the first tracker order. Once real telemetry starts
+flowing, this becomes: an emission-factor table (versioned, per fuel type),
+a scheduled job deriving daily CO₂ per vehicle from distance × fuel × factor,
+and the eco-score formula (needs idling/acceleration/speed thresholds
+defined, likely against the same telemetry once `engine_on` and speed are
+populated for real). No new domain modelling blocks it — the shapes above
+already fit what the screen asks for.
+
+---
+
 ## TD-10 — Device Provisioning Queue (Screen 19) is not built
 
 **Status:** deferred by decision, 27 August 2026. Blocked on an unknown, not
