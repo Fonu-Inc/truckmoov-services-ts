@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prepare": "husky || true",
+    "prepare": "husky",
+    "commitlint": "commitlint --edit",
     "build": "nest build auth && nest build fleet && nest build realtime",
     "build:auth": "nest build auth",
     "build:fleet": "nest build fleet",
@@ -66,6 +67,8 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@commitlint/cli": "19",
+    "@commitlint/config-conventional": "19",
     "@mikro-orm/cli": "^6.6.9",
     "@nestjs/cli": "^10.4.7",
     "@nestjs/schematics": "^10.2.3",
