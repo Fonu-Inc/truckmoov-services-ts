@@ -12,6 +12,7 @@ import type {
   MailboxFolders,
   MailboxReader,
 } from './mailbox-reader.port';
+import type { FlagChanges, MailboxFlagsWriter } from './mailbox-flags-writer.port';
 
 export class UnsafeMailboxHostError extends Error {
   constructor(host: string) {
@@ -19,8 +20,13 @@ export class UnsafeMailboxHostError extends Error {
   }
 }
 
+// The flags IMAP itself assigns meaning to. Anything else on a message is a
+// keyword the user or their mail client added, which is what this platform
+// treats as a label.
+const SYSTEM_IMAP_FLAGS = new Set(['\\Seen', '\\Flagged', '\\Answered', '\\Deleted', '\\Draft', '\\Recent']);
+
 @Injectable()
-export class ImapMailboxReader implements MailboxReader {
+export class ImapMailboxReader implements MailboxReader, MailboxFlagsWriter {
   private readonly logger = new Logger(ImapMailboxReader.name);
 
   async discoverFolders(connection: MailboxConnection): Promise<MailboxFolders> {
@@ -77,6 +83,40 @@ export class ImapMailboxReader implements MailboxReader {
           contentType: attachment.contentType ?? 'application/octet-stream',
           content: attachment.content as Buffer,
         };
+      } finally {
+        lock.release();
+      }
+    } finally {
+      await client.logout().catch(() => {});
+    }
+  }
+
+  /**
+   * Writes a star or label change to the real mailbox first. The local
+   * mirror is only updated by the caller once this succeeds — a local-only
+   * write would let the two disagree about what a message is flagged as.
+   */
+  async setFlags(
+    connection: MailboxConnection,
+    folder: string,
+    uid: number,
+    changes: FlagChanges,
+  ): Promise<void> {
+    const client = await this.connect(connection);
+    try {
+      const lock = await client.getMailboxLock(folder);
+      try {
+        const add: string[] = [...(changes.addLabels ?? [])];
+        const remove: string[] = [...(changes.removeLabels ?? [])];
+        if (changes.starred === true) add.push('\\Flagged');
+        if (changes.starred === false) remove.push('\\Flagged');
+
+        if (add.length > 0) {
+          await client.messageFlagsAdd(String(uid), add, { uid: true });
+        }
+        if (remove.length > 0) {
+          await client.messageFlagsRemove(String(uid), remove, { uid: true });
+        }
       } finally {
         lock.release();
       }
@@ -154,6 +194,8 @@ function toFetchedMessage(
     sentAt,
     receivedAt: new Date().toISOString(),
     seen: flags?.has('\\Seen') ?? false,
+    starred: flags?.has('\\Flagged') ?? false,
+    labels: flags ? [...flags].filter((flag) => !SYSTEM_IMAP_FLAGS.has(flag)) : [],
     uid,
     // Nothing is known about an inbound message's onward delivery, and an
     // outbound one only learns it later, from a bounce.

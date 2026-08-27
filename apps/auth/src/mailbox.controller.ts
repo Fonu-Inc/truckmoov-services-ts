@@ -7,6 +7,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   UnauthorizedException,
@@ -34,6 +35,11 @@ import {
   SendMailUseCase,
 } from './contexts/mailbox/send-mail.use-case';
 import { SendMailDto } from './dto/send-mail.dto';
+import { UpdateMessageFlagsDto } from './dto/update-message-flags.dto';
+import {
+  MessageNotFoundError,
+  UpdateMessageFlagsUseCase,
+} from './contexts/mailbox/update-message-flags.use-case';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -48,6 +54,8 @@ export class MailboxController extends BaseAuthController {
     @Inject(SendMailUseCase) private readonly sendUseCase: SendMailUseCase,
     @Inject(DownloadAttachmentUseCase)
     private readonly downloadAttachmentUseCase: DownloadAttachmentUseCase,
+    @Inject(UpdateMessageFlagsUseCase)
+    private readonly updateMessageFlagsUseCase: UpdateMessageFlagsUseCase,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
   ) {
@@ -202,6 +210,37 @@ export class MailboxController extends BaseAuthController {
       if (error instanceof AttachmentsTooLargeError) throw new BadRequestException(error.message);
       if (error instanceof MailboxNotConnectedError) throw new NotFoundException(error.message);
       if (error instanceof ReplyTargetNotFoundError) throw new NotFoundException(error.message);
+      this.rethrowInvalidAccessToken(error);
+      throw error;
+    }
+  }
+
+  @Patch('messages/:id/flags')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Star or label a message',
+    description:
+      'Writes to the tenant\'s real mailbox over IMAP first, then updates the local copy — so this view and the tenant\'s own mail client never disagree about what a message is flagged as.',
+  })
+  @ApiOkResponse({ description: 'Updated flag state' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  async updateFlags(
+    @Param('id') id: string,
+    @Body(BodyOrDataPipe) payload: UpdateMessageFlagsDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireBearerToken(authorization);
+
+    try {
+      return await this.updateMessageFlagsUseCase.execute(accessToken, {
+        messageId: id,
+        starred: payload.starred,
+        addLabels: payload.addLabels,
+        removeLabels: payload.removeLabels,
+      });
+    } catch (error) {
+      if (error instanceof MessageNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof MailboxNotConnectedError) throw new NotFoundException(error.message);
       this.rethrowInvalidAccessToken(error);
       throw error;
     }

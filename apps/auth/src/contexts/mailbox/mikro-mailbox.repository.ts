@@ -29,6 +29,8 @@ function toMessage(record: MailMessageRecord): MailMessage {
     sentAt: record.sentAt.toISOString(),
     receivedAt: record.receivedAt.toISOString(),
     seen: record.seen,
+    starred: record.starred,
+    labels: (record.labels ?? []) as string[],
     uid: Number(record.uid ?? 0),
     deliveryStatus: (record.deliveryStatus ?? 'unknown') as MailMessage['deliveryStatus'],
     deliveryDetail: record.deliveryDetail ?? null,
@@ -82,6 +84,8 @@ export class MikroMailboxRepository implements MailboxRepository {
         sentAt: new Date(message.sentAt),
         receivedAt: new Date(message.receivedAt),
         seen: message.seen,
+        starred: message.starred,
+        labels: message.labels,
         uid: message.uid,
         deliveryStatus: message.deliveryStatus,
         deliveryDetail: message.deliveryDetail,
@@ -183,6 +187,26 @@ export class MikroMailboxRepository implements MailboxRepository {
     const orm = await getAuthOrm(this.config.db);
     const row = await orm.em.fork().findOne(MailMessageRecord, { tenantId, messageId } as never);
     return row ? toMessage(row) : null;
+  }
+
+  async findById(tenantId: string, id: string): Promise<MailMessage | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const row = await orm.em.fork().findOne(MailMessageRecord, { tenantId, id } as never);
+    return row ? toMessage(row) : null;
+  }
+
+  async updateFlags(
+    tenantId: string,
+    id: string,
+    changes: { starred?: boolean; labels?: string[] },
+  ): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    const update: Record<string, unknown> = {};
+    if (changes.starred !== undefined) update.starred = changes.starred;
+    if (changes.labels !== undefined) update.labels = changes.labels;
+    if (Object.keys(update).length === 0) return;
+
+    await orm.em.fork().nativeUpdate(MailMessageRecord, { tenantId, id } as never, update);
   }
 
   async recordDelivery(

@@ -38,6 +38,9 @@ export interface MailboxRepository {
   listMessagesInThread(tenantId: string, threadId: string): Promise<MailMessage[]>;
   messagesForThreads(tenantId: string, threadIds: readonly string[]): Promise<MailMessage[]>;
   findByMessageId(tenantId: string, messageId: string): Promise<MailMessage | null>;
+  findById(tenantId: string, id: string): Promise<MailMessage | null>;
+  /** Updates the local mirror after a flag change has already been written upstream. */
+  updateFlags(tenantId: string, id: string, changes: { starred?: boolean; labels?: string[] }): Promise<void>;
   recordDelivery(
     tenantId: string,
     messageId: string,

@@ -54,6 +54,15 @@ export type MailMessage = {
   sentAt: string;
   receivedAt: string;
   seen: boolean;
+  /** Read from IMAP's \Flagged flag on every sync, same as `seen` reads \Seen. */
+  starred: boolean;
+  /**
+   * IMAP keyword flags other than the standard system ones (\Seen, \Flagged,
+   * \Answered, \Deleted, \Draft, \Recent). Modelled as generic keywords rather
+   * than a Gmail-specific label extension, so it works against any IMAP
+   * server that advertises PERMANENTFLAGS \*, not only Gmail.
+   */
+  labels: string[];
 };
 
 export type MailThread = {

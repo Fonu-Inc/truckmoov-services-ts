@@ -223,6 +223,8 @@ import { InMemoryPlatformAlertSettingsRepository } from './in-memory-platform-al
 import { MikroPlatformAlertSettingsRepository } from './mikro-platform-alert-settings.repository';
 import { ImapMailboxReader } from './contexts/mailbox/imap-mailbox.reader';
 import { MAILBOX_READER } from './contexts/mailbox/mailbox-reader.port';
+import { MAILBOX_FLAGS_WRITER } from './contexts/mailbox/mailbox-flags-writer.port';
+import { UpdateMessageFlagsUseCase } from './contexts/mailbox/update-message-flags.use-case';
 import { MAILBOX_SENDER } from './contexts/mailbox/mailbox-sender.port';
 import { SmtpImapMailSender } from './contexts/mailbox/smtp-imap.mail-sender';
 import {
@@ -896,6 +898,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ImapMailboxReader,
     SmtpImapMailSender,
     { provide: MAILBOX_READER, useExisting: ImapMailboxReader },
+    { provide: MAILBOX_FLAGS_WRITER, useExisting: ImapMailboxReader },
     { provide: MAILBOX_SENDER, useExisting: SmtpImapMailSender },
     InMemoryMailboxRepository,
     MikroMailboxRepository,
@@ -913,6 +916,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SendMailUseCase,
     ListMailboxUseCase,
     DownloadAttachmentUseCase,
+    UpdateMessageFlagsUseCase,
     PlatformAlertSettingsUseCase,
     CommunicationRateService,
     ChargeUsageUseCase,

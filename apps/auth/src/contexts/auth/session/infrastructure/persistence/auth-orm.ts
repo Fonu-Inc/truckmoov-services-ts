@@ -352,6 +352,8 @@ export class MailMessageRecord {
   sentAt!: Date;
   receivedAt!: Date;
   seen!: boolean;
+  starred!: boolean;
+  labels!: unknown[];
   uid!: number;
   deliveryStatus!: string;
   deliveryDetail!: string | null;
@@ -379,6 +381,8 @@ export const MailMessageRecordSchema = new EntitySchema<MailMessageRecord>({
     sentAt: { fieldName: 'sent_at', type: 'datetime' },
     receivedAt: { fieldName: 'received_at', type: 'datetime', defaultRaw: 'now()' },
     seen: { type: 'boolean', defaultRaw: 'false' },
+    starred: { type: 'boolean', defaultRaw: 'false' },
+    labels: { type: 'json', defaultRaw: "'[]'" },
     uid: { type: 'bigint', defaultRaw: '0' },
     deliveryStatus: { fieldName: 'delivery_status', type: 'string', length: 16, defaultRaw: "'unknown'" },
     deliveryDetail: { fieldName: 'delivery_detail', type: 'text', nullable: true },
