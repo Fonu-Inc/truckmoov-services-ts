@@ -8,6 +8,10 @@ import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
 } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import {
+  DRIVER_REPOSITORY,
+  type DriverRepository,
+} from "./contexts/fleet/drivers/domain/repositories/driver.repository";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -24,6 +28,7 @@ export class InternalFleetController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicles: VehicleRepository,
+    @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
   ) {
     super(auditLog, bus);
   }
@@ -39,5 +44,28 @@ export class InternalFleetController extends BaseFleetController {
     const active = await this.vehicles.findAll({ tenantId, status: "active" });
 
     return { status: true, message: "success", data: { tenantId, activeVehicles: active.length } };
+  }
+
+  /**
+   * Vehicle and driver counts together, for a caller that needs both as one
+   * capacity figure — the aggregator network screen's per-operator card.
+   * Drivers counted as active/available: suspended or offline is not
+   * dispatchable capacity, even though the vehicle still exists.
+   */
+  @Get("tenant-counts")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  async tenantCounts(@Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const [activeVehicles, allDrivers] = await Promise.all([
+      this.vehicles.findAll({ tenantId, status: "active" }),
+      this.drivers.findAll({ tenantId }),
+    ]);
+    const driverCount = allDrivers.filter((d) => d.status === "active" || d.status === "available").length;
+
+    return {
+      status: true,
+      message: "success",
+      data: { tenantId, vehicleCount: activeVehicles.length, driverCount },
+    };
   }
 }
