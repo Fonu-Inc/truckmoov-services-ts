@@ -4,68 +4,130 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
-## TD-13 — Voice/IVR (Screen 6) is not built
+## TD-13 — Voice/IVR (Screen 6): fonu-api side built and proven; TruckMoov side and gaps remain
 
-**Status:** deferred by decision, 27 August 2026. Blocked on fonu-api, not
-on this codebase — the counterpart work is a different repo/team.
+**Status:** in progress, updated 28 August 2026. fonu-api now has a working
+outbound IVR capability (built and live-call-tested this session, on
+`dev`/`staging`). TruckMoov's own integration has not started, and the fonu-api
+side has real gaps this dashboard needs closed before it's usable.
 
 ### What the screen needs
 
 Call logs, an automated IVR that offers a job by phone and captures the
-driver's keypad response, recordings with transcription, and the
-inbound WhatsApp/SMS keyword protocol (which already exists, built earlier
-this session as part of job offers).
+driver's keypad response, recordings with transcription, and the inbound
+WhatsApp/SMS keyword protocol (already exists, built earlier this session as
+part of job offers). The IVR Dashboard specifically needs, per call: driver,
+job ID, call type (job offer/reminder/cancellation), call status
+(answered/no-answer/busy/failed), driver response (accepted/rejected/no
+input), duration, and timestamp.
 
-### What was checked, in fonu-api (`/home/urizen/fonu-work/fonu-api`)
+### What now exists in fonu-api (`/home/urizen/fonu-work/fonu-api`, `fonu-voip-media`)
 
-fonu-api places no general call today. Two things exist, neither fits:
+- `POST ivr-call` (`modules/ivr-calls/`) — places an outbound call that plays
+  an arbitrary prompt (playback file/URL, not TTS — no TTS engine installed
+  on the media host) and captures one DTMF digit against a caller-supplied
+  `digitOptions` map. Own table (`ivr_calls`), own NATS subject
+  (`sip.ivr.originate`), own dialplan context (`ivr`) — fully additive,
+  doesn't touch the existing voice-OTP path.
+- Completion reporting: `fs_cdr_manager` posts the result to
+  `POST external-integrations/voip/ivr-result` once the call ends, which
+  settles the record and fires the caller's `callbackUrl`.
+- Confirmed live end-to-end: real call rang, played a prompt, captured a
+  keypress, delivered `{requestId, digitPressed, meaning, hangupCause,
+  completedAt}` to a test webhook.
 
-- A human-agent bulk-dial CRM — a person places the call via a browser
-  softphone, not automated.
-- A voice-OTP endpoint (`modules/api/api.service.ts:340-561`) that only
-  reads a fixed code aloud and hangs up. No IVR menu, no DTMF capture beyond
-  the OTP itself, no recording. Request shape is fixed to
-  `{request_id, domain, did_number, customer_number, otp, company_uuid, lang}`
-  — not extensible to an arbitrary prompt/menu.
+### Gaps found on 28 August 2026, not yet fixed
 
-Actual dialing runs on a separate FreeSWITCH "media-host" service fonu-api
-only sends NATS originate requests to; fonu-api itself holds no telephony
-logic beyond that.
+- **Completion payload is missing fields the dashboard needs.** No call
+  duration (`billsec`) and no normalized call status
+  (answered/no-answer/busy/failed) — only a raw FreeSWITCH `hangupCause`
+  string. `fs_cdr_manager` already has `mapHangupCauseToStatus()`; it's just
+  not reused on the IVR path yet.
+- **Per-org prompt storage has no tenant isolation at the storage layer.**
+  Prompts upload through the existing `calls/settings/greeting` endpoint into
+  Wasabi under `call-greetings/{timestamp}.{ext}` — no company segment in the
+  object key. Isolation today is DB-row-level (`CallGreetings.company` FK)
+  and presigned-URL-gate only, not the storage path itself. Pre-existing
+  pattern (same as after-hours greetings), but TruckMoov's IVR prompts riding
+  it means it's worth fixing before more tenants depend on it.
+- **No storage billing.** Communications Wallet bills call-minutes; nothing
+  meters or bills the audio storage itself.
+- **No driver-level job-offer-with-race-resolution exists yet, anywhere** —
+  see the TruckMoov-side section below. This is the actual blocker for
+  wiring IVR's digit result into a real job acceptance, not a fonu-api gap.
 
-### What's needed before this can be built
+### On TruckMoov's side — not started
 
-On fonu-api (new work, not TruckMoov's repos):
-- A general IVR dialplan — plays a prompt, captures a digit, branches on it.
-- An originate request shape carrying a flow/menu definition, not a fixed OTP.
-- Call recording capture and storage.
-- A completion callback reporting the outcome (digit, duration, recording
-  URL) — OTP's callback only reports answered/not for billing.
-- Real per-call billing (OTP is a flat answered-or-not charge; the bulk-dial
-  product's `CallHistory` carries no cost field at all).
+Checked `truckmoov-services-go`'s dispatch domain directly:
+- `JobOffer` (`domain/job_offer.go`) has the right race-resolution shape
+  (`CanRespond` = pending && not expired; `Accept`/`Decline` refuse once
+  false; `Withdraw` closes out losers) but is tenant-to-tenant
+  (broker→carrier), not driver-level.
+- `Job.ReportDriverStatusRequest(...)` is already channel-agnostic (`channel`
+  is a plain string, already used for SMS/WhatsApp ARRIVED/LOADED/DELIVERED)
+  — IVR could plug straight into this for post-assignment progress reports.
+  But it requires `AssignedDriverID` already set — it does not cover the
+  initial accept-the-offer step.
+- `Job.Assign(...)` is the raw assignment mutation — no race guard, no memory
+  of who else the job was offered to.
 
-Isolation and billing attribution do NOT need new work — every relevant
-fonu-api entity already carries a `company` FK
-(`carriers.entity.ts:27-31`, `call-history.entity.ts:26-30`), and voice-OTP
-already verifies the calling company owns the DID it dials from
-(`assertVoiceDidOwned`, `api.service.ts:388-399`). TruckMoov getting its own
-Company row, API key and owned DID is provisioning, not development.
+So there is no existing "job offered to driver, driver responds
+accept/decline over IVR or SMS, first response wins, race resolved"
+mechanism at all — not a TruckMoov integration gap, a genuine missing piece
+of domain logic that needs building, ideally mirroring `JobOffer`'s pattern
+but scoped to `driverID`.
 
-On TruckMoov's side, once the above exists:
-- A "call carrier with job offer" use case, same shape as
-  `CreateJobOfferUseCase` in the Go dispatch service, placing a call instead
-  of a WhatsApp push.
-- A webhook receiver for fonu-api's completion callback, mapping the
-  captured digit to Accept/Decline — reuses the existing
-  `AcceptJobOfferUseCase`/`DeclineJobOfferUseCase` directly, no new
-  job-offer logic.
-- New call-log storage (direction, outcome, duration, notes) — nothing like
-  it exists yet.
+Beyond that, still needed once the driver-offer piece exists:
+- A TruckMoov-owned `ivr_calls`-equivalent audit row (driver, job, call
+  type) keyed by fonu-api's `requestId` for correlation — fonu-api's own
+  table intentionally carries none of this, it's a dumb telephony transport.
+- A webhook receiver for fonu-api's completion callback.
+- TruckMoov's own fonu-api API key, provisioned with the `ivr` feature.
 
 ### When this is picked up
 
-Once fonu-api ships a general IVR capability. The TruckMoov-side work is
-small and reuses what job offers already built; the real work is fonu-api
-standing up a second call product alongside its existing OTP one.
+fonu-api's blocker is gone. What's left is real work, roughly in this order:
+driver-level job-offer domain logic (biggest piece, needed regardless of
+IVR) → fonu-api completion-payload fixes (duration, normalized status;
+small) → TruckMoov's IVR module (audit table, callback receiver, dispatch
+call) → storage isolation/billing fix (can happen independently, any time).
+See TD-14 for multi-language, which touches the same storage layer.
+
+---
+
+## TD-14 — Voice/IVR multi-language prompt support is not built
+
+**Status:** deferred by decision, 28 August 2026. Depends on TD-13's storage
+work landing first — building multi-language on top of the current
+unmetered, unisolated storage path would compound both problems.
+
+### What's needed
+
+Each org's IVR prompt today is a single audio file (one row in
+`CallGreetings`, one Wasabi object). Multi-language means one prompt maps to
+several audio variants, selected per call by the driver's (or org's)
+language preference.
+
+Concretely:
+- Schema: `CallGreetings` (or a new per-language variant table) needs a
+  language dimension — one prompt, many `(language, audioKey)` pairs, not a
+  single `url` column.
+- `SendIvrCallDto`/`ivr_calls` needs a language selector so the right variant
+  gets dispatched.
+- Storage cost multiplies by however many languages an org configures — this
+  is extra storage that needs metering (see TD-13's "no storage billing"
+  gap) and extra billing, not something to add for free once storage billing
+  exists.
+- Generation: no TTS engine is available (TD-13), so each language variant
+  is presumably a separately uploaded/recorded file per org today — worth
+  confirming whether that's the intended workflow or whether TTS (once
+  fixed) should generate all variants from one source text.
+
+### When this is picked up
+
+After TD-13's storage isolation and billing gaps are fixed — multi-language
+should build on a metered, tenant-isolated storage path, not extend the
+current one.
 
 ---
 
