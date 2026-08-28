@@ -84,6 +84,13 @@ Beyond that, still needed once the driver-offer piece exists:
 - A webhook receiver for fonu-api's completion callback.
 - TruckMoov's own fonu-api API key, provisioned with the `ivr` feature.
 
+### Open question, unconfirmed — 28 August 2026
+
+How automatic are job-offer calls meant to be? Triggered the same way the
+existing WhatsApp job-offer push is (automatic, same event), or a separate
+manual action a dispatcher initiates? Not decided yet — affects how Phase 3
+(TruckMoov's IVR module) wires its trigger.
+
 ### When this is picked up
 
 fonu-api's blocker is gone. What's left is real work, roughly in this order:
