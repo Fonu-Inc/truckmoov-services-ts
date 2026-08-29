@@ -254,6 +254,7 @@ import { GetSystemDeviceCatalogReferenceDataUseCase } from './get-system-device-
 import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
 import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
 import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
+import { UpdateSubscriptionPlanPriceUseCase } from './update-subscription-plan-price.use-case';
 import { GetSystemActivityLogUseCase } from './get-system-activity-log.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
@@ -1057,6 +1058,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetSystemDeviceCatalogReferenceDataUseCase,
     GetSystemDeviceSummaryUseCase,
     GetSystemSubscriptionPlansUseCase,
+    UpdateSubscriptionPlanPriceUseCase,
     GetSystemActivityLogUseCase,
     ListSystemAdminInvitesUseCase,
     ListSystemDeviceCatalogUseCase,

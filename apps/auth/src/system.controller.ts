@@ -75,6 +75,11 @@ import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
 import { GetSystemHealthUseCase } from './get-system-health.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
 import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
+import {
+  UpdateSubscriptionPlanPriceUseCase,
+  SubscriptionPlanNotFoundError,
+} from './update-subscription-plan-price.use-case';
+import { UpdateSubscriptionPlanPriceDto } from './dto/subscription-plan.dto';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
@@ -99,6 +104,7 @@ export class SystemController extends BaseAuthController {
     @Inject(GetSystemSettingsUseCase) private readonly getSystemSettingsUseCase: GetSystemSettingsUseCase,
     @Inject(GetSystemDashboardUseCase) private readonly getSystemDashboardUseCase: GetSystemDashboardUseCase,
     @Inject(GetSystemSubscriptionPlansUseCase) private readonly getSystemSubscriptionPlansUseCase: GetSystemSubscriptionPlansUseCase,
+    @Inject(UpdateSubscriptionPlanPriceUseCase) private readonly updateSubscriptionPlanPriceUseCase: UpdateSubscriptionPlanPriceUseCase,
     @Inject(GetSystemActivityLogUseCase) private readonly getSystemActivityLogUseCase: GetSystemActivityLogUseCase,
     @Inject(ListSystemAdminInvitesUseCase) private readonly listSystemAdminInvitesUseCase: ListSystemAdminInvitesUseCase,
     @Inject(ListSystemFeatureFlagsUseCase) private readonly listSystemFeatureFlagsUseCase: ListSystemFeatureFlagsUseCase,
@@ -757,6 +763,40 @@ export class SystemController extends BaseAuthController {
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('subscription-plans/:id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update a subscription plan\'s price',
+    description:
+      'Changes the plan\'s listed monthly and/or yearly-equivalent NGN price. Applies immediately to every subscriber — nothing on the platform yet locks in the price an existing subscriber was sold at.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to change subscription plan pricing' })
+  @ApiNotFoundResponse({ description: 'Plan not found' })
+  async updateSubscriptionPlanPrice(
+    @Param('id') id: string,
+    @Body(BodyOrDataPipe) payload: UpdateSubscriptionPlanPriceDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const data = await this.updateSubscriptionPlanPriceUseCase.execute({
+        accessToken,
+        planId: id,
+        monthlyPriceNgn: payload.monthlyPriceNgn,
+        yearlyMonthlyEquivalentNgn: payload.yearlyMonthlyEquivalentNgn,
+      });
+      return { status: true, message: 'success', data };
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SubscriptionPlanNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }
