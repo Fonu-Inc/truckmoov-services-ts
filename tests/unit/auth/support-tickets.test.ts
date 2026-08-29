@@ -102,6 +102,33 @@ describe("Raising a ticket", () => {
   it("refuses a blank subject", async () => {
     await expect(() => raise(harness(), { subject: "   " })).rejects.toBeInstanceOf(InvalidTicketFieldError);
   });
+
+  it("refuses an unknown channel", async () => {
+    await expect(() => raise(harness(), { channel: "not-a-real-channel" })).rejects.toBeInstanceOf(
+      InvalidTicketFieldError,
+    );
+  });
+
+  it("requires otherChannel once channel is other", async () => {
+    await expect(() => raise(harness(), { channel: "other" })).rejects.toThrow("otherChannel is required");
+  });
+
+  it("accepts a channel with its label when channel is other", async () => {
+    const ticket = await raise(harness(), { channel: "other", otherChannel: "Fuel card dispute" });
+    expect(ticket.channel).toBe("other");
+    expect(ticket.otherChannel).toBe("Fuel card dispute");
+  });
+
+  it("leaves otherChannel null for a non-other channel", async () => {
+    const ticket = await raise(harness(), { channel: "billing", otherChannel: "ignored" });
+    expect(ticket.channel).toBe("billing");
+    expect(ticket.otherChannel).toBeNull();
+  });
+
+  it("defaults channel to null when omitted", async () => {
+    const ticket = await raise(harness());
+    expect(ticket.channel).toBeNull();
+  });
 });
 
 describe("Tenant isolation", () => {

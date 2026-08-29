@@ -59,6 +59,8 @@ export class SubmitEnterpriseEnquiryUseCase {
         .join('\n'),
       status: 'open',
       priority: 'high',
+      channel: null,
+      otherChannel: null,
       contextType: 'none',
       contextId: null,
       contextSnapshot: null,

@@ -58,6 +58,21 @@ export const SUPPORT_TICKET_CONTEXT_TYPES = [
 ] as const;
 export type SupportTicketContextType = (typeof SUPPORT_TICKET_CONTEXT_TYPES)[number];
 
+/**
+ * The "Log a Ticket" form's own Channel dropdown — separate from contextType,
+ * which references a specific record (a device/SIM/vehicle id) rather than
+ * categorizing what area the issue is about.
+ */
+export const SUPPORT_TICKET_CHANNELS = [
+  'device',
+  'sim',
+  'vehicle',
+  'messaging',
+  'billing',
+  'other',
+] as const;
+export type SupportTicketChannel = (typeof SUPPORT_TICKET_CHANNELS)[number];
+
 export type StoredSupportTicket = {
   id: string;
   tenantId: string;
@@ -66,6 +81,8 @@ export type StoredSupportTicket = {
   description: string;
   status: string;
   priority: string;
+  channel: string | null;
+  otherChannel: string | null;
   contextType: string;
   contextId: string | null;
   contextSnapshot: Record<string, unknown> | null;

@@ -19,6 +19,8 @@ function toStored(r: SupportTicketRecord): StoredSupportTicket {
     description: r.description,
     status: r.status,
     priority: r.priority,
+    channel: r.channel,
+    otherChannel: r.otherChannel,
     contextType: r.contextType,
     contextId: r.contextId,
     contextSnapshot: r.contextSnapshot,

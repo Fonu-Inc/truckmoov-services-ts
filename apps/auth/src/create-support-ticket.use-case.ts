@@ -7,6 +7,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ID_GENERATOR } from './contexts/auth/se
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
 import {
   SUPPORT_TICKET_CATEGORIES,
+  SUPPORT_TICKET_CHANNELS,
   SUPPORT_TICKET_CONTEXT_TYPES,
   SUPPORT_TICKET_PRIORITIES,
   SUPPORT_TICKET_REPOSITORY,
@@ -26,6 +27,8 @@ export type CreateSupportTicketCommand = {
   description: string;
   category: string;
   priority?: string;
+  channel?: string;
+  otherChannel?: string;
   contextType?: string;
   contextId?: string | null;
 };
@@ -60,6 +63,15 @@ export class CreateSupportTicketUseCase {
     if (!SUPPORT_TICKET_PRIORITIES.includes(priority as never)) {
       throw new InvalidTicketFieldError(`priority must be one of: ${SUPPORT_TICKET_PRIORITIES.join(', ')}`);
     }
+    const channel = command.channel ?? null;
+    if (channel && !SUPPORT_TICKET_CHANNELS.includes(channel as never)) {
+      throw new InvalidTicketFieldError(`channel must be one of: ${SUPPORT_TICKET_CHANNELS.join(', ')}`);
+    }
+    const otherChannel = command.otherChannel?.trim() || null;
+    if (channel === 'other' && !otherChannel) {
+      throw new InvalidTicketFieldError('otherChannel is required when channel is "other"');
+    }
+
     const contextType = command.contextType ?? 'none';
     if (!SUPPORT_TICKET_CONTEXT_TYPES.includes(contextType as never)) {
       throw new InvalidTicketFieldError(`contextType must be one of: ${SUPPORT_TICKET_CONTEXT_TYPES.join(', ')}`);
@@ -79,6 +91,8 @@ export class CreateSupportTicketUseCase {
       description,
       status: 'open',
       priority,
+      channel,
+      otherChannel: channel === 'other' ? otherChannel : null,
       contextType,
       contextId: contextType === 'none' ? null : (command.contextId?.trim() ?? null),
       contextSnapshot: null,

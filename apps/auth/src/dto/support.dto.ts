@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_STATUSES } from '../support-ticket.repository';
+import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_CHANNELS, SUPPORT_TICKET_STATUSES } from '../support-ticket.repository';
 
 const TICKET_STATUSES = SUPPORT_TICKET_STATUSES;
 const ESCALATION_TARGETS = ['fleetpro_internal', 'fonu_connectivity', 'vendor_installer'] as const;
@@ -65,6 +65,16 @@ export class CreateSupportTicketDto {
   @ApiProperty({ enum: TICKET_CATEGORIES })
   @IsIn(TICKET_CATEGORIES)
   category!: string;
+
+  @ApiPropertyOptional({ enum: SUPPORT_TICKET_CHANNELS })
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_CHANNELS)
+  channel?: string;
+
+  @ApiPropertyOptional({ description: 'Required when channel is "other".' })
+  @IsOptional()
+  @IsString()
+  otherChannel?: string;
 
   @ApiPropertyOptional({ enum: ['low', 'medium', 'high', 'critical'] })
   @IsOptional()

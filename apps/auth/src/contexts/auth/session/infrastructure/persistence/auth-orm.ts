@@ -1387,6 +1387,8 @@ export class SupportTicketRecord {
   description!: string;
   status!: string;
   priority!: string;
+  channel!: string | null;
+  otherChannel!: string | null;
   contextType!: string;
   contextId!: string | null;
   contextSnapshot!: Record<string, unknown> | null;
@@ -1414,6 +1416,8 @@ export const SupportTicketRecordSchema = new EntitySchema<SupportTicketRecord>({
     description: { type: 'text' },
     status: { type: 'string', length: 32, default: 'open' },
     priority: { type: 'string', length: 16, default: 'medium' },
+    channel: { type: 'string', length: 16, nullable: true, fieldName: 'channel' },
+    otherChannel: { type: 'string', length: 255, nullable: true, fieldName: 'other_channel' },
     contextType: { type: 'string', length: 16, default: 'none', fieldName: 'context_type' },
     contextId: { type: 'string', length: 64, nullable: true, fieldName: 'context_id' },
     contextSnapshot: { type: 'json', nullable: true, fieldName: 'context_snapshot' },
