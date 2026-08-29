@@ -28,7 +28,8 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const where: Record<string, unknown> = { tenantId };
-    if (filters?.vehicleId) where.vehicleId = filters.vehicleId;
+    if (filters?.vehicleIds) where.vehicleId = { $in: filters.vehicleIds };
+    else if (filters?.vehicleId) where.vehicleId = filters.vehicleId;
     if (filters?.documentType) where.documentType = filters.documentType;
     if (!filters?.includeSuperseded) where.supersededAt = null;
     const records = await em.find(ComplianceDocumentRecord, where as any);

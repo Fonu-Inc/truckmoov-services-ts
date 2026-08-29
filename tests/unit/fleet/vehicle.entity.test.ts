@@ -14,6 +14,7 @@ function makeVehicle(overrides: Partial<Parameters<typeof Vehicle.create>[0]> = 
     tenantId: "tenant-1",
     status: "active",
     assignedDriverId: null,
+    ownerOperatorId: null,
     gpsDevice: null,
     ...overrides,
   });
@@ -76,6 +77,17 @@ describe("Vehicle entity", () => {
 
   it("unassignDriver clears driverId", () => {
     expect(makeVehicle().assignDriver("d1").unassignDriver().assignedDriverId).toBeNull();
+  });
+
+  it("assignOwnerOperator returns new instance with ownerOperatorId", () => {
+    const v = makeVehicle();
+    const assigned = v.assignOwnerOperator("op-1");
+    expect(assigned.ownerOperatorId).toBe("op-1");
+    expect(v.ownerOperatorId).toBeNull();
+  });
+
+  it("unassignOwnerOperator clears ownerOperatorId", () => {
+    expect(makeVehicle().assignOwnerOperator("op-1").unassignOwnerOperator().ownerOperatorId).toBeNull();
   });
 
   it("setStatus inactive clears assignedDriverId", () => {

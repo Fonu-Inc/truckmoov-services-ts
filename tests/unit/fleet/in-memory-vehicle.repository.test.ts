@@ -3,7 +3,7 @@ import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/flee
 import { Vehicle } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/entities/vehicle.entity";
 
 function makeVehicle(id: string, tenantId = "t1", overrides: Partial<Parameters<typeof Vehicle.create>[0]> = {}) {
-  return Vehicle.create({ id, plateNumber: `PLATE-${id}`, model: "Truck", tenantId, status: "active", assignedDriverId: null, gpsDevice: null, ...overrides });
+  return Vehicle.create({ id, plateNumber: `PLATE-${id}`, model: "Truck", tenantId, status: "active", assignedDriverId: null, ownerOperatorId: null, gpsDevice: null, ...overrides });
 }
 
 describe("InMemoryVehicleRepository", () => {
@@ -59,6 +59,14 @@ describe("InMemoryVehicleRepository", () => {
   it("findByAssignedDriverId returns vehicle for driver", async () => {
     await repo.save(makeVehicle("v1", "t1", { assignedDriverId: "d1" }));
     expect(await repo.findByAssignedDriverId("d1", "t1")).not.toBeNull();
+  });
+
+  it("findAllByOwnerOperatorId returns only that operator's vehicles, tenant-scoped", async () => {
+    await repo.save(makeVehicle("v1", "t1", { ownerOperatorId: "op-1" }));
+    await repo.save(makeVehicle("v2", "t1", { ownerOperatorId: "op-2" }));
+    await repo.save(makeVehicle("v3", "t2", { ownerOperatorId: "op-1" }));
+    const owned = await repo.findAllByOwnerOperatorId("op-1", "t1");
+    expect(owned.map((v) => v.id)).toEqual(["v1"]);
   });
 
   it("deleteById removes the vehicle", async () => {

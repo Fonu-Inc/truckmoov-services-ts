@@ -21,6 +21,12 @@ export type StoredComplianceDocument = {
 
 export type ComplianceDocumentFilters = {
   vehicleId?: string;
+  /**
+   * The vehicle set an owner-operator is allowed to see. When present,
+   * results are restricted to these ids regardless of `vehicleId` — set by
+   * the controller from the caller's own identity, never from a request param.
+   */
+  vehicleIds?: string[];
   documentType?: string;
   status?: ComplianceDocumentStatus;
   search?: string;

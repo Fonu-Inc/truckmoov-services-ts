@@ -77,6 +77,7 @@ export class BulkImportVehiclesUseCase {
         tenantId,
         status: item.status ?? "active",
         assignedDriverId: null,
+        ownerOperatorId: null,
         gpsDevice: null,
       });
       await this.vehicleRepository.save(createdVehicle);

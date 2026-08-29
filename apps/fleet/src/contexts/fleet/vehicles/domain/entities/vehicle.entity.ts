@@ -35,6 +35,7 @@ export type VehicleProps = {
   tenantId: string;
   status: FleetAssetStatus;
   assignedDriverId: string | null;
+  ownerOperatorId: string | null;
   gpsDevice: VehicleGpsDevice | null;
 };
 
@@ -111,6 +112,7 @@ export class Vehicle {
       tenantId: props.tenantId.trim(),
       status: props.status,
       assignedDriverId: props.assignedDriverId?.trim() || null,
+      ownerOperatorId: props.ownerOperatorId?.trim() || null,
       gpsDevice: props.gpsDevice
         ? {
             // Keep the fleet aggregate aligned to the same GPS device vocabulary used in the admin UI.
@@ -177,6 +179,10 @@ export class Vehicle {
     return this.props.assignedDriverId;
   }
 
+  get ownerOperatorId() {
+    return this.props.ownerOperatorId;
+  }
+
   get gpsDevice() {
     return this.props.gpsDevice;
   }
@@ -206,6 +212,7 @@ export class Vehicle {
       tenantId: values.tenantId ?? this.tenantId,
       status: values.status ?? this.status,
       assignedDriverId: this.assignedDriverId,
+      ownerOperatorId: this.ownerOperatorId,
       gpsDevice: this.gpsDevice,
     });
   }
@@ -221,6 +228,20 @@ export class Vehicle {
     return Vehicle.create({
       ...this.toPrimitives(),
       assignedDriverId: null,
+    });
+  }
+
+  assignOwnerOperator(ownerOperatorId: string): Vehicle {
+    return Vehicle.create({
+      ...this.toPrimitives(),
+      ownerOperatorId,
+    });
+  }
+
+  unassignOwnerOperator(): Vehicle {
+    return Vehicle.create({
+      ...this.toPrimitives(),
+      ownerOperatorId: null,
     });
   }
 
@@ -261,6 +282,7 @@ export class Vehicle {
       tenantId: this.tenantId,
       status: this.status,
       assignedDriverId: this.assignedDriverId,
+      ownerOperatorId: this.ownerOperatorId,
       gpsDevice: this.gpsDevice ? { ...this.gpsDevice } : null,
     };
   }

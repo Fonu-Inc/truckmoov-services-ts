@@ -64,6 +64,7 @@ export class CreateVehicleUseCase {
       tenantId,
       status,
       assignedDriverId: null,
+      ownerOperatorId: null,
       gpsDevice: null,
     });
 

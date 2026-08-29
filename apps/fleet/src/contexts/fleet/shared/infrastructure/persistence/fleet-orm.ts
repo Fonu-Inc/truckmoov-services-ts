@@ -23,6 +23,7 @@ export class VehicleRecord {
   tenantId!: string;
   status!: string;
   assignedDriverId?: string | null;
+  ownerOperatorId?: string | null;
   gpsImei?: string | null;
   gpsManufacturer?: string | null;
   gpsModel?: string | null;
@@ -96,6 +97,7 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
     tenantId: { type: "string", length: 64 },
     status: { type: "string", length: 16, defaultRaw: "'active'" },
     assignedDriverId: { type: "string", length: 64, nullable: true },
+    ownerOperatorId: { type: "string", length: 64, nullable: true },
     gpsImei: { type: "string", length: 32, nullable: true },
     gpsManufacturer: { type: "string", length: 64, nullable: true },
     gpsModel: { type: "string", length: 64, nullable: true },
@@ -116,6 +118,7 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
     { properties: ["tenantId", "status"] },
     { properties: ["tenantId", "vin"] },
     { properties: ["assignedDriverId"] },
+    { properties: ["ownerOperatorId"] },
   ],
 });
 

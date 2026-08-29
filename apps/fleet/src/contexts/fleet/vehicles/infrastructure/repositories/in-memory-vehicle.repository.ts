@@ -73,6 +73,12 @@ export class InMemoryVehicleRepository implements VehicleRepository {
     );
   }
 
+  async findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Vehicle[]> {
+    return Array.from(this.data.values()).filter(
+      (vehicle) => vehicle.ownerOperatorId === ownerOperatorId && vehicle.tenantId === tenantId,
+    );
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const vehicle = this.data.get(id);
     if (!vehicle || vehicle.tenantId !== tenantId) return;

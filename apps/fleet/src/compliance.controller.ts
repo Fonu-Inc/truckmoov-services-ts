@@ -26,6 +26,7 @@ import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { ComplianceReminderSweepService } from "./compliance-reminder-sweep.service";
 import { ComplianceDocumentsUseCase, ComplianceDocumentNotFoundError } from "./compliance-documents.use-case";
+import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import {
   SetComplianceReminderDto,
   RenewComplianceDocumentDto,
@@ -52,8 +53,26 @@ export class ComplianceController extends BaseFleetController {
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(ComplianceDocumentsUseCase) private readonly complianceDocumentsUseCase: ComplianceDocumentsUseCase,
     @Inject(ComplianceReminderSweepService) private readonly complianceReminderSweepService: ComplianceReminderSweepService,
+    @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepository: VehicleRepository,
   ) {
     super(auditLog, bus);
+  }
+
+  /**
+   * An owner-operator only ever sees compliance documents for vehicles they
+   * own — derived from their own identity, never from a caller-supplied
+   * vehicleId. Returns undefined for every other role, meaning "no extra
+   * scoping beyond tenant."
+   */
+  private async ownerOperatorVehicleIds(
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<string[] | undefined> {
+    if (req.user?.role !== Role.OWNER_OPERATOR) return undefined;
+    const userId = req.user?.userId;
+    if (!userId) return [];
+    const vehicles = await this.vehicleRepository.findAllByOwnerOperatorId(userId, tenantId);
+    return vehicles.map((v) => v.id);
   }
 
   @Get("documents")
@@ -71,8 +90,10 @@ export class ComplianceController extends BaseFleetController {
     @Query("search") search: string,
     @Req() req: FleetRequestContext,
   ) {
-    const data = await this.complianceDocumentsUseCase.list(this.tenantIdFromRequest(req), {
-      vehicleId, documentType, status: status as any, search,
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
+    const data = await this.complianceDocumentsUseCase.list(tenantId, {
+      vehicleId: vehicleIds ? undefined : vehicleId, vehicleIds, documentType, status: status as any, search,
     });
     return { status: true, message: "success", data };
   }
@@ -100,8 +121,10 @@ export class ComplianceController extends BaseFleetController {
     @Query("documentType") documentType: string,
     @Req() req: FleetRequestContext,
   ) {
-    const data = await this.complianceDocumentsUseCase.history(this.tenantIdFromRequest(req), {
-      vehicleId, documentType,
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
+    const data = await this.complianceDocumentsUseCase.history(tenantId, {
+      vehicleId: vehicleIds ? undefined : vehicleId, vehicleIds, documentType,
     });
     return { status: true, message: "success", data };
   }
@@ -111,7 +134,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Compliance documents summary" })
   @ApiOkResponse({ description: "Summary counts", type: ComplianceSummaryResponse })
   async getComplianceDocumentsSummary(@Req() req: FleetRequestContext) {
-    const data = await this.complianceDocumentsUseCase.summary(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
+    const data = await this.complianceDocumentsUseCase.summary(tenantId, { vehicleIds });
     return { status: true, message: "success", data };
   }
 
@@ -120,7 +145,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Export compliance documents as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportComplianceDocuments(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const csv = await this.complianceDocumentsUseCase.export(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
+    const csv = await this.complianceDocumentsUseCase.export(tenantId, { vehicleIds });
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=compliance-documents.csv");
     res.send(csv);

@@ -28,6 +28,7 @@ export class MikroVehicleRepository implements VehicleRepository {
       tenantId: vehicle.tenantId,
       status: vehicle.status,
       assignedDriverId: vehicle.assignedDriverId,
+      ownerOperatorId: vehicle.ownerOperatorId,
       gpsImei: vehicle.gpsDevice?.imei ?? null,
       gpsManufacturer: vehicle.gpsDevice?.manufacturer ?? null,
       gpsModel: vehicle.gpsDevice?.model ?? null,
@@ -119,6 +120,16 @@ export class MikroVehicleRepository implements VehicleRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Vehicle[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(VehicleRecord, {
+      ownerOperatorId,
+      tenantId,
+    });
+    return records.map((record) => this.toDomain(record));
+  }
+
   private toDomain(record: VehicleRecord) {
     return Vehicle.create({
       id: record.id,
@@ -139,6 +150,7 @@ export class MikroVehicleRepository implements VehicleRepository {
         ? record.status
         : "active") as import("../../../shared/domain/fleet-status").FleetAssetStatus,
       assignedDriverId: record.assignedDriverId ?? null,
+      ownerOperatorId: record.ownerOperatorId ?? null,
       gpsDevice:
         (record.gpsImei ?? record.gpsDeviceId)
         && (record.gpsManufacturer ?? record.gpsProvider)

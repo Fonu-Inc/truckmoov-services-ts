@@ -93,8 +93,8 @@ export class ComplianceDocumentsUseCase {
     await this.repo.deleteById(id, tenantId);
   }
 
-  async summary(tenantId: string) {
-    const docs = await this.repo.findAllByTenant(tenantId);
+  async summary(tenantId: string, filters?: { vehicleIds?: string[] }) {
+    const docs = await this.repo.findAllByTenant(tenantId, filters);
     const withStatus = docs.map((d) => this.withStatus(d));
     const valid = withStatus.filter((d) => d.status === "valid").length;
     const expiring = withStatus.filter((d) => d.status === "expiring").length;
@@ -148,8 +148,8 @@ export class ComplianceDocumentsUseCase {
     return this.update(tenantId, id, { fileUrl, fileSize });
   }
 
-  async export(tenantId: string): Promise<string> {
-    const docs = await this.repo.findAllByTenant(tenantId);
+  async export(tenantId: string, filters?: { vehicleIds?: string[] }): Promise<string> {
+    const docs = await this.repo.findAllByTenant(tenantId, filters);
     const headers = ["id", "vehicleId", "documentType", "documentName", "issueDate", "expiryDate", "status", "reminderDays"];
     const rows = [
       headers.join(","),

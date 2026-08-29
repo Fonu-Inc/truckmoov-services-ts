@@ -17,6 +17,8 @@ export interface VehicleRepository {
   findById(id: string, tenantId: string): Promise<Vehicle | null>;
   findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null>;
   findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null>;
+  /** All vehicles owned by this operator, for scoping compliance/document views. */
+  findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Vehicle[]>;
   deleteById(id: string, tenantId: string): Promise<void>;
 }
 
