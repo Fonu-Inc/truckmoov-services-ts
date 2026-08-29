@@ -63,4 +63,28 @@ describe("Device entity", () => {
     expect(unassigned.vehicleId).toBeNull();
     expect(unassigned.assignedAt).toBeNull();
   });
+
+  it("recordFirstTelemetry stores the reported protocol", () => {
+    const verified = makeDevice({ verificationStatus: "waiting" }).recordFirstTelemetry(
+      "2026-08-25T10:00:00.000Z",
+      "teltonika",
+    );
+    expect(verified.reportedProtocol).toBe("teltonika");
+  });
+
+  it("recordFirstTelemetry leaves reportedProtocol null when none is given", () => {
+    const verified = makeDevice({ verificationStatus: "waiting" }).recordFirstTelemetry(
+      "2026-08-25T10:00:00.000Z",
+    );
+    expect(verified.reportedProtocol).toBeNull();
+  });
+
+  it("update sets reportedProtocol only when explicitly given", () => {
+    const withProtocol = makeDevice({ reportedProtocol: "teltonika" });
+    expect(withProtocol.update({}).reportedProtocol).toBe("teltonika");
+    expect(withProtocol.update({ reportedProtocol: "queclink" }).reportedProtocol).toBe(
+      "queclink",
+    );
+    expect(withProtocol.update({ reportedProtocol: null }).reportedProtocol).toBeNull();
+  });
 });

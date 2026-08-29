@@ -10,6 +10,8 @@ export type RecordDeviceTelemetryCommand = {
   deviceId?: string | null;
   imei?: string | null;
   reportedAt: string;
+  /** The wire-protocol/vendor identity the ingest adapter actually observed, when it reported one. */
+  reportedProtocol?: string | null;
 };
 
 /**
@@ -31,13 +33,16 @@ export class RecordDeviceTelemetryUseCase {
     if (!device) return null;
 
     if (device.verificationStatus === "waiting") {
-      const verified = device.recordFirstTelemetry(command.reportedAt);
+      const verified = device.recordFirstTelemetry(command.reportedAt, command.reportedProtocol);
       await this.devices.save(verified);
       this.logger.log(`device_verified:${device.tenantId}:${device.id}`);
       return verified;
     }
 
-    const touched = device.update({ lastSeen: command.reportedAt });
+    const touched = device.update({
+      lastSeen: command.reportedAt,
+      reportedProtocol: command.reportedProtocol,
+    });
     await this.devices.save(touched);
     return touched;
   }

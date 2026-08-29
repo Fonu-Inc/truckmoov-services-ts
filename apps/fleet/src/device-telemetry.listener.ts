@@ -30,12 +30,15 @@ export class DeviceTelemetryListener implements OnApplicationBootstrap {
         const imei = (envelope.data["imei"] as string) || null;
         if (!deviceId && !imei) return;
 
+        const reportedProtocol = (envelope.data["protocol"] as string) || undefined;
+
         try {
           await this.recordTelemetry.execute({
             tenantId: envelope.tenant_id,
             deviceId,
             imei,
             reportedAt: envelope.occurred_at,
+            reportedProtocol,
           });
         } catch (error) {
           this.logger.warn(

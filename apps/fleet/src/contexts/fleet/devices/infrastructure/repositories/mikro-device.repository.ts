@@ -35,6 +35,7 @@ export class MikroDeviceRepository implements DeviceRepository {
       assignedAt: device.assignedAt ? new Date(device.assignedAt) : null,
       protocol: device.protocol,
       port: device.port,
+      reportedProtocol: device.reportedProtocol,
       configuredAt: device.configuredAt ? new Date(device.configuredAt) : null,
       verificationStatus: device.verificationStatus,
       verificationDeadline: device.verificationDeadline
@@ -158,6 +159,7 @@ export class MikroDeviceRepository implements DeviceRepository {
       protocol:
         record.protocol && isDeviceProtocol(record.protocol) ? record.protocol : null,
       port: record.port ?? null,
+      reportedProtocol: record.reportedProtocol ?? null,
       configuredAt: record.configuredAt?.toISOString() ?? null,
       verificationStatus:
         record.verificationStatus && isDeviceVerificationStatus(record.verificationStatus)

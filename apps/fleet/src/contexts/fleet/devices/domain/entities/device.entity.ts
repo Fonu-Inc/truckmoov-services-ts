@@ -84,6 +84,8 @@ export type DeviceProps = {
   assignedAt: string | null;
   protocol?: DeviceProtocol | null;
   port?: number | null;
+  /** The wire-protocol/vendor identity actually observed at ingest, e.g. "teltonika". Not the same taxonomy as `protocol`, which is what the installer configured. */
+  reportedProtocol?: string | null;
   configuredAt?: string | null;
   verificationStatus?: DeviceVerificationStatus | null;
   verificationDeadline?: string | null;
@@ -183,6 +185,7 @@ export class Device {
       assignedAt: vehicleId ? (props.assignedAt ?? new Date().toISOString()) : null,
       protocol: props.protocol ?? null,
       port: props.port ?? null,
+      reportedProtocol: props.reportedProtocol ?? null,
       configuredAt: props.configuredAt ?? null,
       verificationStatus: props.verificationStatus ?? null,
       verificationDeadline: props.verificationDeadline ?? null,
@@ -255,6 +258,10 @@ export class Device {
     return this.props.port ?? null;
   }
 
+  get reportedProtocol(): string | null {
+    return this.props.reportedProtocol ?? null;
+  }
+
   get configuredAt(): string | null {
     return this.props.configuredAt ?? null;
   }
@@ -304,6 +311,7 @@ export class Device {
     signalStrength?: number | null;
     batteryLevel?: number | null;
     lastSeen?: string | null;
+    reportedProtocol?: string | null;
   }): Device {
     return Device.create({
       ...this.toPrimitives(),
@@ -315,6 +323,8 @@ export class Device {
       signalStrength: values.signalStrength === undefined ? this.signalStrength : values.signalStrength,
       batteryLevel: values.batteryLevel === undefined ? this.batteryLevel : values.batteryLevel,
       lastSeen: values.lastSeen === undefined ? this.lastSeen : values.lastSeen,
+      reportedProtocol:
+        values.reportedProtocol === undefined ? this.reportedProtocol : values.reportedProtocol,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -450,7 +460,7 @@ export class Device {
    * verified_online: a person clicking a button is not evidence that a tracker
    * is on the network.
    */
-  recordFirstTelemetry(at: string): Device {
+  recordFirstTelemetry(at: string, reportedProtocol?: string | null): Device {
     if (this.verificationStatus !== "waiting") {
       throw new FleetRuleError("device is not waiting for verification");
     }
@@ -464,6 +474,8 @@ export class Device {
       verificationError: null,
       verifiedAt: at,
       lastSeen: at,
+      reportedProtocol:
+        reportedProtocol === undefined ? this.reportedProtocol : reportedProtocol,
       updatedAt: at,
     });
   }
@@ -509,6 +521,7 @@ export class Device {
       assignedAt: this.assignedAt,
       protocol: this.protocol,
       port: this.port,
+      reportedProtocol: this.reportedProtocol,
       configuredAt: this.configuredAt,
       verificationStatus: this.verificationStatus,
       verificationDeadline: this.verificationDeadline,

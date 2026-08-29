@@ -11,6 +11,7 @@ import { ExpireDeviceVerificationsUseCase } from "../../../apps/fleet/src/contex
 import { GetInstallationQueueUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/get-installation-queue.use-case";
 import { GetVerificationMonitorUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/get-verification-monitor.use-case";
 import { GetInstallerGuideUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/get-installer-guide.use-case";
+import { GetDeviceDiagnosticsUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/get-device-diagnostics.use-case";
 import type { DeviceCatalogModel } from "../../../apps/fleet/src/contexts/fleet/devices/domain/ports/device-catalog.port";
 
 const TENANT = "tenant-1";
@@ -108,6 +109,7 @@ function harness() {
     queue: new GetInstallationQueueUseCase(devices),
     monitor: new GetVerificationMonitorUseCase(devices, failures),
     guides: new GetInstallerGuideUseCase(catalog as never, configFor()),
+    diagnostics: new GetDeviceDiagnosticsUseCase(devices, failures),
   };
 }
 
@@ -378,6 +380,35 @@ describe("Device installation", () => {
     expect(result.configured).toEqual(["dev-1", "dev-2"]);
     expect(result.failed).toHaveLength(1);
     expect(result.failed[0]?.deviceId).toBe("dev-3");
+  });
+
+  it("diagnostics show configured and reported protocol side by side", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    await kit.telemetry.execute({
+      tenantId: TENANT,
+      deviceId: "dev-1",
+      imei: null,
+      reportedAt: "2026-08-25T10:00:00.000Z",
+      reportedProtocol: "teltonika",
+    });
+
+    const diagnostics = await kit.diagnostics.execute("dev-1", TENANT);
+
+    expect(diagnostics.configuredWith).toEqual({ protocol: "TCP", port: 5001 });
+    expect(diagnostics.reportedWith).toEqual({ protocol: "teltonika" });
+  });
+
+  it("diagnostics show a null reported protocol before the device has ever spoken", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+
+    const diagnostics = await kit.diagnostics.execute("dev-1", TENANT);
+
+    expect(diagnostics.reportedWith).toEqual({ protocol: null });
   });
 
   it("does not verify a device that was never configured", async () => {

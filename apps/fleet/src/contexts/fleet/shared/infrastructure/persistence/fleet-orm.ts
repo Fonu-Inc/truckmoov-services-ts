@@ -70,6 +70,7 @@ export class DeviceRecord {
   assignedAt?: Date | null;
   protocol?: string | null;
   port?: number | null;
+  reportedProtocol?: string | null;
   configuredAt?: Date | null;
   verificationStatus?: string | null;
   verificationDeadline?: Date | null;
@@ -172,6 +173,7 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     assignedAt: { type: "datetime", nullable: true },
     protocol: { type: "string", length: 16, nullable: true },
     port: { type: "integer", nullable: true },
+    reportedProtocol: { type: "string", length: 32, nullable: true },
     configuredAt: { type: "datetime", nullable: true },
     verificationStatus: { type: "string", length: 16, nullable: true },
     verificationDeadline: { type: "datetime", nullable: true },

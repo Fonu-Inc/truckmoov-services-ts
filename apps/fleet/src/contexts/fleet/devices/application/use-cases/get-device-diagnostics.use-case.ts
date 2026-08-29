@@ -58,6 +58,9 @@ export class GetDeviceDiagnosticsUseCase {
         protocol: device.protocol,
         port: device.port,
       },
+      reportedWith: {
+        protocol: device.reportedProtocol,
+      },
       nextAction: device.nextAction,
       failures: history,
     };
