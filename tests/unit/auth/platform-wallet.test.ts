@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryTenantWalletRepository } from "../../../apps/auth/src/in-memory-tenant-wallet.repository";
 import { InMemoryWalletLedgerRepository } from "../../../apps/auth/src/in-memory-wallet-ledger.repository";
+import { ExportTenantWalletsUseCase } from "../../../apps/auth/src/export-tenant-wallets.use-case";
+import { ExportCrossTenantLedgerUseCase } from "../../../apps/auth/src/export-cross-tenant-ledger.use-case";
 import {
   ListCrossTenantLedgerUseCase,
   ListTenantWalletsUseCase,
@@ -51,6 +53,8 @@ function harness() {
     ),
     list: new ListTenantWalletsUseCase(tokenService, userRepository, wallets),
     listLedger: new ListCrossTenantLedgerUseCase(tokenService, userRepository, ledger),
+    exportWallets: new ExportTenantWalletsUseCase(tokenService, userRepository, wallets),
+    exportLedger: new ExportCrossTenantLedgerUseCase(tokenService, userRepository, ledger),
   };
 }
 
@@ -351,5 +355,82 @@ describe("Cross-tenant ledger", () => {
 
     const { total } = await kit.listLedger.execute("token", { tenantId: "tenant-a" });
     expect(total).toBe(1);
+  });
+});
+
+describe("Wallet export", () => {
+  it("exports wallets as CSV including every column", async () => {
+    const kit = harness();
+    await kit.topUp.execute({
+      accessToken: "token",
+      tenantId: "tenant-a",
+      amountKobo: 50_000 * NAIRA,
+      reason: "seed",
+    });
+
+    const result = await kit.exportWallets.execute("token", {});
+    expect(result.contentType).toContain("text/csv");
+    const csv = result.buffer.toString("utf-8");
+    expect(csv).toContain("Tenant ID");
+    expect(csv).toContain("tenant-a");
+  });
+
+  it("exports only the filtered status", async () => {
+    const kit = harness();
+    await kit.settings.execute({
+      accessToken: "token",
+      tenantId: "healthy-tenant",
+      creditEnabled: false,
+      creditLimitKobo: null,
+      lowBalanceThresholdKobo: 200_000 * NAIRA,
+    });
+    await kit.settings.execute({
+      accessToken: "token",
+      tenantId: "low-tenant",
+      creditEnabled: false,
+      creditLimitKobo: null,
+      lowBalanceThresholdKobo: 500_000 * NAIRA,
+    });
+    for (const tenantId of ["healthy-tenant", "low-tenant"]) {
+      await kit.topUp.execute({ accessToken: "token", tenantId, amountKobo: 300_000 * NAIRA, reason: "seed" });
+    }
+
+    const result = await kit.exportWallets.execute("token", { status: "low" });
+    const csv = result.buffer.toString("utf-8");
+    expect(csv).toContain("low-tenant");
+    expect(csv).not.toContain("healthy-tenant");
+  });
+
+  it("exports xlsx when asked", async () => {
+    const kit = harness();
+    await kit.topUp.execute({ accessToken: "token", tenantId: "tenant-a", amountKobo: 1_000 * NAIRA, reason: "seed" });
+
+    const result = await kit.exportWallets.execute("token", { format: "xlsx" });
+    expect(result.ext).toBe("xlsx");
+    expect(result.contentType).toContain("spreadsheetml");
+  });
+
+  it("exports the cross-tenant ledger with each tenant's lines", async () => {
+    const kit = harness();
+    for (const tenantId of ["tenant-a", "tenant-b"]) {
+      await kit.topUp.execute({ accessToken: "token", tenantId, amountKobo: 1_000 * NAIRA, reason: "seed" });
+    }
+
+    const result = await kit.exportLedger.execute("token", {});
+    const csv = result.buffer.toString("utf-8");
+    expect(csv).toContain("tenant-a");
+    expect(csv).toContain("tenant-b");
+  });
+
+  it("filters the ledger export to one tenant", async () => {
+    const kit = harness();
+    for (const tenantId of ["tenant-a", "tenant-b"]) {
+      await kit.topUp.execute({ accessToken: "token", tenantId, amountKobo: 1_000 * NAIRA, reason: "seed" });
+    }
+
+    const result = await kit.exportLedger.execute("token", { tenantId: "tenant-a" });
+    const csv = result.buffer.toString("utf-8");
+    expect(csv).toContain("tenant-a");
+    expect(csv).not.toContain("tenant-b");
   });
 });

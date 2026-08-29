@@ -9,13 +9,17 @@ import {
   Post,
   Put,
   Query,
+  Res,
+  StreamableFile,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { PlatformTopUpDto, WalletCreditSettingsDto } from './dto/platform-wallet.dto';
+import { ExportCrossTenantLedgerUseCase } from './export-cross-tenant-ledger.use-case';
+import { ExportTenantWalletsUseCase } from './export-tenant-wallets.use-case';
 import {
   ListCrossTenantLedgerUseCase,
   ListTenantWalletsUseCase,
@@ -41,6 +45,10 @@ export class PlatformWalletsController extends BaseAuthController {
     @Inject(PlatformTopUpWalletUseCase) private readonly topUp: PlatformTopUpWalletUseCase,
     @Inject(UpdateWalletCreditSettingsUseCase)
     private readonly updateSettings: UpdateWalletCreditSettingsUseCase,
+    @Inject(ExportTenantWalletsUseCase)
+    private readonly exportWallets: ExportTenantWalletsUseCase,
+    @Inject(ExportCrossTenantLedgerUseCase)
+    private readonly exportLedger: ExportCrossTenantLedgerUseCase,
   ) {
     super(activityLogService);
   }
@@ -105,6 +113,71 @@ export class PlatformWalletsController extends BaseAuthController {
       limit: limit ? Number(limit) : undefined,
     });
     return { status: true, message: 'success', data };
+  }
+
+  @Get('export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export tenant wallets' })
+  @ApiQuery({ name: 'query', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: WALLET_STATUSES })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'xlsx'] })
+  @ApiOkResponse({ description: 'CSV/xlsx file', schema: { type: 'string', format: 'binary' } })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportWalletsRoute(
+    @Headers('authorization') authorization?: string,
+    @Query('query') query?: string,
+    @Query('status') status?: string,
+    @Query('format') format?: 'csv' | 'xlsx',
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const accessToken = this.requireToken(authorization);
+    if (status && !WALLET_STATUSES.includes(status as WalletStatus)) {
+      throw new BadRequestException(`status must be one of: ${WALLET_STATUSES.join(', ')}`);
+    }
+    const result = await this.exportWallets.execute(accessToken, {
+      query,
+      status: status as WalletStatus | undefined,
+      format,
+    });
+    (res as any).set({
+      'Content-Type': result.contentType,
+      'Content-Disposition': `attachment; filename="${result.filename}"`,
+    });
+    return new StreamableFile(result.buffer);
+  }
+
+  @Get('ledger/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export the cross-tenant wallet ledger' })
+  @ApiQuery({ name: 'query', required: false, type: String })
+  @ApiQuery({ name: 'tenantId', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, enum: WALLET_LEDGER_CATEGORIES })
+  @ApiQuery({ name: 'direction', required: false, enum: ['debit', 'credit'] })
+  @ApiQuery({ name: 'format', required: false, enum: ['csv', 'xlsx'] })
+  @ApiOkResponse({ description: 'CSV/xlsx file', schema: { type: 'string', format: 'binary' } })
+  @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  async exportLedgerRoute(
+    @Headers('authorization') authorization?: string,
+    @Query('query') query?: string,
+    @Query('tenantId') tenantId?: string,
+    @Query('category') category?: string,
+    @Query('direction') direction?: string,
+    @Query('format') format?: 'csv' | 'xlsx',
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const accessToken = this.requireToken(authorization);
+    const result = await this.exportLedger.execute(accessToken, {
+      query,
+      tenantId,
+      category: category as never,
+      direction: direction as never,
+      format,
+    });
+    (res as any).set({
+      'Content-Type': result.contentType,
+      'Content-Disposition': `attachment; filename="${result.filename}"`,
+    });
+    return new StreamableFile(result.buffer);
   }
 
   @Post(':tenantId/top-up')

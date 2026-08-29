@@ -416,6 +416,8 @@ import { ReactivateTenantSimUseCase } from './reactivate-tenant-sim.use-case';
 import { UnassignDeviceFromSimUseCase } from './unassign-device-from-sim.use-case';
 import { DeleteTenantSimUseCase } from './delete-tenant-sim.use-case';
 import { ExportTenantSimsUseCase } from './export-tenant-sims.use-case';
+import { ExportTenantWalletsUseCase } from './export-tenant-wallets.use-case';
+import { ExportCrossTenantLedgerUseCase } from './export-cross-tenant-ledger.use-case';
 import { GetSimImportTemplateUseCase } from './get-sim-import-template.use-case';
 import { ImportTenantSimsCsvUseCase } from './import-tenant-sims-csv.use-case';
 // SIM request use cases
@@ -1153,6 +1155,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateWalletCreditSettingsUseCase,
     ListTenantWalletsUseCase,
     ListCrossTenantLedgerUseCase,
+    ExportTenantWalletsUseCase,
+    ExportCrossTenantLedgerUseCase,
     CreatePaymentIntentUseCase,
     ActivateSubscriptionUseCase,
     SubscribePaymentEventsUseCase,
