@@ -433,4 +433,20 @@ describe("Wallet export", () => {
     expect(csv).toContain("tenant-a");
     expect(csv).not.toContain("tenant-b");
   });
+
+  it("neutralizes a reason that starts with a formula character", async () => {
+    const kit = harness();
+    await kit.wallets.ensure("tenant-a");
+    await kit.wallets.credit("tenant-a", 1_000 * NAIRA, {
+      category: "adjustment",
+      quantity: 1,
+      unitRateKobo: 1_000 * NAIRA,
+      reason: "=cmd|'/c calc'!A1",
+    });
+
+    const result = await kit.exportLedger.execute("token", {});
+    const csv = result.buffer.toString("utf-8");
+    expect(csv).not.toMatch(/,=cmd/);
+    expect(csv).toContain("'=cmd");
+  });
 });

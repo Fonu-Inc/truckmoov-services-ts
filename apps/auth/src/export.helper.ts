@@ -1,8 +1,15 @@
 import { Workbook } from 'exceljs';
 
+/** A cell starting with =, +, -, @, tab or CR is a formula in Excel/Sheets, not text. */
+function neutralizeFormula(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function escapeCsvValue(value: unknown): string {
-  if (value == null) return '';
-  const s = typeof value === 'string' ? value : String(value);
+  const safe = neutralizeFormula(value);
+  if (safe == null) return '';
+  const s = typeof safe === 'string' ? safe : String(safe);
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -17,7 +24,7 @@ export async function buildExport(
     const wb = new Workbook();
     const ws = wb.addWorksheet(sheetName);
     ws.addRow(headers).font = { bold: true };
-    for (const row of rows) ws.addRow(row);
+    for (const row of rows) ws.addRow(row.map(neutralizeFormula));
     const ab = await wb.xlsx.writeBuffer();
     return {
       buffer: Buffer.from(ab),
