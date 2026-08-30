@@ -35,6 +35,8 @@ import {
   NotUpgradeableError,
   RequestOrganisationUpgradeUseCase,
   ReviewOrganisationUpgradeUseCase,
+  TargetPlanNotFoundError,
+  TargetPlanRequiredError,
 } from './organisation-upgrade.use-cases';
 
 /**
@@ -118,7 +120,12 @@ export class OrganisationUpgradesController extends BaseAuthController {
     const accessToken = this.requireToken(authorization);
 
     try {
-      const data = await this.reviewUpgrade.approve(accessToken, id, payload.notes ?? null);
+      const data = await this.reviewUpgrade.approve(
+        accessToken,
+        id,
+        payload.notes ?? null,
+        payload.targetPlanCode ?? null,
+      );
       await this.tryRecordActivity({
         tenantId: data.tenantId,
         service: 'auth',
@@ -126,7 +133,11 @@ export class OrganisationUpgradesController extends BaseAuthController {
         entityType: 'organisation_upgrade',
         entityId: data.id,
         summary: 'Organisation promoted to fleet provider',
-        metadata: { vehicleCountAtReview: data.vehicleCountAtReview, notes: data.reviewerNotes },
+        metadata: {
+          vehicleCountAtReview: data.vehicleCountAtReview,
+          notes: data.reviewerNotes,
+          targetPlanCode: data.targetPlanCode,
+        },
       });
       return { status: true, message: 'success', data };
     } catch (error) {
@@ -173,6 +184,8 @@ export class OrganisationUpgradesController extends BaseAuthController {
     if (error instanceof UpgradeAlreadyDecidedError) return new ConflictException(error.message);
     if (error instanceof UpgradeRequestNotFoundError) return new NotFoundException(error.message);
     if (error instanceof NotUpgradeableError) return new BadRequestException(error.message);
+    if (error instanceof TargetPlanRequiredError) return new BadRequestException(error.message);
+    if (error instanceof TargetPlanNotFoundError) return new BadRequestException(error.message);
     // 503 rather than 500: nothing is wrong with the request, the decision
     // simply cannot be made until fleet answers.
     if (error instanceof FleetSizeUnknownError) {

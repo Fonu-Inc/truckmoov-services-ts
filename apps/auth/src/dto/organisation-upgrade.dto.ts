@@ -13,4 +13,9 @@ export class ReviewUpgradeDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  /** Required to approve. Not used on reject. */
+  @IsOptional()
+  @IsString()
+  targetPlanCode?: string;
 }

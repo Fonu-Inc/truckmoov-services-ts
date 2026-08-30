@@ -563,6 +563,7 @@ export class OrganisationUpgradeRequestRecord {
   reviewedAt!: Date | null;
   reviewerNotes!: string | null;
   vehicleCountAtReview!: number | null;
+  targetPlanCode!: string | null;
 }
 
 export const OrganisationUpgradeRequestRecordSchema =
@@ -583,6 +584,7 @@ export const OrganisationUpgradeRequestRecordSchema =
       reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
       reviewerNotes: { fieldName: 'reviewer_notes', type: 'text', nullable: true },
       vehicleCountAtReview: { fieldName: 'vehicle_count_at_review', type: 'number', nullable: true },
+      targetPlanCode: { fieldName: 'target_plan_code', type: 'string', length: 32, nullable: true },
     },
   });
 

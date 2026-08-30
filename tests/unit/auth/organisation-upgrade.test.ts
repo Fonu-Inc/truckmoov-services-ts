@@ -5,6 +5,8 @@ import {
   NotUpgradeableError,
   RequestOrganisationUpgradeUseCase,
   ReviewOrganisationUpgradeUseCase,
+  TargetPlanNotFoundError,
+  TargetPlanRequiredError,
 } from '../../../apps/auth/src/organisation-upgrade.use-cases';
 import {
   UpgradeAlreadyDecidedError,
@@ -54,6 +56,11 @@ function harness(options: { orgType?: string; role?: string; vehicles?: number |
   const raise = vi.fn(async () => {});
   const notify = vi.fn(async () => {});
 
+  const plans = {
+    findByCode: async (code: string) =>
+      code === 'plan_pro' ? { id: 'plan-2', code: 'plan_pro' } : null,
+  } as never;
+
   return {
     raise,
     notify,
@@ -65,7 +72,7 @@ function harness(options: { orgType?: string; role?: string; vehicles?: number |
       tokenService, userRepository, requests, onboarding, fleet, { raise } as never,
     ),
     review: new ReviewOrganisationUpgradeUseCase(
-      tokenService, userRepository, requests, onboarding, fleet, { notify } as never,
+      tokenService, userRepository, requests, onboarding, fleet, { notify } as never, plans,
     ),
   };
 }
@@ -118,28 +125,54 @@ describe('reviewing', () => {
   });
 
   it('promotes the organisation type', async () => {
-    await h.review.approve('token', requestId, 'looks right');
+    await h.review.approve('token', requestId, 'looks right', 'plan_pro');
 
     expect(h.onboardingSaves[0]).toMatchObject({ organizationType: 'fleet_provider' });
+  });
+
+  it('changes the tenant plan to the reviewer-chosen target plan', async () => {
+    await h.review.approve('token', requestId, null, 'plan_pro');
+
+    expect(h.onboardingSaves[0]).toMatchObject({ subscription: { planCode: 'plan_pro' } });
+  });
+
+  it('records the target plan on the decision', async () => {
+    const decided = await h.review.approve('token', requestId, null, 'plan_pro');
+
+    expect(decided.targetPlanCode).toBe('plan_pro');
+  });
+
+  it('refuses to approve without a target plan', async () => {
+    await expect(
+      h.review.approve('token', requestId, null, null),
+    ).rejects.toBeInstanceOf(TargetPlanRequiredError);
+    expect(h.onboardingSaves).toHaveLength(0);
+  });
+
+  it('refuses to approve an unknown plan code', async () => {
+    await expect(
+      h.review.approve('token', requestId, null, 'made_up_plan'),
+    ).rejects.toBeInstanceOf(TargetPlanNotFoundError);
+    expect(h.onboardingSaves).toHaveLength(0);
   });
 
   // Promoting the organisation and not the people in it leaves them without
   // the permissions the new type carries.
   it('promotes every owner-operator in the organisation', async () => {
-    await h.review.approve('token', requestId, null);
+    await h.review.approve('token', requestId, null, 'plan_pro');
 
     expect(h.saved).toHaveLength(1);
     expect(h.saved[0]).toMatchObject({ id: 'u1', role: 'FLEET_ADMIN' });
   });
 
   it('leaves other roles in the organisation alone', async () => {
-    await h.review.approve('token', requestId, null);
+    await h.review.approve('token', requestId, null, 'plan_pro');
 
     expect(h.saved.map((user) => user.id)).not.toContain('u2');
   });
 
   it('records the live count that justified the decision', async () => {
-    const decided = await h.review.approve('token', requestId, null);
+    const decided = await h.review.approve('token', requestId, null, 'plan_pro');
 
     expect(decided.vehicleCountAtReview).toBe(9);
   });
@@ -153,7 +186,7 @@ describe('reviewing', () => {
     const pending = (await blind.requests.findByStatus('pending'))[0];
 
     await expect(
-      blind.review.approve('token', pending.id, null),
+      blind.review.approve('token', pending.id, null, 'plan_pro'),
     ).rejects.toBeInstanceOf(FleetSizeUnknownError);
   });
 
@@ -164,7 +197,7 @@ describe('reviewing', () => {
     );
     const pending = (await blind.requests.findByStatus('pending'))[0];
 
-    await expect(blind.review.approve('token', pending.id, null)).rejects.toThrow();
+    await expect(blind.review.approve('token', pending.id, null, 'plan_pro')).rejects.toThrow();
     expect(blind.onboardingSaves).toHaveLength(0);
   });
 
@@ -176,10 +209,10 @@ describe('reviewing', () => {
   });
 
   it('refuses to decide the same request twice', async () => {
-    await h.review.approve('token', requestId, null);
+    await h.review.approve('token', requestId, null, 'plan_pro');
 
     await expect(
-      h.review.approve('token', requestId, null),
+      h.review.approve('token', requestId, null, 'plan_pro'),
     ).rejects.toBeInstanceOf(UpgradeAlreadyDecidedError);
   });
 
@@ -207,7 +240,7 @@ describe('telling people what happened', () => {
     const created = await harness().request.execute('token', 'Fleet has grown to 9 vehicles');
     await h.requests.save(created);
 
-    await h.review.approve('token', created.id, null);
+    await h.review.approve('token', created.id, null, 'plan_pro');
 
     expect(h.notify).toHaveBeenCalledTimes(1);
     expect(h.notify.mock.calls[0][0]).toMatchObject({ notificationType: 'organisation_upgrade_decision' });
@@ -228,7 +261,7 @@ describe('telling people what happened', () => {
     const created = await harness().request.execute('token', 'Fleet has grown to 9 vehicles');
     await h.requests.save(created);
 
-    await expect(h.review.approve('token', created.id, null)).rejects.toThrow();
+    await expect(h.review.approve('token', created.id, null, 'plan_pro')).rejects.toThrow();
 
     expect(h.notify).not.toHaveBeenCalled();
   });

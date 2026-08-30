@@ -19,6 +19,8 @@ export type OrganisationUpgradeRequest = {
   reviewerNotes: string | null;
   /** The live count when the decision was made, which is what justified it. */
   vehicleCountAtReview: number | null;
+  /** The plan the reviewer chose on approval. Null until decided. */
+  targetPlanCode: string | null;
 };
 
 export interface OrganisationUpgradeRepository {

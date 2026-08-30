@@ -26,6 +26,7 @@ function toRequest(record: OrganisationUpgradeRequestRecord): OrganisationUpgrad
     reviewedAt: record.reviewedAt?.toISOString() ?? null,
     reviewerNotes: record.reviewerNotes,
     vehicleCountAtReview: record.vehicleCountAtReview,
+    targetPlanCode: record.targetPlanCode,
   };
 }
 
@@ -49,6 +50,7 @@ export class MikroOrganisationUpgradeRepository implements OrganisationUpgradeRe
       reviewedAt: request.reviewedAt ? new Date(request.reviewedAt) : null,
       reviewerNotes: request.reviewerNotes,
       vehicleCountAtReview: request.vehicleCountAtReview,
+      targetPlanCode: request.targetPlanCode,
     });
   }
 

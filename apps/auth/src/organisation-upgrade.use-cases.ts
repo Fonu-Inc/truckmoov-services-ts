@@ -20,6 +20,10 @@ import {
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
+import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from './subscription-plan.repository';
 
 const SYSTEM_REVIEWER_ROLES = new Set<string>([
   Role.PLATFORM_ADMIN,
@@ -36,6 +40,18 @@ export class FleetSizeUnknownError extends Error {
 export class NotUpgradeableError extends Error {
   constructor(organisationType: string) {
     super(`A ${organisationType} organisation has no upgrade to request`);
+  }
+}
+
+export class TargetPlanRequiredError extends Error {
+  constructor() {
+    super('A target plan is required to approve a promotion');
+  }
+}
+
+export class TargetPlanNotFoundError extends Error {
+  constructor(planCode: string) {
+    super(`No subscription plan with code ${planCode}`);
   }
 }
 
@@ -82,6 +98,7 @@ export class RequestOrganisationUpgradeUseCase {
       reviewedAt: null,
       reviewerNotes: null,
       vehicleCountAtReview: null,
+      targetPlanCode: null,
     };
 
     await this.requests.save(request);
@@ -114,6 +131,8 @@ export class ReviewOrganisationUpgradeUseCase {
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
     @Inject(TenantNotificationPublisher)
     private readonly notifications: TenantNotificationPublisher,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly plans: SubscriptionPlanRepository,
   ) {}
 
   async list(accessToken: string) {
@@ -136,7 +155,12 @@ export class ReviewOrganisationUpgradeUseCase {
     return { pending: withLiveCounts, history, pendingCount };
   }
 
-  async approve(accessToken: string, requestId: string, notes: string | null) {
+  async approve(
+    accessToken: string,
+    requestId: string,
+    notes: string | null,
+    targetPlanCode: string | null,
+  ) {
     const actor = await this.requireReviewer(accessToken);
     const request = await this.loadOpen(requestId);
 
@@ -148,12 +172,21 @@ export class ReviewOrganisationUpgradeUseCase {
     const onboarding = await this.onboarding.findByTenantId(request.tenantId);
     if (!onboarding) throw new UpgradeRequestNotFoundError();
 
-    // Promotion changes the organisation's type, its permissions and its caps.
-    // A half-promoted organisation is badly broken, so the type change, the
-    // role change and the decision are one unit of work.
+    // Promotion is a plan change, not just a label: fleet_provider carries
+    // different pricing and caps than owner_operator, so approving without a
+    // target plan would promote the organisation onto a plan nothing chose.
+    if (!targetPlanCode?.trim()) throw new TargetPlanRequiredError();
+    const plan = await this.plans.findByCode(targetPlanCode.trim());
+    if (!plan) throw new TargetPlanNotFoundError(targetPlanCode.trim());
+
+    // Promotion changes the organisation's type, its plan and every
+    // owner-operator role in it. A half-promoted organisation is badly broken,
+    // so the type change, the plan change, the role change and the decision
+    // are one unit of work.
     await this.onboarding.save({
       ...onboarding,
       organizationType: request.toOrganisationType,
+      subscription: { ...onboarding.subscription, planCode: plan.code },
       updatedAt: new Date(),
     });
 
@@ -172,6 +205,7 @@ export class ReviewOrganisationUpgradeUseCase {
       reviewedAt: new Date().toISOString(),
       reviewerNotes: notes?.trim() || null,
       vehicleCountAtReview: liveCount,
+      targetPlanCode: plan.code,
     };
     await this.requests.save(decided);
 
