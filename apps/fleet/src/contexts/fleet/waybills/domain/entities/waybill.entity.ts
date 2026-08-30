@@ -72,6 +72,8 @@ export type WaybillProps = {
   /** SHA-256 of the bytes we stored, so a later reader can prove the image is the one captured. */
   imageSha256: string | null;
   imageBytes: number | null;
+  /** The driver the image was attributed to at capture, e.g. resolved from a WhatsApp sender. Null when unknown. */
+  driverId: string | null;
   extractedFields: ExtractedFields;
   extractionError: string | null;
   invoiceId: string | null;
@@ -134,16 +136,21 @@ export class Waybill {
     imageKey: string;
     imageSha256: string;
     imageBytes: number;
+    driverId?: string | null;
     replyChannel?: "whatsapp" | "email" | null;
     replyAddress?: string | null;
     capturedAt?: string;
   }): Waybill {
     const at = input.capturedAt ?? new Date().toISOString();
+    // A WhatsApp image from a number nobody recognizes still becomes a waybill —
+    // dropping it would lose real freight paperwork — but it needs a person to
+    // say whose it is before it can be trusted the way a driver-attributed one is.
+    const unresolvedWhatsappSender = input.source === "whatsapp" && !input.driverId;
     return Waybill.create({
       id: input.id,
       tenantId: input.tenantId,
       source: input.source,
-      status: "pending",
+      status: unresolvedWhatsappSender ? "needs_review" : "pending",
       waybillNumber: null,
       origin: null,
       destination: null,
@@ -157,8 +164,11 @@ export class Waybill {
       imageKey: input.imageKey,
       imageSha256: input.imageSha256,
       imageBytes: input.imageBytes,
+      driverId: input.driverId ?? null,
       extractedFields: {},
-      extractionError: null,
+      extractionError: unresolvedWhatsappSender
+        ? "whatsapp sender is not a known driver"
+        : null,
       invoiceId: null,
       replyChannel: input.replyChannel ?? null,
       replyAddress: input.replyAddress ?? null,
@@ -184,6 +194,7 @@ export class Waybill {
   get imageKey() { return this.props.imageKey; }
   get imageSha256() { return this.props.imageSha256; }
   get imageBytes() { return this.props.imageBytes; }
+  get driverId() { return this.props.driverId; }
   get extractedFields() { return this.props.extractedFields; }
   get extractionError() { return this.props.extractionError; }
   get invoiceId() { return this.props.invoiceId; }
@@ -224,7 +235,12 @@ export class Waybill {
     );
     const hasFields = Object.keys(input.fields).length > 0;
 
-    const forced = input.forcedReviewReason?.trim() || null;
+    // An unattributed WhatsApp sender is a review reason of its own: extraction
+    // reading the page cleanly says nothing about whose freight it is.
+    const unresolvedWhatsappSender = this.source === "whatsapp" && !this.driverId;
+    const forced =
+      input.forcedReviewReason?.trim()
+      || (unresolvedWhatsappSender ? "whatsapp sender is not a known driver" : null);
 
     return Waybill.create({
       ...this.toPrimitives(),

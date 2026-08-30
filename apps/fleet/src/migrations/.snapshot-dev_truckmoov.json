@@ -11014,11 +11014,37 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "string"
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "varchar(64)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 64,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "string"
         }
       },
       "name": "fleet_waybills",
       "schema": "public",
       "indexes": [
+        {
+          "columnNames": [
+            "driver_id"
+          ],
+          "composite": false,
+          "constraint": false,
+          "keyName": "fleet_waybills_driver_id_index",
+          "unique": false,
+          "primary": false
+        },
         {
           "columnNames": [
             "invoice_id"
@@ -12717,6 +12743,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "integer"
+        },
+        "target_plan_code": {
+          "name": "target_plan_code",
+          "type": "varchar(32)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 32,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "string"
         }
       },
       "name": "organisation_upgrade_requests",

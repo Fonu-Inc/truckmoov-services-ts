@@ -204,6 +204,57 @@ describe("Waybill capture", () => {
 
     expect(await kit.waybills.findById(waybill.id, "tenant-2")).toBeNull();
   });
+
+  it("attributes a whatsapp capture to the resolved driver and keeps it pending", async () => {
+    const kit = harness();
+
+    const waybill = await kit.capture.execute({
+      tenantId: TENANT,
+      source: "whatsapp",
+      buffer: jpeg(),
+      contentType: "image/jpeg",
+      filename: "wb.jpg",
+      driverId: "driver-1",
+      replyAddress: "+2348012345678",
+    });
+
+    expect(waybill.driverId).toBe("driver-1");
+    expect(waybill.status).toBe("pending");
+    expect(waybill.replyChannel).toBe("whatsapp");
+    expect(waybill.replyAddress).toBe("+2348012345678");
+  });
+
+  it("flags a whatsapp capture with no known driver for review", async () => {
+    const kit = harness();
+
+    const waybill = await kit.capture.execute({
+      tenantId: TENANT,
+      source: "whatsapp",
+      buffer: jpeg(),
+      contentType: "image/jpeg",
+      filename: "wb.jpg",
+      driverId: null,
+    });
+
+    expect(waybill.driverId).toBeNull();
+    expect(waybill.status).toBe("needs_review");
+    expect(waybill.extractionError).toBe("whatsapp sender is not a known driver");
+  });
+
+  it("does not flag an upload with no driver, only whatsapp", async () => {
+    const kit = harness();
+
+    const waybill = await kit.capture.execute({
+      tenantId: TENANT,
+      source: "upload",
+      buffer: jpeg(),
+      contentType: "image/jpeg",
+      filename: "wb.jpg",
+    });
+
+    expect(waybill.status).toBe("pending");
+    expect(waybill.driverId).toBeNull();
+  });
 });
 
 describe("Waybill list", () => {
@@ -343,6 +394,43 @@ describe("Waybill extraction", () => {
     expect(result?.waybillNumber).toBe("WB-2025-001");
     expect(result?.destination).toBe("Abuja");
     expect(result?.waybillDate).toBe("2026-02-24");
+  });
+
+  it("keeps a whatsapp waybill with no known driver in review despite a confident read", async () => {
+    const repository = new InMemoryWaybillRepository();
+    const id = "wb-whatsapp";
+    await repository.save(
+      Waybill.capture({
+        id,
+        tenantId: TENANT,
+        source: "whatsapp",
+        imageKey: `${TENANT}/waybills/${id}/wb.jpg`,
+        imageSha256: "a".repeat(64),
+        imageBytes: 100,
+        driverId: null,
+      }),
+    );
+    const useCase = new ApplyWaybillExtractionUseCase(
+      repository,
+      extractor({
+        ok: true,
+        fields: {
+          waybillNumber: field("WB-2025-002", 0.95),
+          destination: field("Kano", 0.91),
+          customerName: field("Dangote", 0.9),
+          waybillDate: field("2026-02-24", 0.93),
+        },
+      }),
+      CONFIG,
+      pricingFor(repository),
+    );
+
+    const result = await useCase.execute({ waybillId: id, tenantId: TENANT });
+
+    expect(result?.status).toBe("needs_review");
+    expect(result?.extractionError).toBe("whatsapp sender is not a known driver");
+    // The fields extraction read are still worth keeping for the reviewer.
+    expect(result?.destination).toBe("Kano");
   });
 
   it("sends a low-confidence field to review even when the rest is clean", async () => {

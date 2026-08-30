@@ -256,6 +256,7 @@ export class WaybillRecord {
   imageKey?: string | null;
   imageSha256?: string | null;
   imageBytes?: string | number | null;
+  driverId?: string | null;
   extractedFields!: Record<string, unknown>;
   extractionError?: string | null;
   invoiceId?: string | null;
@@ -286,6 +287,7 @@ export const WaybillRecordSchema = new EntitySchema<WaybillRecord>({
     imageKey: { type: "string", length: 512, nullable: true },
     imageSha256: { type: "string", length: 64, nullable: true },
     imageBytes: { type: "bigint", nullable: true },
+    driverId: { type: "string", length: 64, nullable: true },
     extractedFields: { type: "json", defaultRaw: "'{}'" },
     extractionError: { type: "text", nullable: true },
     invoiceId: { type: "string", length: 64, nullable: true },
@@ -298,6 +300,7 @@ export const WaybillRecordSchema = new EntitySchema<WaybillRecord>({
     { properties: ["tenantId", "status"] },
     { properties: ["tenantId", "waybillDate"] },
     { properties: ["invoiceId"] },
+    { properties: ["driverId"] },
   ],
 });
 

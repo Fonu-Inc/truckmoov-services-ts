@@ -27,6 +27,8 @@ export type CaptureWaybillCommand = {
   buffer: Buffer;
   contentType: string;
   filename: string;
+  /** Resolved from the sender when the source can identify one, e.g. WhatsApp. Null when unknown. */
+  driverId?: string | null;
   /** Where an invoice from this waybill goes back to. */
   replyChannel?: "whatsapp" | "email" | null;
   replyAddress?: string | null;
@@ -65,7 +67,11 @@ export class CaptureWaybillUseCase {
       imageKey: key,
       imageSha256: sha256,
       imageBytes: command.buffer.byteLength,
-      replyChannel: command.replyChannel ?? null,
+      driverId: command.driverId ?? null,
+      // A whatsapp capture with a sender address implies the reply channel:
+      // there is no separate "how should we invoice you" question in a chat.
+      replyChannel:
+        command.replyChannel ?? (command.source === "whatsapp" && command.replyAddress ? "whatsapp" : null),
       replyAddress: command.replyAddress ?? null,
     });
     await this.waybills.save(waybill);

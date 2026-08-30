@@ -45,6 +45,10 @@ import { WAYBILL_STATUSES } from "./contexts/fleet/waybills/domain/entities/wayb
 import { ReviewWaybillUseCase } from "./contexts/fleet/waybills/application/use-cases/review-waybill.use-case";
 import { ReviewWaybillDto } from "./dto/waybill.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import {
+  DRIVER_REPOSITORY,
+  type DriverRepository,
+} from "./contexts/fleet/drivers/domain/repositories/driver.repository";
 
 /** Reading revenue is a finance view; capturing a waybill is operations. */
 const WAYBILL_READ_ROLES = [
@@ -82,6 +86,7 @@ export class WaybillsController extends BaseFleetController {
     @Inject(ListWaybillsUseCase) private readonly list: ListWaybillsUseCase,
     @Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository,
     @Inject(ReviewWaybillUseCase) private readonly review: ReviewWaybillUseCase,
+    @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
   ) {
     super(auditLog, bus);
   }
@@ -152,17 +157,33 @@ export class WaybillsController extends BaseFleetController {
     @UploadedFile()
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     @Query("source") source?: string,
+    @Body("driverId") driverId?: string,
+    @Body("replyAddress") replyAddress?: string,
   ) {
     if (!file) throw new BadRequestException("a waybill image is required");
 
+    const resolvedSource = source === "whatsapp" ? "whatsapp" : "upload";
     const tenantId = this.tenantIdFromRequest(req);
+    const trimmedReplyAddress = replyAddress?.trim() || null;
+
+    // A whatsapp capture rarely arrives with a driverId already known — the
+    // sender is a phone number, not a signed-in user — so the number itself is
+    // how the driver is found.
+    let resolvedDriverId = driverId?.trim() || null;
+    if (!resolvedDriverId && resolvedSource === "whatsapp" && trimmedReplyAddress) {
+      const driver = await this.drivers.findByWhatsappNumber(trimmedReplyAddress, tenantId);
+      resolvedDriverId = driver?.id ?? null;
+    }
+
     const waybill = await this.runFleetUseCase(() =>
       this.capture.execute({
         tenantId,
-        source: source === "whatsapp" ? "whatsapp" : "upload",
+        source: resolvedSource,
         buffer: file.buffer,
         contentType: file.mimetype,
         filename: file.originalname,
+        driverId: resolvedDriverId,
+        replyAddress: trimmedReplyAddress,
       }),
     );
 
