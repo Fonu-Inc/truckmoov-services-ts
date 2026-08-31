@@ -230,6 +230,7 @@ import {
 import { InMemoryPlatformIntegrationCredentialsRepository } from './in-memory-platform-integration-credentials.repository';
 import { MikroPlatformIntegrationCredentialsRepository } from './mikro-platform-integration-credentials.repository';
 import { UpdatePlatformIntegrationCredentialsUseCase } from './update-platform-integration-credentials.use-case';
+import { AiRouterService } from './ai-routing/ai-router.service';
 import { ImapMailboxReader } from './contexts/mailbox/imap-mailbox.reader';
 import { MAILBOX_READER } from './contexts/mailbox/mailbox-reader.port';
 import { MAILBOX_FLAGS_WRITER } from './contexts/mailbox/mailbox-flags-writer.port';
@@ -1021,6 +1022,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
     },
     UpdatePlatformIntegrationCredentialsUseCase,
+    AiRouterService,
     InMemoryPlatformIntegrationCredentialsRepository,
     MikroPlatformIntegrationCredentialsRepository,
     {
