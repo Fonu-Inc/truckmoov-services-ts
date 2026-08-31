@@ -38,6 +38,37 @@ and must not be repurposed as the outbound implementation.
 
 ---
 
+## TD-16 — ERP/WMS connector integrations require Console ownership and a confirmed provider
+
+**Status:** deferred by decision, 31 August 2026. This is an outgoing,
+console-facing integration capability and must not be implemented as a generic
+feature inside TruckMoov internal services before the first provider is chosen.
+
+### What is needed
+
+Per-tenant ERP/WMS connections with provider-specific credentials, connection
+status, last-sync information, sync history, and user actions for testing,
+manual synchronisation, and deletion. The candidate providers are SAP,
+NetSuite, Odoo, and Dynamics 365.
+
+### Why it is deferred
+
+There is currently no connector entity, encrypted credential store, provider
+adapter, sync-run history, or connector API in either TruckMoov service repo.
+The existing integration-health counters are in-memory source counters and do
+not represent tenant-owned connections. Building a generic four-provider
+framework now would create unvalidated scope and the wrong ownership boundary.
+
+### When this is picked up
+
+First confirm which ERP/WMS provider is required and that the implementation
+belongs in the outgoing Console service. Then define the provider adapter and
+the `Connector` and `SyncRun` models, followed by encrypted write-only
+credentials, test/sync/delete actions, status reporting, audit history, and
+provider-specific sync behaviour.
+
+---
+
 ## TD-13 — Voice/IVR (Screen 6): fonu-api side built and proven; TruckMoov side and gaps remain
 
 **Status:** in progress, updated 28 August 2026. fonu-api now has a working
