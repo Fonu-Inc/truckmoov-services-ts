@@ -18,7 +18,10 @@ function toStored(r: SupportTicketAttachmentRecord): StoredSupportTicketAttachme
     key: r.key,
     filename: r.filename,
     contentType: r.contentType,
-    sizeBytes: r.sizeBytes,
+    // PostgreSQL BIGINT is returned by the driver as bigint. API responses
+    // must contain JSON-safe primitives; attachment sizes are bounded by the
+    // upload limit, so converting to number is lossless here.
+    sizeBytes: Number(r.sizeBytes),
     uploadedBy: r.uploadedBy,
     createdAt: r.createdAt,
   };

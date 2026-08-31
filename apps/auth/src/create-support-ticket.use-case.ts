@@ -71,6 +71,9 @@ export class CreateSupportTicketUseCase {
     if (channel === 'other' && !otherChannel) {
       throw new InvalidTicketFieldError('otherChannel is required when channel is "other"');
     }
+    if (otherChannel && otherChannel.length > 255) {
+      throw new InvalidTicketFieldError('otherChannel must be 255 characters or fewer');
+    }
 
     const contextType = command.contextType ?? 'none';
     if (!SUPPORT_TICKET_CONTEXT_TYPES.includes(contextType as never)) {

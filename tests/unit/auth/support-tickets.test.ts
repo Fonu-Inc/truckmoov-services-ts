@@ -125,6 +125,11 @@ describe("Raising a ticket", () => {
     expect(ticket.otherChannel).toBeNull();
   });
 
+  it("rejects an other-channel label that exceeds the database limit", async () => {
+    await expect(() => raise(harness(), { channel: "other", otherChannel: "x".repeat(256) }))
+      .rejects.toThrow("255 characters or fewer");
+  });
+
   it("defaults channel to null when omitted", async () => {
     const ticket = await raise(harness());
     expect(ticket.channel).toBeNull();

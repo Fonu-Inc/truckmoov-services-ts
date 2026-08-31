@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_CHANNELS, SUPPORT_TICKET_STATUSES } from '../support-ticket.repository';
 
 const TICKET_STATUSES = SUPPORT_TICKET_STATUSES;
@@ -74,6 +74,7 @@ export class CreateSupportTicketDto {
   @ApiPropertyOptional({ description: 'Required when channel is "other".' })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   otherChannel?: string;
 
   @ApiPropertyOptional({ enum: ['low', 'medium', 'high', 'critical'] })
