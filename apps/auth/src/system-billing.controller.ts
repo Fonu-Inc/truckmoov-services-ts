@@ -11,6 +11,7 @@ import {
   Query,
   UnauthorizedException,
   Delete,
+  Res,
 } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -36,6 +37,7 @@ import {
 import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use-case';
 import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
+import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
 
 @ApiTags('System Billing')
 @Controller('system')
@@ -48,8 +50,42 @@ export class SystemBillingController extends BaseAuthController {
     @Inject(UpdateSystemBundleUseCase) private readonly updateSystemBundleUseCase: UpdateSystemBundleUseCase,
     @Inject(DeleteSystemBundleUseCase) private readonly deleteSystemBundleUseCase: DeleteSystemBundleUseCase,
     @Inject(ListSystemBundleCatalogUseCase) private readonly listSystemBundleCatalogUseCase: ListSystemBundleCatalogUseCase,
+    @Inject(GetSystemBundleAdoptionUseCase) private readonly getSystemBundleAdoptionUseCase: GetSystemBundleAdoptionUseCase,
   ) {
     super(activityLogService);
+  }
+
+  @Get('bundle-adoption')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List cross-tenant bundle adoption (system admin)' })
+  async listBundleAdoption(@Query('search') search: string | undefined, @Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemBundleAdoptionUseCase.execute(accessToken, { search });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('bundle-adoption/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export cross-tenant bundle adoption (system admin)' })
+  async exportBundleAdoption(@Query('search') search: string | undefined, @Query('format') format: 'csv' | 'xlsx' | undefined, @Headers('authorization') authorization: string | undefined, @Res() response: any) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.getSystemBundleAdoptionUseCase.export(accessToken, { search, format });
+      response.setHeader('Content-Type', result.contentType);
+      response.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+      return response.send(result.buffer);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
   }
 
   @Post('carriers')

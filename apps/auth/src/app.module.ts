@@ -446,6 +446,7 @@ import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use
 import { CreateSystemBundleUseCase } from './create-system-bundle.use-case';
 import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { DeleteSystemBundleUseCase } from './delete-system-bundle.use-case';
+import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
 // Data bundle dashboard use cases
 import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
 import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
@@ -1321,6 +1322,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CreateSystemBundleUseCase,
     UpdateSystemBundleUseCase,
     DeleteSystemBundleUseCase,
+    GetSystemBundleAdoptionUseCase,
     // Data bundle dashboard
     GetBundleSummaryUseCase,
     GetWalletBalanceUseCase,
