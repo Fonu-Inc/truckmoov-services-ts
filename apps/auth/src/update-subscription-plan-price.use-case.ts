@@ -16,6 +16,13 @@ export class SubscriptionPlanNotFoundError extends Error {
   }
 }
 
+export class InvalidSubscriptionPlanPriceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidSubscriptionPlanPriceError';
+  }
+}
+
 export type UpdateSubscriptionPlanPriceCommand = {
   accessToken: string;
   planId: string;
@@ -45,15 +52,30 @@ export class UpdateSubscriptionPlanPriceUseCase {
       forbiddenMessage: 'You are not permitted to change subscription plan pricing',
     });
 
-    const plan = await this.plans.findById(command.planId);
+    const planReference = command.planId.trim();
+    // This route deliberately accepts the canonical plan UUID only. Plan codes
+    // are display/catalog keys and must not be interchangeable with identity.
+    const plan = await this.plans.findById(planReference);
     if (!plan) throw new SubscriptionPlanNotFoundError();
+
+    if (command.monthlyPriceNgn === undefined && command.yearlyMonthlyEquivalentNgn === undefined) {
+      throw new InvalidSubscriptionPlanPriceError('At least one price must be provided');
+    }
+    for (const [name, value] of [
+      ['monthlyPriceNgn', command.monthlyPriceNgn],
+      ['yearlyMonthlyEquivalentNgn', command.yearlyMonthlyEquivalentNgn],
+    ] as const) {
+      if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+        throw new InvalidSubscriptionPlanPriceError(`${name} must be a finite non-negative number`);
+      }
+    }
 
     const monthlyPriceNgn = command.monthlyPriceNgn ?? plan.monthlyPriceNgn;
     const yearlyMonthlyEquivalentNgn = command.yearlyMonthlyEquivalentNgn ?? plan.yearlyMonthlyEquivalentNgn;
     const yearlyDiscountPercent =
-      monthlyPriceNgn && yearlyMonthlyEquivalentNgn
+      monthlyPriceNgn !== null && monthlyPriceNgn > 0 && yearlyMonthlyEquivalentNgn !== null
         ? Math.round((1 - yearlyMonthlyEquivalentNgn / monthlyPriceNgn) * 100)
-        : plan.yearlyDiscountPercent;
+        : null;
 
     const updated: StoredSubscriptionPlan = {
       ...plan,

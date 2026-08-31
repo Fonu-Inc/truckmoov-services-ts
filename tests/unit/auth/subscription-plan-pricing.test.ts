@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { InMemorySubscriptionPlanRepository } from "../../../apps/auth/src/in-memory-subscription-plan.repository";
 import {
   SubscriptionPlanNotFoundError,
+  InvalidSubscriptionPlanPriceError,
   UpdateSubscriptionPlanPriceUseCase,
 } from "../../../apps/auth/src/update-subscription-plan-price.use-case";
 import type { StoredSubscriptionPlan } from "../../../apps/auth/src/subscription-plan.repository";
@@ -74,6 +75,16 @@ describe("Subscription plan pricing", () => {
     expect(updated.yearlyDiscountPercent).toBe(32);
   });
 
+  it("requires the canonical plan UUID in the route identifier", async () => {
+    const kit = harness(seedPlan());
+
+    await expect(() => kit.useCase.execute({
+      accessToken: "token",
+      planId: "professional",
+      monthlyPriceNgn: 175000,
+    })).rejects.toBeInstanceOf(SubscriptionPlanNotFoundError);
+  });
+
   it("updates only the yearly-equivalent price when monthly is omitted", async () => {
     const kit = harness(seedPlan());
 
@@ -119,5 +130,25 @@ describe("Subscription plan pricing", () => {
     await expect(() =>
       kit.useCase.execute({ accessToken: "token", planId: "missing", monthlyPriceNgn: 100000 }),
     ).rejects.toBeInstanceOf(SubscriptionPlanNotFoundError);
+  });
+
+  it("rejects an empty price patch", async () => {
+    const kit = harness(seedPlan());
+    await expect(() => kit.useCase.execute({ accessToken: "token", planId: "plan-1" }))
+      .rejects.toBeInstanceOf(InvalidSubscriptionPlanPriceError);
+  });
+
+  it("rejects non-finite and negative prices from internal callers", async () => {
+    const kit = harness(seedPlan());
+    await expect(() => kit.useCase.execute({ accessToken: "token", planId: "plan-1", monthlyPriceNgn: -1 }))
+      .rejects.toBeInstanceOf(InvalidSubscriptionPlanPriceError);
+    await expect(() => kit.useCase.execute({ accessToken: "token", planId: "plan-1", monthlyPriceNgn: Number.NaN }))
+      .rejects.toBeInstanceOf(InvalidSubscriptionPlanPriceError);
+  });
+
+  it("clears the discount when the monthly price is zero", async () => {
+    const kit = harness(seedPlan());
+    const updated = await kit.useCase.execute({ accessToken: "token", planId: "plan-1", monthlyPriceNgn: 0 });
+    expect(updated.yearlyDiscountPercent).toBeNull();
   });
 });

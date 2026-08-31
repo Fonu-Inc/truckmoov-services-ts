@@ -78,6 +78,7 @@ import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-pla
 import {
   UpdateSubscriptionPlanPriceUseCase,
   SubscriptionPlanNotFoundError,
+  InvalidSubscriptionPlanPriceError,
 } from './update-subscription-plan-price.use-case';
 import { UpdateSubscriptionPlanPriceDto } from './dto/subscription-plan.dto';
 import { UpdatePlanEntitlementsDto } from './dto/update-plan-entitlements.dto';
@@ -804,6 +805,7 @@ export class SystemController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof SubscriptionPlanNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof InvalidSubscriptionPlanPriceError) throw new BadRequestException(error.message);
       throw error;
     }
   }
