@@ -207,6 +207,7 @@ import {
 } from './plan-entitlements.repository';
 import { InMemoryPlanEntitlementsRepository } from './in-memory-plan-entitlements.repository';
 import { MikroPlanEntitlementsRepository } from './mikro-plan-entitlements.repository';
+import { UpdatePlanEntitlementsUseCase } from './update-plan-entitlements.use-case';
 import { SimRecurringChargeService } from './sim-recurring-charge.service';
 import {
   COMMUNICATION_RATES_REPOSITORY,
@@ -924,6 +925,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CommunicationRateService,
     ChargeUsageUseCase,
     EntitlementService,
+    UpdatePlanEntitlementsUseCase,
     StorageQuotaService,
     FleetFactsService,
     PlatformAlertPublisher,

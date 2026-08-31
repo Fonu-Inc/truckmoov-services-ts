@@ -80,6 +80,12 @@ import {
   SubscriptionPlanNotFoundError,
 } from './update-subscription-plan-price.use-case';
 import { UpdateSubscriptionPlanPriceDto } from './dto/subscription-plan.dto';
+import { UpdatePlanEntitlementsDto } from './dto/update-plan-entitlements.dto';
+import {
+  InvalidPlanEntitlementsError,
+  PlanEntitlementsNotFoundError,
+  UpdatePlanEntitlementsUseCase,
+} from './update-plan-entitlements.use-case';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
@@ -105,6 +111,7 @@ export class SystemController extends BaseAuthController {
     @Inject(GetSystemDashboardUseCase) private readonly getSystemDashboardUseCase: GetSystemDashboardUseCase,
     @Inject(GetSystemSubscriptionPlansUseCase) private readonly getSystemSubscriptionPlansUseCase: GetSystemSubscriptionPlansUseCase,
     @Inject(UpdateSubscriptionPlanPriceUseCase) private readonly updateSubscriptionPlanPriceUseCase: UpdateSubscriptionPlanPriceUseCase,
+    @Inject(UpdatePlanEntitlementsUseCase) private readonly updatePlanEntitlementsUseCase: UpdatePlanEntitlementsUseCase,
     @Inject(GetSystemActivityLogUseCase) private readonly getSystemActivityLogUseCase: GetSystemActivityLogUseCase,
     @Inject(ListSystemAdminInvitesUseCase) private readonly listSystemAdminInvitesUseCase: ListSystemAdminInvitesUseCase,
     @Inject(ListSystemFeatureFlagsUseCase) private readonly listSystemFeatureFlagsUseCase: ListSystemFeatureFlagsUseCase,
@@ -797,6 +804,37 @@ export class SystemController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof SubscriptionPlanNotFoundError) throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('subscription-plans/:id/entitlements')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a subscription plan entitlements policy' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to change plan entitlements' })
+  @ApiBadRequestResponse({ description: 'Invalid quota, feature, allowance, or policy value' })
+  @ApiNotFoundResponse({ description: 'Plan or plan entitlements not found' })
+  async updateSubscriptionPlanEntitlements(
+    @Param('id') id: string,
+    @Body(BodyOrDataPipe) payload: UpdatePlanEntitlementsDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const data = await this.updatePlanEntitlementsUseCase.execute({
+        accessToken,
+        planId: id,
+        patch: payload,
+      });
+      return { status: true, message: 'success', data };
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof PlanEntitlementsNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof InvalidPlanEntitlementsError) throw new BadRequestException(error.message);
       throw error;
     }
   }

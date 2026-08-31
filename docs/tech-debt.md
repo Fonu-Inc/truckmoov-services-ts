@@ -4,6 +4,40 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-15 — Outbound Webhook Management belongs in Console, not TruckMoov internal services
+
+**Status:** deferred by decision, 31 August 2026. This is an outgoing,
+console-facing capability and must not be implemented as an internal
+TruckMoov service feature.
+
+### What is needed
+
+The Console service needs platform-level outbound webhook management: endpoint
+CRUD, an event subscription catalogue, generated and rotatable signing
+secrets, test delivery, queued delivery with retries and exponential backoff,
+per-endpoint health, delivery history, retention, and replay of permanently
+failed deliveries.
+
+### Important boundary
+
+The Console service is not an internal-only surface. It is the platform's
+outgoing integration boundary. Do not add this implementation to the
+TruckMoov auth, fleet, dispatch, or notification services. The eventual
+design must keep credentials and delivery state in Console, publish only the
+events Console is authorised to expose, and enforce HTTPS plus private,
+loopback, and link-local target blocking both when an endpoint is saved and
+again when a delivery is sent.
+
+### When this is picked up
+
+When Console outbound integrations are scheduled. Start with
+`WebhookEndpoint` and `WebhookDelivery` persistence, then the admin CRUD,
+secret rotation, queued dispatcher, delivery log, replay, retention, and
+audit trail. Existing inbound Paystack and WhatsApp handlers are unrelated
+and must not be repurposed as the outbound implementation.
+
+---
+
 ## TD-13 — Voice/IVR (Screen 6): fonu-api side built and proven; TruckMoov side and gaps remain
 
 **Status:** in progress, updated 28 August 2026. fonu-api now has a working
@@ -629,4 +663,3 @@ platform administrator can use to change any of it.
 Entitlements can currently be altered only by editing `plan-entitlement-seeds.ts`
 and redeploying. The seed deliberately fills absences only, so an operator edit
 would survive once the endpoints exist.
-
