@@ -167,6 +167,7 @@ import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
 import { PlatformWalletsController } from './platform-wallets.controller';
+import { PlatformIntegrationCredentialsController } from './platform-integration-credentials.controller';
 import { LowBalanceNotifierService } from './low-balance-notifier.service';
 import {
   ListCrossTenantLedgerUseCase,
@@ -222,6 +223,13 @@ import {
 } from './platform-alert-settings.repository';
 import { InMemoryPlatformAlertSettingsRepository } from './in-memory-platform-alert-settings.repository';
 import { MikroPlatformAlertSettingsRepository } from './mikro-platform-alert-settings.repository';
+import {
+  PLATFORM_INTEGRATION_CREDENTIALS_REPOSITORY,
+  type PlatformIntegrationCredentialsRepository,
+} from './platform-integration-credentials.repository';
+import { InMemoryPlatformIntegrationCredentialsRepository } from './in-memory-platform-integration-credentials.repository';
+import { MikroPlatformIntegrationCredentialsRepository } from './mikro-platform-integration-credentials.repository';
+import { UpdatePlatformIntegrationCredentialsUseCase } from './update-platform-integration-credentials.use-case';
 import { ImapMailboxReader } from './contexts/mailbox/imap-mailbox.reader';
 import { MAILBOX_READER } from './contexts/mailbox/mailbox-reader.port';
 import { MAILBOX_FLAGS_WRITER } from './contexts/mailbox/mailbox-flags-writer.port';
@@ -492,6 +500,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalUsageController,
     InternalDeviceCatalogController,
     PlatformWalletsController,
+    PlatformIntegrationCredentialsController,
     ProfileController,
     OrganizationController,
     SystemController,
@@ -1009,6 +1018,23 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         mikro: PlatformAlertSettingsRepository,
         config: AppConfigService,
       ): PlatformAlertSettingsRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
+    UpdatePlatformIntegrationCredentialsUseCase,
+    InMemoryPlatformIntegrationCredentialsRepository,
+    MikroPlatformIntegrationCredentialsRepository,
+    {
+      provide: PLATFORM_INTEGRATION_CREDENTIALS_REPOSITORY,
+      inject: [
+        InMemoryPlatformIntegrationCredentialsRepository,
+        MikroPlatformIntegrationCredentialsRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: PlatformIntegrationCredentialsRepository,
+        mikro: PlatformIntegrationCredentialsRepository,
+        config: AppConfigService,
+      ): PlatformIntegrationCredentialsRepository =>
         config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
     },
     // The only piece that decides where the sync runs. Moving the mail work to

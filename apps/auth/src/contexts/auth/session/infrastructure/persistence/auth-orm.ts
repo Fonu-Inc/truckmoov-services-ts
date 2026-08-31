@@ -968,6 +968,37 @@ export const SystemSubscriptionPlanRecordSchema =
     indexes: [{ properties: ['tier'] }, { properties: ['isActive'] }],
   });
 
+export class PlatformIntegrationCredentialRecord {
+  serviceKey!: string;
+  category!: string;
+  enabled!: boolean;
+  secretCiphertext!: string | null;
+  secretPreview!: string | null;
+  config!: Record<string, unknown>;
+  status!: string;
+  lastTestedAt!: Date | null;
+  lastError!: string | null;
+  updatedAt!: Date;
+}
+
+export const PlatformIntegrationCredentialRecordSchema = new EntitySchema<PlatformIntegrationCredentialRecord>({
+  class: PlatformIntegrationCredentialRecord,
+  tableName: 'platform_integration_credentials',
+  properties: {
+    serviceKey: { fieldName: 'service_key', type: 'string', primary: true, length: 80 },
+    category: { type: 'string', length: 64 },
+    enabled: { type: 'boolean', default: true },
+    secretCiphertext: { fieldName: 'secret_ciphertext', type: 'text', nullable: true },
+    secretPreview: { fieldName: 'secret_preview', type: 'string', length: 32, nullable: true },
+    config: { type: 'json', defaultRaw: "'{}'" },
+    status: { type: 'string', length: 32 },
+    lastTestedAt: { fieldName: 'last_tested_at', type: 'datetime', nullable: true },
+    lastError: { fieldName: 'last_error', type: 'text', nullable: true },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+  indexes: [{ properties: ['category'] }, { properties: ['enabled'] }],
+});
+
 /* ── Invite ──────────────────────────────────────────── */
 
 export class InviteRecord {
