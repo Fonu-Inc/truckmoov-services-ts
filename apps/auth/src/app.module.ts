@@ -49,7 +49,6 @@ import {
   PASSWORD_HASHER,
   RefreshUseCase,
   RegisterInvitedUseCase,
-  RegisterUseCase,
   RemoveOrganizationUserUseCase,
   ResendPendingInviteUseCase,
   ResetPasswordUseCase,
@@ -355,6 +354,37 @@ import { MikroTenantBusinessInfoRepository } from './mikro-tenant-business-info.
 import { KYC_DOCUMENT_REPOSITORY } from './tenant-kyc-document.repository';
 import { InMemoryKycDocumentRepository } from './in-memory-tenant-kyc-document.repository';
 import { MikroKycDocumentRepository } from './mikro-tenant-kyc-document.repository';
+import { ONBOARDING_APPLICATION_REPOSITORY } from './onboarding-application.repository';
+import { InMemoryOnboardingApplicationRepository } from './in-memory-onboarding-application.repository';
+import { MikroOnboardingApplicationRepository } from './mikro-onboarding-application.repository';
+import { CreateOnboardingApplicationUseCase } from './create-onboarding-application.use-case';
+import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
+import { UpdateOnboardingApplicationUseCase } from './update-onboarding-application.use-case';
+import { UploadOnboardingApplicationDocumentUseCase } from './upload-onboarding-application-document.use-case';
+import { DeleteOnboardingApplicationDocumentUseCase } from './delete-onboarding-application-document.use-case';
+import { OnboardingApplicationsController } from './onboarding-applications.controller';
+import { SystemOnboardingApplicationsController } from './system-onboarding-applications.controller';
+import { OnboardingVerificationNotifier } from './onboarding-verification-notifier';
+import { OnboardingDecisionNotifier } from './onboarding-decision-notifier';
+import {
+  ConfirmOnboardingVerificationCodeUseCase,
+  SendOnboardingVerificationCodeUseCase,
+} from './verify-onboarding-application-contact.use-cases';
+import {
+  GetOnboardingApplicationStatusUseCase,
+  SubmitOnboardingApplicationUseCase,
+} from './submit-onboarding-application.use-case';
+import {
+  GetOnboardingApplicationForReviewUseCase,
+  ListOnboardingApplicationsUseCase,
+  ReviewOnboardingApplicationDocumentUseCase,
+} from './review-onboarding-application.use-cases';
+import {
+  ApproveOnboardingApplicationUseCase,
+  RejectOnboardingApplicationUseCase,
+  RequestOnboardingApplicationChangesUseCase,
+  ResendOnboardingSetupLinkUseCase,
+} from './decide-onboarding-application.use-cases';
 import { TENANT_DEVICE_PROVISIONING_REQUEST_REPOSITORY } from './tenant-device-provisioning-request.repository';
 import { InMemoryTenantDeviceProvisioningRequestRepository } from './in-memory-tenant-device-provisioning-request.repository';
 import { MikroTenantDeviceProvisioningRequestRepository } from './mikro-tenant-device-provisioning-request.repository';
@@ -494,6 +524,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   controllers: [
     AuthController,
+    OnboardingApplicationsController,
+    SystemOnboardingApplicationsController,
     MailCredentialsController,
     MailboxController,
     PlatformAlertsController,
@@ -888,7 +920,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     RefreshUseCase,
     GetMeUseCase,
     GetHealthUseCase,
-    RegisterUseCase,
     InviteUserUseCase,
     ValidateInviteUseCase,
     RegisterInvitedUseCase,
@@ -1169,6 +1200,32 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       provide: KYC_DOCUMENT_REPOSITORY,
       inject: [InMemoryKycDocumentRepository, MikroKycDocumentRepository, AppConfigService],
       useFactory: (inMemory: InMemoryKycDocumentRepository, mikro: MikroKycDocumentRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    CreateOnboardingApplicationUseCase,
+    OnboardingVerificationNotifier,
+    OnboardingDecisionNotifier,
+    SendOnboardingVerificationCodeUseCase,
+    ConfirmOnboardingVerificationCodeUseCase,
+    SubmitOnboardingApplicationUseCase,
+    GetOnboardingApplicationStatusUseCase,
+    ListOnboardingApplicationsUseCase,
+    GetOnboardingApplicationForReviewUseCase,
+    ReviewOnboardingApplicationDocumentUseCase,
+    ApproveOnboardingApplicationUseCase,
+    RejectOnboardingApplicationUseCase,
+    RequestOnboardingApplicationChangesUseCase,
+    ResendOnboardingSetupLinkUseCase,
+    UploadOnboardingApplicationDocumentUseCase,
+    DeleteOnboardingApplicationDocumentUseCase,
+    GetOnboardingApplicationUseCase,
+    UpdateOnboardingApplicationUseCase,
+    InMemoryOnboardingApplicationRepository,
+    MikroOnboardingApplicationRepository,
+    {
+      provide: ONBOARDING_APPLICATION_REPOSITORY,
+      inject: [InMemoryOnboardingApplicationRepository, MikroOnboardingApplicationRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryOnboardingApplicationRepository, mikro: MikroOnboardingApplicationRepository, config: AppConfigService) =>
         config.persistence.backend === 'in-memory' ? inMemory : mikro,
     },
     InMemoryTenantDeviceProvisioningRequestRepository,

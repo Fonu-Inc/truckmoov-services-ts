@@ -4,7 +4,6 @@ import { AuthUser } from "../../../apps/auth/src/contexts/auth/session/domain/en
 import { InviteUserUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/invite-user.use-case";
 import { ValidateInviteUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/validate-invite.use-case";
 import { RegisterInvitedUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/register-invited.use-case";
-import { RegisterUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/register.use-case";
 import { ForgotPasswordUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/forgot-password.use-case";
 import { VerifyResetUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/verify-reset.use-case";
 import { ResetPasswordUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/reset-password.use-case";
@@ -76,7 +75,7 @@ class FakeAuthNotifier {
   public resets: Array<{ email: string; resetToken: string }> = [];
   public verifications: Array<{ email: string; firstName: string; verificationToken: string }> = [];
 
-  async sendInviteEmail(input: { email: string; role: string; inviteToken: string }) {
+  async sendTenantInviteEmail(input: { email: string; role: string; inviteToken: string }) {
     this.invites.push(input);
   }
 
@@ -366,75 +365,6 @@ function makeNonAdmin(tokenService: FakeTokenService, tenantId = "tenant-1"): st
 
 // ── Tests ───────────────────────────────────────────────
 
-describe("RegisterUseCase", () => {
-  it("creates a new enterprise admin with a fresh tenantId", async () => {
-    const userRepo = new FakeUserRepository();
-    const tokenService = new FakeTokenService();
-    const sessionStore = new FakeSessionStore();
-    const organizationRepo = new FakeOrganizationSettingsRepository();
-    const uc = new RegisterUseCase(
-      userRepo,
-      tokenService,
-      sessionStore,
-      organizationRepo as any,
-      new FakePasswordHasher() as any,
-      new FakeIdGenerator() as any,
-      new FakeAuthNotifier() as any,
-    );
-
-    const result = await uc.execute({
-      email: "boss@co.com",
-      password: "Str0ngPass!",
-      firstName: "Boss",
-      lastName: "Lady",
-      organizationName: "Boss Transport",
-    });
-
-    expect(result.accessToken).toBeTruthy();
-    expect(result.refreshToken).toBeTruthy();
-    expect(result.user.email).toBe("boss@co.com");
-    expect(result.user.role).toBe(Role.ENTERPRISE_ADMIN);
-    expect(result.user.tenantId).toBeTruthy();
-    expect(userRepo.getById(result.user.id)?.profile?.fullName).toBe("Boss Lady");
-    expect(userRepo.getById(result.user.id)?.profile?.address).toBeNull();
-    expect(userRepo.getById(result.user.id)?.profile?.profilePictureUrl).toBeNull();
-    expect(
-      organizationRepo.getByTenantId(result.user.tenantId)?.branding.organizationName,
-    ).toBe("Boss Transport");
-  });
-
-  it("rejects duplicate email", async () => {
-    const userRepo = new FakeUserRepository();
-    const tokenService = new FakeTokenService();
-    const sessionStore = new FakeSessionStore();
-    const organizationRepo = new FakeOrganizationSettingsRepository();
-    const uc = new RegisterUseCase(
-      userRepo,
-      tokenService,
-      sessionStore,
-      organizationRepo as any,
-      new FakePasswordHasher() as any,
-      new FakeIdGenerator() as any,
-      new FakeAuthNotifier() as any,
-    );
-
-    await uc.execute({
-      email: "boss@co.com",
-      password: "Str0ngPass!",
-      firstName: "Boss",
-      lastName: "Lady",
-      organizationName: "Boss Transport",
-    });
-    await expect(uc.execute({
-      email: "boss@co.com",
-      password: "AnotherPass1",
-      firstName: "Boss",
-      lastName: "Lady",
-      organizationName: "Boss Transport",
-    }))
-      .rejects.toBeInstanceOf(EmailTakenError);
-  });
-});
 
 describe("InviteUserUseCase", () => {
   let tokenService: FakeTokenService;

@@ -68,7 +68,7 @@ export class ResendSystemAdminInviteUseCase {
     };
 
     await this.inviteRepository.save(refreshedInvite);
-    await this.notifier.sendInviteEmail({
+    await this.notifier.sendPlatformInviteEmail({
       email: refreshedInvite.email,
       role: refreshedInvite.role,
       inviteToken: refreshedInvite.token,

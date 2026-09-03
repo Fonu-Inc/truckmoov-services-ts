@@ -241,6 +241,19 @@ export class AppConfigService {
   get app() {
     return {
       frontendUrl: this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+      // Two apps, two audiences. A tenant-facing link must never resolve to the
+      // admin app and an admin invite must never resolve to the tenant app, so
+      // the base URL is chosen by who receives the email, never by the caller
+      // or by a request header. FRONTEND_URL remains the fallback until both
+      // are set in every environment.
+      tenantAppUrl: this.config.get<string>(
+        "TENANT_APP_URL",
+        this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+      ),
+      adminAppUrl: this.config.get<string>(
+        "ADMIN_APP_URL",
+        this.config.get<string>("FRONTEND_URL", "http://localhost:3000"),
+      ),
       emailVerificationPath: this.config.get<string>("EMAIL_VERIFICATION_PATH", "/auth/verify-email"),
       inviteAcceptPath: this.config.get<string>("INVITE_ACCEPT_PATH", "/auth/invite"),
       env: this.config.get<NodeEnv>("NODE_ENV", NodeEnv.Development),
@@ -264,6 +277,12 @@ export class AppConfigService {
       // tuning to get a safe-by-default value.
       loginRateLimitRps: this.config.get<number>("LOGIN_RATE_LIMIT_RPS", 0.1),
       loginRateLimitBurst: this.config.get<number>("LOGIN_RATE_LIMIT_BURST", 5),
+      // The public onboarding endpoints are metered per IP. One applicant makes
+      // roughly twenty five calls (ten uploads, two verifications, submit), and
+      // a shared office or mobile NAT puts several applicants behind one
+      // address, so the burst is sized for that rather than for a single form.
+      onboardingRateLimitRps: this.config.get<number>("ONBOARDING_RATE_LIMIT_RPS", 2),
+      onboardingRateLimitBurst: this.config.get<number>("ONBOARDING_RATE_LIMIT_BURST", 120),
       // Where other services ask whether a tenant is still active. Auth owns
       // the tenant record, so it is the only service that can answer.
       //
@@ -276,6 +295,9 @@ export class AppConfigService {
       // variable must not leave a decision being made on stale, self-reported
       // numbers.
       fleetServiceUrl: this.config.get<string>("FLEET_SERVICE_URL", "http://fleet-service:3002"),
+      // Where onboarding OTP text messages are sent. In-cluster by default for
+      // the same reason as the addresses above.
+      notificationServiceUrl: this.config.get<string>("NOTIFICATION_SERVICE_URL", "http://notification-service:3004"),
       // How long a service may trust a cached "tenant is active" answer. The
       // suspension event invalidates it sooner; this bounds the case where the
       // event was missed, so it is the worst-case delay, not the usual one.

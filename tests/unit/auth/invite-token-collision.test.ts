@@ -101,7 +101,7 @@ describe('InviteUserUseCase duplicate-account guard', () => {
         save: vi.fn(async () => {}),
       } as never,
       { resolveAccessToken: () => ({ id: 'admin-1', role: 'ENTERPRISE_ADMIN', tenantId: 'tenant-a' }) } as never,
-      { sendInviteEmail: vi.fn(async () => {}) } as never,
+      { sendTenantInviteEmail: vi.fn(async () => {}) } as never,
       { generate: () => INVITE_TOKEN } as never,
       { findByEmail: vi.fn(async () => existingUser) } as never,
     );

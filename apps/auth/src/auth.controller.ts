@@ -45,7 +45,6 @@ import {
   ValidateInviteUseCase,
   RegisterInvitedUseCase,
   VerifyResetUseCase,
-  RegisterUseCase,
   LoginUseCase,
   UserNotFoundError,
   ChangeRoleUseCase,
@@ -88,7 +87,6 @@ import { LoginDto } from './dto/login.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterInvitedDto } from './dto/register-invited.dto';
-import { RegisterDto } from './dto/register.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ValidateInviteDto } from './dto/validate-invite.dto';
@@ -111,7 +109,6 @@ export class AuthController extends BaseAuthController {
     @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,
     @Inject(RefreshUseCase) private readonly refreshUseCase: RefreshUseCase,
     @Inject(GetMeUseCase) private readonly getMeUseCase: GetMeUseCase,
-    @Inject(RegisterUseCase) private readonly registerUseCase: RegisterUseCase,
     @Inject(InviteUserUseCase) private readonly inviteUserUseCase: InviteUserUseCase,
     @Inject(CheckTenantSeatLimitUseCase) private readonly checkTenantSeatLimitUseCase: CheckTenantSeatLimitUseCase,
     @Inject(ValidateInviteUseCase) private readonly validateInviteUseCase: ValidateInviteUseCase,
@@ -209,34 +206,6 @@ export class AuthController extends BaseAuthController {
     if (!tenantId) throw new UnauthorizedException('Invalid access token');
 
     return this.storeUploadedMedia('auth', tenantId, file);
-  }
-
-  /** Register an enterprise admin (creates new tenant) */
-
-  @Post('register')
-  @ApiCreatedResponse({ type: AuthResponse })
-  async register(
-    @Body(BodyOrDataPipe) payload: RegisterDto,
-  ): Promise<AuthResponse> {
-    try {
-      const result = await this.registerUseCase.execute(payload);
-      await this.tryRecordActivity({
-        tenantId: result.user.tenantId,
-        service: 'auth',
-        action: 'user.registered',
-        entityType: 'user',
-        entityId: result.user.id,
-        summary: 'Enterprise admin account registered',
-        actorId: result.user.id,
-        actorRole: result.user.role,
-        metadata: { email: result.user.email },
-      });
-      return result as unknown as AuthResponse;
-    } catch (error) {
-      if (error instanceof EmailTakenError)
-        throw new ConflictException(error.message);
-      throw error;
-    }
   }
 
   /** Authenticate with email and password */

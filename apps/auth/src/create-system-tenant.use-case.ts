@@ -233,7 +233,7 @@ export class CreateSystemTenantUseCase {
       createdAt: now,
     });
 
-    await this.notifier.sendInviteEmail({
+    await this.notifier.sendTenantInviteEmail({
       email: invitedEmail,
       role: bootstrapRole,
       inviteToken,

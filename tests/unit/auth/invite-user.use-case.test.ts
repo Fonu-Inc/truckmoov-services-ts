@@ -7,7 +7,7 @@ function build() {
   const inviteRepo = new InMemoryInviteRepository();
   const caller = { id: "u-caller", role: Role.ENTERPRISE_ADMIN, tenantId: "t1" };
   const tokenService = { resolveAccessToken: vi.fn().mockReturnValue(caller) };
-  const notifier = { sendInviteEmail: vi.fn().mockResolvedValue(undefined) };
+  const notifier = { sendTenantInviteEmail: vi.fn().mockResolvedValue(undefined) };
   let seq = 0;
   const idGenerator = { generate: vi.fn(() => `gen-${++seq}`) };
   const uc = new InviteUserUseCase(

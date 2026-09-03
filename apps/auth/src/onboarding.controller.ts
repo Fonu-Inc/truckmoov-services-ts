@@ -220,7 +220,10 @@ export class OnboardingController extends BaseAuthController {
       const reference = callback.reference;
       if (tenantId && reference) {
         try {
-          await this.activateSubscriptionUseCase.execute(tenantId, reference);
+          await this.activateSubscriptionUseCase.execute(tenantId, reference, {
+            planCode: metadata['planCode'] as string | undefined,
+            billingCycle: metadata['billingCycle'] as string | undefined,
+          });
           this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
         } catch {
           this.logger.error(`Failed to activate subscription for tenant ${tenantId}`);

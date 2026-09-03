@@ -11,8 +11,26 @@
   - `GET /auth/system/health` — Get system-wide service health status
   - `GET /auth/test-sentry` — Trigger a test Sentry error
   - `POST /auth/media/upload` — Upload media
-  - `POST /auth/register` — 
   - `POST /auth/login` — 
+  - `POST /auth/onboarding/applications` — Start an onboarding application
+  - `GET /auth/onboarding/applications/{applicationId}` — Get an application
+  - `PATCH /auth/onboarding/applications/{applicationId}` — Update application details
+  - `POST /auth/onboarding/applications/{applicationId}/documents` — Upload a supporting document
+  - `DELETE /auth/onboarding/applications/{applicationId}/documents/{documentId}` — Remove a supporting document
+  - `POST /auth/onboarding/applications/{applicationId}/verify/email/send` — Send the email verification code
+  - `POST /auth/onboarding/applications/{applicationId}/verify/email` — Verify the email code
+  - `POST /auth/onboarding/applications/{applicationId}/verify/phone/send` — Send the phone verification code
+  - `POST /auth/onboarding/applications/{applicationId}/verify/phone` — Verify the phone code
+  - `POST /auth/onboarding/applications/{applicationId}/submit` — Submit the application for review
+  - `GET /auth/onboarding/applications/{applicationId}/status` — Get application progress
+  - `GET /auth/system/onboarding/applications` — List onboarding applications
+  - `GET /auth/system/onboarding/applications/{applicationId}` — Get an application for review
+  - `PATCH /auth/system/onboarding/applications/{applicationId}/documents/{documentId}/approve` — Approve one document
+  - `PATCH /auth/system/onboarding/applications/{applicationId}/documents/{documentId}/reject` — Reject one document
+  - `POST /auth/system/onboarding/applications/{applicationId}/approve` — Approve an application
+  - `POST /auth/system/onboarding/applications/{applicationId}/reject` — Reject an application
+  - `POST /auth/system/onboarding/applications/{applicationId}/request-changes` — Send an application back for correction
+  - `POST /auth/system/onboarding/applications/{applicationId}/setup-link/resend` — Resend the account setup link
   - `POST /auth/system/login` — 
   - `POST /auth/refresh` — 
   - `PATCH /auth/system/change-password` — Change system account password
@@ -281,39 +299,6 @@ Uploads a media file to object storage and returns a link to it.
 }
 ```
 - `400` — Missing upload file
-
----
-
-### `POST /auth/register`
-
-Register an enterprise admin (creates new tenant)
-
-**Request body** (required):
-
-```
-{
-  email: string
-  password: string
-  firstName: string
-  lastName: string
-  organizationName: string
-}
-```
-
-**Responses:**
-
-- `201` — 
-```
-{
-  status: boolean
-  message: string
-  data:
-    {
-      accessToken: string
-      refreshToken: string
-    }
-}
-```
 
 ---
 
@@ -1714,6 +1699,196 @@ Validate an invite token (called when user clicks the invite link)
     }
 }
 ```
+
+---
+
+
+## Onboarding applications (public)
+
+Landing-page onboarding. No account exists during these calls: `POST
+/auth/onboarding/applications` returns an `applicationToken` once, and every
+later call must carry it as the `X-Application-Token` header. A wrong or missing
+token is answered `404`, so application ids cannot be walked. All endpoints are
+rate limited per client IP (`ONBOARDING_RATE_LIMIT_RPS`,
+`ONBOARDING_RATE_LIMIT_BURST`).
+
+Validation is enforced in the use cases, not by DTO decorators. Phone numbers
+must be Nigerian mobile numbers and are normalised to E.164; a letter anywhere
+in the value is refused rather than stripped. `state` must be one of the 36
+states or FCT.
+
+### `POST /auth/onboarding/applications`
+
+Start an onboarding application.
+
+**Request body** (required):
+
+```
+{
+  applicantType: "fleet_provider" | "owner_operator"
+  organizationName: string
+  businessEmail: string
+  organizationPhone: string
+  contactFullName: string
+  contactRole: string
+  streetAddress: string
+  city: string
+  state: string
+}
+```
+
+**Responses:**
+
+- `201` — the application plus its one-time `applicationToken`
+- `400` — a field is invalid; the body carries `field`
+- `409` — an account or live application already exists for this email
+
+---
+
+### `GET /auth/onboarding/applications/{applicationId}`
+
+Get an application, its documents and `missingDocuments`.
+
+**Headers:** `X-Application-Token` (required)
+
+**Responses:**
+
+- `200` — application returned
+- `401` — missing application token
+- `404` — application not found, or the token does not match
+
+---
+
+### `PATCH /auth/onboarding/applications/{applicationId}`
+
+Update application details. Same body as the create call. Changing a verified
+email or phone clears that verification and invalidates outstanding codes.
+
+**Responses:**
+
+- `200` — application updated
+- `400` — a field is invalid
+- `409` — the application is submitted and can no longer be changed
+
+---
+
+### `POST /auth/onboarding/applications/{applicationId}/documents`
+
+Upload one supporting document (`multipart/form-data`: `document_type`, `file`).
+All ten document types are required before submission. Format is decided by the
+file contents, not the declared mime type or extension: PDF, JPG and PNG only,
+10MB maximum. `customer_request_letter` must be a PDF. Re-uploading a type
+replaces the previous file.
+
+**Responses:**
+
+- `201` — document stored
+- `400` — missing file, unsupported format, or invalid `document_type`
+- `409` — the application can no longer be changed
+
+---
+
+### `DELETE /auth/onboarding/applications/{applicationId}/documents/{documentId}`
+
+Remove one uploaded document and its stored file.
+
+**Responses:** `200`, `404`, `409`
+
+---
+
+### `POST /auth/onboarding/applications/{applicationId}/verify/email/send`
+### `POST /auth/onboarding/applications/{applicationId}/verify/phone/send`
+
+Send a 6 digit code to the business email or, by SMS, to the organization phone.
+Sending a new code invalidates the previous one. Codes expire in 10 minutes, and
+a resend is refused inside a 60 second cooldown or past 5 sends per hour.
+Onboarding SMS is billed to the platform, never to the applicant.
+
+**Responses:**
+
+- `201` — code sent; the body carries the masked destination and expiry
+- `429` — cooldown or hourly limit
+- `503` — the code could not be dispatched
+
+---
+
+### `POST /auth/onboarding/applications/{applicationId}/verify/email`
+### `POST /auth/onboarding/applications/{applicationId}/verify/phone`
+
+Confirm the code. Body: `{ code: string }` — exactly 6 digits. Codes are stored
+hashed and compared in constant time; 5 wrong attempts invalidate the code.
+
+**Responses:** `201` — verified; `400` — wrong or expired code
+
+---
+
+### `POST /auth/onboarding/applications/{applicationId}/submit`
+
+Submit for review. Requires both contacts verified and all ten documents present.
+
+**Responses:**
+
+- `201` — submitted
+- `400` — outstanding items; the body carries `emailVerified`, `phoneVerified`
+  and `missingDocuments`
+- `409` — already submitted
+
+---
+
+### `GET /auth/onboarding/applications/{applicationId}/status`
+
+Review progress: `applicationStatus`, `decisionReason`, per-document status and
+the four-step timeline shown on the submitted screen.
+
+**Responses:** `200`, `404`
+
+---
+
+## Onboarding applications (platform admin)
+
+Bearer token required, platform admin only. Documents are stored under the
+platform's own prefix for life; ownership is recorded on the document row and
+stamped with the new `tenantId` at approval.
+
+### `GET /auth/system/onboarding/applications`
+
+Review queue, oldest first. Query: `status`, `applicantType`, `search`, `page`,
+`limit`.
+
+### `GET /auth/system/onboarding/applications/{applicationId}`
+
+One application with its documents and short-lived presigned download links.
+
+### `PATCH /auth/system/onboarding/applications/{applicationId}/documents/{documentId}/approve`
+### `PATCH /auth/system/onboarding/applications/{applicationId}/documents/{documentId}/reject`
+
+Per-document decision. Rejection requires `{ reason: string }`. The first
+decision moves the application to `under_review`.
+
+### `POST /auth/system/onboarding/applications/{applicationId}/approve`
+
+Creates the tenant and its organization settings, stamps document ownership,
+issues a 72 hour setup-link invite and emails it to the verified business
+address. Refused while any document is missing or rejected.
+
+**Responses:** `201`, `400` (documents unsettled), `409` (not reviewable, or the
+email is now taken)
+
+### `POST /auth/system/onboarding/applications/{applicationId}/reject`
+
+Terminal. Body: `{ reason: string }`. No tenant is created; the applicant is
+emailed the reason and can read it back from the status endpoint.
+
+### `POST /auth/system/onboarding/applications/{applicationId}/request-changes`
+
+Not terminal. Body: `{ reason: string }`. Returns the application to the
+applicant with a freshly minted resume token; the applicant's previous token
+stops working.
+
+### `POST /auth/system/onboarding/applications/{applicationId}/setup-link/resend`
+
+Issues a new setup link for an approved application and invalidates the previous
+one. Refused once the account has been set up — use password reset instead.
 
 ---
 

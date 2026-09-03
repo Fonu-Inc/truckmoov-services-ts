@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { describe, afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { createCorsOptions } from '@shared/http';
@@ -49,6 +50,11 @@ describe('Auth HTTP contract', () => {
   let tenantOnboardingRepo: {
     findByTenantId(tenantId: string): Promise<Record<string, unknown> | null>;
   };
+  let passwordHasher: { hash(password: string): Promise<string> };
+  let organizationRepo: { save(settings: unknown): Promise<void> };
+  let buildDefaultOrganizationSettings: (tenantId: string) => {
+    branding: { organizationName: string };
+  };
   const previousBackend = process.env.PERSISTENCE_BACKEND;
   const previousSuperadminEmail = process.env.SUPERADMIN_EMAIL;
   const previousSuperadminPassword = process.env.SUPERADMIN_PASSWORD;
@@ -69,6 +75,15 @@ describe('Auth HTTP contract', () => {
       await import('../../../apps/auth/src/contexts/auth/session');
     const { TENANT_ONBOARDING_REPOSITORY } =
       await import('../../../apps/auth/src/tenant-onboarding.repository');
+    const { PASSWORD_HASHER } = await import(
+      '../../../apps/auth/src/contexts/auth/session/domain/ports/password-hasher.port'
+    );
+    const organizationSettingsModule = await import(
+      '../../../apps/auth/src/contexts/auth/session/domain/ports/organization-settings.repository.port'
+    );
+    const { ORGANIZATION_SETTINGS_REPOSITORY } = organizationSettingsModule;
+    buildDefaultOrganizationSettings =
+      organizationSettingsModule.buildDefaultOrganizationSettings;
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -87,6 +102,8 @@ describe('Auth HTTP contract', () => {
     );
 
     userRepo = moduleRef.get(USER_REPOSITORY);
+    passwordHasher = moduleRef.get(PASSWORD_HASHER);
+    organizationRepo = moduleRef.get(ORGANIZATION_SETTINGS_REPOSITORY);
     inviteRepo = moduleRef.get(INVITE_REPOSITORY);
     tenantOnboardingRepo = moduleRef.get(TENANT_ONBOARDING_REPOSITORY);
 
@@ -102,6 +119,41 @@ describe('Auth HTTP contract', () => {
     process.env.SUPERADMIN_TENANT_ID = previousSuperadminTenantId;
     vi.resetModules();
   });
+
+  // POST /auth/register is gone: onboarding now runs through
+  // /auth/onboarding/applications and an admin approval. Tests that only need
+  // an existing tenant admin seed one directly rather than through HTTP.
+  async function seedEnterpriseAdmin(
+    email: string,
+    overrides?: Parameters<typeof makeRegisterPayload>[1],
+  ) {
+    const payload = makeRegisterPayload(email, overrides);
+    const tenantId = randomUUID();
+    await userRepo.save({
+      id: randomUUID(),
+      email: payload.email,
+      passwordHash: await passwordHasher.hash(payload.password),
+      role: 'ENTERPRISE_ADMIN',
+      tenantId,
+      emailVerificationToken: null,
+      profile: {
+        fullName: `${payload.firstName} ${payload.lastName}`,
+        phoneNumber: null,
+        address: null,
+        profilePictureUrl: null,
+      },
+    });
+
+    const settings = buildDefaultOrganizationSettings(tenantId);
+    settings.branding.organizationName = payload.organizationName;
+    await organizationRepo.save(settings);
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: payload.email, password: payload.password });
+
+    return { status: login.status, body: login.body };
+  }
 
   // Login now refuses an unverified address, so a test that registers and then
   // signs in has to follow the link the same way a real user would.
@@ -166,79 +218,27 @@ describe('Auth HTTP contract', () => {
     expect(response.status).toBe(401);
   });
 
-  // ── Register (enterprise admin) ──────────────────────
+  // ── Register (retired) ───────────────────────────────
 
-  it('POST /auth/register creates an enterprise admin', async () => {
+  it('POST /auth/register is no longer routed', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/register')
-      .send(
-        makeRegisterPayload('admin@contract.com', {
-          firstName: 'Ada',
-          lastName: 'Okafor',
-          organizationName: 'Truckmoov Logistics',
-        }),
-      );
+      .send(makeRegisterPayload('retired@contract.com'));
 
-    expect(res.status).toBe(201);
-    expect(res.body.accessToken).toBeTypeOf('string');
-    expect(res.body.refreshToken).toBeTypeOf('string');
-    expect(res.body.user.email).toBe('admin@contract.com');
-    expect(res.body.user.tenantId).toBeTypeOf('string');
-    expect(res.body.user.role).toBe('ENTERPRISE_ADMIN');
+    expect(res.status).toBe(404);
   });
 
-  it('POST /auth/register accepts a wrapped data payload', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        data: makeRegisterPayload('wrapped@contract.com', {
-          firstName: 'Wrapped',
-          lastName: 'Payload',
-          organizationName: 'Wrapped Transport',
-        }),
-      });
 
-    expect(res.status).toBe(201);
-    expect(res.body.user.email).toBe('wrapped@contract.com');
-    expect(res.body.user.role).toBe('ENTERPRISE_ADMIN');
-  });
 
-  it('POST /auth/register rejects duplicate email', async () => {
-    await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('dupe@contract.com', {
-          firstName: 'Dupe',
-          lastName: 'Admin',
-          organizationName: 'Dupe Transport',
-        }),
-      );
-
-    const res = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('dupe@contract.com', {
-          firstName: 'Dupe',
-          lastName: 'Admin',
-          organizationName: 'Dupe Transport',
-        }),
-      );
-
-    expect(res.status).toBe(409);
-  });
 
   // ── Login + Me ────────────────────────────────────────
 
   it('POST /auth/login then GET /auth/me returns authenticated principal', async () => {
-    await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('logintest@contract.com', {
+    await seedEnterpriseAdmin('logintest@contract.com', {
           firstName: 'Login',
           lastName: 'Tester',
           organizationName: 'Login Fleet',
-        }),
-      );
+        });
 
     await verifyRegisteredEmail('logintest@contract.com');
 
@@ -333,15 +333,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /system/login rejects tenant credentials', async () => {
-    await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('tenant-login-only@contract.com', {
+    await seedEnterpriseAdmin('tenant-login-only@contract.com', {
           firstName: 'Tenant',
           lastName: 'Only',
           organizationName: 'Tenant Only Org',
-        }),
-      );
+        });
 
     const loginRes = await request(app.getHttpServer())
       .post('/auth/system/login')
@@ -795,15 +791,11 @@ describe('Auth HTTP contract', () => {
     expect(resentInvite).toBeTruthy();
     expect(resentInvite?.token).not.toBe(firstInvite?.token);
 
-    const activeTenantRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('tenant-resend-conflict@contract.com', {
+    const activeTenantRegisterRes = await seedEnterpriseAdmin('tenant-resend-conflict@contract.com', {
           firstName: 'Tenant',
           lastName: 'Conflict',
           organizationName: 'Tenant Conflict Org',
-        }),
-      );
+        });
 
     expect(activeTenantRegisterRes.status).toBe(201);
 
@@ -1115,15 +1107,11 @@ describe('Auth HTTP contract', () => {
 
     expect(pendingTenantRes.status).toBe(201);
 
-    const activeTenantRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('active-tenant@contract.com', {
+    const activeTenantRegisterRes = await seedEnterpriseAdmin('active-tenant@contract.com', {
           firstName: 'Active',
           lastName: 'Tenant',
           organizationName: 'Active Tenant Fleet',
-        }),
-      );
+        });
 
     expect(activeTenantRegisterRes.status).toBe(201);
     const tenantToken = activeTenantRegisterRes.body.accessToken as string;
@@ -1267,15 +1255,11 @@ describe('Auth HTTP contract', () => {
     expect(exportRes.text).toContain('Export Tenant Logistics');
     expect(exportRes.text).toContain('professional');
 
-    const tenantLoginRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('export-forbidden@contract.com', {
+    const tenantLoginRes = await seedEnterpriseAdmin('export-forbidden@contract.com', {
           firstName: 'Export',
           lastName: 'Forbidden',
           organizationName: 'Forbidden Export Org',
-        }),
-      );
+        });
 
     expect(tenantLoginRes.status).toBe(201);
 
@@ -1496,15 +1480,11 @@ describe('Auth HTTP contract', () => {
 
     expect(deletedDetailRes.status).toBe(404);
 
-    const activeTenantRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('undeletable-tenant@contract.com', {
+    const activeTenantRes = await seedEnterpriseAdmin('undeletable-tenant@contract.com', {
           firstName: 'Undeletable',
           lastName: 'Tenant',
           organizationName: 'Undeletable Org',
-        }),
-      );
+        });
 
     expect(activeTenantRes.status).toBe(201);
 
@@ -1545,15 +1525,11 @@ describe('Auth HTTP contract', () => {
     expect(refDataRes.body.data.featureDefaults.liveTracking).toBe(true);
     expect(refDataRes.body.data.featureDefaults.messaging).toBe(true);
 
-    const tenantRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('tenant-status@contract.com', {
+    const tenantRegisterRes = await seedEnterpriseAdmin('tenant-status@contract.com', {
           firstName: 'Managed',
           lastName: 'Tenant',
           organizationName: 'Managed Tenant Org',
-        }),
-      );
+        });
 
     expect(tenantRegisterRes.status).toBe(201);
     const tenantId = tenantRegisterRes.body.user.tenantId as string;
@@ -1644,15 +1620,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET /system/dashboard returns system-wide metrics for superadmin and system admin only', async () => {
-    const tenantRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('dashboard-admin@contract.com', {
+    const tenantRegisterRes = await seedEnterpriseAdmin('dashboard-admin@contract.com', {
           firstName: 'Dashboard',
           lastName: 'Tenant',
           organizationName: 'Dashboard Fleet',
-        }),
-      );
+        });
 
     expect(tenantRegisterRes.status).toBe(201);
 
@@ -1835,15 +1807,11 @@ describe('Auth HTTP contract', () => {
     expect(deleteCatalogRes.status).toBe(200);
     expect(deleteCatalogRes.body.data.deleted).toBe(true);
 
-    const tenantRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('tenant-device-route@contract.com', {
+    const tenantRegisterRes = await seedEnterpriseAdmin('tenant-device-route@contract.com', {
           firstName: 'Tenant',
           lastName: 'Device',
           organizationName: 'Tenant Device Org',
-        }),
-      );
+        });
 
     expect(tenantRegisterRes.status).toBe(201);
 
@@ -1855,15 +1823,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET /auth/activity-log returns tenant-scoped persisted activity entries', async () => {
-    const registerRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('activity-admin@contract.com', {
+    const registerRes = await seedEnterpriseAdmin('activity-admin@contract.com', {
           firstName: 'Activity',
           lastName: 'Admin',
           organizationName: 'Activity Fleet',
-        }),
-      );
+        });
 
     expect(registerRes.status).toBe(201);
 
@@ -1925,15 +1889,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/invite succeeds for enterprise admin', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('inviter@contract.com', {
+    const regRes = await seedEnterpriseAdmin('inviter@contract.com', {
           firstName: 'Invite',
           lastName: 'Owner',
           organizationName: 'Inviter Fleet',
-        }),
-      );
+        });
     expect(regRes.status).toBe(201);
     const adminToken = regRes.body.accessToken;
 
@@ -1948,15 +1908,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/invite rejects non-admin caller', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('nonadmin-inviter@contract.com', {
+    const regRes = await seedEnterpriseAdmin('nonadmin-inviter@contract.com', {
           firstName: 'Nonadmin',
           lastName: 'Inviter',
           organizationName: 'Nonadmin Fleet',
-        }),
-      );
+        });
     const adminToken = regRes.body.accessToken;
 
     // First invite someone as a DISPATCHER
@@ -1998,15 +1954,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/register/invited derives email from the invite token', async () => {
-    const adminRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('invite-admin@contract.com', {
+    const adminRes = await seedEnterpriseAdmin('invite-admin@contract.com', {
           firstName: 'Invite',
           lastName: 'Admin',
           organizationName: 'Invite Org',
-        }),
-      );
+        });
     const adminToken = adminRes.body.accessToken as string;
 
     await request(app.getHttpServer())
@@ -2033,15 +1985,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET /organization/users lists users within the caller organization', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('org-users-admin@contract.com', {
+    const regRes = await seedEnterpriseAdmin('org-users-admin@contract.com', {
           firstName: 'Org',
           lastName: 'Admin',
           organizationName: 'Org User Fleet',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
     const tenantId = regRes.body.user.tenantId as string;
 
@@ -2086,15 +2034,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it("PATCH /organization/users/:userId lets admin edit another user's profile", async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('edit-org-admin@contract.com', {
+    const regRes = await seedEnterpriseAdmin('edit-org-admin@contract.com', {
           firstName: 'Edit',
           lastName: 'Admin',
           organizationName: 'Edit Fleet',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
     const tenantId = regRes.body.user.tenantId as string;
 
@@ -2132,15 +2076,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('PATCH /organization/users/:userId/status disables a user account and revokes access immediately', async () => {
-    const adminRegRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('disable-admin@contract.com', {
+    const adminRegRes = await seedEnterpriseAdmin('disable-admin@contract.com', {
           firstName: 'Disable',
           lastName: 'Admin',
           organizationName: 'Disable Fleet',
-        }),
-      );
+        });
     const adminAccessToken = adminRegRes.body.accessToken as string;
 
     const inviteRes = await request(app.getHttpServer())
@@ -2204,15 +2144,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /organization/invites/resend resends a pending invite', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('resend-admin@contract.com', {
+    const regRes = await seedEnterpriseAdmin('resend-admin@contract.com', {
           firstName: 'Resend',
           lastName: 'Admin',
           organizationName: 'Resend Fleet',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
 
     const inviteRes = await request(app.getHttpServer())
@@ -2234,15 +2170,11 @@ describe('Auth HTTP contract', () => {
   });
 
   it('DELETE /organization/users/:userId removes a user from the organization', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('remove-admin@contract.com', {
+    const regRes = await seedEnterpriseAdmin('remove-admin@contract.com', {
           firstName: 'Remove',
           lastName: 'Admin',
           organizationName: 'Remove Fleet',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
     const tenantId = regRes.body.user.tenantId as string;
 
@@ -2291,9 +2223,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/forgot-password succeeds for registered user', async () => {
-    await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('forgetter@contract.com'));
+    await seedEnterpriseAdmin('forgetter@contract.com');
 
     const res = await request(app.getHttpServer())
       .post('/auth/forgot-password')
@@ -2339,9 +2269,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/change-role returns 404 for nonexistent target user', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('roleadmin@contract.com'));
+    const regRes = await seedEnterpriseAdmin('roleadmin@contract.com');
     const adminToken = regRes.body.accessToken;
 
     const res = await request(app.getHttpServer())
@@ -2355,9 +2283,7 @@ describe('Auth HTTP contract', () => {
   // ── Logout ────────────────────────────────────────────
 
   it('POST /auth/logout invalidates the refresh token', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('logmeout@contract.com'));
+    const regRes = await seedEnterpriseAdmin('logmeout@contract.com');
     expect(regRes.status).toBe(201);
 
     const { accessToken, refreshToken } = regRes.body;
@@ -2378,9 +2304,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('POST /auth/logout works without authorization header', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('logmeout2@contract.com'));
+    const regRes = await seedEnterpriseAdmin('logmeout2@contract.com');
 
     const logoutRes = await request(app.getHttpServer())
       .post('/auth/logout')
@@ -2393,15 +2317,11 @@ describe('Auth HTTP contract', () => {
   // ── User profile + preferences (Epic B) ──────────────
 
   it('GET/PATCH /profile supports viewing and editing own profile', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('profile@contract.com', {
+    const regRes = await seedEnterpriseAdmin('profile@contract.com', {
           firstName: 'Profile',
           lastName: 'Owner',
           organizationName: 'Profile Fleet',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
 
     const getProfileRes = await request(app.getHttpServer())
@@ -2445,9 +2365,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET/PATCH /profile/preferences/notifications supports notification settings', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('notify@contract.com'));
+    const regRes = await seedEnterpriseAdmin('notify@contract.com');
     const accessToken = regRes.body.accessToken as string;
 
     const patchRes = await request(app.getHttpServer())
@@ -2476,9 +2394,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('PATCH /profile/preferences/dispatch allows dispatcher to set working hours/timezone', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('dispatch-pref@contract.com'));
+    const regRes = await seedEnterpriseAdmin('dispatch-pref@contract.com');
     expect(regRes.status).toBe(201);
 
     const initialToken = regRes.body.accessToken as string;
@@ -2520,9 +2436,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET /profile/preferences/dispatch rejects non-dispatcher', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('not-dispatch@contract.com'));
+    const regRes = await seedEnterpriseAdmin('not-dispatch@contract.com');
     const accessToken = regRes.body.accessToken as string;
 
     const res = await request(app.getHttpServer())
@@ -2533,13 +2447,9 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET/PATCH /organization/settings allows enterprise admin to configure branding/defaults', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(
-        makeRegisterPayload('org-admin@contract.com', {
+    const regRes = await seedEnterpriseAdmin('org-admin@contract.com', {
           organizationName: 'Initial Fleet Org',
-        }),
-      );
+        });
     const accessToken = regRes.body.accessToken as string;
 
     const initialGetRes = await request(app.getHttpServer())
@@ -2595,9 +2505,7 @@ describe('Auth HTTP contract', () => {
   });
 
   it('GET /organization/settings allows non-enterprise-admin user but PATCH still rejects', async () => {
-    const regRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send(makeRegisterPayload('org-denied@contract.com'));
+    const regRes = await seedEnterpriseAdmin('org-denied@contract.com');
     const initialToken = regRes.body.accessToken as string;
     const userId = regRes.body.user.id as string;
 

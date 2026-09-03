@@ -50,7 +50,6 @@ export { CreateSystemAdminUseCase } from "./application/use-cases/create-system-
 export { RefreshUseCase } from "./application/use-cases/refresh.use-case";
 export { GetMeUseCase } from "./application/use-cases/get-me.use-case";
 export { GetHealthUseCase } from "./application/use-cases/get-health.use-case";
-export { RegisterUseCase } from "./application/use-cases/register.use-case";
 export { InviteUserUseCase } from "./application/use-cases/invite-user.use-case";
 export { ValidateInviteUseCase } from "./application/use-cases/validate-invite.use-case";
 export { RegisterInvitedUseCase } from "./application/use-cases/register-invited.use-case";

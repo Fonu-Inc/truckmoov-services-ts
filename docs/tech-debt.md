@@ -4,6 +4,34 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-17 — Legacy tenant KYC surface is superseded by onboarding applications
+
+**Status:** open, recorded 3 September 2026. The new landing-page onboarding
+flow collects and reviews the same paperwork before a tenant exists, so the
+tenant-scoped KYC surface is now a second, older way to do the same thing.
+
+### What is still on the old surface
+
+`GET/POST/DELETE /onboarding/kyc/documents`, the whole `system/kyc` review
+controller, the `tenant_kyc_documents` table and its nine document types, the
+KYC columns in the system tenants list and export, and the KYC bytes counted
+against tenant storage quota by `storage-reconciliation.service.ts`.
+
+### Why it is not simply deleted
+
+Tenants that were created by an admin, rather than by an application, still have
+no other route for submitting KYC paperwork, and tenants mid-review today hold
+rows in the old table. TRU-25 (Screen 25 — KYC Review Workflow) also targets
+this surface and needs re-pointing or closing.
+
+### When this is picked up
+
+Decide first whether admin-created tenants keep a KYC path at all, or whether
+every tenant is expected to arrive through an application. Then migrate or drain
+existing rows, retire the endpoints, and move the tenant list's KYC column onto
+the application record.
+
+---
 ## TD-15 — Outbound Webhook Management belongs in Console, not TruckMoov internal services
 
 **Status:** deferred by decision, 31 August 2026. This is an outgoing,

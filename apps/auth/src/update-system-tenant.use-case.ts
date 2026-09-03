@@ -274,7 +274,7 @@ export class UpdateSystemTenantUseCase {
           expiresAt: new Date(now.getTime() + ONBOARDING_INVITE_TTL_MS),
           createdAt: now,
         });
-        await this.notifier.sendInviteEmail({
+        await this.notifier.sendTenantInviteEmail({
           email: nextEmail,
           role: bootstrapRole,
           inviteToken,

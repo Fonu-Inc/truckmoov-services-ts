@@ -96,7 +96,7 @@ export class ResendSystemTenantInviteUseCase {
     };
 
     await this.inviteRepository.save(invite);
-    await this.notifier.sendInviteEmail({
+    await this.notifier.sendTenantInviteEmail({
       email: invite.email,
       role: invite.role,
       inviteToken: invite.token,

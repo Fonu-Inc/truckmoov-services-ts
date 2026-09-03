@@ -60,7 +60,7 @@ export class ResendPendingInviteUseCase {
     // Resend issues a fresh token so old links stop being the preferred entry path.
     await this.inviteRepo.save(refreshedInvite);
 
-    await this.notifier.sendInviteEmail({
+    await this.notifier.sendTenantInviteEmail({
       email: refreshedInvite.email,
       role: refreshedInvite.role,
       inviteToken: refreshedInvite.token,

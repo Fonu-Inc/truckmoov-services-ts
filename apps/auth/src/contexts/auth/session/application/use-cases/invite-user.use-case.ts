@@ -74,7 +74,7 @@ export class InviteUserUseCase {
       createdAt: new Date(),
     });
 
-    await this.notifier.sendInviteEmail({
+    await this.notifier.sendTenantInviteEmail({
       email,
       role: targetRole,
       inviteToken: token,

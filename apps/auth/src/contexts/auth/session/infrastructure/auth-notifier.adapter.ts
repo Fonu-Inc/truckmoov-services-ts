@@ -26,11 +26,16 @@ export class MailerAuthNotifier implements AuthNotifier {
     private readonly config: AppConfigService,
   ) {}
 
-  async sendInviteEmail(input: InviteEmail): Promise<void> {
-    const inviteLink = new URL(
-      this.config.app.inviteAcceptPath,
-      this.config.app.frontendUrl,
-    );
+  async sendTenantInviteEmail(input: InviteEmail): Promise<void> {
+    await this.sendInvite(input, this.config.app.tenantAppUrl);
+  }
+
+  async sendPlatformInviteEmail(input: InviteEmail): Promise<void> {
+    await this.sendInvite(input, this.config.app.adminAppUrl);
+  }
+
+  private async sendInvite(input: InviteEmail, baseUrl: string): Promise<void> {
+    const inviteLink = new URL(this.config.app.inviteAcceptPath, baseUrl);
     // The invite email is deliberately duplicated in the link so the frontend
     // can show the invited address before the invited-registration call runs.
     inviteLink.searchParams.set("invite", input.inviteToken);
