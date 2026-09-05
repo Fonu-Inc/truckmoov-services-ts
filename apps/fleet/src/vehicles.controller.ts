@@ -1,20 +1,28 @@
 import { randomUUID } from "node:crypto";
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Res,
   Param,
   Inject,
   Get,
+  Headers,
   Req,
   Patch,
   Delete,
   Controller,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   Post,
   Query,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from "@shared/http";
 import {
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOperation,
   ApiQuery,
@@ -31,6 +39,34 @@ import {
   RolesGuard,
 } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
+import { ListFuelRecordsUseCase } from "./contexts/fleet/fuel";
+import { ComplianceDocumentsUseCase } from "./compliance-documents.use-case";
+import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
+import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
+import {
+  resolveVehicleTab,
+  VEHICLE_TAB_HEADER,
+  type VehicleTab,
+} from "./contexts/fleet/vehicles/domain/vehicle-tabs";
+import {
+  applyFuelFilters,
+  type FuelRecordView,
+} from "./contexts/fleet/fuel/domain/fuel-analytics";
+import {
+  normalizeCapacityUnit,
+  VEHICLE_CAPACITY_UNITS,
+  VEHICLE_CAPACITY_UNIT_LABELS,
+} from "./contexts/fleet/vehicles/domain/vehicle-capacity";
+import {
+  buildVehicleCsvExport,
+  buildVehicleCsvTemplate,
+  parseVehicleCsv,
+  VEHICLE_CSV_COLUMNS,
+} from "./contexts/fleet/vehicles/domain/vehicle-csv";
+import {
+  VEHICLE_QUOTA_READER,
+  type VehicleQuotaReader,
+} from "./contexts/fleet/vehicles/domain/ports/vehicle-quota-reader.port";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { ListDevicesUseCase, ListVehicleTripsUseCase } from "./contexts/fleet/devices";
 import {
@@ -92,6 +128,11 @@ export class VehiclesController extends BaseFleetController {
     @Inject(BulkImportVehiclesUseCase) private readonly bulkImportVehiclesUseCase: BulkImportVehiclesUseCase,
     @Inject(VehicleHealthService) private readonly vehicleHealthService: VehicleHealthService,
     @Inject(MaintenanceRecordsUseCase) private readonly maintenanceRecordsUseCase: MaintenanceRecordsUseCase,
+    @Inject(VEHICLE_QUOTA_READER) private readonly vehicleQuotaReader: VehicleQuotaReader,
+    @Inject(ListFuelRecordsUseCase) private readonly listFuelRecordsUseCase: ListFuelRecordsUseCase,
+    @Inject(ComplianceDocumentsUseCase) private readonly complianceDocumentsUseCase: ComplianceDocumentsUseCase,
+    @Inject(FleetFinancialsUseCase) private readonly fleetFinancialsUseCase: FleetFinancialsUseCase,
+    @Inject(FleetAnalyticsUseCase) private readonly fleetAnalyticsUseCase: FleetAnalyticsUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -178,7 +219,26 @@ export class VehiclesController extends BaseFleetController {
   @ApiQuery({ name: "yearTo", required: false, type: Number })
   @ApiOkResponse({ type: VehicleListResponse })
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
-  async listVehicles(@Query() query: VehicleListQueryDto, @Req() req: FleetRequestContext): Promise<VehicleListResponse> {
+  async listVehicles(
+    @Query() query: VehicleListQueryDto,
+    @Req() req: FleetRequestContext,
+    @Headers(VEHICLE_TAB_HEADER) tabs?: string,
+  ): Promise<VehicleListResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    const tab = resolveVehicleTab(tabs);
+
+    // The My Vehicles page is one screen with several tabs. The header picks
+    // which tab's summary and list this call returns, defaulting to the
+    // vehicles list so callers that send no header see what they always did.
+    if (tab !== "vehicles") {
+      return {
+        status: true,
+        message: "success",
+        tab,
+        data: await this.buildTabPayload(tab, tenantId, query),
+      } as unknown as VehicleListResponse;
+    }
+
     return this.listVehiclesUseCase.execute({
       query: query.query,
       status: query.status,
@@ -190,13 +250,64 @@ export class VehiclesController extends BaseFleetController {
     }) as unknown as Promise<VehicleListResponse>;
   }
 
+  private async buildTabPayload(
+    tab: Exclude<VehicleTab, "vehicles">,
+    tenantId: string,
+    query: VehicleListQueryDto,
+  ): Promise<Record<string, unknown>> {
+    switch (tab) {
+      case "maintenance": {
+        const [summary, records] = await Promise.all([
+          this.maintenanceRecordsUseCase.summary(tenantId),
+          this.maintenanceRecordsUseCase.list(tenantId, { search: query.query }),
+        ]);
+        return { summary, items: records };
+      }
+      case "fuel": {
+        const records = await this.listFuelRecordsUseCase.execute({ tenantId });
+        const filtered = applyFuelFilters(records as unknown as FuelRecordView[], {
+          query: query.query,
+        });
+        const totalLitres = filtered.reduce((sum, record) => sum + record.liters, 0);
+        const totalCostNgn = filtered.reduce((sum, record) => sum + record.totalCost, 0);
+        return {
+          summary: {
+            totalLitres: Math.round(totalLitres * 10) / 10,
+            totalCostNgn: Math.round(totalCostNgn),
+            avgPricePerLitre: totalLitres > 0 ? Math.round((totalCostNgn / totalLitres) * 10) / 10 : 0,
+            transactionCount: filtered.length,
+          },
+          items: filtered,
+        };
+      }
+      case "compliance": {
+        const [summary, documents] = await Promise.all([
+          this.complianceDocumentsUseCase.summary(tenantId),
+          this.complianceDocumentsUseCase.list(tenantId, { search: query.query }),
+        ]);
+        return { summary, items: documents };
+      }
+      case "financials": {
+        const summary = await this.fleetFinancialsUseCase.summary(tenantId);
+        return { summary };
+      }
+      case "analytics": {
+        const summary = await this.fleetAnalyticsUseCase.summary(tenantId, 30);
+        return { summary };
+      }
+    }
+  }
+
   @Get("summary")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle summary stats", description: "Returns count of vehicles grouped by status for the calling tenant." })
   @ApiOkResponse({ type: VehicleSummaryResponse })
   async getVehicleSummary(@Req() req: FleetRequestContext): Promise<VehicleSummaryResponse> {
     const tenantId = this.tenantIdFromRequest(req);
-    const vehicles = await this.listVehiclesUseCase.execute({ tenantId });
+    const [vehicles, limit] = await Promise.all([
+      this.listVehiclesUseCase.execute({ tenantId }),
+      this.vehicleQuotaReader.findActiveVehicleLimit(tenantId),
+    ]);
     const counts = { total: 0, active: 0, inactive: 0, maintenance: 0, decommissioned: 0 };
     for (const v of vehicles as unknown as Array<{ status: string }>) {
       counts.total++;
@@ -205,7 +316,23 @@ export class VehiclesController extends BaseFleetController {
       else if (v.status === "maintenance") counts.maintenance++;
       else if (v.status === "decommissioned") counts.decommissioned++;
     }
-    return { status: true, message: "success", data: counts } as unknown as VehicleSummaryResponse;
+
+    // The allowance counts active vehicles, matching what POST /vehicles
+    // enforces. A null limit is unlimited, which is not the same as zero, so
+    // the card renders a plain count rather than a bar in that case.
+    const allowance = {
+      limit,
+      used: counts.active,
+      remaining: limit === null ? null : Math.max(limit - counts.active, 0),
+      usedPercent: limit === null || limit === 0 ? null : Math.round((counts.active / limit) * 100),
+      unlimited: limit === null,
+    };
+
+    return {
+      status: true,
+      message: "success",
+      data: { ...counts, allowance },
+    } as unknown as VehicleSummaryResponse;
   }
 
   @Get("export")
@@ -222,14 +349,25 @@ export class VehiclesController extends BaseFleetController {
       yearFrom: query.yearFrom ? parseInt(query.yearFrom, 10) : undefined,
       yearTo: query.yearTo ? parseInt(query.yearTo, 10) : undefined,
     }) as unknown as Array<Record<string, unknown>>;
-    const headers = ["id", "plateNumber", "make", "model", "year", "type", "status", "assignedDriverId", "assignedDriverName", "vin", "capacity"];
-    const rows = [
-      headers.join(","),
-      ...vehicles.map((v) => headers.map((h) => JSON.stringify(v[h] ?? "")).join(",")),
-    ];
+    // Same columns as the import template, so an export can be edited and
+    // imported back without reshaping it by hand.
+    const csv = buildVehicleCsvExport(
+      vehicles.map((v) => ({
+        registrationNumber: String(v["registrationNumber"] ?? v["plateNumber"] ?? ""),
+        vin: (v["vin"] as string | null) ?? null,
+        make: (v["make"] as string | null) ?? null,
+        model: String(v["model"] ?? ""),
+        year: (v["year"] as number | null) ?? null,
+        type: (v["type"] as string | null) ?? null,
+        fuelType: (v["fuelType"] as string | null) ?? null,
+        capacity: (v["capacity"] as number | null) ?? null,
+        capacityUnit: normalizeCapacityUnit(v["capacityUnit"]),
+        status: (v["status"] as string | null) ?? null,
+      })),
+    );
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=vehicles.csv");
-    res.send(rows.join("\n"));
+    res.send(csv);
   }
 
   /** Retrieve standalone device inventory for the fleet admin Devices page */
@@ -273,20 +411,114 @@ export class VehiclesController extends BaseFleetController {
 
   /** Bulk onboarding for fleet inventory imports */
 
+  @Get("import/template")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @ApiOperation({
+    summary: "Download the bulk import CSV template",
+    description:
+      "Returns the CSV layout the import expects, with one example row. Same columns as the vehicle export, so an export can be edited and imported back.",
+  })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
+  async downloadImportTemplate(@Res({ passthrough: false }) res: any): Promise<void> {
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=vehicle-import-template.csv");
+    res.send(buildVehicleCsvTemplate());
+  }
+
+  @Get("import/columns")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @ApiOperation({
+    summary: "Describe the bulk import columns",
+    description: "The column list behind the template, so the UI can explain the format without parsing the CSV.",
+  })
+  @ApiOkResponse({ description: "Column definitions" })
+  async describeImportColumns() {
+    return { status: true, message: "success", data: { columns: VEHICLE_CSV_COLUMNS } };
+  }
+
+  @Get("capacity-units")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @ApiOperation({
+    summary: "List load capacity units",
+    description:
+      "Fills the Unit dropdown on the Add Vehicle form. Mass units resolve to a common weight; volume and pallets do not, so they are reported separately.",
+  })
+  @ApiOkResponse({ description: "Capacity units" })
+  async listCapacityUnits() {
+    return {
+      status: true,
+      message: "success",
+      data: {
+        units: VEHICLE_CAPACITY_UNITS.map((unit) => ({
+          value: unit,
+          label: VEHICLE_CAPACITY_UNIT_LABELS[unit],
+          measures: unit === "m3" ? "volume" : unit === "pallets" ? "count" : "weight",
+        })),
+        default: "tons",
+      },
+    };
+  }
+
   @Post("import")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
+  @ApiConsumes("multipart/form-data")
   @ApiOperation({
-    summary: "Bulk import vehicles",
-    description: "Epic C (US-C05): bulk upsert vehicles by plate number.",
+    summary: "Bulk import vehicles from CSV",
+    description:
+      "Upserts vehicles by registration number from an uploaded CSV. Rows that cannot be read are reported and skipped; the rest still import.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["file"],
+      properties: { file: { type: "string", format: "binary" } },
+    },
   })
   @ApiCreatedResponse({ type: BulkVehicleImportResponse })
-  async bulkImportVehicles(@Body() payload: BulkImportVehiclesDto, @Req() req: FleetRequestContext): Promise<BulkVehicleImportResponse> {
+  @ApiBadRequestResponse({ description: "Missing file, or the CSV is not readable" })
+  @UseInterceptors(FileInterceptor("file", uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
+  async bulkImportVehicles(
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() req: FleetRequestContext,
+  ): Promise<BulkVehicleImportResponse> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Missing CSV file");
+    }
+
+    let parsed: ReturnType<typeof parseVehicleCsv>;
+    try {
+      parsed = parseVehicleCsv(file.buffer.toString("utf8"));
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "The CSV could not be read");
+    }
+
+    if (parsed.rows.length === 0) {
+      throw new BadRequestException(
+        parsed.errors.length > 0
+          ? `No importable rows. First problem on line ${parsed.errors[0].line}: ${parsed.errors[0].message}`
+          : "The CSV contained no vehicle rows",
+      );
+    }
+
     const result = await this.bulkImportVehiclesUseCase.execute({
-      ...payload,
+      items: parsed.rows.map((row) => ({
+        registrationNumber: row.registrationNumber,
+        plateNumber: row.registrationNumber,
+        vin: row.vin ?? undefined,
+        make: row.make ?? undefined,
+        model: row.model,
+        year: row.year ?? undefined,
+        type: (row.type ?? undefined) as "truck" | "van" | "trailer" | undefined,
+        fuelType: (row.fuelType ?? undefined) as never,
+        capacity: row.capacity ?? undefined,
+        capacityUnit: row.capacityUnit,
+        status: (row.status ?? undefined) as never,
+      })),
       tenantId: this.tenantIdFromRequest(req),
     });
+    (result as unknown as Record<string, unknown>)["skipped"] = parsed.errors;
     await this.recordActivity(req, {
       entityType: "vehicle",
       entityId: randomUUID(),

@@ -82,18 +82,34 @@ export class ComplianceController extends BaseFleetController {
   @ApiQuery({ name: "documentType", required: false, type: String })
   @ApiQuery({ name: "status", required: false, enum: ["valid", "expiring", "expired"] })
   @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "issuedFrom", required: false, type: String })
+  @ApiQuery({ name: "issuedTo", required: false, type: String })
+  @ApiQuery({ name: "expiringFrom", required: false, type: String })
+  @ApiQuery({ name: "expiringTo", required: false, type: String })
   @ApiOkResponse({ description: "Compliance documents array", type: ComplianceDocumentListResponse })
   async listComplianceDocuments(
     @Query("vehicleId") vehicleId: string,
     @Query("documentType") documentType: string,
     @Query("status") status: string,
     @Query("search") search: string,
+    @Query("issuedFrom") issuedFrom: string,
+    @Query("issuedTo") issuedTo: string,
+    @Query("expiringFrom") expiringFrom: string,
+    @Query("expiringTo") expiringTo: string,
     @Req() req: FleetRequestContext,
   ) {
     const tenantId = this.tenantIdFromRequest(req);
     const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
     const data = await this.complianceDocumentsUseCase.list(tenantId, {
-      vehicleId: vehicleIds ? undefined : vehicleId, vehicleIds, documentType, status: status as any, search,
+      vehicleId: vehicleIds ? undefined : vehicleId,
+      vehicleIds,
+      documentType,
+      status: status as any,
+      search,
+      issuedFrom,
+      issuedTo,
+      expiringFrom,
+      expiringTo,
     });
     return { status: true, message: "success", data };
   }

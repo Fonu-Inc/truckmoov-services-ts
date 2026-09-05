@@ -50,9 +50,12 @@ export type StatementOptions = {
   includeCoverPage?: boolean;
   includeFleetSummary?: boolean;
   includePerVehicleBreakdown?: boolean;
+  // Carried so a preview can render in the chosen accent. The PDF writer here
+  // emits text only, so it does not colour anything yet.
+  accentColor?: string;
 };
 
-const DEFAULT_OPTIONS: Required<Omit<StatementOptions, "companyName" | "preparedBy" | "notes">> = {
+const DEFAULT_OPTIONS: Required<Omit<StatementOptions, "companyName" | "preparedBy" | "notes" | "accentColor">> = {
   title: "TruckMoov — Financial Statement",
   includeCoverPage: true,
   includeFleetSummary: true,

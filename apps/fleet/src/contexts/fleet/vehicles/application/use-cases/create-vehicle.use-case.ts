@@ -4,6 +4,7 @@ import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fle
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../domain/repositories/vehicle.repository";
 import { FleetQuotaExceededError, QuotaService } from "../../../../../quota.service";
 import { Vehicle, type FleetVehicleType, type FleetFuelType } from "../../domain/entities/vehicle.entity";
+import type { VehicleCapacityUnit } from "../../domain/vehicle-capacity";
 
 export class VehicleQuotaExceededError extends Error {
   constructor(
@@ -24,6 +25,7 @@ export type CreateVehicleCommand = {
   type?: FleetVehicleType;
   fuelType?: FleetFuelType;
   capacity?: number;
+  capacityUnit?: VehicleCapacityUnit;
   tenantId?: string;
   status?: FleetAssetStatus;
 };
@@ -61,6 +63,7 @@ export class CreateVehicleUseCase {
       type: command.type ?? null,
       fuelType: command.fuelType ?? null,
       capacity: command.capacity ?? null,
+      capacityUnit: command.capacityUnit ?? null,
       tenantId,
       status,
       assignedDriverId: null,

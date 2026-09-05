@@ -21,6 +21,24 @@ export function isFleetFuelType(value: unknown): value is FleetFuelType {
   return typeof value === "string" && (FLEET_FUEL_TYPES as readonly string[]).includes(value);
 }
 
+import {
+  assertCapacityWithinRange,
+  capacityPallets,
+  capacityVolumeM3,
+  capacityWeightKg,
+  normalizeCapacityUnit,
+  type VehicleCapacityUnit,
+} from "../vehicle-capacity";
+
+export type VehiclePrimitives = VehicleProps & {
+  capacityUnit: VehicleCapacityUnit;
+  // Derived on read from capacity + unit rather than stored, so the two can
+  // never disagree. Null where the unit does not measure that thing.
+  capacityWeightKg: number | null;
+  capacityVolumeM3: number | null;
+  capacityPallets: number | null;
+};
+
 export type VehicleProps = {
   id: string;
   plateNumber: string;
@@ -32,6 +50,7 @@ export type VehicleProps = {
   type: FleetVehicleType | null;
   fuelType?: FleetFuelType | null;
   capacity: number | null;
+  capacityUnit?: VehicleCapacityUnit | null;
   tenantId: string;
   status: FleetAssetStatus;
   assignedDriverId: string | null;
@@ -79,8 +98,9 @@ export class Vehicle {
     if (props.fuelType !== null && props.fuelType !== undefined && !isFleetFuelType(props.fuelType)) {
       throw new Error(`fuelType must be one of: ${FLEET_FUEL_TYPES.join(", ")}`);
     }
-    if (props.capacity !== null && props.capacity !== undefined && props.capacity < 0) {
-      throw new Error("capacity must be zero or greater");
+    const capacityUnit = normalizeCapacityUnit(props.capacityUnit);
+    if (props.capacity !== null && props.capacity !== undefined) {
+      assertCapacityWithinRange(props.capacity, capacityUnit);
     }
     if (props.gpsDevice) {
       const imei = props.gpsDevice.imei.trim();
@@ -109,6 +129,7 @@ export class Vehicle {
       type: props.type ?? null,
       fuelType: props.fuelType ?? null,
       capacity: props.capacity ?? null,
+      capacityUnit,
       tenantId: props.tenantId.trim(),
       status: props.status,
       assignedDriverId: props.assignedDriverId?.trim() || null,
@@ -167,6 +188,23 @@ export class Vehicle {
     return this.props.capacity;
   }
 
+  get capacityUnit(): VehicleCapacityUnit {
+    return normalizeCapacityUnit(this.props.capacityUnit);
+  }
+
+  /** Mass units resolved to kilograms; null for volume and pallet capacities. */
+  get capacityWeightKg() {
+    return capacityWeightKg(this.capacity, this.capacityUnit);
+  }
+
+  get capacityVolumeM3() {
+    return capacityVolumeM3(this.capacity, this.capacityUnit);
+  }
+
+  get capacityPallets() {
+    return capacityPallets(this.capacity, this.capacityUnit);
+  }
+
   get tenantId() {
     return this.props.tenantId;
   }
@@ -196,6 +234,7 @@ export class Vehicle {
     type?: FleetVehicleType | null;
     fuelType?: FleetFuelType | null;
     capacity?: number | null;
+    capacityUnit?: VehicleCapacityUnit | null;
     tenantId?: string;
     status?: FleetAssetStatus;
   }): Vehicle {
@@ -209,6 +248,7 @@ export class Vehicle {
       type: values.type === undefined ? this.type : values.type,
       fuelType: values.fuelType === undefined ? this.fuelType : values.fuelType,
       capacity: values.capacity === undefined ? this.capacity : values.capacity,
+      capacityUnit: values.capacityUnit === undefined ? this.capacityUnit : values.capacityUnit,
       tenantId: values.tenantId ?? this.tenantId,
       status: values.status ?? this.status,
       assignedDriverId: this.assignedDriverId,
@@ -267,7 +307,7 @@ export class Vehicle {
     });
   }
 
-  toPrimitives(): VehicleProps {
+  toPrimitives(): VehiclePrimitives {
     return {
       id: this.id,
       plateNumber: this.plateNumber,
@@ -279,6 +319,10 @@ export class Vehicle {
       type: this.type,
       fuelType: this.fuelType,
       capacity: this.capacity,
+      capacityUnit: this.capacityUnit,
+      capacityWeightKg: this.capacityWeightKg,
+      capacityVolumeM3: this.capacityVolumeM3,
+      capacityPallets: this.capacityPallets,
       tenantId: this.tenantId,
       status: this.status,
       assignedDriverId: this.assignedDriverId,

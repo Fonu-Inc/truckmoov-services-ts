@@ -32,6 +32,9 @@ export class MikroDriverRepository implements DriverRepository {
       whatsappNumber: driver.contactChannels.whatsappNumber,
       smsNumber: driver.contactChannels.smsNumber,
       voiceNumber: driver.contactChannels.voiceNumber,
+      performanceScore: driver.performanceScore,
+      performanceJobsScored: driver.performanceJobsScored,
+      performanceScoredAt: driver.performanceScoredAt ? new Date(driver.performanceScoredAt) : null,
       updatedAt: new Date(),
     });
   }
@@ -141,6 +144,9 @@ export class MikroDriverRepository implements DriverRepository {
         smsNumber: record.smsNumber ?? null,
         voiceNumber: record.voiceNumber ?? null,
       },
+      performanceScore: record.performanceScore ?? null,
+      performanceJobsScored: record.performanceJobsScored ?? null,
+      performanceScoredAt: record.performanceScoredAt?.toISOString() ?? null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     });

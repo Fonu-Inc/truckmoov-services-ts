@@ -154,6 +154,13 @@ import { DriversController } from "./drivers.controller";
 import { DispatchController } from "./dispatch.controller";
 import { AlertsController } from "./alerts.controller";
 import { ReportsController } from "./reports.controller";
+import { MailerModule } from "@shared/mailer";
+import { MaintenanceReminderService } from "./maintenance-reminder.service";
+import { MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY } from "./contexts/fleet/maintenance/domain/maintenance-reminder-schedule.repository";
+import { MikroMaintenanceReminderScheduleRepository } from "./mikro-maintenance-reminder-schedule.repository";
+import { InMemoryMaintenanceReminderScheduleRepository } from "./in-memory-maintenance-reminder-schedule.repository";
+import { OverviewController } from "./overview.controller";
+import { DriverPerformanceListener } from "./driver-performance.listener";
 import { AnalyticsController } from "./analytics.controller";
 import { MaintenanceController } from "./maintenance.controller";
 import { GeofencesController } from "./geofences.controller";
@@ -179,6 +186,11 @@ import {
   TriggerAlertUseCase,
 } from "./contexts/fleet/alerts";
 import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase } from "./contexts/fleet/reports";
+import { OverviewUseCase } from "./contexts/fleet/reports/application/overview.use-case";
+import { VEHICLE_POSITIONS_READER } from "./contexts/fleet/reports/domain/ports/vehicle-positions-reader.port";
+import { RECENT_CHATS_READER } from "./contexts/fleet/reports/domain/ports/recent-chats-reader.port";
+import { HttpVehiclePositionsReader } from "./contexts/fleet/reports/infrastructure/http-vehicle-positions-reader";
+import { HttpRecentChatsReader } from "./contexts/fleet/reports/infrastructure/http-recent-chats-reader";
 import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
 import { MaintenanceProfilesUseCase } from "./maintenance-profiles.use-case";
 import { MikroMaintenanceProfileRepository } from "./mikro-maintenance-profile.repository";
@@ -244,7 +256,7 @@ import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
 
 @Module({
-  imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule],
+  imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule, MailerModule],
   controllers: [
     InternalFleetController,
     FleetController,
@@ -262,6 +274,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     DispatchController,
     AlertsController,
     ReportsController,
+    OverviewController,
     AnalyticsController,
     MaintenanceController,
     GeofencesController,
@@ -281,6 +294,28 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     AlertEscalationService,
     ScheduledReportService,
     DashboardUseCase,
+    OverviewUseCase,
+    MaintenanceReminderService,
+    MikroMaintenanceReminderScheduleRepository,
+    InMemoryMaintenanceReminderScheduleRepository,
+    {
+      provide: MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY,
+      inject: [
+        InMemoryMaintenanceReminderScheduleRepository,
+        MikroMaintenanceReminderScheduleRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryMaintenanceReminderScheduleRepository,
+        mikro: MikroMaintenanceReminderScheduleRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    DriverPerformanceListener,
+    HttpVehiclePositionsReader,
+    HttpRecentChatsReader,
+    { provide: VEHICLE_POSITIONS_READER, useExisting: HttpVehiclePositionsReader },
+    { provide: RECENT_CHATS_READER, useExisting: HttpRecentChatsReader },
     FleetAnalyticsUseCase,
     MikroMaintenanceProfileRepository,
     { provide: MAINTENANCE_PROFILE_REPOSITORY, useExisting: MikroMaintenanceProfileRepository },

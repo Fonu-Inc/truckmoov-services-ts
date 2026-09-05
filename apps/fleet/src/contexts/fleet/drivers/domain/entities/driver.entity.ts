@@ -63,6 +63,11 @@ export type DriverProps = {
   communicationPreference?: DriverCommunicationPreference;
   assignedVehicleId: string | null;
   contactChannels: DriverContactChannels;
+  // Stored, not derived on read: the score is computed from deliveries whose
+  // traffic conditions are no longer observable once the job is over.
+  performanceScore?: number | null;
+  performanceJobsScored?: number | null;
+  performanceScoredAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -124,6 +129,9 @@ export class Driver {
         smsNumber: props.contactChannels.smsNumber?.trim() || null,
         voiceNumber: props.contactChannels.voiceNumber?.trim() || null,
       },
+      performanceScore: props.performanceScore ?? null,
+      performanceJobsScored: props.performanceJobsScored ?? null,
+      performanceScoredAt: props.performanceScoredAt ?? null,
       createdAt: props.createdAt ?? new Date().toISOString(),
       updatedAt: props.updatedAt ?? new Date().toISOString(),
     });
@@ -180,6 +188,27 @@ export class Driver {
 
   get contactChannels() {
     return this.props.contactChannels;
+  }
+
+  get performanceScore() {
+    return this.props.performanceScore ?? null;
+  }
+
+  get performanceJobsScored() {
+    return this.props.performanceJobsScored ?? null;
+  }
+
+  get performanceScoredAt() {
+    return this.props.performanceScoredAt ?? null;
+  }
+
+  withPerformance(score: number, jobsScored: number, scoredAt: string): Driver {
+    return Driver.create({
+      ...this.toPrimitives(),
+      performanceScore: score,
+      performanceJobsScored: jobsScored,
+      performanceScoredAt: scoredAt,
+    });
   }
 
   get createdAt() {
@@ -284,6 +313,9 @@ export class Driver {
       communicationPreference: this.communicationPreference,
       assignedVehicleId: this.assignedVehicleId,
       contactChannels: { ...this.contactChannels },
+      performanceScore: this.performanceScore,
+      performanceJobsScored: this.performanceJobsScored,
+      performanceScoredAt: this.performanceScoredAt,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

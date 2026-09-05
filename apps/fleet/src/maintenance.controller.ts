@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import {
+  BadRequestException,
   Body,
   Res,
   Param,
@@ -14,6 +16,7 @@ import {
   Query,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiOperation,
   ApiQuery,
@@ -23,6 +26,14 @@ import {
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
+import { MaintenanceReminderService } from "./maintenance-reminder.service";
+import { SaveMaintenanceReminderScheduleDto } from "./dto/maintenance-reminder.dto";
+import {
+  MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY,
+  REMINDER_LEAD_DAY_OPTIONS,
+  type MaintenanceReminderSchedule,
+  type MaintenanceReminderScheduleRepository,
+} from "./contexts/fleet/maintenance/domain/maintenance-reminder-schedule.repository";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import {
   MaintenanceRecordResponse,
@@ -51,6 +62,9 @@ export class MaintenanceController extends BaseFleetController {
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(MaintenanceProfilesUseCase) private readonly maintenanceProfilesUseCase: MaintenanceProfilesUseCase,
     @Inject(MaintenanceRecordsUseCase) private readonly maintenanceRecordsUseCase: MaintenanceRecordsUseCase,
+    @Inject(MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY)
+    private readonly reminderSchedules: MaintenanceReminderScheduleRepository,
+    @Inject(MaintenanceReminderService) private readonly reminderService: MaintenanceReminderService,
   ) {
     super(auditLog, bus);
   }
@@ -274,14 +288,116 @@ export class MaintenanceController extends BaseFleetController {
     }
   }
 
+  @Get("reminders/schedule")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Get the maintenance reminder schedule",
+    description: "Returns the standing reminder for the calling tenant, or null when none is configured.",
+  })
+  @ApiOkResponse({ description: "Schedule returned" })
+  async getReminderSchedule(@Req() req: FleetRequestContext) {
+    const schedule = await this.reminderSchedules.findByTenantId(this.tenantIdFromRequest(req));
+    return {
+      status: true,
+      message: "success",
+      data: { schedule: schedule ? presentSchedule(schedule) : null, leadDayOptions: REMINDER_LEAD_DAY_OPTIONS },
+    };
+  }
+
+  @Post("reminders/schedule")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Create or update the maintenance reminder schedule",
+    description:
+      "Stores a standing reminder. The sweep mails the recipient whenever maintenance falls due inside the lead window, or is already overdue. Nothing is sent by this call.",
+  })
+  @ApiCreatedResponse({ description: "Schedule saved" })
+  @ApiBadRequestResponse({ description: "Invalid recipient email or lead window" })
+  async saveReminderSchedule(
+    @Body() payload: SaveMaintenanceReminderScheduleDto,
+    @Req() req: FleetRequestContext,
+  ) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const existing = await this.reminderSchedules.findByTenantId(tenantId);
+    const now = new Date();
+
+    const schedule = {
+      id: existing?.id ?? randomUUID(),
+      tenantId,
+      recipientEmail: payload.recipientEmail.trim().toLowerCase(),
+      leadDays: payload.leadDays,
+      enabled: payload.enabled ?? true,
+      lastRunAt: existing?.lastRunAt ?? null,
+      lastSentCount: existing?.lastSentCount ?? null,
+      createdBy: req.user?.userId ?? "system",
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    await this.reminderSchedules.save(schedule);
+
+    // Shown so the modal can say what the next run will cover, without the
+    // caller having to guess the window.
+    const dueNow = await this.reminderService.findDue(schedule, now);
+
+    await this.recordActivity(req, {
+      entityType: "vehicle",
+      entityId: schedule.id,
+      action: "maintenance.reminder_schedule_saved",
+      summary: `Maintenance reminders set for ${schedule.recipientEmail}, ${schedule.leadDays} days ahead`,
+      metadata: { leadDays: schedule.leadDays, enabled: schedule.enabled },
+    });
+
+    return {
+      status: true,
+      message: "Reminder schedule saved",
+      data: { schedule: presentSchedule(schedule), dueInWindow: dueNow.length },
+    };
+  }
+
+  @Delete("reminders/schedule")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Stop maintenance reminders" })
+  @ApiOkResponse({ description: "Schedule removed" })
+  async deleteReminderSchedule(@Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    await this.reminderSchedules.deleteByTenantId(tenantId);
+    return { status: true, message: "Reminder schedule removed", data: { schedule: null } };
+  }
+
   @Post("reminders/send")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
-  @ApiOperation({ summary: "Send maintenance reminders" })
-  @ApiOkResponse({ description: "Reminders queued", type: ReminderQueuedResponse })
+  @ApiOperation({
+    summary: "Run the reminder now",
+    description:
+      "Sends the reminder immediately using the stored schedule, without waiting for the sweep. Requires a schedule to exist.",
+  })
+  @ApiOkResponse({ description: "Reminder sent", type: ReminderQueuedResponse })
+  @ApiBadRequestResponse({ description: "No reminder schedule is configured" })
   async sendMaintenanceReminders(@Req() req: FleetRequestContext) {
-    const summary = await this.maintenanceRecordsUseCase.summary(this.tenantIdFromRequest(req));
-    return { status: true, message: "success", data: { queued: summary.overdue, message: "Reminders will be sent to assigned drivers" } };
+    const schedule = await this.reminderSchedules.findByTenantId(this.tenantIdFromRequest(req));
+    if (!schedule) {
+      throw new BadRequestException("Set a reminder schedule before sending one");
+    }
+
+    const sent = await this.reminderService.runForTenant(schedule);
+    return {
+      status: true,
+      message: "success",
+      data: { queued: sent.length, recipient: schedule.recipientEmail },
+    };
   }
 
   /* ── Compliance Documents ──────────────────────────────────────────────── */
+}
+
+function presentSchedule(schedule: MaintenanceReminderSchedule) {
+  return {
+    id: schedule.id,
+    recipientEmail: schedule.recipientEmail,
+    leadDays: schedule.leadDays,
+    enabled: schedule.enabled,
+    lastRunAt: schedule.lastRunAt?.toISOString() ?? null,
+    lastSentCount: schedule.lastSentCount,
+    updatedAt: schedule.updatedAt.toISOString(),
+  };
 }

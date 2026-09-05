@@ -25,6 +25,7 @@ export class MikroVehicleRepository implements VehicleRepository {
       type: vehicle.type,
       fuelType: vehicle.fuelType,
       capacity: vehicle.capacity,
+      capacityUnit: vehicle.capacityUnit,
       tenantId: vehicle.tenantId,
       status: vehicle.status,
       assignedDriverId: vehicle.assignedDriverId,
@@ -145,6 +146,7 @@ export class MikroVehicleRepository implements VehicleRepository {
           : null,
       fuelType: isFleetFuelType(record.fuelType) ? record.fuelType : null,
       capacity: record.capacity ?? null,
+      capacityUnit: (record.capacityUnit as never) ?? null,
       tenantId: record.tenantId,
       status: (["active", "inactive", "maintenance", "decommissioned"].includes(record.status)
         ? record.status

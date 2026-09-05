@@ -400,18 +400,20 @@ describe("Fleet HTTP contract", () => {
   }, 15000);
 
   it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
+    // Vehicle import takes a CSV upload, not a JSON body.
+    const vehiclesCsv = [
+      "registration_number,vin,make,model,year,type,fuel_type,capacity,capacity_unit,status",
+      "TM-111,,Scania,Scania R450,,,,,,",
+      "TM-112,,MAN,MAN TGX,,,,,,inactive",
+    ].join("\n");
     const importVehicles = await request(app.getHttpServer())
       .post("/fleet/vehicles/import")
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
-      .send({
-        items: [
-          { plateNumber: "TM-111", model: "Scania R450" },
-          { plateNumber: "TM-112", model: "MAN TGX", status: "inactive" },
-        ],
-      });
+      .attach("file", Buffer.from(vehiclesCsv), "vehicles.csv");
     expect(importVehicles.status).toBe(201);
     expect(importVehicles.body.created).toBe(2);
+    expect(importVehicles.body.skipped).toEqual([]);
 
     const importDrivers = await request(app.getHttpServer())
       .post("/fleet/drivers/import")

@@ -37,10 +37,27 @@ export class ComplianceDocumentsUseCase {
     return { ...doc, status: computeDocumentStatus(doc, this.reminderWindow.reminderDays) };
   }
 
-  async list(tenantId: string, filters?: ComplianceDocumentFilters & { status?: ComplianceDocumentStatus }) {
+  async list(
+    tenantId: string,
+    filters?: ComplianceDocumentFilters & {
+      status?: ComplianceDocumentStatus;
+      issuedFrom?: string;
+      issuedTo?: string;
+      expiringFrom?: string;
+      expiringTo?: string;
+    },
+  ) {
     const docs = await this.repo.findAllByTenant(tenantId, filters);
-    const withStatus = docs.map((d) => this.withStatus(d));
-    if (filters?.status) return withStatus.filter((d) => d.status === filters.status);
+    let withStatus = docs.map((d) => this.withStatus(d));
+    if (filters?.status) withStatus = withStatus.filter((d) => d.status === filters.status);
+
+    // Date windows are applied here rather than in SQL because the repository
+    // filter is shared with the reminder sweep, which has no use for them.
+    withStatus = withStatus.filter(
+      (d) =>
+        withinWindow(d.issueDate, filters?.issuedFrom, filters?.issuedTo) &&
+        withinWindow(d.expiryDate, filters?.expiringFrom, filters?.expiringTo),
+    );
     return withStatus;
   }
 
@@ -160,4 +177,14 @@ export class ComplianceDocumentsUseCase {
     ];
     return rows.join("\n");
   }
+}
+
+function withinWindow(value: string | null, from?: string, to?: string): boolean {
+  if (!from && !to) return true;
+  if (!value) return false;
+  const at = Date.parse(value);
+  if (!Number.isFinite(at)) return false;
+  if (from && at < Date.parse(from)) return false;
+  if (to && at > Date.parse(to)) return false;
+  return true;
 }

@@ -1,16 +1,29 @@
 import { PartialType } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import { IsIn, IsISO8601, IsNumber, IsOptional, IsPositive, IsString, Min } from "class-validator";
 
 const FUEL_BUDGET_PERIODS = ["daily", "weekly", "monthly"] as const;
 const FUEL_TYPES = ["diesel", "petrol", "ev", "hybrid"] as const;
 
 export class RecordFuelDto {
+  /** Vehicle id. Optional when vehicleRegistration is supplied instead. */
+  @IsOptional()
   @IsString()
-  vehicleId!: string;
+  vehicleId?: string;
+
+  /** Registration as typed in the Record Fueling modal, resolved to a vehicle. */
+  @IsOptional()
+  @IsString()
+  vehicleRegistration?: string;
 
   @IsOptional()
   @IsString()
   driverId?: string | null;
+
+  /** Driver name as typed in the modal, matched against the tenant's drivers. */
+  @IsOptional()
+  @IsString()
+  driverName?: string | null;
 
   @IsOptional()
   @IsString()
@@ -41,6 +54,38 @@ export class RecordFuelDto {
 export class UpdateFuelRecordDto extends PartialType(RecordFuelDto) {}
 
 export class FuelListQueryDto {
+  /** Free-text across vehicle registration, driver name and station. */
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @IsOptional()
+  @IsIn(FUEL_TYPES)
+  fuelType?: typeof FUEL_TYPES[number];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  litresFrom?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  litresTo?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  totalFrom?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  totalTo?: number;
 
   @IsOptional()
   @IsString()

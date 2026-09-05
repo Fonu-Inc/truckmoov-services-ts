@@ -22,6 +22,7 @@ import {
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
 import { DRIVER_STATUS_INPUTS } from "../contexts/fleet/drivers/domain/entities/driver.entity";
 import { FLEET_FUEL_TYPES } from "../contexts/fleet/vehicles/domain/entities/vehicle.entity";
+import { VEHICLE_CAPACITY_UNITS } from "../contexts/fleet/vehicles/domain/vehicle-capacity";
 
 const FLEET_VEHICLE_TYPES = ["truck", "van", "trailer"] as const;
 
@@ -72,13 +73,17 @@ export class CreateVehicleDto {
   @IsIn(FLEET_FUEL_TYPES)
   fuelType?: typeof FLEET_FUEL_TYPES[number];
 
-  /** Vehicle carrying capacity in tons */
+  /** Carrying capacity, expressed in capacityUnit. Range is checked per unit. */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  @Max(100)
   capacity?: number;
+
+  /** Unit the capacity is given in. Defaults to tons. */
+  @IsOptional()
+  @IsIn(VEHICLE_CAPACITY_UNITS)
+  capacityUnit?: (typeof VEHICLE_CAPACITY_UNITS)[number];
 
   /** Operational availability status */
   @IsOptional()

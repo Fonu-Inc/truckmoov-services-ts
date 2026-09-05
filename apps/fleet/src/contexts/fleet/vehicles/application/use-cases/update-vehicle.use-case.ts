@@ -6,6 +6,7 @@ import {
 import { VehicleNotFoundError } from "../../domain/errors/vehicle-not-found.error";
 import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 import type { FleetVehicleType, FleetFuelType } from "../../domain/entities/vehicle.entity";
+import type { VehicleCapacityUnit } from "../../domain/vehicle-capacity";
 
 export type UpdateVehicleCommand = {
   id: string;
@@ -19,6 +20,7 @@ export type UpdateVehicleCommand = {
   type?: FleetVehicleType | null;
   fuelType?: FleetFuelType | null;
   capacity?: number | null;
+  capacityUnit?: VehicleCapacityUnit | null;
   status?: FleetAssetStatus;
 };
 
@@ -48,6 +50,7 @@ export class UpdateVehicleUseCase {
       type: command.type,
       fuelType: command.fuelType,
       capacity: command.capacity,
+      capacityUnit: command.capacityUnit,
       status: command.status,
     });
 

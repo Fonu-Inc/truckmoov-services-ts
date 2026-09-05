@@ -61,6 +61,9 @@ export class AppConfigService {
 
   get fleet() {
     return {
+      // How often the maintenance reminder sweep runs. A reminder is a standing
+      // schedule, not a button: this is what actually fires it.
+      maintenanceReminderSweepHours: this.config.get<number>("MAINTENANCE_REMINDER_SWEEP_HOURS", 24),
       defaultTenant: this.config.get("DEFAULT_TENANT", "default"),
       reportIntervalHours: this.config.get<number>("REPORT_INTERVAL_HOURS", 24),
       alertEscalationMinutes: this.config.get<number>("ALERT_ESCALATION_MINUTES", 30),
@@ -123,6 +126,31 @@ export class AppConfigService {
   get dispatch() {
     return {
       serviceUrl: this.config.get<string>("DISPATCH_SERVICE_URL", "http://localhost:3005"),
+    };
+  }
+
+  get overview() {
+    return {
+      trackingServiceUrl: this.config.get<string>(
+        "TRACKING_SERVICE_URL",
+        "http://tracking-service:3003",
+      ),
+      notificationServiceUrl: this.config.get<string>(
+        "NOTIFICATION_SERVICE_URL",
+        "http://notification-service:3004",
+      ),
+      // How far back the overview counts an alert as recent.
+      alertThresholdHours: this.config.get<number>(
+        "CONFIG_ALERT_THRESHOLD_HOURS",
+        24,
+      ),
+      // A vehicle whose last Traccar fix is older than this is not counted as
+      // in-use: a stale position says where it was, not that it is working.
+      positionFreshnessMinutes: this.config.get<number>(
+        "OVERVIEW_POSITION_FRESHNESS_MINUTES",
+        60,
+      ),
+      cacheTtlSeconds: this.config.get<number>("OVERVIEW_CACHE_TTL_SECONDS", 30),
     };
   }
 

@@ -152,6 +152,7 @@ export class FinancialsController extends BaseFleetController {
         includeCoverPage: query.includeCoverPage,
         includeFleetSummary: query.includeFleetSummary,
         includePerVehicleBreakdown: query.includePerVehicleBreakdown,
+        accentColor: query.accentColor,
       },
     );
     res.setHeader("Content-Type", contentType);

@@ -26,6 +26,13 @@ import {
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
+import {
+  applyFuelFilters,
+  buildWeeklyFuelSeries,
+  type FuelRecordView,
+} from "./contexts/fleet/fuel/domain/fuel-analytics";
+import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
+import { ListDriversUseCase } from "./contexts/fleet/drivers";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import {
   FuelBudgetUseCase,
@@ -80,25 +87,46 @@ export class FuelController extends BaseFleetController {
     @Inject(FuelMetricsUseCase) private readonly fuelMetricsUseCase: FuelMetricsUseCase,
     @Inject(FuelBudgetUseCase) private readonly fuelBudgetUseCase: FuelBudgetUseCase,
     @Inject(FuelThresholdService) private readonly fuelThresholdService: FuelThresholdService,
+    @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
+    @Inject(ListDriversUseCase) private readonly listDriversUseCase: ListDriversUseCase,
   ) {
     super(auditLog, bus);
   }
 
   @Get("transactions")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
-  @ApiOperation({ summary: "List fuel transactions (alias for /fuel/records)" })
+  @ApiOperation({
+    summary: "List fuel transactions (alias for /fuel/records)",
+    description:
+      "Supports the search box and the filter panel: free text across registration, driver and station, plus fuel type, litre range, total range and date range.",
+  })
+  @ApiQuery({ name: "query", required: false, type: String })
+  @ApiQuery({ name: "fuelType", required: false, enum: ["diesel", "petrol", "ev", "hybrid"] })
+  @ApiQuery({ name: "litresFrom", required: false, type: Number })
+  @ApiQuery({ name: "litresTo", required: false, type: Number })
+  @ApiQuery({ name: "totalFrom", required: false, type: Number })
+  @ApiQuery({ name: "totalTo", required: false, type: Number })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "from", required: false, type: String })
   @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ type: FuelRecordListResponse })
   async listFuelTransactions(
-    @Query("vehicleId") vehicleId: string,
-    @Query("from") from: string,
-    @Query("to") to: string,
+    @Query() query: FuelListQueryDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordListResponse> {
-    const records = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req), vehicleId, from, to });
-    return { status: true, message: "success", data: records } as unknown as FuelRecordListResponse;
+    const records = await this.listFuelRecordsUseCase.execute({
+      tenantId: this.tenantIdFromRequest(req),
+      vehicleId: query.vehicleId,
+      driverId: query.driverId,
+      station: query.station,
+      from: query.from,
+      to: query.to,
+    });
+    return {
+      status: true,
+      message: "success",
+      data: applyFuelFilters(records as unknown as FuelRecordView[], query),
+    } as unknown as FuelRecordListResponse;
   }
 
   @Get("summary")
@@ -162,9 +190,14 @@ export class FuelController extends BaseFleetController {
     @Body() dto: RecordFuelDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    // The modal collects a registration and a typed driver name, not ids.
+    const { vehicleId, driverId } = await this.resolveFuelSubjects(tenantId, dto);
     const data = await this.recordFuelUseCase.execute({
       ...dto,
-      tenantId: this.tenantIdFromRequest(req),
+      vehicleId,
+      driverId,
+      tenantId,
       recordedBy: req.user?.userId ?? "system",
     });
       await this.recordActivity(req, {
@@ -181,6 +214,77 @@ export class FuelController extends BaseFleetController {
         },
       });
     return { status: true, message: "success", data };
+  }
+
+  /**
+   * Resolves the registration and driver name a person typed into ids. An
+   * unknown registration is refused rather than guessed: a fuel record filed
+   * against the wrong truck is worse than one not filed at all.
+   */
+  private async resolveFuelSubjects(
+    tenantId: string,
+    dto: RecordFuelDto,
+  ): Promise<{ vehicleId: string; driverId: string | null }> {
+    let vehicleId = dto.vehicleId?.trim() ?? "";
+    const registration = dto.vehicleRegistration?.trim();
+
+    if (!vehicleId && registration) {
+      const vehicles = await this.listVehiclesUseCase.execute({ tenantId, query: registration });
+      const match = (vehicles as unknown as Array<Record<string, unknown>>).find(
+        (vehicle) =>
+          String(vehicle["registrationNumber"] ?? vehicle["plateNumber"] ?? "").toLowerCase() ===
+          registration.toLowerCase(),
+      );
+      if (!match) {
+        throw new BadRequestException(`No vehicle is registered as ${registration}`);
+      }
+      vehicleId = String(match["id"]);
+    }
+
+    if (!vehicleId) {
+      throw new BadRequestException("Provide either vehicleId or vehicleRegistration");
+    }
+
+    let driverId = dto.driverId?.trim() ?? null;
+    const driverName = dto.driverName?.trim();
+    if (!driverId && driverName) {
+      const drivers = await this.listDriversUseCase.execute({ tenantId });
+      const match = (drivers as unknown as Array<Record<string, unknown>>).find(
+        (driver) => String(driver["name"] ?? "").toLowerCase() === driverName.toLowerCase(),
+      );
+      // A name that matches nobody is kept off the record rather than failing
+      // the purchase: the fuel was still bought.
+      driverId = match ? String(match["id"]) : null;
+    }
+
+    return { vehicleId, driverId };
+  }
+
+  @Get("analytics/weekly")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({
+    summary: "Weekly fuel consumption by fuel type",
+    description:
+      "Litres per weekday split by fuel type, for the Analytics sub-tab. Always returns all seven days so the chart keeps its shape on a quiet week.",
+  })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ description: "Weekly consumption series" })
+  async weeklyFuelConsumption(
+    @Query("from") from: string,
+    @Query("to") to: string,
+    @Req() req: FleetRequestContext,
+  ) {
+    const records = await this.listFuelRecordsUseCase.execute({
+      tenantId: this.tenantIdFromRequest(req),
+      from,
+      to,
+    });
+    return {
+      status: true,
+      message: "success",
+      data: buildWeeklyFuelSeries(records as unknown as FuelRecordView[]),
+    };
   }
 
   @Get("metrics")

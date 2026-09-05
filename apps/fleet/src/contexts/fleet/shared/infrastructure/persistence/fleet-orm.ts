@@ -20,6 +20,7 @@ export class VehicleRecord {
   type?: string | null;
   fuelType?: string | null;
   capacity?: number | null;
+  capacityUnit?: string | null;
   tenantId!: string;
   status!: string;
   assignedDriverId?: string | null;
@@ -50,6 +51,9 @@ export class DriverRecord {
   whatsappNumber?: string | null;
   smsNumber?: string | null;
   voiceNumber?: string | null;
+  performanceScore?: number | null;
+  performanceJobsScored?: number | null;
+  performanceScoredAt?: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -95,6 +99,7 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
     type: { type: "string", length: 32, nullable: true },
     fuelType: { type: "string", length: 16, nullable: true },
     capacity: { type: "float", nullable: true },
+    capacityUnit: { fieldName: "capacity_unit", type: "string", length: 16, nullable: true },
     tenantId: { type: "string", length: 64 },
     status: { type: "string", length: 16, defaultRaw: "'active'" },
     assignedDriverId: { type: "string", length: 64, nullable: true },
@@ -140,6 +145,9 @@ export const DriverRecordSchema = new EntitySchema<DriverRecord>({
     whatsappNumber: { type: "string", length: 32, nullable: true },
     smsNumber: { type: "string", length: 32, nullable: true },
     voiceNumber: { type: "string", length: 32, nullable: true },
+    performanceScore: { fieldName: "performance_score", type: "number", nullable: true },
+    performanceJobsScored: { fieldName: "performance_jobs_scored", type: "number", nullable: true },
+    performanceScoredAt: { fieldName: "performance_scored_at", type: "datetime", nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: {
       type: "datetime",
@@ -569,6 +577,42 @@ export const GeofenceAssignmentRecordSchema = new EntitySchema<GeofenceAssignmen
   },
 });
 
+export class MaintenanceReminderScheduleRecord {
+  id!: string;
+  tenantId!: string;
+  recipientEmail!: string;
+  leadDays!: number;
+  enabled!: boolean;
+  lastRunAt!: Date | null;
+  lastSentCount!: number | null;
+  createdBy!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const MaintenanceReminderScheduleRecordSchema =
+  new EntitySchema<MaintenanceReminderScheduleRecord>({
+    class: MaintenanceReminderScheduleRecord,
+    tableName: "fleet_maintenance_reminder_schedules",
+    properties: {
+      id: { type: "string", primary: true },
+      tenantId: { fieldName: "tenant_id", type: "string", length: 64, unique: true },
+      recipientEmail: { fieldName: "recipient_email", type: "string", length: 254 },
+      leadDays: { fieldName: "lead_days", type: "number", default: 30 },
+      enabled: { type: "boolean", default: true },
+      lastRunAt: { fieldName: "last_run_at", type: "datetime", nullable: true },
+      lastSentCount: { fieldName: "last_sent_count", type: "number", nullable: true },
+      createdBy: { fieldName: "created_by", type: "string", length: 64 },
+      createdAt: { fieldName: "created_at", type: "datetime", defaultRaw: "now()" },
+      updatedAt: {
+        fieldName: "updated_at",
+        type: "datetime",
+        onUpdate: () => new Date(),
+        defaultRaw: "now()",
+      },
+    },
+  });
+
 export class MaintenanceRecordOrmRecord {
   id!: string;
   tenantId!: string;
@@ -942,6 +986,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       DriverRecordSchema,
       DeviceRecordSchema,
       MaintenanceProfileRecordSchema,
+      MaintenanceReminderScheduleRecordSchema,
       GeofenceZoneRecordSchema,
       GeofenceAssignmentRecordSchema,
       MaintenanceRecordOrmSchema,

@@ -1,7 +1,9 @@
 import {
   Inject,
   Get,
+  Header,
   Req,
+  Res,
   Controller,
   UseGuards,
   Query,
@@ -15,6 +17,7 @@ import {
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
+import { buildAnalyticsCsv } from "./contexts/fleet/reports/domain/analytics-csv";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import {
   AnalyticsSummaryResponse,
@@ -82,7 +85,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("driver-scores")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Driver safety scores", description: "Safety scores per driver based on behavior events in the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
@@ -126,6 +129,44 @@ export class AnalyticsController extends BaseFleetController {
   async getVehicleSafetyRadar(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
     return { status: true, message: "success", data };
+  }
+
+  @Get("export")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Header("Content-Type", "text/csv")
+  @ApiOperation({
+    summary: "Export the analytics tab as CSV",
+    description:
+      "One file covering the summary, fleet status, job pipeline, fuel levels and driver scores for the period, so the tab exports like every other tab.",
+  })
+  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
+  async exportAnalytics(
+    @Query("period_days") periodDays: string,
+    @Req() req: FleetRequestContext,
+    @Res({ passthrough: false }) res: any,
+  ): Promise<void> {
+    const tenantId = this.tenantIdFromRequest(req);
+    const days = parseInt(periodDays ?? "30", 10);
+    const [summary, fleetStatus, jobPipeline, fuelLevels, driverScores] = await Promise.all([
+      this.fleetAnalyticsUseCase.summary(tenantId, days),
+      this.fleetAnalyticsUseCase.fleetStatus(tenantId, days),
+      this.fleetAnalyticsUseCase.jobPipeline(tenantId, days),
+      this.fleetAnalyticsUseCase.fuelLevels(tenantId, days),
+      this.fleetAnalyticsUseCase.driverScores(tenantId, days, 100),
+    ]);
+
+    res.setHeader("Content-Disposition", `attachment; filename=analytics-${days}d.csv`);
+    res.send(
+      buildAnalyticsCsv({
+        periodDays: days,
+        summary: summary as Record<string, unknown>,
+        fleetStatus: fleetStatus as unknown,
+        jobPipeline: jobPipeline as unknown,
+        fuelLevels: fuelLevels as unknown,
+        driverScores: driverScores as unknown,
+      }),
+    );
   }
 
   /* ── Maintenance Profiles ──────────────────────────────────────────────── */
