@@ -3,6 +3,8 @@ import {
   applyVehicleSearch,
   matchesVehicleQuery,
 } from "../../../apps/fleet/src/contexts/fleet/tracking/domain/vehicle-search";
+import { ShareLinkLifecycleService } from "../../../apps/fleet/src/share-link-lifecycle.service";
+import { InMemoryShareLinkRepository } from "../../../apps/fleet/src/contexts/fleet/tracking/infrastructure/in-memory-share-link.repository";
 import {
   hashShareToken,
   mintShareToken,
@@ -81,3 +83,77 @@ describe("Share link lifetime", () => {
     expect(shareLinkIsLive({ expiresAt: future, revokedAt: new Date() })).toBe(false);
   });
 });
+
+describe("Share link lifecycle", () => {
+  function build() {
+    const links = new InMemoryShareLinkRepository();
+    const bus = { subscribe: async () => {}, publish: async () => {} };
+    const service = new ShareLinkLifecycleService(bus as never, links, {} as never);
+    return { links, service };
+  }
+
+  async function seed(
+    links: InMemoryShareLinkRepository,
+    overrides: { id: string; jobId: string | null; expiresAt: Date },
+  ) {
+    await links.save({
+      tenantId: "tenant-a",
+      vehicleId: "v1",
+      tokenHash: `hash-${overrides.id}`,
+      createdBy: "user-1",
+      createdAt: new Date(),
+      revokedAt: null,
+      lastViewedAt: null,
+      viewCount: 0,
+      ...overrides,
+    });
+  }
+
+  const future = () => new Date(Date.now() + 60 * 60 * 1000);
+
+  // A customer's link is scoped to their delivery. Leaving it live once the
+  // truck moves on shows them freight that is no longer theirs.
+  it("revokes a link when its job is delivered or cancelled", async () => {
+    for (const status of ["delivered", "cancelled"]) {
+      const { links, service } = build();
+      await seed(links, { id: `l-${status}`, jobId: "job-1", expiresAt: future() });
+
+      expect(await service.revokeIfJobEnded({ jobId: "job-1", newStatus: status })).toBe(1);
+      expect(await links.findActiveForVehicle("tenant-a", "v1")).toBeNull();
+    }
+  });
+
+  it("leaves a link alone while its job is still running", async () => {
+    const { links, service } = build();
+    await seed(links, { id: "l1", jobId: "job-1", expiresAt: future() });
+
+    expect(await service.revokeIfJobEnded({ jobId: "job-1", newStatus: "en-route" })).toBe(0);
+    expect(await links.findActiveForVehicle("tenant-a", "v1")).not.toBeNull();
+  });
+
+  it("ignores an event with no job", async () => {
+    const { service } = build();
+    expect(await service.revokeIfJobEnded({ newStatus: "delivered" })).toBe(0);
+  });
+
+  // A job that is never marked delivered would otherwise leave its row behind
+  // for good.
+  it("reaps a link a day after it expired, and keeps a fresh one", async () => {
+    const { links, service } = build();
+    await seed(links, {
+      id: "stale",
+      jobId: null,
+      expiresAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+    });
+    await seed(links, {
+      id: "recent",
+      jobId: null,
+      expiresAt: new Date(Date.now() - 60 * 1000),
+    });
+
+    expect(await service.reap()).toBe(1);
+    expect(await links.findByTokenHash("hash-stale")).toBeNull();
+    expect(await links.findByTokenHash("hash-recent")).not.toBeNull();
+  });
+});
+

@@ -217,6 +217,7 @@ import { InMemoryZoneOccupancyRepository } from "./contexts/fleet/tracking/infra
 import { LiveTrackingUseCase } from "./contexts/fleet/tracking/application/live-tracking.use-case";
 import { TrackingController } from "./tracking.controller";
 import { PublicTrackingController } from "./public-tracking.controller";
+import { ShareLinkLifecycleService } from "./share-link-lifecycle.service";
 import { SHARE_LINK_REPOSITORY } from "./contexts/fleet/tracking/domain/share-link.repository";
 import { MikroShareLinkRepository } from "./contexts/fleet/tracking/infrastructure/mikro-share-link.repository";
 import { InMemoryShareLinkRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-share-link.repository";
@@ -347,6 +348,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     GeofenceDwellSweepService,
     ShareVehicleLocationUseCase,
     ViewSharedLocationUseCase,
+    ShareLinkLifecycleService,
     InMemoryShareLinkRepository,
     MikroShareLinkRepository,
     {
