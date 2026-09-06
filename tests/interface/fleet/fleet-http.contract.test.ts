@@ -415,33 +415,20 @@ describe("Fleet HTTP contract", () => {
     expect(importVehicles.body.created).toBe(2);
     expect(importVehicles.body.skipped).toEqual([]);
 
+    // Driver import takes a CSV upload, not a JSON body.
+    const driversCsv = [
+      "first_name,last_name,phone,email,license_number,license_expiry,preferred_channel,status",
+      "Driver,One,+2348000000003,,DRV-111,2026-12-01,,available",
+      "Driver,Two,+2348000000004,,DRV-112,2026-12-02,,offline",
+    ].join("\n");
     const importDrivers = await request(app.getHttpServer())
       .post("/fleet/drivers/import")
       .set("Authorization", authToken("fleet_manager"))
       .set("Idempotency-Key", randomUUID())
-      .send({
-        items: [
-          {
-            firstName: "Driver",
-            lastName: "One",
-            phone: "+2348000000003",
-            licenseNumber: "DRV-111",
-            licenseExpiryDate: "2026-12-01",
-            status: "available",
-            contactChannels: { voiceNumber: "+2348000000003" },
-          },
-          {
-            firstName: "Driver",
-            lastName: "Two",
-            phone: "+2348000000004",
-            licenseNumber: "DRV-112",
-            licenseExpiryDate: "2026-12-02",
-            status: "offline",
-          },
-        ],
-      });
+      .attach("file", Buffer.from(driversCsv), "drivers.csv");
     expect(importDrivers.status).toBe(201);
     expect(importDrivers.body.created).toBe(2);
+    expect(importDrivers.body.skipped).toEqual([]);
 
     const search = await request(app.getHttpServer())
       .get("/fleet/dispatch/search?query=TM-11&driverStatus=active")

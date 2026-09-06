@@ -155,6 +155,32 @@ import { DispatchController } from "./dispatch.controller";
 import { AlertsController } from "./alerts.controller";
 import { ReportsController } from "./reports.controller";
 import { MailerModule } from "@shared/mailer";
+import { DRIVER_QUOTA_READER } from "./contexts/fleet/drivers/domain/ports/driver-quota-reader.port";
+import { DRIVER_CONSENT_REPOSITORY } from "./contexts/fleet/drivers/domain/driver-consent.repository";
+import { MikroDriverConsentRepository } from "./mikro-driver-consent.repository";
+import { InMemoryDriverConsentRepository } from "./in-memory-driver-consent.repository";
+import { DriverMessagingUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-messaging.use-case";
+import { HttpDriverMessenger } from "./contexts/fleet/drivers/infrastructure/http-driver-messenger";
+import { DriverDetailUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-detail.use-case";
+import { DriverBehaviorUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-behavior.use-case";
+import { DriverFatigueUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-fatigue.use-case";
+import { BEHAVIOR_EVENT_REPOSITORY } from "./contexts/fleet/drivers/domain/driver-behavior";
+import { FATIGUE_ANALYSIS_REPOSITORY } from "./contexts/fleet/drivers/domain/driver-fatigue";
+import { GEOFENCE_ALERT_READ_REPOSITORY } from "./contexts/fleet/drivers/domain/geofence-alert-read.repository";
+import {
+  MikroBehaviorEventRepository,
+  MikroFatigueAnalysisRepository,
+  MikroGeofenceAlertReadRepository,
+} from "./mikro-driver-behavior.repository";
+import {
+  InMemoryBehaviorEventRepository,
+  InMemoryFatigueAnalysisRepository,
+  InMemoryGeofenceAlertReadRepository,
+} from "./in-memory-driver-behavior.repository";
+import {
+  MikroDriverQuotaReader,
+  UnlimitedDriverQuotaReader,
+} from "./contexts/fleet/drivers/infrastructure/repositories/mikro-driver-quota-reader";
 import { MaintenanceReminderService } from "./maintenance-reminder.service";
 import { MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY } from "./contexts/fleet/maintenance/domain/maintenance-reminder-schedule.repository";
 import { MikroMaintenanceReminderScheduleRepository } from "./mikro-maintenance-reminder-schedule.repository";
@@ -295,6 +321,66 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     ScheduledReportService,
     DashboardUseCase,
     OverviewUseCase,
+    MikroDriverQuotaReader,
+    DriverMessagingUseCase,
+    DriverDetailUseCase,
+    DriverBehaviorUseCase,
+    DriverFatigueUseCase,
+    MikroBehaviorEventRepository,
+    InMemoryBehaviorEventRepository,
+    MikroFatigueAnalysisRepository,
+    InMemoryFatigueAnalysisRepository,
+    MikroGeofenceAlertReadRepository,
+    InMemoryGeofenceAlertReadRepository,
+    {
+      provide: BEHAVIOR_EVENT_REPOSITORY,
+      inject: [InMemoryBehaviorEventRepository, MikroBehaviorEventRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryBehaviorEventRepository,
+        mikro: MikroBehaviorEventRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    {
+      provide: FATIGUE_ANALYSIS_REPOSITORY,
+      inject: [InMemoryFatigueAnalysisRepository, MikroFatigueAnalysisRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryFatigueAnalysisRepository,
+        mikro: MikroFatigueAnalysisRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    {
+      provide: GEOFENCE_ALERT_READ_REPOSITORY,
+      inject: [InMemoryGeofenceAlertReadRepository, MikroGeofenceAlertReadRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryGeofenceAlertReadRepository,
+        mikro: MikroGeofenceAlertReadRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    HttpDriverMessenger,
+    MikroDriverConsentRepository,
+    InMemoryDriverConsentRepository,
+    {
+      provide: DRIVER_CONSENT_REPOSITORY,
+      inject: [InMemoryDriverConsentRepository, MikroDriverConsentRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryDriverConsentRepository,
+        mikro: MikroDriverConsentRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    UnlimitedDriverQuotaReader,
+    {
+      provide: DRIVER_QUOTA_READER,
+      inject: [UnlimitedDriverQuotaReader, MikroDriverQuotaReader, AppConfigService],
+      useFactory: (
+        unlimited: UnlimitedDriverQuotaReader,
+        mikro: MikroDriverQuotaReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? unlimited : mikro),
+    },
     MaintenanceReminderService,
     MikroMaintenanceReminderScheduleRepository,
     InMemoryMaintenanceReminderScheduleRepository,

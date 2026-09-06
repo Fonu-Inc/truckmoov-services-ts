@@ -4,6 +4,92 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-4 — Driver fatigue detection has no real inputs
+
+**Status:** open, recorded 5 September 2026. Related to the deferred Screen 4
+work: the hardware that would settle this is not bought.
+
+### The problem
+
+The Fatigue AI tab asks for a score out of ten, continuous driving minutes,
+rest compliance out of ten, lane variance, reaction-time degradation and a
+written analysis. Of those, only driving minutes can be derived today, from
+tracking positions. Rest compliance needs hours-of-service data nobody records.
+Lane variance and reaction time need a driver-facing camera or an ADAS feed,
+which is the hardware that is not bought.
+
+### Direction
+
+The tab ships behind a feature flag, off by default, computing what telemetry
+honestly supports — continuous driving time and a break-gap estimate from
+position history — and labelling the rest as unavailable rather than inventing
+it. When hardware lands, the same endpoint gains real inputs without the
+contract changing.
+
+### When this is picked up
+
+When driver-facing hardware is chosen and bought. Until then, no figure on this
+tab should be presented as a measurement of alertness.
+
+---
+
+## TD-3 — Driver behaviour events are inferred from alerts, not recorded
+
+**Status:** open, recorded 5 September 2026. A stub store ships with the Drivers
+page; this records that it is not yet fed from real telemetry.
+
+### The problem
+
+Behaviour scoring currently reads the alert table and matches on strings —
+`type.includes("harsh_braking")`. That gives a count and nothing else. The
+Behaviour tab needs each event's speed, its severity, where it happened and
+which vehicle it came from, and none of that survives the trip through alerts.
+
+### Direction
+
+A first-class `driver_behavior_event` record written from the tracking stream,
+with speed, location, vehicle, driver and severity. Scores are then computed
+from events rather than from alert-type string matching, and the alert table
+goes back to being about alerts.
+
+### When this is picked up
+
+When the tracking service can classify harsh braking, acceleration, cornering
+and overspeeding from consecutive position deltas, or when devices report those
+events directly. The stub accepts and stores events already, so the remaining
+work is the producer.
+
+---
+
+## TD-2 — Driver service rating has no source
+
+**Status:** open, recorded 5 September 2026.
+
+### The problem
+
+The driver detail screen shows a performance score blended from "service rating
+(50%), trip experience (30%) and availability & standing (20%)", with a service
+rating of 4.8 out of 5. Nothing in the platform rates a driver. There is no
+customer feedback capture, no post-delivery survey, and no operator rating of
+their own drivers.
+
+Dispatch has operator ratings between aggregators and owner operators, which is
+a different relationship and cannot stand in for this.
+
+### Direction
+
+Decide who rates a driver and when — the consignee on delivery, the dispatcher
+on completion, or the aggregator — then capture it against the job so the
+average is defensible. Until then the score must not present a service rating
+component it cannot evidence.
+
+### When this is picked up
+
+When the rating capture point is chosen. The performance score keeps its
+current, evidenced definition in the meantime.
+
+---
+
 ## TD-1 — Fuel transactions are self-reported, with nothing to check them against
 
 **Status:** open, recorded 5 September 2026. The endpoint ships as specified;

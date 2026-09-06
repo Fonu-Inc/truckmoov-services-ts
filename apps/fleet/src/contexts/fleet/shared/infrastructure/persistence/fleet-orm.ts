@@ -577,6 +577,127 @@ export const GeofenceAssignmentRecordSchema = new EntitySchema<GeofenceAssignmen
   },
 });
 
+export class DriverBehaviorEventRecord {
+  id!: string;
+  tenantId!: string;
+  driverId!: string;
+  vehicleId!: string | null;
+  type!: string;
+  severity!: string;
+  speedKph!: number | null;
+  latitude!: number | null;
+  longitude!: number | null;
+  occurredAt!: Date;
+  createdAt!: Date;
+}
+
+export const DriverBehaviorEventRecordSchema = new EntitySchema<DriverBehaviorEventRecord>({
+  class: DriverBehaviorEventRecord,
+  tableName: "fleet_driver_behavior_events",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { fieldName: "tenant_id", type: "string", length: 64, index: true },
+    driverId: { fieldName: "driver_id", type: "string", length: 64, index: true },
+    vehicleId: { fieldName: "vehicle_id", type: "string", length: 64, nullable: true },
+    type: { type: "string", length: 32 },
+    severity: { type: "string", length: 16 },
+    speedKph: { fieldName: "speed_kph", type: "float", nullable: true },
+    latitude: { type: "float", nullable: true },
+    longitude: { type: "float", nullable: true },
+    occurredAt: { fieldName: "occurred_at", type: "datetime", index: true },
+    createdAt: { fieldName: "created_at", type: "datetime", defaultRaw: "now()" },
+  },
+});
+
+export class DriverFatigueAnalysisRecord {
+  id!: string;
+  tenantId!: string;
+  driverId!: string;
+  score!: number;
+  riskLevel!: string;
+  drivingMinutes!: number;
+  restCompliance!: number | null;
+  indicators!: unknown[];
+  recommendations!: unknown[];
+  analysis!: string;
+  dataQuality!: string;
+  analyzedAt!: Date;
+}
+
+export const DriverFatigueAnalysisRecordSchema = new EntitySchema<DriverFatigueAnalysisRecord>({
+  class: DriverFatigueAnalysisRecord,
+  tableName: "fleet_driver_fatigue_analyses",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { fieldName: "tenant_id", type: "string", length: 64, index: true },
+    driverId: { fieldName: "driver_id", type: "string", length: 64, index: true },
+    score: { type: "number" },
+    riskLevel: { fieldName: "risk_level", type: "string", length: 16 },
+    drivingMinutes: { fieldName: "driving_minutes", type: "number", default: 0 },
+    restCompliance: { fieldName: "rest_compliance", type: "number", nullable: true },
+    indicators: { type: "json", default: "[]" },
+    recommendations: { type: "json", default: "[]" },
+    analysis: { type: "text", default: "" },
+    dataQuality: { fieldName: "data_quality", type: "string", length: 16, default: "partial" },
+    analyzedAt: { fieldName: "analyzed_at", type: "datetime", index: true },
+  },
+});
+
+export class GeofenceAlertReadRecord {
+  id!: string;
+  tenantId!: string;
+  alertId!: string;
+  readBy!: string;
+  readAt!: Date;
+}
+
+export const GeofenceAlertReadRecordSchema = new EntitySchema<GeofenceAlertReadRecord>({
+  class: GeofenceAlertReadRecord,
+  tableName: "fleet_geofence_alert_reads",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { fieldName: "tenant_id", type: "string", length: 64, index: true },
+    alertId: { fieldName: "alert_id", type: "string", length: 64, index: true },
+    readBy: { fieldName: "read_by", type: "string", length: 64 },
+    readAt: { fieldName: "read_at", type: "datetime", defaultRaw: "now()" },
+  },
+});
+
+export class DriverConsentRecord {
+  id!: string;
+  tenantId!: string;
+  driverId!: string;
+  channel!: string;
+  state!: string;
+  source!: string;
+  requestedAt!: Date | null;
+  respondedAt!: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const DriverConsentRecordSchema = new EntitySchema<DriverConsentRecord>({
+  class: DriverConsentRecord,
+  tableName: "fleet_driver_consents",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { fieldName: "tenant_id", type: "string", length: 64, index: true },
+    driverId: { fieldName: "driver_id", type: "string", length: 64, index: true },
+    channel: { type: "string", length: 16 },
+    state: { type: "string", length: 16, default: "unknown" },
+    source: { type: "string", length: 32, default: "operator" },
+    requestedAt: { fieldName: "requested_at", type: "datetime", nullable: true },
+    respondedAt: { fieldName: "responded_at", type: "datetime", nullable: true },
+    createdAt: { fieldName: "created_at", type: "datetime", defaultRaw: "now()" },
+    updatedAt: {
+      fieldName: "updated_at",
+      type: "datetime",
+      onUpdate: () => new Date(),
+      defaultRaw: "now()",
+    },
+  },
+});
+
 export class MaintenanceReminderScheduleRecord {
   id!: string;
   tenantId!: string;
@@ -987,6 +1108,10 @@ export async function getFleetOrm(cfg: DbConfig) {
       DeviceRecordSchema,
       MaintenanceProfileRecordSchema,
       MaintenanceReminderScheduleRecordSchema,
+      DriverConsentRecordSchema,
+      DriverBehaviorEventRecordSchema,
+      DriverFatigueAnalysisRecordSchema,
+      GeofenceAlertReadRecordSchema,
       GeofenceZoneRecordSchema,
       GeofenceAssignmentRecordSchema,
       MaintenanceRecordOrmSchema,

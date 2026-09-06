@@ -1,0 +1,243 @@
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import {
+  BEHAVIOR_EVENT_REPOSITORY,
+  BEHAVIOR_EVENT_TYPES,
+  BEHAVIOR_SEVERITIES,
+  rankDrivers,
+  scoreBehaviorEvents,
+  type BehaviorEventRepository,
+  type StoredBehaviorEvent,
+} from "../../domain/driver-behavior";
+import {
+  GEOFENCE_ALERT_READ_REPOSITORY,
+  type GeofenceAlertReadRepository,
+} from "../../domain/geofence-alert-read.repository";
+import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositories/driver.repository";
+import { ALERT_REPOSITORY, type AlertRepository } from "../../../alerts/domain/alert.repository";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const GEOFENCE_ALERT_TYPES = ["geofence_entry", "geofence_exit", "geofence_dwell"];
+
+@Injectable()
+export class DriverBehaviorUseCase {
+  constructor(
+    @Inject(BEHAVIOR_EVENT_REPOSITORY) private readonly events: BehaviorEventRepository,
+    @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
+    @Inject(ALERT_REPOSITORY) private readonly alerts: AlertRepository,
+    @Inject(GEOFENCE_ALERT_READ_REPOSITORY) private readonly reads: GeofenceAlertReadRepository,
+  ) {}
+
+  async summary(
+    tenantId: string,
+    periodDays: number,
+    userId: string,
+    ownedDriverIds: Set<string> | null = null,
+  ) {
+    const since = new Date(Date.now() - periodDays * DAY_MS);
+    const last24h = new Date(Date.now() - DAY_MS);
+
+    const [events, drivers, alerts, readIds] = await Promise.all([
+      this.events.findAll(tenantId, { since }),
+      this.drivers.findAll({ tenantId }),
+      this.alerts.findAll(tenantId),
+      this.reads.findReadAlertIds(tenantId, userId),
+    ]);
+
+    const scopedDrivers = drivers.filter(
+      (driver) => ownedDriverIds === null || ownedDriverIds.has(driver.id),
+    );
+    const scopedEvents = events.filter(
+      (event) => ownedDriverIds === null || ownedDriverIds.has(event.driverId),
+    );
+
+    const ranking = rankDrivers(
+      scopedDrivers.map((driver) => ({ id: driver.id, name: driver.name })),
+      scopedEvents,
+    );
+    const scored = ranking.filter((entry) => entry.eventsRecorded > 0);
+    const geofence = this.geofenceAlerts(alerts, since, readIds);
+
+    return {
+      // Averaging over drivers with no events would report a fleet of new
+      // drivers as flawless. Only scored drivers count toward the average.
+      averageScore:
+        scored.length > 0
+          ? Math.round(scored.reduce((total, entry) => total + entry.scores.overall, 0) / scored.length)
+          : null,
+      eventsLast24h: scopedEvents.filter((event) => event.occurredAt >= last24h).length,
+      criticalLast24h: scopedEvents.filter(
+        (event) => event.occurredAt >= last24h && event.severity === "critical",
+      ).length,
+      driversScored: scored.length,
+      driversTotal: scopedDrivers.length,
+      zoneEntries: geofence.items.filter((alert) => alert.direction === "entry").length,
+      zoneExits: geofence.items.filter((alert) => alert.direction === "exit").length,
+      unreadGeofenceAlerts: geofence.unread,
+      periodDays,
+    };
+  }
+
+  async ranking(tenantId: string, periodDays: number, ownedDriverIds: Set<string> | null = null) {
+    const since = new Date(Date.now() - periodDays * DAY_MS);
+    const [events, drivers] = await Promise.all([
+      this.events.findAll(tenantId, { since }),
+      this.drivers.findAll({ tenantId }),
+    ]);
+
+    return {
+      periodDays,
+      weights: { braking: 30, speeding: 30, acceleration: 20, cornering: 20 },
+      items: rankDrivers(
+        drivers
+          .filter((driver) => ownedDriverIds === null || ownedDriverIds.has(driver.id))
+          .map((driver) => ({ id: driver.id, name: driver.name })),
+        events.filter((event) => ownedDriverIds === null || ownedDriverIds.has(event.driverId)),
+      ),
+    };
+  }
+
+  async listEvents(
+    tenantId: string,
+    filters: { periodDays: number; severity?: string; driverId?: string; limit?: number },
+    ownedDriverIds: Set<string> | null = null,
+  ) {
+    const since = new Date(Date.now() - filters.periodDays * DAY_MS);
+    const found = await this.events.findAll(tenantId, {
+      since,
+      driverId: filters.driverId,
+      severity: filters.severity as StoredBehaviorEvent["severity"] | undefined,
+      limit: filters.limit ?? 100,
+    });
+    const events = found.filter(
+      (event) => ownedDriverIds === null || ownedDriverIds.has(event.driverId),
+    );
+
+    return {
+      total: events.length,
+      criticalCount: events.filter((event) => event.severity === "critical").length,
+      items: events.map((event) => ({
+        id: event.id,
+        driverId: event.driverId,
+        vehicleId: event.vehicleId,
+        type: event.type,
+        severity: event.severity,
+        speedKph: event.speedKph,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
+    };
+  }
+
+  async driverBehavior(tenantId: string, driverId: string, periodDays: number) {
+    const since = new Date(Date.now() - periodDays * DAY_MS);
+    const events = await this.events.findAll(tenantId, { driverId, since });
+    const scores = scoreBehaviorEvents(events);
+
+    return {
+      periodDays,
+      eventsRecorded: events.length,
+      scores: events.length > 0 ? scores : { ...scores, overall: null },
+      recentEvents: events.slice(0, 20).map((event) => ({
+        id: event.id,
+        type: event.type,
+        severity: event.severity,
+        speedKph: event.speedKph,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
+    };
+  }
+
+  async geofenceAlertFeed(tenantId: string, periodDays: number, userId: string) {
+    const since = new Date(Date.now() - periodDays * DAY_MS);
+    const [alerts, readIds] = await Promise.all([
+      this.alerts.findAll(tenantId),
+      this.reads.findReadAlertIds(tenantId, userId),
+    ]);
+    return this.geofenceAlerts(alerts, since, readIds);
+  }
+
+  async markGeofenceAlertsRead(tenantId: string, userId: string, alertIds: string[]) {
+    if (alertIds.length === 0) {
+      throw new BadRequestException("Provide at least one alert id");
+    }
+    const now = new Date();
+    await this.reads.markRead(
+      alertIds.map((alertId) => ({
+        id: randomUUID(),
+        tenantId,
+        alertId,
+        readBy: userId,
+        readAt: now,
+      })),
+    );
+    return { markedRead: alertIds.length };
+  }
+
+  /** Ingest point for telemetry-derived events. */
+  async recordEvent(
+    tenantId: string,
+    input: {
+      driverId: string;
+      vehicleId?: string | null;
+      type: string;
+      severity: string;
+      speedKph?: number | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      occurredAt?: string;
+    },
+  ) {
+    if (!(BEHAVIOR_EVENT_TYPES as readonly string[]).includes(input.type)) {
+      throw new BadRequestException(`type must be one of: ${BEHAVIOR_EVENT_TYPES.join(", ")}`);
+    }
+    if (!(BEHAVIOR_SEVERITIES as readonly string[]).includes(input.severity)) {
+      throw new BadRequestException(`severity must be one of: ${BEHAVIOR_SEVERITIES.join(", ")}`);
+    }
+
+    const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
+    if (Number.isNaN(occurredAt.getTime())) {
+      throw new BadRequestException("occurredAt must be a valid timestamp");
+    }
+
+    const event: StoredBehaviorEvent = {
+      id: randomUUID(),
+      tenantId,
+      driverId: input.driverId,
+      vehicleId: input.vehicleId ?? null,
+      type: input.type as StoredBehaviorEvent["type"],
+      severity: input.severity as StoredBehaviorEvent["severity"],
+      speedKph: input.speedKph ?? null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      occurredAt,
+      createdAt: new Date(),
+    };
+    await this.events.save(event);
+    return { id: event.id, occurredAt: event.occurredAt.toISOString() };
+  }
+
+  private geofenceAlerts(
+    alerts: Awaited<ReturnType<AlertRepository["findAll"]>>,
+    since: Date,
+    readIds: string[],
+  ) {
+    const read = new Set(readIds);
+    const items = alerts
+      .filter((alert) => GEOFENCE_ALERT_TYPES.includes(alert.type) && alert.triggeredAt >= since)
+      .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())
+      .map((alert) => ({
+        id: alert.id,
+        type: alert.type,
+        direction: alert.type.replace("geofence_", ""),
+        severity: alert.severity,
+        vehicleId: alert.vehicleId,
+        details: alert.details,
+        triggeredAt: alert.triggeredAt.toISOString(),
+        read: read.has(alert.id),
+      }));
+
+    return { total: items.length, unread: items.filter((item) => !item.read).length, items };
+  }
+}

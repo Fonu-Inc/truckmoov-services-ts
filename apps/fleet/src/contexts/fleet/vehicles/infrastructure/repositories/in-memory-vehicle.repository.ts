@@ -14,10 +14,14 @@ export class InMemoryVehicleRepository implements VehicleRepository {
   }
 
   async findAll(filters?: VehicleFilters): Promise<Vehicle[]> {
+    const ownerOperatorId = filters?.ownerOperatorId;
     const query = filters?.query?.trim().toLowerCase();
 
     return Array.from(this.data.values()).filter((vehicle) => {
       if (filters?.tenantId && vehicle.tenantId !== filters.tenantId) {
+        return false;
+      }
+      if (ownerOperatorId && vehicle.ownerOperatorId !== ownerOperatorId) {
         return false;
       }
       if (filters?.status && vehicle.status !== filters.status) {

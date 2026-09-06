@@ -1,6 +1,7 @@
 import { BadRequestException, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
+import { Role } from "@shared/rbac";
 import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import { DeviceNotFoundError } from "./contexts/fleet/devices";
@@ -21,6 +22,16 @@ export abstract class BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
   ) {}
+
+  /**
+   * The owner operator the caller is, when they are one. Tenant is the outer
+   * boundary; this is the inner one, because an owner operator can hold a seat
+   * inside an enterprise or aggregator tenant and must not see the rest of it.
+   */
+  protected ownerOperatorIdFromRequest(req: FleetRequestContext): string | undefined {
+    if (req.user?.role !== Role.OWNER_OPERATOR) return undefined;
+    return req.user?.userId ?? "__no_owner_operator__";
+  }
 
   protected tenantIdFromRequest(req: FleetRequestContext): string {
     const tenantId = req.user?.tenantId?.trim();

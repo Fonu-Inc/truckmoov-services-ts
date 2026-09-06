@@ -52,6 +52,7 @@ export class MikroVehicleRepository implements VehicleRepository {
       VehicleRecord,
       {
         ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        ...(filters?.ownerOperatorId ? { ownerOperatorId: filters.ownerOperatorId } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
         ...(filters?.type ? { type: filters.type } : {}),
         ...(filters?.assigned === undefined

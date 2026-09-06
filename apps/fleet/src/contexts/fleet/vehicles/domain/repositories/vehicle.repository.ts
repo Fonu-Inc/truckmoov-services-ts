@@ -3,6 +3,12 @@ import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type VehicleFilters = {
   tenantId?: string;
+  /**
+   * Set for an owner operator so a seat inside somebody else's tenant sees only
+   * its own vehicles. Never accepted from the request: it is derived from the
+   * caller's own identity.
+   */
+  ownerOperatorId?: string;
   query?: string;
   status?: FleetAssetStatus;
   assigned?: boolean;

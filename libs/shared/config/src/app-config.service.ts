@@ -129,6 +129,23 @@ export class AppConfigService {
     };
   }
 
+  get drivers() {
+    return {
+      // Meta requires a template to open a WhatsApp conversation, so the
+      // opt-in request itself has to be one. The name must match an approved
+      // template on the WhatsApp Business account.
+      whatsappOptInTemplate: this.config.get<string>(
+        "DRIVER_WHATSAPP_OPT_IN_TEMPLATE",
+        "driver_opt_in_request",
+      ),
+      whatsappOptInLanguage: this.config.get<string>("DRIVER_WHATSAPP_OPT_IN_LANGUAGE", "en"),
+      // Optional feature. Off by default: its inputs are incomplete until
+      // driver-facing hardware exists, so nobody is shown a fatigue figure
+      // they cannot stand behind unless they ask for it.
+      fatigueEnabled: this.config.get<string>("DRIVER_FATIGUE_ENABLED", "false") === "true",
+    };
+  }
+
   get overview() {
     return {
       trackingServiceUrl: this.config.get<string>(

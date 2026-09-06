@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsIn,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
@@ -15,6 +16,10 @@ import {
   DRIVER_COMMUNICATION_PREFERENCES,
   DRIVER_STATUS_INPUTS,
 } from "../contexts/fleet/drivers/domain/entities/driver.entity";
+import {
+  DRIVER_SCORE_BANDS,
+  DRIVER_TRIP_BANDS,
+} from "../contexts/fleet/drivers/domain/driver-roster";
 
 export class CreateDriverDto {
   /** Legacy full-name field accepted for backward compatibility */
@@ -144,9 +149,22 @@ export class BulkImportDriversDto {
 }
 
 export class DriverListQueryDto {
+  /** Free text across name, phone, licence and email. */
   @IsOptional()
   @IsString()
   query?: string;
+
+  @IsOptional()
+  @IsIn(DRIVER_SCORE_BANDS)
+  scoreBand?: string;
+
+  @IsOptional()
+  @IsIn(DRIVER_TRIP_BANDS)
+  tripBand?: string;
+
+  @IsOptional()
+  @IsIn(DRIVER_COMMUNICATION_PREFERENCES)
+  preferredChannel?: string;
 
   @IsOptional()
   @IsIn(DRIVER_STATUS_INPUTS)
@@ -155,4 +173,83 @@ export class DriverListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
+}
+
+export class SuspendDriverDto {
+  /** Optional reason, recorded on the activity log entry. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  reason?: string;
+}
+
+export class RecordDriverConsentDto {
+  @IsIn(["opted_in", "opted_out"])
+  state!: "opted_in" | "opted_out";
+
+  /** Where the answer came from: driver_reply, operator, import. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  source?: string;
+}
+
+export class SendDriverMessageDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  message!: string;
+}
+
+export class RecordBehaviorEventDto {
+  @IsString()
+  driverId!: string;
+
+  @IsOptional()
+  @IsString()
+  vehicleId?: string | null;
+
+  @IsString()
+  type!: string;
+
+  @IsString()
+  severity!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  speedKph?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number | null;
+
+  @IsOptional()
+  @IsISO8601()
+  occurredAt?: string;
+}
+
+export class MarkAlertsReadDto {
+  @IsArray()
+  @IsString({ each: true })
+  alertIds!: string[];
+}
+
+export class RunFatigueAnalysisDto {
+  /** Minutes driven in the period. Derived from tracking by the caller. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  drivingMinutes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  breakMinutes?: number | null;
 }

@@ -244,6 +244,7 @@ export class VehiclesController extends BaseFleetController {
       status: query.status,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
       tenantId: this.tenantIdFromRequest(req),
+      ownerOperatorId: this.ownerOperatorIdFromRequest(req),
       type: query.type,
       yearFrom: query.yearFrom ? parseInt(query.yearFrom, 10) : undefined,
       yearTo: query.yearTo ? parseInt(query.yearTo, 10) : undefined,
@@ -305,7 +306,10 @@ export class VehiclesController extends BaseFleetController {
   async getVehicleSummary(@Req() req: FleetRequestContext): Promise<VehicleSummaryResponse> {
     const tenantId = this.tenantIdFromRequest(req);
     const [vehicles, limit] = await Promise.all([
-      this.listVehiclesUseCase.execute({ tenantId }),
+      this.listVehiclesUseCase.execute({
+        tenantId,
+        ownerOperatorId: this.ownerOperatorIdFromRequest(req),
+      }),
       this.vehicleQuotaReader.findActiveVehicleLimit(tenantId),
     ]);
     const counts = { total: 0, active: 0, inactive: 0, maintenance: 0, decommissioned: 0 };
@@ -343,6 +347,7 @@ export class VehiclesController extends BaseFleetController {
     const tenantId = this.tenantIdFromRequest(req);
     const vehicles = await this.listVehiclesUseCase.execute({
       tenantId,
+      ownerOperatorId: this.ownerOperatorIdFromRequest(req),
       query: query.query,
       status: query.status,
       type: query.type,
