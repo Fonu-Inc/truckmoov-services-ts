@@ -40,12 +40,19 @@ export class DriverFatigueUseCase {
     }
   }
 
-  async summary(tenantId: string) {
+  async summary(tenantId: string, ownedDriverIds: Set<string> | null = null) {
     this.assertEnabled();
-    const [analyses, drivers] = await Promise.all([
+    const [allAnalyses, allDrivers] = await Promise.all([
       this.analyses.findLatestPerDriver(tenantId),
       this.drivers.findAll({ tenantId }),
     ]);
+
+    const drivers = allDrivers.filter(
+      (driver) => ownedDriverIds === null || ownedDriverIds.has(driver.id),
+    );
+    const analyses = allAnalyses.filter(
+      (analysis) => ownedDriverIds === null || ownedDriverIds.has(analysis.driverId),
+    );
 
     const byDriver = new Map(drivers.map((driver) => [driver.id, driver.name]));
     return {

@@ -237,3 +237,34 @@ describe("Licence state", () => {
     expect(buildLicense("DL-1", "not-a-date").state).toBe("unknown");
   });
 });
+
+describe("Fatigue summary scoping", () => {
+  function analysisFor(driverId: string, score: number): StoredFatigueAnalysis {
+    return {
+      id: `a-${driverId}`,
+      tenantId: "tenant-a",
+      driverId,
+      score,
+      riskLevel: "medium",
+      drivingMinutes: 300,
+      restCompliance: 5,
+      indicators: [],
+      recommendations: [],
+      analysis: "",
+      dataQuality: "partial",
+      analyzedAt: new Date(),
+    };
+  }
+
+  // An owner operator's fatigue tab must not average in, or list, drivers
+  // belonging to the rest of the tenant.
+  it("summarises only the analyses left after scoping", () => {
+    const all = [analysisFor("mine", 8), analysisFor("theirs", 2)];
+    const owned = new Set(["mine"]);
+    const scoped = all.filter((analysis) => owned.has(analysis.driverId));
+
+    const summary = summarizeFatigue(scoped);
+    expect(summary.totalAnalyses).toBe(1);
+    expect(summary.averageScore).toBe(8);
+  });
+});

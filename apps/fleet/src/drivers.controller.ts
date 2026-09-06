@@ -607,6 +607,7 @@ export class DriversController extends BaseFleetController {
       parseInt(periodDays ?? "30", 10),
       req.user?.userId ?? "system",
       await this.ownedDriverIds(tenantId, req),
+      await this.ownedVehicleIds(tenantId, req),
     );
     return { status: true, message: "success", data };
   }
@@ -684,10 +685,12 @@ export class DriversController extends BaseFleetController {
   @ApiQuery({ name: "period_days", required: false, type: Number })
   @ApiOkResponse({ description: "Geofence alerts" })
   async getGeofenceAlerts(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.geofenceAlertFeed(
-      this.tenantIdFromRequest(req),
+      tenantId,
       parseInt(periodDays ?? "7", 10),
       req.user?.userId ?? "system",
+      await this.ownedVehicleIds(tenantId, req),
     );
     return { status: true, message: "success", data };
   }
@@ -700,10 +703,12 @@ export class DriversController extends BaseFleetController {
   })
   @ApiOkResponse({ description: "Marked read" })
   async markGeofenceAlertsRead(@Body() payload: MarkAlertsReadDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.markGeofenceAlertsRead(
-      this.tenantIdFromRequest(req),
+      tenantId,
       req.user?.userId ?? "system",
       payload.alertIds,
+      await this.ownedVehicleIds(tenantId, req),
     );
     return { status: true, message: "success", data };
   }
@@ -717,7 +722,11 @@ export class DriversController extends BaseFleetController {
   })
   @ApiOkResponse({ description: "Fatigue summary" })
   async getFatigueSummary(@Req() req: FleetRequestContext) {
-    const data = await this.driverFatigueUseCase.summary(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.driverFatigueUseCase.summary(
+      tenantId,
+      await this.ownedDriverIds(tenantId, req),
+    );
     return { status: true, message: "success", data };
   }
 
@@ -815,6 +824,17 @@ export class DriversController extends BaseFleetController {
         assignedVehicleId: (driver["assignedVehicleId"] as string | null) ?? null,
       })),
     );
+  }
+
+  /** Alerts are keyed on the vehicle, so geofence scoping needs vehicle ids. */
+  private async ownedVehicleIds(
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<Set<string> | null> {
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId) return null;
+    const vehicles = await this.vehicleRepository.findAllByOwnerOperatorId(ownerOperatorId, tenantId);
+    return new Set(vehicles.map((vehicle) => vehicle.id));
   }
 
   /**

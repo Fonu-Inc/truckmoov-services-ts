@@ -33,6 +33,7 @@ export class DriverBehaviorUseCase {
     periodDays: number,
     userId: string,
     ownedDriverIds: Set<string> | null = null,
+    ownedVehicleIds: Set<string> | null = null,
   ) {
     const since = new Date(Date.now() - periodDays * DAY_MS);
     const last24h = new Date(Date.now() - DAY_MS);
@@ -56,7 +57,7 @@ export class DriverBehaviorUseCase {
       scopedEvents,
     );
     const scored = ranking.filter((entry) => entry.eventsRecorded > 0);
-    const geofence = this.geofenceAlerts(alerts, since, readIds);
+    const geofence = this.geofenceAlerts(alerts, since, readIds, ownedVehicleIds);
 
     return {
       // Averaging over drivers with no events would report a fleet of new
@@ -149,22 +150,49 @@ export class DriverBehaviorUseCase {
     };
   }
 
-  async geofenceAlertFeed(tenantId: string, periodDays: number, userId: string) {
+  async geofenceAlertFeed(
+    tenantId: string,
+    periodDays: number,
+    userId: string,
+    ownedVehicleIds: Set<string> | null = null,
+  ) {
     const since = new Date(Date.now() - periodDays * DAY_MS);
     const [alerts, readIds] = await Promise.all([
       this.alerts.findAll(tenantId),
       this.reads.findReadAlertIds(tenantId, userId),
     ]);
-    return this.geofenceAlerts(alerts, since, readIds);
+    return this.geofenceAlerts(alerts, since, readIds, ownedVehicleIds);
   }
 
-  async markGeofenceAlertsRead(tenantId: string, userId: string, alertIds: string[]) {
+  async markGeofenceAlertsRead(
+    tenantId: string,
+    userId: string,
+    alertIds: string[],
+    ownedVehicleIds: Set<string> | null = null,
+  ) {
     if (alertIds.length === 0) {
       throw new BadRequestException("Provide at least one alert id");
     }
+
+    // Only alerts the caller can actually see are marked. Without this the
+    // endpoint accepts any id, writing read rows against alerts in other
+    // tenants and letting a caller probe which ids exist.
+    const alerts = await this.alerts.findAll(tenantId);
+    const visible = new Set(
+      alerts
+        .filter(
+          (alert) =>
+            GEOFENCE_ALERT_TYPES.includes(alert.type) &&
+            (ownedVehicleIds === null ||
+              (alert.vehicleId !== null && ownedVehicleIds.has(alert.vehicleId))),
+        )
+        .map((alert) => alert.id),
+    );
+    const permitted = alertIds.filter((alertId) => visible.has(alertId));
+
     const now = new Date();
     await this.reads.markRead(
-      alertIds.map((alertId) => ({
+      permitted.map((alertId) => ({
         id: randomUUID(),
         tenantId,
         alertId,
@@ -172,7 +200,7 @@ export class DriverBehaviorUseCase {
         readAt: now,
       })),
     );
-    return { markedRead: alertIds.length };
+    return { markedRead: permitted.length, ignored: alertIds.length - permitted.length };
   }
 
   /** Ingest point for telemetry-derived events. */
@@ -222,10 +250,17 @@ export class DriverBehaviorUseCase {
     alerts: Awaited<ReturnType<AlertRepository["findAll"]>>,
     since: Date,
     readIds: string[],
+    ownedVehicleIds: Set<string> | null = null,
   ) {
     const read = new Set(readIds);
     const items = alerts
-      .filter((alert) => GEOFENCE_ALERT_TYPES.includes(alert.type) && alert.triggeredAt >= since)
+      .filter(
+        (alert) =>
+          GEOFENCE_ALERT_TYPES.includes(alert.type) &&
+          alert.triggeredAt >= since &&
+          (ownedVehicleIds === null ||
+            (alert.vehicleId !== null && ownedVehicleIds.has(alert.vehicleId))),
+      )
       .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())
       .map((alert) => ({
         id: alert.id,
