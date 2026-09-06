@@ -988,6 +988,73 @@ export const FleetFuelBudgetRecordSchema = new EntitySchema<FleetFuelBudgetRecor
   indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
 });
 
+export class ZoneOccupancyRecord {
+  id!: string;
+  tenantId!: string;
+  vehicleId!: string;
+  zoneId!: string;
+  enteredAt!: Date;
+  dwellNotifiedAt?: Date | null;
+}
+
+export const ZoneOccupancyRecordSchema = new EntitySchema<ZoneOccupancyRecord>({
+  class: ZoneOccupancyRecord,
+  tableName: "fleet_zone_occupancy",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    vehicleId: { type: "string", length: 64 },
+    zoneId: { type: "string", length: 64 },
+    enteredAt: { type: "datetime", defaultRaw: "now()" },
+    dwellNotifiedAt: { type: "datetime", nullable: true },
+  },
+  indexes: [
+    // A vehicle is inside a zone once. The unique index is what stops a
+    // duplicated position from recording a second entry.
+    { properties: ["tenantId", "vehicleId", "zoneId"], options: { unique: true } },
+    { properties: ["tenantId", "zoneId"] },
+    { properties: ["enteredAt"] },
+  ],
+});
+
+export class ShareLinkRecord {
+  id!: string;
+  tenantId!: string;
+  vehicleId!: string;
+  jobId?: string | null;
+  tokenHash!: string;
+  createdBy!: string;
+  createdAt!: Date;
+  expiresAt!: Date;
+  revokedAt?: Date | null;
+  lastViewedAt?: Date | null;
+  viewCount!: number;
+}
+
+export const ShareLinkRecordSchema = new EntitySchema<ShareLinkRecord>({
+  class: ShareLinkRecord,
+  tableName: "fleet_tracking_share_links",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    vehicleId: { type: "string", length: 64 },
+    jobId: { type: "string", length: 64, nullable: true },
+    tokenHash: { type: "string", length: 128 },
+    createdBy: { type: "string", length: 64 },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    expiresAt: { type: "datetime" },
+    revokedAt: { type: "datetime", nullable: true },
+    lastViewedAt: { type: "datetime", nullable: true },
+    viewCount: { type: "integer", defaultRaw: "0" },
+  },
+  indexes: [
+    { properties: ["tokenHash"], options: { unique: true } },
+    { properties: ["tenantId", "vehicleId"] },
+    { properties: ["jobId"] },
+    { properties: ["expiresAt"] },
+  ],
+});
+
 export class DeviceSetupRequestRecord {
   id!: string;
   tenantId!: string;
@@ -1138,6 +1205,8 @@ export async function getFleetOrm(cfg: DbConfig) {
       FleetFinancialConfigRecordSchema,
       FleetFuelBudgetRecordSchema,
       DeviceSetupRequestRecordSchema,
+      ZoneOccupancyRecordSchema,
+      ShareLinkRecordSchema,
       CarrierRecordSchema,
       DataBundleRecordSchema,
       DeviceVerificationFailureRecordSchema,

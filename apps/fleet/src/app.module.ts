@@ -208,6 +208,22 @@ import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/defa
 import { VehicleHealthService } from "./vehicle-health.service";
 import { DeviceTelemetryListener } from "./device-telemetry.listener";
 import { VehicleLocationListener } from "./vehicle-location.listener";
+import { LiveTrackingCountsService } from "./live-tracking-counts.service";
+import { GeofenceDwellSweepService } from "./geofence-dwell-sweep.service";
+import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
+import { ZONE_OCCUPANCY_REPOSITORY } from "./contexts/fleet/tracking/domain/zone-occupancy.repository";
+import { MikroZoneOccupancyRepository } from "./contexts/fleet/tracking/infrastructure/mikro-zone-occupancy.repository";
+import { InMemoryZoneOccupancyRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-zone-occupancy.repository";
+import { LiveTrackingUseCase } from "./contexts/fleet/tracking/application/live-tracking.use-case";
+import { TrackingController } from "./tracking.controller";
+import { PublicTrackingController } from "./public-tracking.controller";
+import { SHARE_LINK_REPOSITORY } from "./contexts/fleet/tracking/domain/share-link.repository";
+import { MikroShareLinkRepository } from "./contexts/fleet/tracking/infrastructure/mikro-share-link.repository";
+import { InMemoryShareLinkRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-share-link.repository";
+import {
+  ShareVehicleLocationUseCase,
+  ViewSharedLocationUseCase,
+} from "./contexts/fleet/tracking/application/share-location.use-cases";
 import { AlertDetectionListener } from "./alert-detection.listener";
 import { AlertEscalationService } from "./alert-escalation.service";
 import {
@@ -318,11 +334,41 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     DocumentsController,
     AuditController,
     WebhookController,
+    TrackingController,
+    PublicTrackingController,
     ReadinessController,
   ],
   providers: [
     VehicleHealthService,
     VehicleLocationListener,
+    LiveTrackingCountsService,
+    LiveTrackingUseCase,
+    GeofenceEvaluatorService,
+    GeofenceDwellSweepService,
+    ShareVehicleLocationUseCase,
+    ViewSharedLocationUseCase,
+    InMemoryShareLinkRepository,
+    MikroShareLinkRepository,
+    {
+      provide: SHARE_LINK_REPOSITORY,
+      inject: [InMemoryShareLinkRepository, MikroShareLinkRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryShareLinkRepository,
+        mikro: MikroShareLinkRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    InMemoryZoneOccupancyRepository,
+    MikroZoneOccupancyRepository,
+    {
+      provide: ZONE_OCCUPANCY_REPOSITORY,
+      inject: [InMemoryZoneOccupancyRepository, MikroZoneOccupancyRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryZoneOccupancyRepository,
+        mikro: MikroZoneOccupancyRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
     DeviceTelemetryListener,
     AlertDetectionListener,
     AlertEscalationService,
@@ -803,6 +849,7 @@ export class AppModule implements NestModule {
         FuelController,
         DocumentsController,
         AuditController,
+        TrackingController,
         // Service-to-service routes authenticate the same way. Left out, the
         // roles guard sees no user and refuses every internal call with a 401,
         // which callers were quietly reading as "fleet is unreachable".

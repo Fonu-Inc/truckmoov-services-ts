@@ -515,4 +515,68 @@ describe("Fleet HTTP contract", () => {
       "http://localhost:5173",
     );
   });
+
+  it("serves the live tracking snapshot, vehicle search, alerts and a share link", async () => {
+    const snapshot = await request(app.getHttpServer())
+      .get("/fleet/tracking/live")
+      .set("Authorization", authToken("admin"));
+    expect(snapshot.status).toBe(200);
+    expect(snapshot.body.data.counts).toMatchObject({
+      active: expect.any(Number),
+      in_progress: expect.any(Number),
+      idle: expect.any(Number),
+      offline: expect.any(Number),
+    });
+    // The client needs the tick length to know how stale a frame may be.
+    expect(snapshot.body.data.frameIntervalMs).toBeGreaterThan(0);
+
+    const alerts = await request(app.getHttpServer())
+      .get("/fleet/tracking/alerts?limit=5")
+      .set("Authorization", authToken("admin"));
+    expect(alerts.status).toBe(200);
+    expect(Array.isArray(alerts.body.data.items)).toBe(true);
+
+    const vehicle = await request(app.getHttpServer())
+      .post("/fleet/vehicles")
+      .set("Authorization", authToken("fleet_manager"))
+      .send({ registrationNumber: "TM-771", make: "MAN", model: "TGS", type: "truck" });
+    expect(vehicle.status).toBe(201);
+
+    // A blank query returns the fleet; a nonsense one returns nothing.
+    const searched = await request(app.getHttpServer())
+      .get("/fleet/tracking/vehicles?query=TM771")
+      .set("Authorization", authToken("admin"));
+    expect(searched.status).toBe(200);
+    expect(searched.body.data.vehicles).toHaveLength(1);
+
+    const miss = await request(app.getHttpServer())
+      .get("/fleet/tracking/vehicles?query=zzzzzz")
+      .set("Authorization", authToken("admin"));
+    expect(miss.body.data.vehicles).toHaveLength(0);
+    // Counts describe the fleet, not the filter.
+    expect(miss.body.data.counts.offline).toBeGreaterThan(0);
+
+    const share = await request(app.getHttpServer())
+      .post(`/fleet/tracking/vehicles/${vehicle.body.id}/share`)
+      .set("Authorization", authToken("admin"));
+    expect(share.status).toBe(201);
+    expect(share.body.data.url).toContain("/track/");
+
+    const token = String(share.body.data.url).split("/track/")[1];
+    const publicView = await request(app.getHttpServer()).get(`/fleet/track/${token}`);
+    expect(publicView.status).toBe(200);
+    // A customer sees position and progress, never the plate or the driver.
+    expect(publicView.body.data).not.toHaveProperty("registrationNumber");
+    expect(publicView.body.data).toHaveProperty("expiresAt");
+
+    // Minting again returns the existing link rather than a second live one.
+    const again = await request(app.getHttpServer())
+      .post(`/fleet/tracking/vehicles/${vehicle.body.id}/share`)
+      .set("Authorization", authToken("admin"));
+    expect(again.body.data.alreadyShared).toBe(true);
+    expect(again.body.data.url).toBeNull();
+
+    const bogus = await request(app.getHttpServer()).get("/fleet/track/not-a-real-token");
+    expect(bogus.status).toBe(410);
+  }, 30000);
 });

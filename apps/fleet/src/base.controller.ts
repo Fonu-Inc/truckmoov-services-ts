@@ -33,6 +33,24 @@ export abstract class BaseFleetController {
     return req.user?.userId ?? "__no_owner_operator__";
   }
 
+  /**
+   * The vehicles an owner operator may see. Null means the caller sees the
+   * whole tenant. Vehicle ids are the scoping key for anything hung off a
+   * vehicle — positions, geofence alerts, devices — so the lookup lives here
+   * rather than being repeated per controller.
+   */
+  protected async ownedVehicleIdsFor(
+    repository: { findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Array<{ id: string }>> },
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<Set<string> | null> {
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId) return null;
+
+    const vehicles = await repository.findAllByOwnerOperatorId(ownerOperatorId, tenantId);
+    return new Set(vehicles.map((vehicle) => vehicle.id));
+  }
+
   protected tenantIdFromRequest(req: FleetRequestContext): string {
     const tenantId = req.user?.tenantId?.trim();
     if (!tenantId) {

@@ -831,10 +831,7 @@ export class DriversController extends BaseFleetController {
     tenantId: string,
     req: FleetRequestContext,
   ): Promise<Set<string> | null> {
-    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
-    if (!ownerOperatorId) return null;
-    const vehicles = await this.vehicleRepository.findAllByOwnerOperatorId(ownerOperatorId, tenantId);
-    return new Set(vehicles.map((vehicle) => vehicle.id));
+    return this.ownedVehicleIdsFor(this.vehicleRepository, tenantId, req);
   }
 
   /**

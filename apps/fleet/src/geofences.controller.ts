@@ -27,6 +27,7 @@ import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { GeofenceZoneListResponse, MessageResponse, GeofenceZoneResponse } from "./dto/fleet.schema";
 import { SetGeofenceVehiclesDto, CreateGeofenceZoneDto, UpdateGeofenceZoneDto } from "./dto/geofence.dto";
 import { GeofenceZonesUseCase, GeofenceZoneNotFoundError } from "./geofence-zones.use-case";
+import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
 @ApiTags("Geofences")
@@ -38,6 +39,7 @@ export class GeofencesController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(GeofenceZonesUseCase) private readonly geofenceZonesUseCase: GeofenceZonesUseCase,
+    @Inject(GeofenceEvaluatorService) private readonly geofenceEvaluator: GeofenceEvaluatorService,
   ) {
     super(auditLog, bus);
   }
@@ -48,7 +50,18 @@ export class GeofencesController extends BaseFleetController {
   @ApiQuery({ name: "status", required: false, enum: ["ACTIVE", "ARCHIVED"] })
   @ApiOkResponse({ description: "Geofence zones array", type: GeofenceZoneListResponse })
   async listGeofenceZones(@Query("status") status: string, @Req() req: FleetRequestContext) {
-    const data = await this.geofenceZonesUseCase.list(this.tenantIdFromRequest(req), { status: (status as any) ?? "ACTIVE" });
+    const tenantId = this.tenantIdFromRequest(req);
+    const [zones, occupants] = await Promise.all([
+      this.geofenceZonesUseCase.list(tenantId, { status: (status as any) ?? "ACTIVE" }),
+      this.geofenceEvaluator.occupantCounts(tenantId),
+    ]);
+
+    // The count chip means vehicles inside the zone right now, which is not
+    // the same as the vehicles assigned to watch it.
+    const data = (zones as unknown as Array<Record<string, unknown>>).map((zone) => ({
+      ...zone,
+      vehiclesInside: occupants.get(String(zone["id"])) ?? 0,
+    }));
     return { status: true, message: "success", data };
   }
 
@@ -67,7 +80,20 @@ export class GeofencesController extends BaseFleetController {
   @ApiOkResponse({ description: "Geofence zone", type: GeofenceZoneResponse })
   async getGeofenceZone(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.geofenceZonesUseCase.get(this.tenantIdFromRequest(req), id);
+      const tenantId = this.tenantIdFromRequest(req);
+      const [zone, occupants] = await Promise.all([
+        this.geofenceZonesUseCase.get(tenantId, id),
+        this.geofenceEvaluator.occupants(tenantId, id),
+      ]);
+
+      const data = {
+        ...(zone as unknown as Record<string, unknown>),
+        vehiclesInside: occupants.length,
+        occupants: occupants.map((occupant) => ({
+          vehicleId: occupant.vehicleId,
+          enteredAt: occupant.enteredAt.toISOString(),
+        })),
+      };
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof GeofenceZoneNotFoundError) throw new NotFoundException("Geofence zone not found");

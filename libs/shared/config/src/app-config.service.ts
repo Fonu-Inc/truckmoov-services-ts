@@ -171,6 +171,22 @@ export class AppConfigService {
     };
   }
 
+  get liveTracking() {
+    return {
+      // One coalesced frame per tenant per tick. A browser cannot repaint a map
+      // faster than this, and a fleet reporting every ten seconds would
+      // otherwise push more messages than the page can consume.
+      frameIntervalMs: this.config.get<number>("LIVE_TRACKING_FRAME_INTERVAL_MS", 5000),
+      // A vehicle with no fix inside this window reads as offline. Longer than
+      // a missed ping, shorter than a shift.
+      offlineAfterMinutes: this.config.get<number>("LIVE_TRACKING_OFFLINE_AFTER_MINUTES", 15),
+      // How often stale vehicles are swept into offline. Nothing arrives to
+      // trigger the check when a device stops reporting, which is the case that
+      // matters.
+      sweepIntervalSeconds: this.config.get<number>("LIVE_TRACKING_SWEEP_INTERVAL_SECONDS", 30),
+    };
+  }
+
   get redis() {
     return {
       // Enabled by default; the idempotency guard degrades to an in-memory
