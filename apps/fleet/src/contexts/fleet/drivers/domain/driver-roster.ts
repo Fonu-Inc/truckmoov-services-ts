@@ -1,3 +1,5 @@
+import { buildQuotaAllowance } from "../../shared/domain/allowance";
+
 export type DriverRosterRow = {
   id: string;
   name: string;
@@ -86,13 +88,7 @@ export function summarizeDriverStatuses(drivers: Array<{ status: string }>) {
 }
 
 export function buildDriverAllowance(limit: number | null, used: number) {
-  return {
-    limit,
-    used,
-    remaining: limit === null ? null : Math.max(limit - used, 0),
-    usedPercent: limit === null || limit === 0 ? null : Math.round((used / limit) * 100),
-    unlimited: limit === null,
-  };
+  return buildQuotaAllowance(limit, used);
 }
 
 /**

@@ -1,4 +1,15 @@
-import { Controller, Get, Inject, Req, UseGuards } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
@@ -12,6 +23,10 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
+import { ReinstateDeviceUseCase, SuspendDeviceUseCase } from "./contexts/fleet/devices";
+import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
+import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
+import { SuspendDeviceDto } from "./dto/vehicle.dto";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -29,6 +44,8 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicles: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
+    @Inject(SuspendDeviceUseCase) private readonly suspendDeviceUseCase: SuspendDeviceUseCase,
+    @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -67,5 +84,38 @@ export class InternalFleetController extends BaseFleetController {
       message: "success",
       data: { tenantId, vehicleCount: activeVehicles.length, driverCount },
     };
+  }
+
+  /**
+   * Suspend a device on the platform's instruction, whatever tenant holds it.
+   *
+   * Platform-only: the roles here are the internal ones, never a customer's. An
+   * administrator acting on a device does not know which tenant it belongs to,
+   * which is why this is not on the tenant-scoped devices controller.
+   */
+  @Post("devices/:deviceId/suspend")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async suspendDevice(@Param("deviceId") deviceId: string, @Body() payload: SuspendDeviceDto) {
+    const data = await this.runDeviceAction(() =>
+      this.suspendDeviceUseCase.execute(deviceId, payload?.reason ?? null),
+    );
+    return { status: true, message: "Device suspended", data };
+  }
+
+  @Post("devices/:deviceId/reinstate")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async reinstateDevice(@Param("deviceId") deviceId: string) {
+    const data = await this.runDeviceAction(() => this.reinstateDeviceUseCase.execute(deviceId));
+    return { status: true, message: "Device reinstated", data };
+  }
+
+  private async runDeviceAction<T>(action: () => Promise<T>): Promise<T> {
+    try {
+      return await action();
+    } catch (error) {
+      if (error instanceof DeviceNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof FleetRuleError) throw new BadRequestException(error.message);
+      throw error;
+    }
   }
 }

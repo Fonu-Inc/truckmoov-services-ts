@@ -344,7 +344,15 @@ import { ExportSystemSimBatchesUseCase } from './export-system-sim-batches.use-c
 import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
 import { GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-request.use-case';
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
-import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-setup-request.use-case';
+import {
+  ReinstateSystemDeviceUseCase,
+  SuspendSystemDeviceUseCase,
+} from './suspend-system-device.use-cases';
+import {
+  ApproveSystemDeviceSetupRequestUseCase,
+  GetSystemDeviceSetupSummaryUseCase,
+  RejectSystemDeviceSetupRequestUseCase,
+} from './decide-system-device-setup-request.use-cases';
 import { InMemoryDeviceSetupRequestRepository } from './in-memory-device-setup-request.repository';
 import { MikroDeviceSetupRequestRepository } from './mikro-device-setup-request.repository';
 import { DEVICE_SETUP_REQUEST_REPOSITORY } from './device-setup-request.repository';
@@ -385,9 +393,6 @@ import {
   RequestOnboardingApplicationChangesUseCase,
   ResendOnboardingSetupLinkUseCase,
 } from './decide-onboarding-application.use-cases';
-import { TENANT_DEVICE_PROVISIONING_REQUEST_REPOSITORY } from './tenant-device-provisioning-request.repository';
-import { InMemoryTenantDeviceProvisioningRequestRepository } from './in-memory-tenant-device-provisioning-request.repository';
-import { MikroTenantDeviceProvisioningRequestRepository } from './mikro-tenant-device-provisioning-request.repository';
 import { PaymentEventService } from './payment-event.service';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
 import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
@@ -402,7 +407,6 @@ import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
 import { GetOnboardingStatusUseCase } from './get-onboarding-status.use-case';
 import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
 import { DeleteKycDocumentUseCase } from './delete-kyc-document.use-case';
-import { SubmitDeviceProvisioningRequestUseCase } from './submit-device-provisioning-request.use-case';
 import { RegisterSimsUseCase } from './register-sims.use-case';
 import { ImportSimsCsvUseCase } from './import-sims-csv.use-case';
 import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-request.use-case';
@@ -1184,6 +1188,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetSystemDeviceSetupRequestUseCase,
     AssignSystemDeviceSetupRequestUseCase,
     RejectSystemDeviceSetupRequestUseCase,
+    ApproveSystemDeviceSetupRequestUseCase,
+    SuspendSystemDeviceUseCase,
+    ReinstateSystemDeviceUseCase,
+    GetSystemDeviceSetupSummaryUseCase,
     SuperAdminBootstrapService,
     // Onboarding repositories
     InMemoryTenantBusinessInfoRepository,
@@ -1228,14 +1236,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       useFactory: (inMemory: InMemoryOnboardingApplicationRepository, mikro: MikroOnboardingApplicationRepository, config: AppConfigService) =>
         config.persistence.backend === 'in-memory' ? inMemory : mikro,
     },
-    InMemoryTenantDeviceProvisioningRequestRepository,
-    MikroTenantDeviceProvisioningRequestRepository,
-    {
-      provide: TENANT_DEVICE_PROVISIONING_REQUEST_REPOSITORY,
-      inject: [InMemoryTenantDeviceProvisioningRequestRepository, MikroTenantDeviceProvisioningRequestRepository, AppConfigService],
-      useFactory: (inMemory: InMemoryTenantDeviceProvisioningRequestRepository, mikro: MikroTenantDeviceProvisioningRequestRepository, config: AppConfigService) =>
-        config.persistence.backend === 'in-memory' ? inMemory : mikro,
-    },
     // Onboarding use cases
     PaymentEventService,
     GetOnboardingPlansUseCase,
@@ -1261,7 +1261,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ApproveKycDocumentUseCase,
     RejectKycDocumentUseCase,
     DeleteKycDocumentUseCase,
-    SubmitDeviceProvisioningRequestUseCase,
     RegisterSimsUseCase,
     ImportSimsCsvUseCase,
     SubmitSimProvisioningRequestUseCase,

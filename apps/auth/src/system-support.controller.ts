@@ -33,7 +33,10 @@ import {
   AssignSystemSupportTicketUseCase,
   AssigneeNotSupportStaffError,
 } from './assign-system-support-ticket.use-case';
-import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
+import {
+  AssignSystemDeviceSetupRequestUseCase,
+  DeviceSetupRequestNotApprovedError,
+} from './assign-system-device-setup-request.use-case';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
@@ -48,7 +51,7 @@ import {
   SystemEscalatedTicketsResponse,
   SystemSupportTicketDetailResponse,
 } from './dto/auth.schema';
-import { RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
+import { ApproveDeviceSetupRequestDto, RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
 import {
   TICKET_CATEGORIES,
   AssignTicketDto,
@@ -66,7 +69,13 @@ import { ListSystemDeviceSetupRequestsUseCase } from './list-system-device-setup
 import { ListSystemEscalatedTicketsUseCase } from './list-system-escalated-tickets.use-case';
 import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ticket-messages.use-case';
 import { ListSystemSupportTicketsUseCase } from './list-system-support-tickets.use-case';
-import { RejectSystemDeviceSetupRequestUseCase } from './reject-system-device-setup-request.use-case';
+import {
+  ApproveSystemDeviceSetupRequestUseCase,
+  DeviceSetupRejectionReasonRequiredError,
+  DeviceSetupRequestAlreadyDecidedError,
+  GetSystemDeviceSetupSummaryUseCase,
+  RejectSystemDeviceSetupRequestUseCase,
+} from './decide-system-device-setup-request.use-cases';
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { InvalidTicketStatusError, UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
 
@@ -90,6 +99,8 @@ export class SystemSupportController extends BaseAuthController {
     @Inject(GetSystemDeviceSetupRequestUseCase) private readonly getSystemDeviceSetupRequestUseCase: GetSystemDeviceSetupRequestUseCase,
     @Inject(AssignSystemDeviceSetupRequestUseCase) private readonly assignSystemDeviceSetupRequestUseCase: AssignSystemDeviceSetupRequestUseCase,
     @Inject(RejectSystemDeviceSetupRequestUseCase) private readonly rejectSystemDeviceSetupRequestUseCase: RejectSystemDeviceSetupRequestUseCase,
+    @Inject(ApproveSystemDeviceSetupRequestUseCase) private readonly approveSystemDeviceSetupRequestUseCase: ApproveSystemDeviceSetupRequestUseCase,
+    @Inject(GetSystemDeviceSetupSummaryUseCase) private readonly getSystemDeviceSetupSummaryUseCase: GetSystemDeviceSetupSummaryUseCase,
   ) {
     super(activityLogService);
   }
@@ -210,6 +221,26 @@ export class SystemSupportController extends BaseAuthController {
   // Declared AFTER the literal device-setup/export route so :requestId cannot
   // swallow `export`.
 
+  @Get('device-setup/summary')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Device request approval counters',
+    description: 'Pending, approved and rejected request counts plus the number of devices requested.',
+  })
+  @ApiOkResponse({ description: 'Approval queue counters' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view device setup requests' })
+  async getSystemDeviceSetupSummary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.getSystemDeviceSetupSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowDeviceSetupError(error);
+      throw error;
+    }
+  }
+
   @Get('device-setup/:requestId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get device setup request detail' })
@@ -226,9 +257,7 @@ export class SystemSupportController extends BaseAuthController {
     try {
       return await this.getSystemDeviceSetupRequestUseCase.execute(accessToken, requestId);
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof DeviceSetupRequestNotFoundError) throw new NotFoundException(error.message);
+      this.rethrowDeviceSetupError(error);
       throw error;
     }
   }
@@ -257,9 +286,45 @@ export class SystemSupportController extends BaseAuthController {
       });
       return result;
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof DeviceSetupRequestNotFoundError) throw new NotFoundException(error.message);
+      this.rethrowDeviceSetupError(error);
+      throw error;
+    }
+  }
+
+  @Patch('device-setup/:requestId/approve')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Approve a device setup request',
+    description: 'Accepts a tenant-submitted request so it can be assigned and provisioned.',
+  })
+  @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to approve device setup requests' })
+  @ApiNotFoundResponse({ description: 'Device setup request not found' })
+  @ApiBadRequestResponse({ description: 'The request has already been decided' })
+  async approveSystemDeviceSetupRequest(
+    @Param('requestId') requestId: string,
+    @Body(BodyOrDataPipe) payload: ApproveDeviceSetupRequestDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.approveSystemDeviceSetupRequestUseCase.execute(
+        accessToken,
+        requestId,
+        payload?.note,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device_setup.approved',
+        entityType: 'device_setup_request',
+        entityId: requestId,
+        summary: 'Device setup request approved',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceSetupError(error);
       throw error;
     }
   }
@@ -291,9 +356,7 @@ export class SystemSupportController extends BaseAuthController {
       });
       return result;
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof DeviceSetupRequestNotFoundError) throw new NotFoundException(error.message);
+      this.rethrowDeviceSetupError(error);
       throw error;
     }
   }
@@ -565,6 +628,20 @@ export class SystemSupportController extends BaseAuthController {
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof NotFoundException) throw error;
       throw error;
+    }
+  }
+
+  /** One mapping for every device-setup route, so the same fault reads the same everywhere. */
+  private rethrowDeviceSetupError(error: unknown): void {
+    this.rethrowInvalidAccessToken(error);
+    if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+    if (error instanceof DeviceSetupRequestNotFoundError) throw new NotFoundException(error.message);
+    if (
+      error instanceof DeviceSetupRequestAlreadyDecidedError
+      || error instanceof DeviceSetupRejectionReasonRequiredError
+      || error instanceof DeviceSetupRequestNotApprovedError
+    ) {
+      throw new BadRequestException(error.message);
     }
   }
 }

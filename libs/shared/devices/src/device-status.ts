@@ -14,6 +14,10 @@ export const DEVICE_LIFECYCLE_STATUSES = [
   "assignable",
   "assigned",
   "faulty",
+  // Imposed by the platform, not reached by the install workflow. A suspended
+  // device keeps the state it was in so reinstating it does not restart the
+  // installation.
+  "suspended",
   "decommissioned",
 ] as const;
 
@@ -23,6 +27,7 @@ export const DEVICE_STATUSES = [
   "assigned",
   "active",
   "faulty",
+  "suspended",
   "decommissioned",
 ] as const;
 
@@ -58,6 +63,8 @@ export function deviceStatusFromLifecycle(status: DeviceLifecycleStatus): Device
       return "assigned";
     case "faulty":
       return "faulty";
+    case "suspended":
+      return "suspended";
     case "decommissioned":
       return "decommissioned";
   }

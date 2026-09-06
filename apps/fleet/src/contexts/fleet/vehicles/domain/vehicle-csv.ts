@@ -1,3 +1,10 @@
+import {
+  buildCsvExport,
+  buildCsvTemplate,
+  parseCsvRecords,
+  type CsvColumn,
+  type CsvRowError,
+} from "../../shared/domain/csv";
 import { FLEET_ASSET_STATUSES } from "../../shared/domain/fleet-status";
 import {
   DEFAULT_CAPACITY_UNIT,
@@ -23,12 +30,7 @@ export type VehicleCsvRow = {
   status: string | null;
 };
 
-export type VehicleCsvColumn = {
-  header: string;
-  required: boolean;
-  example: string;
-  note: string;
-};
+export type VehicleCsvColumn = CsvColumn;
 
 // One definition drives the downloadable template, the import parser and the
 // export. A round trip has to work: what a tenant exports must be importable
@@ -65,19 +67,17 @@ export class VehicleCsvError extends Error {
 
 export type VehicleCsvParseResult = {
   rows: VehicleCsvRow[];
-  errors: Array<{ line: number; message: string }>;
+  errors: CsvRowError[];
 };
 
 export function buildVehicleCsvTemplate(): string {
-  const headers = VEHICLE_CSV_COLUMNS.map((column) => column.header);
-  const example = VEHICLE_CSV_COLUMNS.map((column) => column.example);
-  return `${headers.join(",")}\n${example.join(",")}\n`;
+  return buildCsvTemplate(VEHICLE_CSV_COLUMNS);
 }
 
 export function buildVehicleCsvExport(vehicles: VehicleCsvRow[]): string {
-  const headers = VEHICLE_CSV_COLUMNS.map((column) => column.header);
-  const lines = vehicles.map((vehicle) =>
-    [
+  return buildCsvExport(
+    VEHICLE_CSV_COLUMNS,
+    vehicles.map((vehicle) => [
       vehicle.registrationNumber,
       vehicle.vin,
       vehicle.make,
@@ -88,51 +88,18 @@ export function buildVehicleCsvExport(vehicles: VehicleCsvRow[]): string {
       vehicle.capacity,
       vehicle.capacityUnit,
       vehicle.status,
-    ]
-      .map(escapeCsvValue)
-      .join(","),
+    ]),
   );
-  return [headers.join(","), ...lines].join("\n");
 }
 
-/**
- * Parses an uploaded CSV. Bad rows are collected rather than thrown: a file of
- * two hundred vehicles with three broken lines should import the other hundred
- * and ninety seven and say which three failed.
- */
 export function parseVehicleCsv(content: string): VehicleCsvParseResult {
-  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length === 0) throw new VehicleCsvError("The CSV file is empty");
-
-  const headers = splitCsvLine(lines[0]).map((header) => normalizeHeader(header));
-  const missing = VEHICLE_CSV_COLUMNS.filter((column) => column.required && !headers.includes(column.header));
-  if (missing.length > 0) {
-    throw new VehicleCsvError(
-      `The CSV is missing required column(s): ${missing.map((column) => column.header).join(", ")}`,
-    );
-  }
-
-  const rows: VehicleCsvRow[] = [];
-  const errors: Array<{ line: number; message: string }> = [];
-
-  for (let index = 1; index < lines.length; index += 1) {
-    const values = splitCsvLine(lines[index]);
-    const record: Record<string, string> = {};
-    headers.forEach((header, position) => {
-      record[header] = stripFormulaGuard((values[position] ?? "").trim());
-    });
-
-    try {
-      rows.push(toRow(record));
-    } catch (error) {
-      errors.push({
-        line: index + 1,
-        message: error instanceof Error ? error.message : "Row could not be read",
-      });
-    }
-  }
-
-  return { rows, errors };
+  return parseCsvRecords(
+    content,
+    VEHICLE_CSV_COLUMNS,
+    toRow,
+    (missing) => new VehicleCsvError(`The CSV is missing required column(s): ${missing.join(", ")}`),
+    () => new VehicleCsvError("The CSV file is empty"),
+  );
 }
 
 function toRow(record: Record<string, string>): VehicleCsvRow {
@@ -201,55 +168,4 @@ function optionalEnum(raw: string | undefined, allowed: readonly string[], field
     throw new VehicleCsvError(`${field} must be one of: ${allowed.join(", ")}`);
   }
   return value;
-}
-
-function normalizeHeader(header: string): string {
-  return header.trim().toLowerCase().replace(/\s+/g, "_").replace(/^﻿/, "");
-}
-
-// A make or model is whatever a person typed. A spreadsheet reads a leading
-// =, +, -, @ or control character as a formula, so it is neutralised with an
-// apostrophe on the way out and stripped again on the way in, which keeps an
-// export importable without changing the stored value.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-
-function escapeCsvValue(value: string | number | null): string {
-  if (value === null || value === undefined) return "";
-  const raw = String(value);
-  const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function stripFormulaGuard(value: string): string {
-  return value.startsWith("'") && FORMULA_LEAD.test(value.slice(1)) ? value.slice(1) : value;
-}
-
-function splitCsvLine(line: string): string[] {
-  const values: string[] = [];
-  let current = "";
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (quoted) {
-      if (character === '"' && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-      } else if (character === '"') {
-        quoted = false;
-      } else {
-        current += character;
-      }
-      continue;
-    }
-
-    if (character === '"') quoted = true;
-    else if (character === ",") {
-      values.push(current);
-      current = "";
-    } else current += character;
-  }
-
-  values.push(current);
-  return values;
 }

@@ -22,6 +22,7 @@ export class MikroDeviceRepository implements DeviceRepository {
     await em.upsert(DeviceRecord, {
       id: device.id,
       imei: device.imei,
+      name: device.name,
       manufacturer: device.manufacturer,
       model: device.model,
       firmwareVersion: device.firmwareVersion,
@@ -43,6 +44,9 @@ export class MikroDeviceRepository implements DeviceRepository {
         : null,
       verificationError: device.verificationError,
       verifiedAt: device.verifiedAt ? new Date(device.verifiedAt) : null,
+      preSuspensionLifecycleStatus: device.preSuspensionLifecycleStatus,
+      suspendedAt: device.suspendedAt ? new Date(device.suspendedAt) : null,
+      suspensionReason: device.suspensionReason,
       traccarDeviceId: device.traccarDeviceId,
       provisionStatus: device.provisionStatus,
       createdAt: new Date(device.createdAt),
@@ -86,6 +90,7 @@ export class MikroDeviceRepository implements DeviceRepository {
           [
             record.id,
             record.imei,
+            record.name ?? "",
             record.manufacturer,
             record.model,
             record.firmwareVersion,
@@ -102,6 +107,13 @@ export class MikroDeviceRepository implements DeviceRepository {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(DeviceRecord, { id, tenantId });
+    return record ? this.toDomain(record) : null;
+  }
+
+  async findByIdAcrossTenants(id: string): Promise<Device | null> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(DeviceRecord, { id });
     return record ? this.toDomain(record) : null;
   }
 
@@ -143,6 +155,7 @@ export class MikroDeviceRepository implements DeviceRepository {
     return Device.create({
       id: record.id,
       imei: record.imei,
+      name: record.name ?? null,
       manufacturer: record.manufacturer,
       model: record.model,
       firmwareVersion: record.firmwareVersion,
@@ -168,6 +181,13 @@ export class MikroDeviceRepository implements DeviceRepository {
       verificationDeadline: record.verificationDeadline?.toISOString() ?? null,
       verificationError: record.verificationError ?? null,
       verifiedAt: record.verifiedAt?.toISOString() ?? null,
+      preSuspensionLifecycleStatus:
+        record.preSuspensionLifecycleStatus
+        && isDeviceLifecycleStatus(record.preSuspensionLifecycleStatus)
+          ? record.preSuspensionLifecycleStatus
+          : null,
+      suspendedAt: record.suspendedAt?.toISOString() ?? null,
+      suspensionReason: record.suspensionReason ?? null,
       traccarDeviceId: record.traccarDeviceId ?? null,
       provisionStatus:
         record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)

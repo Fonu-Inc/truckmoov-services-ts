@@ -27,7 +27,13 @@ import {
   CreateDeviceUseCase,
   DeleteDeviceUseCase,
   DEVICE_IDENTITY_EVENT_PUBLISHER,
+  DEVICE_QUOTA_READER,
   DEVICE_REPOSITORY,
+  DeviceCatalogLookupUseCase,
+  ReinstateDeviceUseCase,
+  SuspendDeviceUseCase,
+  DeviceFilterOptionsUseCase,
+  DeviceInventorySummaryUseCase,
   EventBusDeviceIdentityEventPublisher,
   GetDeviceUseCase,
   HttpTraccarDeviceProvisioner,
@@ -35,6 +41,7 @@ import {
   InMemoryDeviceRepository,
   ListDevicesUseCase,
   ListVehicleTripsUseCase,
+  MikroDeviceQuotaReader,
   MikroDeviceRepository,
   NoopTraccarDeviceProvisioner,
   NoopTraccarTripsProvider,
@@ -42,6 +49,7 @@ import {
   TRACCAR_DEVICE_PROVISIONER,
   TRACCAR_TRIPS_PROVIDER,
   UnassignDeviceFromVehicleUseCase,
+  UnlimitedDeviceQuotaReader,
   UpdateDeviceUseCase,
   ValidateDeviceAssignmentUseCase,
 } from "./contexts/fleet/devices";
@@ -371,6 +379,17 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
         config: AppConfigService,
       ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
     },
+    UnlimitedDeviceQuotaReader,
+    MikroDeviceQuotaReader,
+    {
+      provide: DEVICE_QUOTA_READER,
+      inject: [UnlimitedDeviceQuotaReader, MikroDeviceQuotaReader, AppConfigService],
+      useFactory: (
+        unlimited: UnlimitedDeviceQuotaReader,
+        mikro: MikroDeviceQuotaReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? unlimited : mikro),
+    },
     UnlimitedDriverQuotaReader,
     {
       provide: DRIVER_QUOTA_READER,
@@ -667,6 +686,11 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     ListVehicleTripsUseCase,
     CreateDeviceUseCase,
     ListDevicesUseCase,
+    DeviceInventorySummaryUseCase,
+    DeviceFilterOptionsUseCase,
+    DeviceCatalogLookupUseCase,
+    SuspendDeviceUseCase,
+    ReinstateDeviceUseCase,
     GetDeviceUseCase,
     UpdateDeviceUseCase,
     DeleteDeviceUseCase,
@@ -779,6 +803,10 @@ export class AppModule implements NestModule {
         FuelController,
         DocumentsController,
         AuditController,
+        // Service-to-service routes authenticate the same way. Left out, the
+        // roles guard sees no user and refuses every internal call with a 401,
+        // which callers were quietly reading as "fleet is unreachable".
+        InternalFleetController,
       );
   }
 }

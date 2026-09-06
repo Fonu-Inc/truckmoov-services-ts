@@ -17,7 +17,11 @@ import {
 } from '../../../apps/auth/src/retry-system-sim-batch.use-case';
 import { GetSystemSimRequestsSummaryUseCase } from '../../../apps/auth/src/get-system-sim-requests-summary.use-case';
 import { AssignSystemDeviceSetupRequestUseCase } from '../../../apps/auth/src/assign-system-device-setup-request.use-case';
-import { RejectSystemDeviceSetupRequestUseCase } from '../../../apps/auth/src/reject-system-device-setup-request.use-case';
+import {
+  ApproveSystemDeviceSetupRequestUseCase,
+  GetSystemDeviceSetupSummaryUseCase,
+  RejectSystemDeviceSetupRequestUseCase,
+} from '../../../apps/auth/src/decide-system-device-setup-request.use-cases';
 import { ForbiddenError } from '../../../apps/auth/src/contexts/auth/session';
 import type { StoredSim } from '../../../apps/auth/src/sim.repository';
 import type { StoredSimActivationBatch } from '../../../apps/auth/src/sim-activation-batch.repository';
@@ -251,20 +255,71 @@ describe('SIM requests summary', () => {
 });
 
 describe('Device setup request mutations', () => {
-  it('assigns to the acting system user', async () => {
+  function approver(repo: InMemoryDeviceSetupRequestRepository) {
+    return new ApproveSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+  }
+  function rejecter(repo: InMemoryDeviceSetupRequestRepository) {
+    return new RejectSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+  }
+
+  it('approves and records who decided', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
+    const result = await approver(repo).execute(TOKEN, 'dsr-001');
+    expect(result.data.status).toBe('approved');
+    expect(result.data.decidedBy).toBe('sys1');
+    expect(result.data.decidedAt).not.toBeNull();
+  });
+
+  it('rejects with a reason', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const result = await rejecter(repo).execute(TOKEN, 'dsr-001', 'Model is deprecated');
+    expect(result.data.status).toBe('rejected');
+    expect(result.data.decisionReason).toBe('Model is deprecated');
+  });
+
+  // A rejection the tenant cannot act on is not a decision.
+  it('refuses a rejection with no reason', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await expect(rejecter(repo).execute(TOKEN, 'dsr-001', '   ')).rejects.toThrow(/reason/);
+  });
+
+  // The tenant has already been told the outcome by the time a second decision
+  // is attempted, so the first one stands.
+  it('refuses to decide a request twice', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    await expect(approver(repo).execute(TOKEN, 'dsr-001')).rejects.toThrow(/already been approved/);
+  });
+
+  it('assigns an approved request to the acting system user', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
     const useCase = new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
     const result = await useCase.execute(TOKEN, 'dsr-001');
     expect(result.data.assignedTo).toBe('sys1');
     expect(result.data.status).toBe('in_progress');
   });
 
-  it('rejects with a reason', async () => {
+  // Assigning before a decision would put work in progress without approval.
+  it('refuses to assign a request still waiting on a decision', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    const useCase = new RejectSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
-    const result = await useCase.execute(TOKEN, 'dsr-001', 'Invalid IMEI');
-    expect(result.data.status).toBe('rejected');
-    expect(result.data.rejectedReason).toBe('Invalid IMEI');
+    const useCase = new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+    await expect(useCase.execute(TOKEN, 'dsr-001')).rejects.toThrow(/must be approved/);
+  });
+
+  it('counts devices requested, not requests, on the approval queue cards', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const summary = await new GetSystemDeviceSetupSummaryUseCase(
+      systemActor() as never,
+      systemUserRepo() as never,
+      repo,
+    ).execute(TOKEN);
+
+    expect(summary.data.pendingApproval).toBe(1);
+    expect(summary.data.approved).toBe(2);
+    expect(summary.data.rejected).toBe(0);
+    // dsr-002 asks for two trackers, the others one each.
+    expect(summary.data.devicesRequested).toBe(4);
   });
 
   it('filters device setup requests by manufacturer', async () => {

@@ -36,20 +36,49 @@ describe("DeviceSetupRequest entity", () => {
   });
 
   it("follows the provisioning lifecycle and appends timeline entries", () => {
-    const req = DeviceSetupRequest.create(baseInput());
-    const updated = req.transitionTo("in_progress").transitionTo("provisioned").transitionTo("assigned");
-    expect(updated.status).toBe("assigned");
-    expect(updated.toPrimitives().timeline.map((t) => t.status)).toEqual([
+    const req = DeviceSetupRequest.create(baseInput())
+      .decide("approved", "admin-1")
+      .transitionTo("in_progress")
+      .transitionTo("provisioned")
+      .transitionTo("assigned");
+
+    expect(req.status).toBe("assigned");
+    expect(req.toPrimitives().timeline.map((t) => t.status)).toEqual([
       "pending_review",
+      "approved",
       "in_progress",
       "provisioned",
       "assigned",
     ]);
   });
 
+  // Provisioning cannot start on a request the platform has not accepted.
+  it("cannot start work before the platform has approved the request", () => {
+    expect(() => DeviceSetupRequest.create(baseInput()).transitionTo("in_progress")).toThrow(
+      /invalid setup-request transition/,
+    );
+  });
+
   it("rejects an illegal transition", () => {
     const req = DeviceSetupRequest.create(baseInput());
     expect(() => req.transitionTo("assigned")).toThrow(/invalid setup-request transition/);
+  });
+
+  it("records who decided, and refuses a rejection with no reason", () => {
+    const rejected = DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1", "Model deprecated");
+    expect(rejected.toPrimitives()).toMatchObject({
+      status: "rejected",
+      decidedBy: "admin-1",
+      decisionReason: "Model deprecated",
+    });
+
+    expect(() => DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1")).toThrow(/reason/);
+  });
+
+  // A rejected request is not retried in place; the tenant submits a new one.
+  it("treats a rejection as final", () => {
+    const rejected = DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1", "No stock");
+    expect(() => rejected.transitionTo("in_progress")).toThrow(/invalid setup-request transition/);
   });
 });
 
@@ -63,6 +92,7 @@ describe("DeviceSetupRequest use-cases", () => {
     const created = await create.execute({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics" });
     expect(created.status).toBe("pending_review");
 
+    await update.execute({ id: created.id, tenantId: "t1", status: "approved" });
     const advanced = await update.execute({ id: created.id, tenantId: "t1", status: "in_progress" });
     expect(advanced.status).toBe("in_progress");
 

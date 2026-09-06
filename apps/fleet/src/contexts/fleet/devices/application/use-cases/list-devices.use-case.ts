@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { DeviceLifecycleStatus, DeviceStatus } from "../../domain/entities/device.entity";
+import {
+  applyDeviceStatusFilter,
+  type DeviceStatusFilter,
+} from "../../domain/device-inventory";
+import type { DeviceLifecycleStatus } from "../../domain/entities/device.entity";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
 
 export const LAST_SEEN_BUCKETS = ["5min", "1hr", "24hr", "7day", "never"] as const;
@@ -16,7 +20,12 @@ export type ListDevicesFilters = {
   query?: string;
   manufacturer?: string;
   tenantId?: string;
-  status?: DeviceStatus;
+  /**
+   * The status dropdown. Not a repository filter: `unassigned` and
+   * `unregistered` cut across the lifecycle, so the whole set is applied in the
+   * domain to keep one definition behind the list, the cards and the filter.
+   */
+  statusFilter?: DeviceStatusFilter;
   lifecycleStatus?: DeviceLifecycleStatus;
   assigned?: boolean;
   vehicleId?: string;
@@ -31,7 +40,7 @@ export class ListDevicesUseCase {
   ) {}
 
   async execute(filters?: ListDevicesFilters) {
-    const { lastSeenBucket, ...rest } = filters ?? {};
+    const { lastSeenBucket, statusFilter, ...rest } = filters ?? {};
     const resolved: Parameters<DeviceRepository["findAll"]>[0] = { ...rest };
     if (lastSeenBucket === "never") {
       resolved.lastSeenIsNull = true;
@@ -39,6 +48,9 @@ export class ListDevicesUseCase {
       resolved.lastSeenAfter = new Date(Date.now() - LAST_SEEN_BUCKET_MS[lastSeenBucket]);
     }
     const devices = await this.deviceRepository.findAll(resolved);
-    return devices.map((device) => device.toPrimitives());
+    return applyDeviceStatusFilter(
+      devices.map((device) => device.toPrimitives()),
+      statusFilter,
+    );
   }
 }

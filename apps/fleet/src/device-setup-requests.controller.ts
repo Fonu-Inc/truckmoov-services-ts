@@ -27,6 +27,7 @@ import {
   CreateDeviceSetupRequestUseCase,
   UpdateDeviceSetupRequestStatusUseCase,
 } from "./contexts/fleet/device-setup-requests";
+import { TRACKER_TYPE_OPTIONS } from "./contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { UpdateDeviceSetupRequestStatusDto, CreateDeviceSetupRequestDto, DeviceSetupRequestListQueryDto } from "./dto/device-setup-request.dto";
 import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
@@ -94,6 +95,21 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     }) as unknown as Promise<DeviceSetupRequestListResponse>;
   }
 
+  @Get("tracker-types")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @ApiOperation({
+    summary: "Tracker types",
+    description: "Options for the Tracker Type dropdown on Request Device Setup, with the wording to show.",
+  })
+  @ApiOkResponse({ description: "Tracker type options" })
+  async listTrackerTypes() {
+    return {
+      status: true,
+      message: "success",
+      data: { trackerTypes: TRACKER_TYPE_OPTIONS.map((option) => ({ ...option })) },
+    };
+  }
+
   @Get(":id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Get device setup request" })
@@ -136,6 +152,4 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     });
     return result;
   }
-
-  /* ── Carriers / Data Bundles catalog ─────────────────────────────────────── */
 }

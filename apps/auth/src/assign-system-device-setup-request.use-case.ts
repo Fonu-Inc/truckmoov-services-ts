@@ -12,6 +12,12 @@ import {
   serializeDeviceSetupRequest,
 } from './get-system-device-setup-request.use-case';
 
+export class DeviceSetupRequestNotApprovedError extends Error {
+  constructor(readonly currentStatus: string) {
+    super(`A device request must be approved before it is assigned. This one is ${currentStatus}`);
+  }
+}
+
 @Injectable()
 export class AssignSystemDeviceSetupRequestUseCase {
   constructor(
@@ -35,15 +41,20 @@ export class AssignSystemDeviceSetupRequestUseCase {
     const request = await this.repo.findById(requestId);
     if (!request) throw new DeviceSetupRequestNotFoundError(requestId);
 
-    request.assignedTo = actor.id;
-    request.status = 'in_progress';
-    request.updatedAt = new Date();
-    await this.repo.save(request);
+    // Work starts once the platform has said yes. Assigning a request still
+    // waiting on a decision would put it in progress without one.
+    if (request.status !== 'approved') {
+      throw new DeviceSetupRequestNotApprovedError(request.status);
+    }
+
+    await this.repo.assign(requestId, actor.id);
+    const updated = await this.repo.findById(requestId);
+    if (!updated) throw new DeviceSetupRequestNotFoundError(requestId);
 
     return {
       status: true,
       message: 'Device setup request assigned',
-      data: serializeDeviceSetupRequest(request),
+      data: serializeDeviceSetupRequest(updated),
     };
   }
 }

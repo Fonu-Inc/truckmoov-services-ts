@@ -20,16 +20,18 @@ export class ExportSystemDeviceSetupRequestsUseCase {
     const result = await this.listUseCase.execute(accessToken, filters);
     const requests = result.data.requests;
     const headers = [
-      'id', 'imei', 'manufacturer', 'model', 'connectionType',
-      'requesterName', 'needsSim', 'vehiclePlate', 'location',
-      'tenantId', 'status', 'assignedTo', 'notes', 'preferredInstallDate',
-      'rejectedReason', 'createdAt', 'updatedAt',
+      'id', 'tenantId', 'organisationName', 'requestingEmail',
+      'manufacturer', 'model', 'trackerType', 'quantity', 'simRequired',
+      'state', 'city', 'preferredInstallDate', 'useCase', 'notes',
+      'status', 'kycStatus', 'assignedTo', 'decidedBy', 'decidedAt',
+      'decisionReason', 'createdAt', 'updatedAt',
     ];
     const rows = requests.map((r) => [
-      r.id, r.imei, r.manufacturer, r.model, r.connectionType,
-      r.requesterName, r.needsSim, r.vehiclePlate, r.location,
-      r.tenantId, r.status, r.assignedTo, r.notes, r.preferredInstallDate,
-      r.rejectedReason, r.createdAt, r.updatedAt,
+      r.id, r.tenantId, r.organisationName, r.requestingEmail,
+      r.manufacturer, r.model, r.trackerType, r.quantity, r.simRequired,
+      r.state, r.city, r.preferredInstallDate, r.useCase, r.notes,
+      r.status, r.kycStatus, r.assignedTo, r.decidedBy, r.decidedAt,
+      r.decisionReason, r.createdAt, r.updatedAt,
     ]);
     const csv = [
       headers.map(escapeCsvValue).join(','),

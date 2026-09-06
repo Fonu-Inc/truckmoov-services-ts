@@ -45,6 +45,10 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       notes: p.notes ?? null,
       status: p.status,
       timeline: p.timeline,
+      assignedTo: p.assignedTo ?? null,
+      decidedBy: p.decidedBy ?? null,
+      decidedAt: p.decidedAt ? new Date(p.decidedAt) : null,
+      decisionReason: p.decisionReason ?? null,
       createdAt: new Date(p.createdAt),
       updatedAt: new Date(p.updatedAt),
     });
@@ -114,6 +118,10 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       useCase: record.useCase,
       notes: record.notes ?? null,
       status: record.status as DeviceSetupRequestStatus,
+      assignedTo: record.assignedTo ?? null,
+      decidedBy: record.decidedBy ?? null,
+      decidedAt: record.decidedAt?.toISOString() ?? null,
+      decisionReason: record.decisionReason ?? null,
       timeline: (record.timeline ?? []).map((t) => ({
         status: t.status as DeviceSetupRequestStatus,
         at: t.at,

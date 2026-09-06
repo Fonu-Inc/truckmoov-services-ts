@@ -13,6 +13,24 @@ import { ensureSystemActor } from './system-authz';
 type CountRow = Record<string, number | string | null | undefined>;
 type ExistsRow = { exists?: boolean | number | string };
 
+/** Every counter at zero. Returned when there is no fleet table to read. */
+const EMPTY_INVENTORY_COUNTS = {
+  totalDevices: 0,
+  registeredDevices: 0,
+  configuredDevices: 0,
+  verifiedActiveDevices: 0,
+  pendingConfigDevices: 0,
+  onlineNowDevices: 0,
+  assignableDevices: 0,
+  assignedDevices: 0,
+  unassignedDevices: 0,
+  unregisteredDevices: 0,
+  activeDevices: 0,
+  inactiveDevices: 0,
+  suspendedDevices: 0,
+  faultyDevices: 0,
+} as const;
+
 @Injectable()
 export class GetSystemDeviceSummaryUseCase {
   constructor(
@@ -38,18 +56,7 @@ export class GetSystemDeviceSummaryUseCase {
 
     const inventory =
       this.config.persistence.backend === 'in-memory'
-        ? {
-            totalDevices: 0,
-            registeredDevices: 0,
-            configuredDevices: 0,
-            verifiedActiveDevices: 0,
-            pendingConfigDevices: 0,
-            onlineNowDevices: 0,
-            assignableDevices: 0,
-            assignedDevices: 0,
-            activeDevices: 0,
-            faultyDevices: 0,
-          }
+        ? { ...EMPTY_INVENTORY_COUNTS }
         : await this.getInventoryCounts();
 
     const catalogModels = await this.deviceModelCatalogRepository.findAll();
@@ -83,18 +90,7 @@ export class GetSystemDeviceSummaryUseCase {
     );
 
     if (!this.toBoolean(existsRows[0]?.exists)) {
-      return {
-        totalDevices: 0,
-        registeredDevices: 0,
-        configuredDevices: 0,
-        verifiedActiveDevices: 0,
-        pendingConfigDevices: 0,
-        onlineNowDevices: 0,
-        assignableDevices: 0,
-        assignedDevices: 0,
-        activeDevices: 0,
-        faultyDevices: 0,
-      };
+      return { ...EMPTY_INVENTORY_COUNTS };
     }
 
     // Counts read lifecycle_status alone. The status column is a derived
@@ -120,7 +116,19 @@ export class GetSystemDeviceSummaryUseCase {
           count(*) filter (
             where lifecycle_status in ('verified_online', 'assignable')
           )::int as active_devices,
-          count(*) filter (where lifecycle_status = 'faulty')::int as faulty_devices
+          count(*) filter (where lifecycle_status = 'faulty')::int as faulty_devices,
+          count(*) filter (where lifecycle_status = 'suspended')::int as suspended_devices,
+          -- A device out of service for any reason: broken, suspended by the
+          -- platform, or retired.
+          count(*) filter (
+            where lifecycle_status in ('faulty', 'suspended', 'decommissioned')
+          )::int as inactive_devices,
+          count(*) filter (where vehicle_id is null)::int as unassigned_devices,
+          -- Not registered with the telemetry platform, which is a different
+          -- thing from the 'registered' lifecycle state it shares a word with.
+          count(*) filter (
+            where coalesce(provision_status, 'pending') <> 'registered'
+          )::int as unregistered_devices
         from fleet_devices
       `,
     );
@@ -135,7 +143,11 @@ export class GetSystemDeviceSummaryUseCase {
       onlineNowDevices: this.toNumber(row.online_now_devices),
       assignableDevices: this.toNumber(row.assignable_devices),
       assignedDevices: this.toNumber(row.assigned_devices),
+      unassignedDevices: this.toNumber(row.unassigned_devices),
+      unregisteredDevices: this.toNumber(row.unregistered_devices),
       activeDevices: this.toNumber(row.active_devices),
+      inactiveDevices: this.toNumber(row.inactive_devices),
+      suspendedDevices: this.toNumber(row.suspended_devices),
       faultyDevices: this.toNumber(row.faulty_devices),
     };
   }

@@ -95,7 +95,6 @@ import { RegisterSimsUseCase } from './register-sims.use-case';
 import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
 import { OnboardingNotFoundForFeaturesError, SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
 import { SaveKycDocumentUseCase } from './save-kyc-document.use-case';
-import { SubmitDeviceProvisioningRequestUseCase } from './submit-device-provisioning-request.use-case';
 import { SubmitEnterpriseEnquiryUseCase } from './submit-enterprise-enquiry.use-case';
 import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-request.use-case';
 import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-case';
@@ -125,7 +124,6 @@ export class OnboardingController extends BaseAuthController {
     @Inject(GetOnboardingStatusUseCase) private readonly getOnboardingStatusUseCase: GetOnboardingStatusUseCase,
     @Inject(SaveKycDocumentUseCase) private readonly saveKycDocumentUseCase: SaveKycDocumentUseCase,
     @Inject(DeleteKycDocumentUseCase) private readonly deleteKycDocumentUseCase: DeleteKycDocumentUseCase,
-    @Inject(SubmitDeviceProvisioningRequestUseCase) private readonly submitDeviceProvisioningRequestUseCase: SubmitDeviceProvisioningRequestUseCase,
     @Inject(RegisterSimsUseCase) private readonly registerSimsUseCase: RegisterSimsUseCase,
     @Inject(ImportSimsCsvUseCase) private readonly importSimsCsvUseCase: ImportSimsCsvUseCase,
     @Inject(SubmitSimProvisioningRequestUseCase) private readonly submitSimProvisioningRequestUseCase: SubmitSimProvisioningRequestUseCase,
@@ -466,26 +464,6 @@ export class OnboardingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof KycDocumentNotFoundError) throw new NotFoundException(error.message);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      throw error;
-    }
-  }
-
-  @Post('devices/provision')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Submit device provisioning request', description: 'Submits a fleet device provisioning request (manufacturer, model, quantity). Reviewed by system team.' })
-  @ApiCreatedResponse({ type: RequestIdResponse })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  async submitDeviceProvisioningRequest(
-    @Body(BodyOrDataPipe) payload: SubmitDeviceProvisioningRequestDto,
-    @Headers('authorization') authorization?: string,
-  ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      return await this.submitDeviceProvisioningRequestUseCase.execute(accessToken, payload);
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       throw error;
     }

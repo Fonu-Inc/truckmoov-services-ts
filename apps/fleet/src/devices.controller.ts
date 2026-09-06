@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  BadRequestException,
   Body,
   Res,
   Param,
@@ -9,11 +10,17 @@ import {
   Patch,
   Delete,
   Controller,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   Post,
   Query,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOperation,
   ApiQuery,
@@ -21,6 +28,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
+import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from "@shared/http";
 import {
   RequireIdempotency,
   Roles,
@@ -31,6 +39,9 @@ import {
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import {
+  DeviceCatalogLookupUseCase,
+  DeviceFilterOptionsUseCase,
+  DeviceInventorySummaryUseCase,
   ValidateDeviceAssignmentUseCase,
   DeleteDeviceUseCase,
   BulkImportDevicesUseCase,
@@ -42,6 +53,13 @@ import {
   GetDeviceUseCase,
   SetDeviceLifecycleStatusUseCase,
 } from "./contexts/fleet/devices";
+import {
+  buildDeviceCsvExport,
+  buildDeviceCsvTemplate,
+  DEVICE_CSV_COLUMNS,
+  parseDeviceCsv,
+  type DeviceCsvRow,
+} from "./contexts/fleet/devices/domain/device-csv";
 import {
   DeviceAssignmentValidationResponse,
   DeviceListResponse,
@@ -56,7 +74,6 @@ import {
   UpdateDeviceDto,
   DeviceAssignmentValidationQueryDto,
   CreateDeviceDto,
-  BulkImportDevicesDto,
 } from "./dto/vehicle.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
@@ -78,6 +95,9 @@ export class DevicesController extends BaseFleetController {
     @Inject(UnassignDeviceFromVehicleUseCase) private readonly unassignDeviceFromVehicleUseCase: UnassignDeviceFromVehicleUseCase,
     @Inject(SetDeviceLifecycleStatusUseCase) private readonly setDeviceLifecycleStatusUseCase: SetDeviceLifecycleStatusUseCase,
     @Inject(ValidateDeviceAssignmentUseCase) private readonly validateDeviceAssignmentUseCase: ValidateDeviceAssignmentUseCase,
+    @Inject(DeviceInventorySummaryUseCase) private readonly deviceInventorySummaryUseCase: DeviceInventorySummaryUseCase,
+    @Inject(DeviceFilterOptionsUseCase) private readonly deviceFilterOptionsUseCase: DeviceFilterOptionsUseCase,
+    @Inject(DeviceCatalogLookupUseCase) private readonly deviceCatalogLookupUseCase: DeviceCatalogLookupUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -102,15 +122,70 @@ export class DevicesController extends BaseFleetController {
   @ApiQuery({ name: "lastSeenBucket", required: false, enum: ["5min", "1hr", "24hr", "7day", "never"] })
   @ApiOkResponse({ type: DeviceListResponse })
   async listDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext): Promise<DeviceListResponse> {
-    return this.listDevicesUseCase.execute({
-      query: query.query,
-      manufacturer: query.manufacturer,
-      status: query.status,
-      lifecycleStatus: query.lifecycleStatus,
-      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      lastSeenBucket: query.lastSeenBucket,
-      tenantId: this.tenantIdFromRequest(req),
-    }) as unknown as Promise<DeviceListResponse>;
+    return this.listDevicesUseCase.execute(
+      this.listFilters(query, req),
+    ) as unknown as Promise<DeviceListResponse>;
+  }
+
+  @Get("summary")
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
+  @ApiOperation({
+    summary: "Device status cards",
+    description: "Counts behind the My Devices cards, plus the plan allowance bar.",
+  })
+  @ApiOkResponse({ description: "Status counts and plan allowance" })
+  async deviceSummary(@Req() req: FleetRequestContext) {
+    const data = await this.deviceInventorySummaryUseCase.execute(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("filters")
+  @Roles(
+    Role.ENTERPRISE_ADMIN,
+    Role.FLEET_ADMIN,
+    Role.OPERATIONS_MANAGER,
+    Role.DISPATCHER,
+    Role.FINANCE_VIEWER,
+  )
+  @ApiOperation({
+    summary: "Device filter options",
+    description: "Statuses, manufacturers and last-seen buckets for the filter panel.",
+  })
+  @ApiOkResponse({ description: "Filter options" })
+  async deviceFilters(@Req() req: FleetRequestContext) {
+    const data = await this.deviceFilterOptionsUseCase.execute(this.tenantIdFromRequest(req));
+    return { status: true, message: "success", data };
+  }
+
+  @Get("catalog/manufacturers")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Supported manufacturers",
+    description: "Manufacturers the platform device catalog supports, for the Add Device and Request Device modals.",
+  })
+  @ApiOkResponse({ description: "Manufacturer names" })
+  async listCatalogManufacturers() {
+    const data = await this.deviceCatalogLookupUseCase.manufacturers();
+    return { status: true, message: "success", data };
+  }
+
+  @Get("catalog/models")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Supported models",
+    description: "Models for one manufacturer, or the whole catalog when no manufacturer is given.",
+  })
+  @ApiQuery({ name: "manufacturer", required: false, type: String })
+  @ApiOkResponse({ description: "Catalog models" })
+  async listCatalogModels(@Query("manufacturer") manufacturer?: string) {
+    const data = await this.deviceCatalogLookupUseCase.models(manufacturer);
+    return { status: true, message: "success", data };
   }
 
   @Get("export")
@@ -121,34 +196,52 @@ export class DevicesController extends BaseFleetController {
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
   )
-  @ApiOperation({ summary: "Export devices as CSV" })
+  @ApiOperation({
+    summary: "Export devices as CSV",
+    description: "Same columns as the bulk import template, so an export can be edited and imported back.",
+  })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
-  async exportDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const devices = (await this.listDevicesUseCase.execute({
-      query: query.query,
-      manufacturer: query.manufacturer,
-      status: query.status,
-      lifecycleStatus: query.lifecycleStatus,
-      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      lastSeenBucket: query.lastSeenBucket,
-      tenantId: this.tenantIdFromRequest(req),
-    })) as unknown as Array<Record<string, unknown>>;
-    const headers = ["id", "imei", "manufacturer", "model", "firmwareVersion", "lifecycleStatus", "status", "vehicleId", "lastSeen"];
-    const rows = [headers.join(","), ...devices.map((d) => headers.map((h) => JSON.stringify(d[h] ?? "")).join(","))];
+  async exportDevices(
+    @Query() query: DeviceListQueryDto,
+    @Req() req: FleetRequestContext,
+    @Res({ passthrough: false }) res: any,
+  ) {
+    const devices = (await this.listDevicesUseCase.execute(
+      this.listFilters(query, req),
+    )) as unknown as Array<Record<string, unknown>>;
+
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=devices.csv");
-    res.send(rows.join("\n"));
+    res.send(
+      buildDeviceCsvExport(
+        devices.map((device) => ({
+          imei: String(device["imei"] ?? ""),
+          name: (device["name"] as string | null) ?? null,
+          manufacturer: String(device["manufacturer"] ?? ""),
+          model: String(device["model"] ?? ""),
+          firmwareVersion: (device["firmwareVersion"] as string | null) ?? null,
+          lifecycleStatus: (device["lifecycleStatus"] as DeviceCsvRow["lifecycleStatus"]) ?? null,
+        })),
+      ),
+    );
   }
 
-  @Get("import-template")
+  @Get("import/template")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Download the CSV template for bulk device import" })
   @ApiOkResponse({ description: "CSV template", content: { "text/csv": {} } })
   async downloadDeviceImportTemplate(@Res({ passthrough: false }) res: any) {
-    const headers = ["imei", "manufacturer", "model", "firmwareVersion", "lifecycleStatus"];
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=devices-import-template.csv");
-    res.send(headers.join(","));
+    res.send(buildDeviceCsvTemplate());
+  }
+
+  @Get("import/columns")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({ summary: "Describe the bulk import columns" })
+  @ApiOkResponse({ description: "Column definitions" })
+  async describeDeviceImportColumns() {
+    return { status: true, message: "success", data: { columns: DEVICE_CSV_COLUMNS } };
   }
 
   @Post()
@@ -186,14 +279,47 @@ export class DevicesController extends BaseFleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
     summary: "Bulk import devices",
-    description: "Bulk registers or updates GPS/IoT devices for the fleet Devices inventory.",
+    description:
+      "Registers or updates devices from a CSV. Refused whole when the file would take the tenant past its device allowance.",
+  })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } },
   })
   @ApiCreatedResponse({ type: BulkDeviceImportResponse })
-  async bulkImportDevices(@Body() payload: BulkImportDevicesDto, @Req() req: FleetRequestContext): Promise<BulkDeviceImportResponse> {
-    const result = await this.bulkImportDevicesUseCase.execute({
-      ...payload,
-      tenantId: this.tenantIdFromRequest(req),
-    });
+  @ApiBadRequestResponse({ description: "Missing file, or the CSV is not readable" })
+  @UseInterceptors(FileInterceptor("file", uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
+  async bulkImportDevices(
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer } | undefined,
+    @Req() req: FleetRequestContext,
+  ): Promise<BulkDeviceImportResponse> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Missing CSV file");
+    }
+
+    let parsed: ReturnType<typeof parseDeviceCsv>;
+    try {
+      parsed = parseDeviceCsv(file.buffer.toString("utf8"));
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "The CSV could not be read");
+    }
+
+    if (parsed.rows.length === 0) {
+      throw new BadRequestException(
+        parsed.errors.length > 0
+          ? `No importable rows. First problem on line ${parsed.errors[0].line}: ${parsed.errors[0].message}`
+          : "The CSV contained no device rows",
+      );
+    }
+
+    const result = await this.runFleetUseCase(() =>
+      this.bulkImportDevicesUseCase.execute({
+        rows: parsed.rows,
+        skipped: parsed.errors,
+        tenantId: this.tenantIdFromRequest(req),
+      }),
+    ) as unknown as BulkDeviceImportResponse & { created: number; updated: number; total: number };
+
     await this.recordActivity(req, {
       entityType: "device",
       entityId: randomUUID(),
@@ -393,5 +519,18 @@ export class DevicesController extends BaseFleetController {
       summary: "Device deleted",
     });
     return result;
+  }
+
+  /** One filter shape behind the list and the export, so they cannot diverge. */
+  private listFilters(query: DeviceListQueryDto, req: FleetRequestContext) {
+    return {
+      query: query.query,
+      manufacturer: query.manufacturer,
+      statusFilter: query.status,
+      lifecycleStatus: query.lifecycleStatus,
+      assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
+      lastSeenBucket: query.lastSeenBucket,
+      tenantId: this.tenantIdFromRequest(req),
+    };
   }
 }

@@ -61,6 +61,7 @@ export class DriverRecord {
 export class DeviceRecord {
   id!: string;
   imei!: string;
+  name?: string | null;
   manufacturer!: string;
   model!: string;
   firmwareVersion!: string;
@@ -80,6 +81,9 @@ export class DeviceRecord {
   verificationDeadline?: Date | null;
   verificationError?: string | null;
   verifiedAt?: Date | null;
+  preSuspensionLifecycleStatus?: string | null;
+  suspendedAt?: Date | null;
+  suspensionReason?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: string | null;
   createdAt!: Date;
@@ -168,6 +172,7 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
   properties: {
     id: { type: "string", primary: true },
     imei: { type: "string", length: 32 },
+    name: { type: "string", length: 120, nullable: true },
     manufacturer: { type: "string", length: 64 },
     model: { type: "string", length: 64 },
     firmwareVersion: { type: "string", length: 32 },
@@ -187,6 +192,9 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     verificationDeadline: { type: "datetime", nullable: true },
     verificationError: { type: "text", nullable: true },
     verifiedAt: { type: "datetime", nullable: true },
+    preSuspensionLifecycleStatus: { type: "string", length: 32, nullable: true },
+    suspendedAt: { type: "datetime", nullable: true },
+    suspensionReason: { type: "string", length: 500, nullable: true },
     traccarDeviceId: { type: "string", length: 64, nullable: true },
     provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
     createdAt: { type: "datetime", defaultRaw: "now()" },
@@ -1003,6 +1011,10 @@ export class DeviceSetupRequestRecord {
   notes?: string | null;
   status!: string;
   timeline!: { status: string; at: string; note?: string | null }[];
+  assignedTo?: string | null;
+  decidedBy?: string | null;
+  decidedAt?: Date | null;
+  decisionReason?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -1033,6 +1045,10 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
     notes: { type: "text", nullable: true },
     status: { type: "string", length: 32, defaultRaw: "'pending_review'" },
     timeline: { type: "json" },
+    assignedTo: { type: "string", length: 64, nullable: true },
+    decidedBy: { type: "string", length: 64, nullable: true },
+    decidedAt: { type: "datetime", nullable: true },
+    decisionReason: { type: "string", length: 1000, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },

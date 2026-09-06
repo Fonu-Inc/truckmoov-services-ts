@@ -17,8 +17,8 @@ import {
 } from "class-validator";
 import {
   DEVICE_LIFECYCLE_STATUSES,
-  DEVICE_STATUSES,
 } from "../contexts/fleet/devices/domain/entities/device.entity";
+import { DEVICE_STATUS_FILTERS } from "../contexts/fleet/devices/domain/device-inventory";
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
 import { DRIVER_STATUS_INPUTS } from "../contexts/fleet/drivers/domain/entities/driver.entity";
 import { FLEET_FUEL_TYPES } from "../contexts/fleet/vehicles/domain/entities/vehicle.entity";
@@ -149,6 +149,11 @@ export class CreateDeviceDto {
   @Matches(/^\d+$/)
   imei!: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+
   @IsString()
   @MaxLength(50)
   manufacturer!: string;
@@ -209,37 +214,11 @@ export class DeviceAssignmentValidationQueryDto {
   vehicleId!: string;
 }
 
-export class DeviceImportItemDto {
-  @IsString()
-  @MinLength(15)
-  @MaxLength(15)
-  @Matches(/^\d+$/)
-  imei!: string;
-
-  @IsString()
-  @MaxLength(50)
-  manufacturer!: string;
-
-  @IsString()
-  @MaxLength(50)
-  model!: string;
-
+export class SuspendDeviceDto {
   @IsOptional()
   @IsString()
-  @MaxLength(20)
-  firmwareVersion?: string;
-
-  @IsOptional()
-  @IsIn(DEVICE_LIFECYCLE_STATUSES)
-  lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
-}
-
-export class BulkImportDevicesDto {
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => DeviceImportItemDto)
-  items!: DeviceImportItemDto[];
+  @MaxLength(500)
+  reason?: string;
 }
 
 export class DeviceListQueryDto {
@@ -252,8 +231,8 @@ export class DeviceListQueryDto {
   manufacturer?: string;
 
   @IsOptional()
-  @IsIn(DEVICE_STATUSES)
-  status?: typeof DEVICE_STATUSES[number];
+  @IsIn(DEVICE_STATUS_FILTERS)
+  status?: typeof DEVICE_STATUS_FILTERS[number];
 
   @IsOptional()
   @IsIn(DEVICE_LIFECYCLE_STATUSES)

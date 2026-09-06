@@ -1,84 +1,277 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
-  DeviceSetupRequestRecord,
-  getAuthOrm,
-} from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type {
-  DeviceSetupRequestFilters,
-  DeviceSetupRequestRepository,
-  DeviceSetupRequestStatus,
-  StoredDeviceSetupRequest,
+  SETUP_REQUEST_APPROVED_STATUSES,
+  SETUP_REQUEST_PENDING_STATUSES,
+  type DeviceSetupRequestFilters,
+  type DeviceSetupRequestRepository,
+  type DeviceSetupRequestStatus,
+  type DeviceSetupRequestSummary,
+  type StoredDeviceSetupRequest,
 } from './device-setup-request.repository';
 
-function toStored(record: DeviceSetupRequestRecord): StoredDeviceSetupRequest {
-  return {
-    id: record.id,
-    imei: record.imei,
-    manufacturer: record.manufacturer,
-    model: record.model,
-    connectionType: record.connectionType,
-    requesterName: record.requesterName,
-    needsSim: record.needsSim,
-    vehiclePlate: record.vehiclePlate,
-    location: record.location,
-    tenantId: record.tenantId,
-    status: record.status as DeviceSetupRequestStatus,
-    assignedTo: record.assignedTo,
-    notes: record.notes,
-    preferredInstallDate: record.preferredInstallDate,
-    rejectedReason: record.rejectedReason,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-  };
-}
+type Row = {
+  id: string;
+  tenant_id: string;
+  organisation_name: string | null;
+  requesting_email: string | null;
+  manufacturer: string;
+  model: string | null;
+  tracker_type: string;
+  quantity: number | string;
+  sim_required: boolean | string;
+  vehicle_id: string | null;
+  state: string | null;
+  city: string | null;
+  preferred_date: string | null;
+  use_case: string;
+  notes: string | null;
+  status: string;
+  assigned_to: string | null;
+  decided_by: string | null;
+  decided_at: Date | string | null;
+  decision_reason: string | null;
+  timeline: unknown;
+  created_at: Date | string;
+  updated_at: Date | string;
+  kyc_status: string | null;
+};
 
+const SELECT_COLUMNS = `
+  r.id,
+  r.tenant_id,
+  r.organisation_name,
+  r.requesting_email,
+  r.manufacturer,
+  r.model,
+  r.tracker_type,
+  r.quantity,
+  r.sim_required,
+  r.vehicle_id,
+  r.state,
+  r.city,
+  r.preferred_date,
+  r.use_case,
+  r.notes,
+  r.status,
+  r.assigned_to,
+  r.decided_by,
+  r.decided_at,
+  r.decision_reason,
+  r.timeline,
+  r.created_at,
+  r.updated_at,
+  -- Onboarding approval is what KYC means now that the separate document set
+  -- was retired. No application at all reads as unknown, not as pending.
+  (
+    select case a.status when 'approved' then 'verified' when 'rejected' then 'rejected' else 'pending' end
+      from onboarding_applications a
+     where a.tenant_id = r.tenant_id
+     order by a.created_at desc
+     limit 1
+  ) as kyc_status
+`;
+
+/**
+ * The platform's view of tenant-submitted device requests.
+ *
+ * Reads the fleet service's table directly. Same database, and the platform
+ * device inventory already reads `fleet_devices` the same way; the alternative
+ * was a second copy of the request, which is what this replaces.
+ */
 @Injectable()
-export class MikroDeviceSetupRequestRepository
-  implements DeviceSetupRequestRepository
-{
-  constructor(
-    @Inject(AppConfigService) private readonly config: AppConfigService,
-  ) {}
+export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepository {
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
   async findAll(
     filters?: DeviceSetupRequestFilters,
   ): Promise<StoredDeviceSetupRequest[]> {
-    const orm = await getAuthOrm(this.config.db);
-    const em = orm.em.fork();
-    const where: Record<string, unknown> = {};
-    if (filters?.status) where.status = filters.status;
-    if (filters?.tenantId) where.tenantId = filters.tenantId;
-    if (filters?.manufacturer) where.manufacturer = filters.manufacturer;
-    const createdAt: Record<string, Date> = {};
-    if (filters?.dateFrom) createdAt.$gte = new Date(filters.dateFrom);
-    if (filters?.dateTo) createdAt.$lte = new Date(filters.dateTo);
-    if (Object.keys(createdAt).length > 0) where.createdAt = createdAt;
-    if (filters?.search) {
-      const q = `%${filters.search}%`;
-      where.$or = [
-        { imei: { $ilike: q } },
-        { manufacturer: { $ilike: q } },
-        { model: { $ilike: q } },
-        { requesterName: { $ilike: q } },
-      ];
+    if (!(await this.tableExists())) return [];
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters?.status?.trim()) {
+      conditions.push('r.status = ?');
+      params.push(filters.status.trim());
     }
-    const records = await em.find(DeviceSetupRequestRecord, where, {
-      orderBy: { createdAt: 'desc' },
-    });
-    return records.map(toStored);
+    if (filters?.tenantId?.trim()) {
+      conditions.push('r.tenant_id = ?');
+      params.push(filters.tenantId.trim());
+    }
+    if (filters?.manufacturer?.trim()) {
+      conditions.push('lower(r.manufacturer) = lower(?)');
+      params.push(filters.manufacturer.trim());
+    }
+    if (filters?.search?.trim()) {
+      const term = `%${filters.search.trim().toLowerCase()}%`;
+      conditions.push(
+        `(lower(coalesce(r.organisation_name, '')) like ?
+          or lower(coalesce(r.requesting_email, '')) like ?
+          or lower(r.manufacturer) like ?
+          or lower(coalesce(r.model, '')) like ?
+          or lower(r.tenant_id) like ?)`,
+      );
+      params.push(term, term, term, term, term);
+    }
+    if (filters?.dateFrom?.trim()) {
+      conditions.push('r.created_at >= ?');
+      params.push(filters.dateFrom.trim());
+    }
+    if (filters?.dateTo?.trim()) {
+      conditions.push('r.created_at <= ?');
+      params.push(filters.dateTo.trim());
+    }
+
+    const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+    const rows = await this.query<Row>(
+      `select ${SELECT_COLUMNS}
+         from fleet_device_setup_requests r
+         ${where}
+        order by r.created_at asc`,
+      params,
+    );
+    return rows.map(toStored);
   }
 
   async findById(id: string): Promise<StoredDeviceSetupRequest | null> {
-    const orm = await getAuthOrm(this.config.db);
-    const em = orm.em.fork();
-    const record = await em.findOne(DeviceSetupRequestRecord, { id });
-    return record ? toStored(record) : null;
+    if (!(await this.tableExists())) return null;
+    const rows = await this.query<Row>(
+      `select ${SELECT_COLUMNS} from fleet_device_setup_requests r where r.id = ? limit 1`,
+      [id],
+    );
+    return rows[0] ? toStored(rows[0]) : null;
   }
 
-  async save(request: StoredDeviceSetupRequest): Promise<void> {
+  async summary(): Promise<DeviceSetupRequestSummary> {
+    const empty = { pendingApproval: 0, approved: 0, rejected: 0, devicesRequested: 0 };
+    if (!(await this.tableExists())) return empty;
+
+    const pending = SETUP_REQUEST_PENDING_STATUSES;
+    const approved = SETUP_REQUEST_APPROVED_STATUSES;
+    const rows = await this.query<{
+      pending_approval: number | string;
+      approved: number | string;
+      rejected: number | string;
+      devices_requested: number | string | null;
+    }>(
+      `select
+         count(*) filter (where status in (${placeholders(pending.length)}))::int as pending_approval,
+         count(*) filter (where status in (${placeholders(approved.length)}))::int as approved,
+         count(*) filter (where status = 'rejected')::int as rejected,
+         -- The card counts devices, not requests: one request for eight
+         -- trackers is eight devices to source.
+         coalesce(sum(quantity), 0)::int as devices_requested
+       from fleet_device_setup_requests`,
+      [...pending, ...approved],
+    );
+
+    const row = rows[0];
+    if (!row) return empty;
+    return {
+      pendingApproval: Number(row.pending_approval ?? 0),
+      approved: Number(row.approved ?? 0),
+      rejected: Number(row.rejected ?? 0),
+      devicesRequested: Number(row.devices_requested ?? 0),
+    };
+  }
+
+  async recordDecision(input: {
+    id: string;
+    status: DeviceSetupRequestStatus;
+    decidedBy: string;
+    reason: string | null;
+    timeline: Array<{ status: string; at: string; note: string | null }>;
+  }): Promise<void> {
+    await this.execute(
+      `update fleet_device_setup_requests
+          set status = ?, decided_by = ?, decided_at = now(), decision_reason = ?,
+              timeline = ?::jsonb, updated_at = now()
+        where id = ?`,
+      [input.status, input.decidedBy, input.reason, JSON.stringify(input.timeline), input.id],
+    );
+  }
+
+  async assign(id: string, assignedTo: string): Promise<void> {
+    await this.execute(
+      `update fleet_device_setup_requests
+          set assigned_to = ?, status = 'in_progress', updated_at = now()
+        where id = ?`,
+      [assignedTo, id],
+    );
+  }
+
+  private async tableExists(): Promise<boolean> {
+    if (this.config.persistence.backend === 'in-memory') return false;
+    const rows = await this.query<{ exists: boolean | number | string }>(
+      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
+      ['fleet_device_setup_requests'],
+    );
+    const value = rows[0]?.exists;
+    return value === true || value === 1 || value === 't' || value === 'true';
+  }
+
+  private async query<T>(sql: string, params: unknown[]): Promise<T[]> {
     const orm = await getAuthOrm(this.config.db);
-    const em = orm.em.fork();
-    await em.upsert(DeviceSetupRequestRecord, { ...request });
+    return orm.em.getConnection().execute<T[]>(sql, params);
+  }
+
+  private async execute(sql: string, params: unknown[]): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(sql, params);
+  }
+}
+
+function placeholders(count: number): string {
+  return Array.from({ length: count }, () => '?').join(', ');
+}
+
+function toStored(row: Row): StoredDeviceSetupRequest {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    organisationName: row.organisation_name,
+    requestingEmail: row.requesting_email,
+    manufacturer: row.manufacturer,
+    model: row.model,
+    trackerType: row.tracker_type,
+    quantity: Number(row.quantity ?? 1),
+    simRequired: row.sim_required === true || row.sim_required === 't' || row.sim_required === 'true',
+    vehicleId: row.vehicle_id,
+    state: row.state,
+    city: row.city,
+    preferredInstallDate: row.preferred_date ? new Date(row.preferred_date) : null,
+    useCase: row.use_case,
+    notes: row.notes,
+    status: row.status as DeviceSetupRequestStatus,
+    kycStatus: (row.kyc_status as StoredDeviceSetupRequest['kycStatus']) ?? null,
+    assignedTo: row.assigned_to,
+    decidedBy: row.decided_by,
+    decidedAt: row.decided_at ? new Date(row.decided_at) : null,
+    decisionReason: row.decision_reason,
+    timeline: normalizeTimeline(row.timeline),
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+function normalizeTimeline(raw: unknown): StoredDeviceSetupRequest['timeline'] {
+  const parsed = typeof raw === 'string' ? safeParse(raw) : raw;
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+    .map((entry) => ({
+      status: String(entry['status'] ?? ''),
+      at: String(entry['at'] ?? ''),
+      note: entry['note'] == null ? null : String(entry['note']),
+    }));
+}
+
+function safeParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 }

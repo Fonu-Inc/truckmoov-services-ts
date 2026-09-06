@@ -19,6 +19,7 @@ export function serializeDeviceSetupRequest(r: StoredDeviceSetupRequest) {
   return {
     ...r,
     preferredInstallDate: r.preferredInstallDate?.toISOString() ?? null,
+    decidedAt: r.decidedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

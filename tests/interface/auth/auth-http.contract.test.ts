@@ -2624,26 +2624,56 @@ describe('Auth HTTP contract', () => {
     expect(res.status).toBe(404);
   });
 
-  it('PATCH /system/support/device-setup/:requestId/assign assigns to the actor', async () => {
+  it('GET /system/support/device-setup/summary counts the approval queue cards', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/support/device-setup/summary')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      pendingApproval: expect.any(Number),
+      approved: expect.any(Number),
+      rejected: expect.any(Number),
+      devicesRequested: expect.any(Number),
+    });
+  });
+
+  it('PATCH /system/support/device-setup/:requestId/approve then /assign moves it into progress', async () => {
+    const token = await systemToken();
+    const approve = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-001/approve')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(approve.status).toBe(200);
+    expect(approve.body.data.status).toBe('approved');
+    expect(approve.body.data.decidedBy).toBeTruthy();
+
+    const assign = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-001/assign')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(assign.status).toBe(200);
+    expect(assign.body.data.status).toBe('in_progress');
+    expect(assign.body.data.assignedTo).toBeTruthy();
+  });
+
+  // Work cannot start on a request the platform has not accepted.
+  it('PATCH /system/support/device-setup/:requestId/assign refuses an undecided request', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
       .patch('/auth/system/support/device-setup/dsr-002/assign')
       .set('Authorization', `Bearer ${token}`)
       .send({});
-    expect(res.status).toBe(200);
-    expect(res.body.data.status).toBe('in_progress');
-    expect(res.body.data.assignedTo).toBeTruthy();
+    expect(res.status).toBe(400);
   });
 
-  it('PATCH /system/support/device-setup/:requestId/reject sets a reason', async () => {
+  it('PATCH /system/support/device-setup/:requestId/reject requires a reason', async () => {
     const token = await systemToken();
-    const res = await request(app.getHttpServer())
+    const missing = await request(app.getHttpServer())
       .patch('/auth/system/support/device-setup/dsr-003/reject')
       .set('Authorization', `Bearer ${token}`)
-      .send({ reason: 'Duplicate request' });
-    expect(res.status).toBe(200);
-    expect(res.body.data.status).toBe('rejected');
-    expect(res.body.data.rejectedReason).toBe('Duplicate request');
+      .send({ reason: '   ' });
+    expect(missing.status).toBe(400);
   });
 
   // ── CORS ──────────────────────────────────────────────

@@ -212,7 +212,7 @@ describe("Fleet HTTP contract", () => {
       .set("Authorization", authToken("dispatcher"));
     expect(driverAfterDeactivate.status).toBe(200);
     expect(driverAfterDeactivate.body.assignedVehicleId).toBeNull();
-  }, 15000);
+  }, 30000);
 
   it("GET /alerts includes createdAt in alert responses", async () => {
     const { ALERT_REPOSITORY, Alert } = await import("../../../apps/fleet/src/contexts/fleet/alerts");
@@ -376,28 +376,76 @@ describe("Fleet HTTP contract", () => {
     expect(vehicleAfterUnassign.status).toBe(200);
     expect(vehicleAfterUnassign.body.gpsDevice).toBeNull();
 
+    const importCsv = [
+      "imei,device_name,manufacturer,model,firmware_version,lifecycle_status",
+      "359779090012400,Depot spare,Queclink,GV300,1.0.0,registered",
+      "not-an-imei,Broken row,Queclink,GV300,1.0.0,registered",
+    ].join("\n");
     const bulkImport = await request(app.getHttpServer())
       .post("/fleet/devices/import")
       .set("Authorization", authToken("fleet_manager"))
-      .send({
-        items: [
-          {
-            imei: "359779090012400",
-            manufacturer: "Queclink",
-            model: "GV300",
-            firmwareVersion: "1.0.0",
-          },
-        ],
-      });
+      .attach("file", Buffer.from(importCsv, "utf8"), "devices.csv");
     expect(bulkImport.status).toBe(201);
     expect(bulkImport.body.created).toBe(1);
+    // The unreadable row is reported, not fatal: the good row still imports.
+    expect(bulkImport.body.skipped).toHaveLength(1);
+    expect(bulkImport.body.skipped[0].line).toBe(3);
+
+    const summary = await request(app.getHttpServer())
+      .get("/fleet/devices/summary")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(summary.status).toBe(200);
+    expect(summary.body.data.total).toBeGreaterThan(0);
+    expect(summary.body.data.allowance).toMatchObject({ unlimited: expect.any(Boolean) });
+
+    const filters = await request(app.getHttpServer())
+      .get("/fleet/devices/filters")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(filters.status).toBe(200);
+    expect(filters.body.data.statuses.map((s: { value: string }) => s.value)).toContain("unregistered");
+    expect(filters.body.data.lastSeen).toHaveLength(5);
+
+    // The dropdown offers buckets that are not lifecycle states, so they have
+    // to survive the round trip through the query string.
+    const unassigned = await request(app.getHttpServer())
+      .get("/fleet/devices?status=unassigned")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(unassigned.status).toBe(200);
+    expect(unassigned.body.every((device: { vehicleId: string | null }) => device.vehicleId === null)).toBe(true);
+
+    const template = await request(app.getHttpServer())
+      .get("/fleet/devices/import/template")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(template.status).toBe(200);
+    expect(template.text.split("\n")[0]).toContain("imei");
+
+    // Suspension is a platform action and crosses tenants, so it is reached
+    // with an internal role rather than the tenant's own.
+    const suspend = await request(app.getHttpServer())
+      .post(`/fleet/internal/devices/${createDevice.body.id}/suspend`)
+      .set("Authorization", authToken("PLATFORM_ADMIN", "system"))
+      .send({ reason: "Unpaid invoice" });
+    expect(suspend.status).toBe(201);
+    expect(suspend.body.data.lifecycleStatus).toBe("suspended");
+
+    const suspendAgain = await request(app.getHttpServer())
+      .post(`/fleet/internal/devices/${createDevice.body.id}/suspend`)
+      .set("Authorization", authToken("PLATFORM_ADMIN", "system"))
+      .send({});
+    expect(suspendAgain.status).toBe(400);
+
+    const reinstate = await request(app.getHttpServer())
+      .post(`/fleet/internal/devices/${createDevice.body.id}/reinstate`)
+      .set("Authorization", authToken("PLATFORM_ADMIN", "system"));
+    expect(reinstate.status).toBe(201);
+    expect(reinstate.body.data.lifecycleStatus).toBe("assignable");
 
     const deleteDevice = await request(app.getHttpServer())
       .delete(`/fleet/devices/${createDevice.body.id}`)
       .set("Authorization", authToken("fleet_manager"));
     expect(deleteDevice.status).toBe(200);
     expect(deleteDevice.body.id).toBe(createDevice.body.id);
-  }, 15000);
+  }, 30000);
 
   it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
     // Vehicle import takes a CSV upload, not a JSON body.

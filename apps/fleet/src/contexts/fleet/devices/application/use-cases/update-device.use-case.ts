@@ -12,6 +12,7 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 export type UpdateDeviceCommand = {
   id: string;
   tenantId: string;
+  name?: string | null;
   manufacturer?: string;
   model?: string;
   firmwareVersion?: string;

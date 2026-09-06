@@ -16,6 +16,7 @@ import { QuotaService } from "../../../../../quota.service";
 
 export type CreateDeviceCommand = {
   imei: string;
+  name?: string | null;
   manufacturer: string;
   model: string;
   firmwareVersion: string;
@@ -53,6 +54,7 @@ export class CreateDeviceUseCase {
     const device = Device.create({
       id: this.runtime.generateId(),
       imei: command.imei,
+      name: command.name ?? null,
       manufacturer: command.manufacturer,
       model: command.model,
       firmwareVersion: command.firmwareVersion,

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Res,
   ForbiddenException,
@@ -15,6 +16,7 @@ import {
   UnauthorizedException,
   Query,
   Delete,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiUnauthorizedResponse,
@@ -32,7 +34,13 @@ import {
 } from '@nestjs/swagger';
 import { DEVICE_LIFECYCLE_STATUSES, DEVICE_STATUSES } from '@shared/devices';
 import { ActivityLogService } from './activity-log.service';
+import {
+  DeviceSuspensionRefusedError,
+  ReinstateSystemDeviceUseCase,
+  SuspendSystemDeviceUseCase,
+} from './suspend-system-device.use-cases';
 import { BaseAuthController } from './base.controller';
+import { SuspendSystemDeviceDto } from './dto/device-setup.dto';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { UserNotFoundError, ForbiddenError } from './contexts/auth/session';
 import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use-case';
@@ -70,6 +78,8 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(UpdateSystemDeviceModelUseCase) private readonly updateSystemDeviceModelUseCase: UpdateSystemDeviceModelUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
     @Inject(ExportSystemDeviceCatalogUseCase) private readonly exportSystemDeviceCatalogUseCase: ExportSystemDeviceCatalogUseCase,
+    @Inject(SuspendSystemDeviceUseCase) private readonly suspendSystemDeviceUseCase: SuspendSystemDeviceUseCase,
+    @Inject(ReinstateSystemDeviceUseCase) private readonly reinstateSystemDeviceUseCase: ReinstateSystemDeviceUseCase,
   ) {
     super(activityLogService);
   }
@@ -477,6 +487,94 @@ export class SystemDevicesController extends BaseAuthController {
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
       throw error;
+    }
+  }
+
+  @Post(':deviceId/suspend')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Suspend a device',
+    description:
+      'Takes a device out of service platform-wide. Releases any vehicle assignment and remembers where the device was so reinstating it does not restart the installation.',
+  })
+  @ApiOkResponse({ description: 'The suspended device' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to suspend devices' })
+  @ApiNotFoundResponse({ description: 'Device not found' })
+  @ApiBadRequestResponse({ description: 'The device is already suspended, or has been decommissioned' })
+  async suspendSystemDevice(
+    @Param('deviceId') deviceId: string,
+    @Body(BodyOrDataPipe) payload: SuspendSystemDeviceDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.suspendSystemDeviceUseCase.execute(
+        accessToken,
+        deviceId,
+        payload?.reason,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.suspended',
+        entityType: 'device',
+        entityId: deviceId,
+        summary: 'Device suspended',
+        metadata: { reason: payload?.reason ?? null },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  @Post(':deviceId/reinstate')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reinstate a suspended device',
+    description:
+      'Returns a suspended device to service. A device that was assigned comes back assignable, because its vehicle link was released on suspension.',
+  })
+  @ApiOkResponse({ description: 'The reinstated device' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to reinstate devices' })
+  @ApiNotFoundResponse({ description: 'Device not found' })
+  @ApiBadRequestResponse({ description: 'The device is not suspended' })
+  async reinstateSystemDevice(
+    @Param('deviceId') deviceId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.reinstateSystemDeviceUseCase.execute(accessToken, deviceId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.reinstated',
+        entityType: 'device',
+        entityId: deviceId,
+        summary: 'Device reinstated',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  /** Fleet's refusal is passed through as it came, so the reason survives. */
+  private rethrowDeviceActionError(error: unknown): void {
+    this.rethrowInvalidAccessToken(error);
+    if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+    if (error instanceof UserNotFoundError) throw new NotFoundException(error.message);
+    if (error instanceof DeviceSuspensionRefusedError) {
+      if (error.httpStatus === 404) throw new NotFoundException(error.message);
+      if (error.httpStatus === 400) throw new BadRequestException(error.message);
+      throw new ServiceUnavailableException(error.message);
     }
   }
 

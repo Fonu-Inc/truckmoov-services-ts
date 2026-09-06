@@ -54,6 +54,10 @@ export const VALID_DEVICE_LIFECYCLE_TRANSITIONS: Record<
   assignable: ["assigned", "faulty"],
   assigned: ["assignable", "faulty", "decommissioned"],
   faulty: ["config_pending", "configured", "decommissioned"],
+  // Suspension is imposed and lifted by the platform, never walked to from the
+  // install workflow, so it is unreachable in both directions here. `suspend`
+  // and `reinstate` are the only ways in and out.
+  suspended: [],
   decommissioned: [],
 };
 
@@ -71,6 +75,8 @@ const CONFIGURABLE_LIFECYCLE_STATUSES: readonly DeviceLifecycleStatus[] = [
 export type DeviceProps = {
   id: string;
   imei: string;
+  /** Operator's own label for the device. Null falls back to manufacturer and model. */
+  name?: string | null;
   manufacturer: string;
   model: string;
   firmwareVersion: string;
@@ -84,6 +90,13 @@ export type DeviceProps = {
   assignedAt: string | null;
   protocol?: DeviceProtocol | null;
   port?: number | null;
+  /**
+   * Where the device sat before the platform suspended it, so reinstating puts
+   * it back rather than restarting the installation.
+   */
+  preSuspensionLifecycleStatus?: DeviceLifecycleStatus | null;
+  suspendedAt?: string | null;
+  suspensionReason?: string | null;
   /** The wire-protocol/vendor identity actually observed at ingest, e.g. "teltonika". Not the same taxonomy as `protocol`, which is what the installer configured. */
   reportedProtocol?: string | null;
   configuredAt?: string | null;
@@ -172,6 +185,7 @@ export class Device {
       ...props,
       id: props.id.trim(),
       imei: props.imei.trim(),
+      name: props.name?.trim() || null,
       manufacturer: props.manufacturer.trim(),
       model: props.model.trim(),
       firmwareVersion: props.firmwareVersion.trim(),
@@ -191,6 +205,9 @@ export class Device {
       verificationDeadline: props.verificationDeadline ?? null,
       verificationError: props.verificationError ?? null,
       verifiedAt: props.verifiedAt ?? null,
+      preSuspensionLifecycleStatus: props.preSuspensionLifecycleStatus ?? null,
+      suspendedAt: props.suspendedAt ?? null,
+      suspensionReason: props.suspensionReason ?? null,
       traccarDeviceId: props.traccarDeviceId ?? null,
       provisionStatus: props.provisionStatus ?? "pending",
       createdAt: props.createdAt ?? new Date().toISOString(),
@@ -204,6 +221,10 @@ export class Device {
 
   get imei() {
     return this.props.imei;
+  }
+
+  get name(): string | null {
+    return this.props.name ?? null;
   }
 
   get manufacturer() {
@@ -286,6 +307,22 @@ export class Device {
     return nextInstallationAction(this.lifecycleStatus, this.verificationStatus);
   }
 
+  get preSuspensionLifecycleStatus(): DeviceLifecycleStatus | null {
+    return this.props.preSuspensionLifecycleStatus ?? null;
+  }
+
+  get suspendedAt(): string | null {
+    return this.props.suspendedAt ?? null;
+  }
+
+  get suspensionReason(): string | null {
+    return this.props.suspensionReason ?? null;
+  }
+
+  get isSuspended(): boolean {
+    return this.lifecycleStatus === "suspended";
+  }
+
   get traccarDeviceId() {
     return this.props.traccarDeviceId ?? null;
   }
@@ -304,6 +341,7 @@ export class Device {
 
   update(values: {
     imei?: string;
+    name?: string | null;
     manufacturer?: string;
     model?: string;
     firmwareVersion?: string;
@@ -316,6 +354,7 @@ export class Device {
     return Device.create({
       ...this.toPrimitives(),
       imei: values.imei ?? this.imei,
+      name: values.name === undefined ? this.name : values.name,
       manufacturer: values.manufacturer ?? this.manufacturer,
       model: values.model ?? this.model,
       firmwareVersion: values.firmwareVersion ?? this.firmwareVersion,
@@ -359,6 +398,51 @@ export class Device {
       status: deviceStatusFromLifecycle(nextStatus),
       vehicleId: nextStatus === "decommissioned" ? null : this.vehicleId,
       assignedAt: nextStatus === "decommissioned" ? null : this.assignedAt,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Takes the device out of service on the platform's instruction. The vehicle
+   * link is released because a suspended device must stop standing in as that
+   * vehicle's tracker, and where it was is kept so reinstating is not a
+   * reinstallation.
+   */
+  suspend(reason: string | null): Device {
+    if (this.isSuspended) throw new FleetRuleError("device is already suspended");
+    if (this.lifecycleStatus === "decommissioned") {
+      throw new FleetRuleError("a decommissioned device cannot be suspended");
+    }
+
+    return Device.create({
+      ...this.toPrimitives(),
+      lifecycleStatus: "suspended",
+      status: deviceStatusFromLifecycle("suspended"),
+      preSuspensionLifecycleStatus: this.lifecycleStatus,
+      suspendedAt: new Date().toISOString(),
+      suspensionReason: reason?.trim() || null,
+      vehicleId: null,
+      assignedAt: null,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  reinstate(): Device {
+    if (!this.isSuspended) throw new FleetRuleError("device is not suspended");
+
+    // It was assigned when it was suspended, but the vehicle link was released
+    // and may since have been taken by another device, so it comes back ready
+    // to assign rather than assigned to something it no longer holds.
+    const previous = this.preSuspensionLifecycleStatus ?? "assignable";
+    const restored: DeviceLifecycleStatus = previous === "assigned" ? "assignable" : previous;
+
+    return Device.create({
+      ...this.toPrimitives(),
+      lifecycleStatus: restored,
+      status: deviceStatusFromLifecycle(restored),
+      preSuspensionLifecycleStatus: null,
+      suspendedAt: null,
+      suspensionReason: null,
       updatedAt: new Date().toISOString(),
     });
   }

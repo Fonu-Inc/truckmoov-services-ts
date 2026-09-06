@@ -97,3 +97,37 @@ describe("quota enforcement", () => {
     expect(forTenant).not.toHaveBeenCalled();
   });
 });
+
+describe("batch quota enforcement", () => {
+  it("admits a batch that fits exactly", async () => {
+    const { service } = build(blocking(10));
+
+    await expect(service.assertRoomFor("tenant-a", "vehicles", 7, 3)).resolves.toBeUndefined();
+  });
+
+  // A bulk import is one action to the person who started it. Importing part of
+  // the file and refusing the rest leaves them reconciling a spreadsheet
+  // against an inventory, so the whole batch is refused.
+  it("refuses the whole batch when only some of it would fit", async () => {
+    const { service } = build(blocking(10));
+
+    await expect(service.assertRoomFor("tenant-a", "vehicles", 7, 4)).rejects.toBeInstanceOf(
+      FleetQuotaExceededError,
+    );
+  });
+
+  it("says how many are in use and how many the import adds", async () => {
+    const { service } = build(blocking(10));
+
+    await expect(service.assertRoomFor("tenant-a", "vehicles", 7, 4)).rejects.toThrow(
+      "This plan allows 10 vehicles, 7 are in use, and this import adds 4",
+    );
+  });
+
+  it("enforces nothing for an empty batch", async () => {
+    const { service } = build(blocking(1));
+
+    await expect(service.assertRoomFor("tenant-a", "vehicles", 99, 0)).resolves.toBeUndefined();
+  });
+});
+

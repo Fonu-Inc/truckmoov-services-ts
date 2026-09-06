@@ -81,6 +81,10 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     return device;
   }
 
+  async findByIdAcrossTenants(id: string): Promise<Device | null> {
+    return this.data.get(id) ?? null;
+  }
+
   async findByImei(imei: string, tenantId: string): Promise<Device | null> {
     const normalizedImei = imei.trim();
     return (

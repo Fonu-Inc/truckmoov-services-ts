@@ -31,6 +31,27 @@ export { NoopTraccarTripsProvider } from "./infrastructure/traccar/noop-traccar-
 export { EventBusDeviceIdentityEventPublisher } from "./infrastructure/eventbus-device-identity-event.publisher";
 export { CreateDeviceUseCase } from "./application/use-cases/create-device.use-case";
 export { ListDevicesUseCase } from "./application/use-cases/list-devices.use-case";
+export {
+  DeviceFilterOptionsUseCase,
+  DeviceInventorySummaryUseCase,
+} from "./application/use-cases/device-inventory-summary.use-case";
+export { DeviceCatalogLookupUseCase } from "./application/use-cases/device-catalog-lookup.use-case";
+export {
+  ReinstateDeviceUseCase,
+  SuspendDeviceUseCase,
+} from "./application/use-cases/suspend-device.use-cases";
+export {
+  DEVICE_QUOTA_READER,
+  type DeviceQuotaReader,
+} from "./domain/ports/device-quota-reader.port";
+export {
+  MikroDeviceQuotaReader,
+  UnlimitedDeviceQuotaReader,
+} from "./infrastructure/repositories/mikro-device-quota-reader";
+export {
+  DEVICE_STATUS_FILTERS,
+  type DeviceStatusFilter,
+} from "./domain/device-inventory";
 export { GetDeviceUseCase } from "./application/use-cases/get-device.use-case";
 export { UpdateDeviceUseCase } from "./application/use-cases/update-device.use-case";
 export { DeleteDeviceUseCase } from "./application/use-cases/delete-device.use-case";
