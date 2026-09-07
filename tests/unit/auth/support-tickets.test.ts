@@ -47,7 +47,15 @@ function harness(tenantId = TENANT) {
     tickets,
     messages,
     attachments,
-    create: new CreateSupportTicketUseCase(tokenService, userRepository, idGenerator, tickets),
+    create: new CreateSupportTicketUseCase(
+      tokenService,
+      userRepository,
+      idGenerator,
+      tickets,
+      // Fleet is unreachable in this test, so no context is attached. That is
+      // the honest outcome and must not stop the ticket being raised.
+      { contextSnapshot: async () => null } as never,
+    ),
     list: new ListMySupportTicketsUseCase(tokenService, userRepository, tickets),
     get: new GetMySupportTicketUseCase(tokenService, userRepository, tickets, messages, attachments),
     reply: new ReplyToMySupportTicketUseCase(tokenService, userRepository, tickets, messages),

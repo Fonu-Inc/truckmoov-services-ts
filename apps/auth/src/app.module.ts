@@ -104,6 +104,14 @@ import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
 import { SystemAuditController } from './system-audit.controller';
+import {
+  GetMySupportSummaryUseCase,
+  GetSupportOptionsUseCase,
+} from './my-support.use-cases';
+import {
+  ExportMySupportTicketsUseCase,
+  PreviewTicketContextUseCase,
+} from './my-support-export.use-cases';
 import { TerminateSystemTenantUseCase } from './terminate-system-tenant.use-case';
 import {
   GetTenantAuditLogUseCase,
@@ -613,6 +621,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   providers: [
     RequestContextMiddleware,
+    GetMySupportSummaryUseCase,
+    GetSupportOptionsUseCase,
+    PreviewTicketContextUseCase,
+    ExportMySupportTicketsUseCase,
     InMemoryTenantTerminationRepository,
     MikroTenantTerminationRepository,
     {

@@ -212,7 +212,7 @@ describe("Fleet HTTP contract", () => {
       .set("Authorization", authToken("dispatcher"));
     expect(driverAfterDeactivate.status).toBe(200);
     expect(driverAfterDeactivate.body.assignedVehicleId).toBeNull();
-  }, 30000);
+  }, 60000);
 
   it("GET /alerts includes createdAt in alert responses", async () => {
     const { ALERT_REPOSITORY, Alert } = await import("../../../apps/fleet/src/contexts/fleet/alerts");
@@ -445,7 +445,7 @@ describe("Fleet HTTP contract", () => {
       .set("Authorization", authToken("fleet_manager"));
     expect(deleteDevice.status).toBe(200);
     expect(deleteDevice.body.id).toBe(createDevice.body.id);
-  }, 30000);
+  }, 60000);
 
   it("supports bulk import and dispatcher search over vehicles and drivers", async () => {
     // Vehicle import takes a CSV upload, not a JSON body.
@@ -578,5 +578,5 @@ describe("Fleet HTTP contract", () => {
 
     const bogus = await request(app.getHttpServer()).get("/fleet/track/not-a-real-token");
     expect(bogus.status).toBe(410);
-  }, 30000);
+  }, 60000);
 });

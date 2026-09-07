@@ -4,6 +4,11 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import {
+  SUPPORT_MESSAGE_REPOSITORY,
+  type SupportMessageRepository,
+} from './support-message.repository';
+import { buildDashboardMetrics } from './support-dashboard-metrics';
 
 @Injectable()
 export class GetSystemSupportDashboardUseCase {
@@ -11,6 +16,7 @@ export class GetSystemSupportDashboardUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
+    @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
   ) {}
 
   async execute(accessToken: string) {
@@ -28,6 +34,20 @@ export class GetSystemSupportDashboardUseCase {
         this.ticketRepo.findAll({ status: 'escalated' }),
         this.ticketRepo.findAll({ status: 'resolved' }),
       ]);
+
+    // The rate cards need every ticket, not one status at a time: an average
+    // resolution time computed from the resolved bucket alone would be right,
+    // but SLA breach and first-response backlog span four statuses each.
+    const allTickets = await this.ticketRepo.findAll();
+    const messagesByTicketId = new Map(
+      await Promise.all(
+        allTickets.map(
+          async (ticket) =>
+            [ticket.id, await this.messageRepo.findByTicketId(ticket.id)] as const,
+        ),
+      ),
+    );
+    const metrics = buildDashboardMetrics({ tickets: allTickets, messagesByTicketId });
 
     const needsAttention = [...escalatedTickets, ...openTickets]
       .slice(0, 5)
@@ -56,6 +76,7 @@ export class GetSystemSupportDashboardUseCase {
       status: true,
       message: 'Support dashboard retrieved',
       data: {
+        ...metrics,
         open: byStatus['open'] ?? 0,
         inProgress: byStatus['in_progress'] ?? 0,
         escalated: byStatus['escalated'] ?? 0,

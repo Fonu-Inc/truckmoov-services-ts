@@ -198,4 +198,70 @@ export class InternalFleetController extends BaseFleetController {
       data: { total: devices.length, limit: DRAWER_ROW_LIMIT, items: rows },
     };
   }
+
+  /**
+   * A snapshot of one record, for a support ticket's auto-attached context.
+   *
+   * Read here rather than accepted from the client: a ticket that carries
+   * device state the reporter typed is a ticket that can claim a device was
+   * offline when it never was, and support would act on it.
+   */
+  @Get("tenants/:tenantId/context/:resource/:recordId")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async contextSnapshot(
+    @Param("tenantId") tenantId: string,
+    @Param("resource") resource: string,
+    @Param("recordId") recordId: string,
+  ) {
+    const snapshot = await this.buildSnapshot(tenantId, resource, recordId);
+    if (!snapshot) throw new NotFoundException("Record not found");
+
+    return { status: true, message: "success", data: snapshot };
+  }
+
+  private async buildSnapshot(
+    tenantId: string,
+    resource: string,
+    recordId: string,
+  ): Promise<Record<string, unknown> | null> {
+    if (resource === "device") {
+      const device = await this.devices.findById(recordId, tenantId);
+      if (!device) return null;
+      return {
+        imei: device.imei,
+        manufacturer: device.manufacturer,
+        model: device.model,
+        status: device.status,
+        lifecycleStatus: device.lifecycleStatus,
+        // Derived from the last fix rather than stored: a device is offline
+        // because nothing has arrived, which no column records on its own.
+        healthStatus: deviceHealth(device.lastSeen),
+        lastSeen: device.lastSeen,
+      };
+    }
+
+    if (resource === "vehicle") {
+      const vehicle = await this.vehicles.findById(recordId, tenantId);
+      if (!vehicle) return null;
+      const primitives = vehicle as unknown as Record<string, unknown>;
+      return {
+        registrationNumber: primitives["registrationNumber"] ?? null,
+        make: primitives["make"] ?? null,
+        model: primitives["model"] ?? null,
+        status: primitives["status"] ?? null,
+      };
+    }
+
+    return null;
+  }
+}
+
+/** Offline once nothing has arrived for longer than a missed ping allows. */
+const DEVICE_OFFLINE_AFTER_MS = 15 * 60 * 1000;
+
+function deviceHealth(lastSeen: string | null): "online" | "offline" | "never_reported" {
+  if (!lastSeen) return "never_reported";
+  const fixedAt = Date.parse(lastSeen);
+  if (Number.isNaN(fixedAt)) return "never_reported";
+  return Date.now() - fixedAt <= DEVICE_OFFLINE_AFTER_MS ? "online" : "offline";
 }

@@ -10,18 +10,36 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UnauthorizedException,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { AddMyTicketAttachmentUseCase } from './add-my-ticket-attachment.use-case';
 import { CreateSupportTicketUseCase, InvalidTicketFieldError } from './create-support-ticket.use-case';
 import { GetMySupportTicketUseCase } from './get-my-support-ticket.use-case';
+import {
+  GetMySupportSummaryUseCase,
+  GetSupportOptionsUseCase,
+} from './my-support.use-cases';
+import {
+  ExportMySupportTicketsUseCase,
+  PreviewTicketContextUseCase,
+} from './my-support-export.use-cases';
 import { ListMySupportTicketsUseCase } from './list-my-support-tickets.use-case';
 import {
   CloseMySupportTicketUseCase,
@@ -53,6 +71,10 @@ export class SupportTicketsController extends BaseAuthController {
     @Inject(CloseMySupportTicketUseCase) private readonly closeTicket: CloseMySupportTicketUseCase,
     @Inject(ReopenMySupportTicketUseCase) private readonly reopenTicket: ReopenMySupportTicketUseCase,
     @Inject(AddMyTicketAttachmentUseCase) private readonly addAttachment: AddMyTicketAttachmentUseCase,
+    @Inject(GetMySupportSummaryUseCase) private readonly getMySupportSummaryUseCase: GetMySupportSummaryUseCase,
+    @Inject(GetSupportOptionsUseCase) private readonly getSupportOptionsUseCase: GetSupportOptionsUseCase,
+    @Inject(PreviewTicketContextUseCase) private readonly previewTicketContextUseCase: PreviewTicketContextUseCase,
+    @Inject(ExportMySupportTicketsUseCase) private readonly exportMySupportTicketsUseCase: ExportMySupportTicketsUseCase,
   ) {
     super(activityLogService);
   }
@@ -96,6 +118,71 @@ export class SupportTicketsController extends BaseAuthController {
       if (error instanceof InvalidTicketFieldError) throw new BadRequestException(error.message);
       throw error;
     }
+  }
+
+  @Get('summary')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'My ticket counters',
+    description: 'The five cards above the list, counted from this tenant only.',
+  })
+  @ApiOkResponse({ description: 'Ticket counters' })
+  async summary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.requireToken(authorization);
+    return this.runSupport(() => this.getMySupportSummaryUseCase.execute(accessToken));
+  }
+
+  @Get('options')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Form options',
+    description:
+      'Categories, channels, priorities and context types for the Log a Ticket form and the Report Issue wizard.',
+  })
+  @ApiOkResponse({ description: 'Dropdown options' })
+  async options(@Headers('authorization') authorization?: string) {
+    const accessToken = this.requireToken(authorization);
+    return this.runSupport(() => this.getSupportOptionsUseCase.execute(accessToken));
+  }
+
+  @Get('context/:contextType/:contextId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Preview the context a ticket would attach',
+    description:
+      'What the wizard shows under "Context auto-attached". Read from the record itself, so the preview is the same snapshot the ticket will carry.',
+  })
+  @ApiOkResponse({ description: 'The record snapshot, or null when it cannot be read' })
+  async context(
+    @Param('contextType') contextType: string,
+    @Param('contextId') contextId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireToken(authorization);
+    return this.runSupport(() =>
+      this.previewTicketContextUseCase.execute(accessToken, contextType, contextId),
+    );
+  }
+
+  @Get('export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Export my tickets as CSV' })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV file' })
+  async export(
+    @Res({ passthrough: false }) res: any,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireToken(authorization);
+    const csv = await this.runSupport(() =>
+      this.exportMySupportTicketsUseCase.execute(accessToken, { status, search }),
+    );
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=my-support-tickets.csv');
+    res.send(csv);
   }
 
   @Get(':id')
@@ -217,6 +304,15 @@ export class SupportTicketsController extends BaseAuthController {
       if (error instanceof StorageQuotaExceededError) {
         throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
       }
+      throw error;
+    }
+  }
+
+  private async runSupport<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
       throw error;
     }
   }

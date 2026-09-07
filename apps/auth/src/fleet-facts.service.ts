@@ -129,6 +129,42 @@ export class FleetFactsService {
     }
   }
 
+  /**
+   * A snapshot of one record, for a support ticket's auto-attached context.
+   *
+   * Null when fleet cannot be reached or the record does not exist. The
+   * caller treats that as "no context" and lets the ticket be raised anyway —
+   * refusing to log a fault because the record could not be read is exactly
+   * backwards when the fault may be that the record is unreachable.
+   */
+  async contextSnapshot(
+    tenantId: string,
+    resource: 'device' | 'vehicle',
+    recordId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const token = this.mintPlatformToken();
+    if (!token) return null;
+
+    try {
+      const response = await axios.get<{ data?: Record<string, unknown> }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${tenantId}/context/${resource}/${recordId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 4000,
+          validateStatus: () => true,
+        },
+      );
+
+      if (response.status !== 200) return null;
+      return response.data?.data ?? null;
+    } catch (error) {
+      this.logger.warn(
+        `fleet_context_snapshot_failed:${tenantId}:${resource}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
   private mintServiceToken(tenantId: string): string | null {
     return this.mintToken('FLEET_ADMIN', tenantId);
   }

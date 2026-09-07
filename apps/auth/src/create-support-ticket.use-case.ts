@@ -5,6 +5,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TOKEN_SERVICE, USER_REPOSITORY, ID_GENERATOR } from './contexts/auth/session';
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+import { FleetFactsService } from './fleet-facts.service';
 import {
   SUPPORT_TICKET_CATEGORIES,
   SUPPORT_TICKET_CHANNELS,
@@ -44,6 +45,7 @@ export class CreateSupportTicketUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
+    @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
   ) {}
 
   async execute(command: CreateSupportTicketCommand) {
@@ -85,6 +87,12 @@ export class CreateSupportTicketUseCase {
       throw new InvalidTicketFieldError('contextId is required when contextType is not none');
     }
 
+    const contextId = contextType === 'none' ? null : (command.contextId?.trim() ?? null);
+    // Read from the record itself, never taken from the request. A ticket
+    // carrying device state the reporter supplied is a ticket that can claim a
+    // device was offline when it never was, and support would act on it.
+    const contextSnapshot = await this.snapshotFor(actor.tenantId!, contextType, contextId);
+
     const now = new Date();
     const ticket: StoredSupportTicket = {
       id: this.idGenerator.generate(),
@@ -97,8 +105,8 @@ export class CreateSupportTicketUseCase {
       channel,
       otherChannel: channel === 'other' ? otherChannel : null,
       contextType,
-      contextId: contextType === 'none' ? null : (command.contextId?.trim() ?? null),
-      contextSnapshot: null,
+      contextId,
+      contextSnapshot,
       escalatedTo: null,
       escalatedReferenceId: null,
       escalationNotes: null,
@@ -115,4 +123,22 @@ export class CreateSupportTicketUseCase {
 
     return { ticket };
   }
+  /**
+   * The record's state at the moment the ticket was raised.
+   *
+   * Null when the record cannot be read. A fault is still worth logging when
+   * the thing it is about is unreachable — refusing the ticket then would be
+   * exactly backwards.
+   */
+  private async snapshotFor(
+    tenantId: string,
+    contextType: string,
+    contextId: string | null,
+  ): Promise<Record<string, unknown> | null> {
+    if (!contextId) return null;
+    if (contextType !== 'device' && contextType !== 'vehicle') return null;
+
+    return this.fleet.contextSnapshot(tenantId, contextType, contextId);
+  }
+
 }
