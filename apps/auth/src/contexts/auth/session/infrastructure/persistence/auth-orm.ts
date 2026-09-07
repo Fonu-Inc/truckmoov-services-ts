@@ -55,6 +55,28 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
 
 /* ── User ────────────────────────────────────────────── */
 
+export class TwoFactorEnrolmentRecord {
+  userId!: string;
+  secretCiphertext!: string;
+  confirmedAt?: Date | null;
+  recoveryCodeHashes!: string[];
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TwoFactorEnrolmentRecordSchema = new EntitySchema<TwoFactorEnrolmentRecord>({
+  class: TwoFactorEnrolmentRecord,
+  tableName: 'auth_two_factor_enrolments',
+  properties: {
+    userId: { fieldName: 'user_id', type: 'string', length: 64, primary: true },
+    secretCiphertext: { fieldName: 'secret_ciphertext', type: 'text' },
+    confirmedAt: { fieldName: 'confirmed_at', type: 'datetime', nullable: true },
+    recoveryCodeHashes: { fieldName: 'recovery_code_hashes', type: 'json', defaultRaw: "'[]'" },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
 export class AuthUserRecord {
   id!: string;
   email!: string;
@@ -2135,6 +2157,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       OrganizationSettingsRecordSchema,
       SystemSettingsRecordSchema,
       AiGovernanceRecordSchema,
+      TwoFactorEnrolmentRecordSchema,
       AiRequestLogRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,

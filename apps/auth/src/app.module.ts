@@ -103,6 +103,18 @@ import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
+import { TwoFactorController } from './two-factor.controller';
+import { TWO_FACTOR_REPOSITORY } from './two-factor.repository';
+import {
+  InMemoryTwoFactorRepository,
+  MikroTwoFactorRepository,
+} from './mikro-two-factor.repository';
+import {
+  BeginTwoFactorEnrolmentUseCase,
+  ConfirmTwoFactorEnrolmentUseCase,
+  DisableTwoFactorUseCase,
+  GetTwoFactorStatusUseCase,
+} from './two-factor.use-cases';
 import { SystemSessionPolicyAdapter } from './system-session-policy.adapter';
 import { SESSION_POLICY_READER } from './contexts/auth/session/domain/ports/session-policy.port';
 import { AiGatewayService } from './ai-gateway.service';
@@ -552,6 +564,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailboxController,
     PlatformAlertsController,
     SystemAiController,
+    TwoFactorController,
     CommunicationRatesController,
     OrganisationUpgradesController,
     InternalUsageController,
@@ -577,6 +590,21 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ReadinessController,
   ],
   providers: [
+    BeginTwoFactorEnrolmentUseCase,
+    ConfirmTwoFactorEnrolmentUseCase,
+    DisableTwoFactorUseCase,
+    GetTwoFactorStatusUseCase,
+    InMemoryTwoFactorRepository,
+    MikroTwoFactorRepository,
+    {
+      provide: TWO_FACTOR_REPOSITORY,
+      inject: [InMemoryTwoFactorRepository, MikroTwoFactorRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTwoFactorRepository,
+        mikro: MikroTwoFactorRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     SystemSessionPolicyAdapter,
     { provide: SESSION_POLICY_READER, useExisting: SystemSessionPolicyAdapter },
     AiGatewayService,
