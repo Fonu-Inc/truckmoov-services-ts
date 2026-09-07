@@ -267,6 +267,7 @@ export class SystemController extends BaseAuthController {
         defaults: payload.defaults,
         features: payload.features,
         retention: payload.retention,
+        security: payload.security,
       });
       await this.tryRecordActivityFromAccessToken(accessToken, {
         service: 'auth',
@@ -281,6 +282,7 @@ export class SystemController extends BaseAuthController {
             defaults: Boolean(payload.defaults),
             features: Boolean(payload.features),
             retention: Boolean(payload.retention),
+            security: Boolean(payload.security),
           },
         },
       });

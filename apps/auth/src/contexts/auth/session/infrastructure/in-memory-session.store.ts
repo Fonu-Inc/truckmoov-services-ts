@@ -23,6 +23,10 @@ export class InMemorySessionStore implements SessionStore {
     return this.refreshToUser.get(refreshToken)?.user ?? null;
   }
 
+  async lastActiveAt(refreshToken: string): Promise<Date | null> {
+    return this.refreshToUser.get(refreshToken)?.updatedAt ?? null;
+  }
+
   async deleteByRefreshToken(refreshToken: string): Promise<void> {
     this.refreshToUser.delete(refreshToken);
   }

@@ -44,6 +44,7 @@ export class GetSystemSettingsUseCase {
       defaults: settings.defaults,
       features: settings.features,
       retention: settings.retention,
+      security: settings.security,
       updatedAt: settings.updatedAt.toISOString(),
       updatedByUserId: settings.updatedByUserId,
     };

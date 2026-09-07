@@ -7,6 +7,7 @@ import {
   InvalidCredentialsError,
   InvalidRefreshTokenError,
 } from './contexts/auth/session';
+import { SessionExpiredError } from './contexts/auth/session/domain/errors/session-expired.error';
 
 export abstract class BaseAuthController {
   protected readonly logger = new Logger(this.constructor.name);
@@ -19,7 +20,11 @@ export abstract class BaseAuthController {
     } catch (error) {
       if (
         error instanceof InvalidCredentialsError ||
-        error instanceof InvalidRefreshTokenError
+        error instanceof InvalidRefreshTokenError ||
+        // A timed-out session is a 401 like any other dead credential. The
+        // message says why so the client can show "signed out for inactivity"
+        // rather than implying the password was wrong.
+        error instanceof SessionExpiredError
       ) {
         throw new UnauthorizedException(error.message);
       }

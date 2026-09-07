@@ -4,6 +4,12 @@ import { InvalidRefreshTokenError } from "../../../apps/auth/src/contexts/auth/s
 import { LoginUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/login.use-case";
 import { RefreshUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/refresh.use-case";
 
+/** These tests are about refresh, not about the idle timeout. */
+function noSessionTimeout() {
+  return { idleTimeoutMinutes: async () => null };
+}
+
+
 class FakeIdentityProvider {
   async verifyCredentials(email: string, _password: string) {
     return AuthUser.create({ id: "user-1", email, role: "admin", tenantId: "tenant-1" });
@@ -106,6 +112,7 @@ describe("Auth use-cases", () => {
       new FakeSessionStore(),
       new FakeTokenService(),
       new FakeUserRepository() as never,
+      noSessionTimeout(),
     );
 
     await expect(() => useCase.execute("unknown-refresh")).rejects.toBeInstanceOf(
@@ -123,7 +130,7 @@ describe("Auth use-cases", () => {
     const loginResult = await loginUseCase.execute({ email: "dev-admin", password: "StrongPass123!" });
     const oldRefreshToken = loginResult.refreshToken;
 
-    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never);
+    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never, noSessionTimeout());
     const refreshResult = await refreshUseCase.execute(oldRefreshToken);
 
     expect(refreshResult.refreshToken).not.toBe(oldRefreshToken);
@@ -148,7 +155,7 @@ describe("Auth use-cases", () => {
     const loginUseCase = new LoginUseCase(new FakeIdentityProvider(), tokenService, sessionStore);
     const loginResult = await loginUseCase.execute({ email: "dev-admin", password: "StrongPass123!" });
 
-    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never);
+    const refreshUseCase = new RefreshUseCase(sessionStore, tokenService, userRepo as never, noSessionTimeout());
     await expect(() => refreshUseCase.execute(loginResult.refreshToken)).rejects.toThrow(
       "This account has been disabled",
     );

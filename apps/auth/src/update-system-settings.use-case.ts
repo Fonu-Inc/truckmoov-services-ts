@@ -12,6 +12,7 @@ import { SystemSettingsChangedPublisher } from './system-settings-changed.publis
 import {
   DEFAULT_COMPLIANCE_REMINDER_DAYS,
   MAX_COMPLIANCE_REMINDER_DAYS,
+  SESSION_TIMEOUT_OPTIONS,
   SYSTEM_SETTINGS_REPOSITORY,
   buildDefaultSystemSettings,
   isPlatformCurrency,
@@ -38,6 +39,11 @@ export type UpdateSystemSettingsCommand = {
     maintenanceMode?: boolean;
     enableBetaFeatures?: boolean;
     internationalCurrency?: boolean;
+  };
+  security?: {
+    requireTwoFactor?: boolean;
+    sessionTimeoutMinutes?: number;
+    auditLogging?: boolean;
   };
   retention?: {
     gpsDataRetentionDays?: number;
@@ -107,6 +113,13 @@ export class UpdateSystemSettingsUseCase {
           command.features?.internationalCurrency ??
           current.features.internationalCurrency,
       },
+      security: {
+        requireTwoFactor:
+          command.security?.requireTwoFactor ?? current.security.requireTwoFactor,
+        sessionTimeoutMinutes:
+          command.security?.sessionTimeoutMinutes ?? current.security.sessionTimeoutMinutes,
+        auditLogging: command.security?.auditLogging ?? current.security.auditLogging,
+      },
       retention: {
         gpsDataRetentionDays:
           command.retention?.gpsDataRetentionDays ??
@@ -123,6 +136,11 @@ export class UpdateSystemSettingsUseCase {
     };
 
     assertValidTimezone(merged.defaults.timezone);
+    if (!SESSION_TIMEOUT_OPTIONS.includes(merged.security.sessionTimeoutMinutes as never)) {
+      throw new InvalidSettingsError(
+        `sessionTimeoutMinutes must be one of: ${SESSION_TIMEOUT_OPTIONS.join(', ')}`,
+      );
+    }
     if (merged.retention.gpsDataRetentionDays < 1) {
       throw new InvalidSettingsError(
         'gpsDataRetentionDays must be greater than 0',
@@ -159,6 +177,7 @@ export class UpdateSystemSettingsUseCase {
         defaults: merged.defaults,
         features: merged.features,
         retention: merged.retention,
+        security: merged.security,
         updatedAt: merged.updatedAt.toISOString(),
         updatedByUserId: merged.updatedByUserId,
       },

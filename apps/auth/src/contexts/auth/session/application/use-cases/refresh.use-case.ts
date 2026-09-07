@@ -2,6 +2,11 @@ import { Inject, Injectable } from "@nestjs/common";
 import { EmailNotVerifiedError } from "../../domain/errors/email-not-verified.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidRefreshTokenError } from "../../domain/errors/invalid-refresh-token.error";
+import { SessionExpiredError } from "../../domain/errors/session-expired.error";
+import {
+  SESSION_POLICY_READER,
+  type SessionPolicyReader,
+} from "../../domain/ports/session-policy.port";
 import {
   SESSION_STORE,
   type SessionStore,
@@ -24,6 +29,8 @@ export class RefreshUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepo: UserRepository,
+    @Inject(SESSION_POLICY_READER)
+    private readonly policy: SessionPolicyReader,
   ) {}
 
   async execute(refreshToken: string) {
@@ -31,6 +38,8 @@ export class RefreshUseCase {
     if (!user) {
       throw new InvalidRefreshTokenError();
     }
+
+    await this.assertNotIdleTooLong(refreshToken);
 
     const storedUser = await this.userRepo.findById(user.id);
     if (!storedUser) {
@@ -60,5 +69,26 @@ export class RefreshUseCase {
       refreshToken: newRefreshToken,
       expiresIn: 3600,
     };
+  }
+
+  /**
+   * Enforces the idle timeout an administrator configured.
+   *
+   * Measured from the previous refresh, which is the last time this session
+   * was used. The session is destroyed rather than merely refused, so a token
+   * that has already timed out cannot be retried later.
+   */
+  private async assertNotIdleTooLong(refreshToken: string): Promise<void> {
+    const timeoutMinutes = await this.policy.idleTimeoutMinutes();
+    if (timeoutMinutes === null) return;
+
+    const lastActiveAt = await this.sessionStore.lastActiveAt(refreshToken);
+    if (!lastActiveAt) return;
+
+    const idleMinutes = Math.floor((Date.now() - lastActiveAt.getTime()) / 60_000);
+    if (idleMinutes < timeoutMinutes) return;
+
+    await this.sessionStore.deleteByRefreshToken(refreshToken);
+    throw new SessionExpiredError(idleMinutes);
   }
 }

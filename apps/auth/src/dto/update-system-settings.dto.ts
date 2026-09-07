@@ -1,4 +1,6 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { SESSION_TIMEOUT_OPTIONS } from '../system-settings.repository';
 import {
   IsBoolean,
   IsEmail,
@@ -86,6 +88,24 @@ class SystemSettingsRetentionDto {
   backupFrequency?: (typeof SYSTEM_BACKUP_FREQUENCIES)[number];
 }
 
+export class SystemSettingsSecurityDto {
+  @ApiPropertyOptional({ description: 'Require two-factor for every admin account' })
+  @IsOptional()
+  @IsBoolean()
+  requireTwoFactor?: boolean;
+
+  @ApiPropertyOptional({ enum: SESSION_TIMEOUT_OPTIONS, description: 'Idle minutes before logout' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsIn(SESSION_TIMEOUT_OPTIONS as unknown as number[])
+  sessionTimeoutMinutes?: number;
+
+  @ApiPropertyOptional({ description: 'Write an activity record for administrative actions' })
+  @IsOptional()
+  @IsBoolean()
+  auditLogging?: boolean;
+}
+
 export class UpdateSystemSettingsDto {
   @IsOptional()
   @IsString()
@@ -110,4 +130,10 @@ export class UpdateSystemSettingsDto {
   @ValidateNested()
   @Type(() => SystemSettingsRetentionDto)
   retention?: SystemSettingsRetentionDto;
+
+  @ApiPropertyOptional({ type: SystemSettingsSecurityDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsSecurityDto)
+  security?: SystemSettingsSecurityDto;
 }

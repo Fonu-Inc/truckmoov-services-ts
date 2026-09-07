@@ -154,6 +154,73 @@ export const OrganizationSettingsRecordSchema =
 
 /* ── System Settings ────────────────────────────────── */
 
+export class AiGovernanceRecord {
+  id!: string;
+  matchingEnabled!: boolean;
+  providers!: unknown;
+  rateLimits!: unknown;
+  dataProtection!: unknown;
+  updatedByUserId!: string | null;
+  updatedAt!: Date;
+}
+
+export const AiGovernanceRecordSchema = new EntitySchema<AiGovernanceRecord>({
+  class: AiGovernanceRecord,
+  tableName: 'ai_governance_settings',
+  properties: {
+    id: { type: 'string', primary: true },
+    matchingEnabled: { fieldName: 'matching_enabled', type: 'boolean', default: false },
+    providers: { type: 'json', defaultRaw: "'[]'" },
+    rateLimits: { fieldName: 'rate_limits', type: 'json', defaultRaw: "'{}'" },
+    dataProtection: { fieldName: 'data_protection', type: 'json', defaultRaw: "'{}'" },
+    updatedByUserId: { fieldName: 'updated_by_user_id', type: 'string', length: 64, nullable: true },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+export class AiRequestLogRecord {
+  id!: string;
+  tenantId!: string;
+  provider!: string;
+  model!: string;
+  feature!: string;
+  promptTokens!: number;
+  completionTokens!: number;
+  totalTokens!: number;
+  latencyMs!: number;
+  succeeded!: boolean;
+  errorMessage!: string | null;
+  promptBody!: string | null;
+  responseBody!: string | null;
+  createdAt!: Date;
+}
+
+export const AiRequestLogRecordSchema = new EntitySchema<AiRequestLogRecord>({
+  class: AiRequestLogRecord,
+  tableName: 'ai_request_log',
+  properties: {
+    id: { type: 'string', primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64 },
+    provider: { type: 'string', length: 32 },
+    model: { type: 'string', length: 96 },
+    feature: { type: 'string', length: 64 },
+    promptTokens: { fieldName: 'prompt_tokens', type: 'number', default: 0 },
+    completionTokens: { fieldName: 'completion_tokens', type: 'number', default: 0 },
+    totalTokens: { fieldName: 'total_tokens', type: 'number', default: 0 },
+    latencyMs: { fieldName: 'latency_ms', type: 'number', default: 0 },
+    succeeded: { type: 'boolean', default: true },
+    errorMessage: { fieldName: 'error_message', type: 'text', nullable: true },
+    promptBody: { fieldName: 'prompt_body', type: 'text', nullable: true },
+    responseBody: { fieldName: 'response_body', type: 'text', nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+  indexes: [
+    { properties: ['tenantId', 'createdAt'] },
+    { properties: ['provider', 'createdAt'] },
+    { properties: ['createdAt'] },
+  ],
+});
+
 export class SystemSettingsRecord {
   id!: string;
   platformName!: string;
@@ -172,6 +239,11 @@ export class SystemSettingsRecord {
     logRetentionDays: number;
     backupFrequency: 'hourly' | 'daily' | 'weekly';
   };
+  security?: {
+    requireTwoFactor: boolean;
+    sessionTimeoutMinutes: number;
+    auditLogging: boolean;
+  } | null;
   updatedByUserId!: string | null;
   updatedAt!: Date;
 }
@@ -195,6 +267,7 @@ export const SystemSettingsRecordSchema =
       defaults: { type: 'json' },
       features: { type: 'json' },
       retention: { type: 'json' },
+      security: { type: 'json', nullable: true },
       updatedByUserId: {
         fieldName: 'updated_by_user_id',
         type: 'string',
@@ -2061,6 +2134,8 @@ export async function getAuthOrm(cfg: DbConfig) {
       PasswordResetRecordSchema,
       OrganizationSettingsRecordSchema,
       SystemSettingsRecordSchema,
+      AiGovernanceRecordSchema,
+      AiRequestLogRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,
       SystemDeviceModelRecordSchema,

@@ -187,6 +187,17 @@ export class AppConfigService {
     };
   }
 
+  get ai() {
+    return {
+      // A matching call is on a person's critical path, so it fails fast rather
+      // than holding the request open while a model thinks.
+      timeoutMs: this.config.get<number>("AI_REQUEST_TIMEOUT_MS", 20000),
+      // How long a usage row is kept. The Usage tab reads recent history, not
+      // an archive, and prompt bodies are the sensitive part of it.
+      usageRetentionDays: this.config.get<number>("AI_USAGE_RETENTION_DAYS", 90),
+    };
+  }
+
   get redis() {
     return {
       // Enabled by default; the idempotency guard degrades to an in-memory

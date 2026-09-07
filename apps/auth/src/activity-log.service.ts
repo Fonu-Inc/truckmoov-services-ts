@@ -15,6 +15,10 @@ import {
   type ChainVerification,
 } from "./activity-log.repository";
 import type { ActivityLogEntry, ActivityLogMetadata, ActivityLogQuery } from "./activity-log.types";
+import {
+  SYSTEM_SETTINGS_REPOSITORY,
+  type SystemSettingsRepository,
+} from "./system-settings.repository";
 
 export type RecordActivityCommand = {
   tenantId: string;
@@ -43,11 +47,27 @@ const SYSTEM_VIEWER_ROLES = new Set<string>([
 ]);
 const SYSTEM_TENANT_ID = "system";
 
+/**
+ * Actions written whatever the audit-logging setting says.
+ *
+ * Switching audit logging off is itself an administrative act. If that act
+ * went unrecorded, the trail could be closed behind someone with no evidence
+ * that it ever happened.
+ */
+const ALWAYS_LOGGED_ACTIONS = new Set<string>(["system.settings.updated"]);
+
+/** Settings are read per write, so the answer is held briefly. */
+const AUDIT_SETTING_TTL_MS = 10_000;
+
 @Injectable()
 export class ActivityLogService {
+  private auditSetting: { enabled: boolean; expiresAt: number } | null = null;
+
   constructor(
     @Inject(ACTIVITY_LOG_REPOSITORY)
     private readonly repository: ActivityLogRepository,
+    @Inject(SYSTEM_SETTINGS_REPOSITORY)
+    private readonly systemSettings: SystemSettingsRepository,
     @Inject(TOKEN_SERVICE)
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
@@ -71,8 +91,35 @@ export class ActivityLogService {
       occurredAt,
       recordedAt,
     };
-    await this.repository.save(entry);
+
+    if (await this.auditLoggingEnabled(command.action)) {
+      await this.repository.save(entry);
+    }
     return entry;
+  }
+
+  /**
+   * Whether this action should be written. Returns the entry to the caller
+   * either way: a caller that reads the id back must not break because an
+   * administrator turned logging off.
+   */
+  private async auditLoggingEnabled(action: string): Promise<boolean> {
+    if (ALWAYS_LOGGED_ACTIONS.has(action)) return true;
+
+    const now = Date.now();
+    if (this.auditSetting && this.auditSetting.expiresAt > now) {
+      return this.auditSetting.enabled;
+    }
+
+    try {
+      const settings = await this.systemSettings.get();
+      const enabled = settings?.security?.auditLogging ?? true;
+      this.auditSetting = { enabled, expiresAt: now + AUDIT_SETTING_TTL_MS };
+      return enabled;
+    } catch {
+      // Unreadable settings must not silence the trail.
+      return true;
+    }
   }
 
   async recordFromAccessToken(

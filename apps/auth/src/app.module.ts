@@ -102,6 +102,24 @@ import { ActivityLogListener } from './activity-log.listener';
 import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
+import { SystemAiController } from './system-ai.controller';
+import { SystemSessionPolicyAdapter } from './system-session-policy.adapter';
+import { SESSION_POLICY_READER } from './contexts/auth/session/domain/ports/session-policy.port';
+import { AiGatewayService } from './ai-gateway.service';
+import { AI_GOVERNANCE_REPOSITORY } from './ai-governance.repository';
+import { AI_REQUEST_LOG_REPOSITORY } from './ai-request-log.repository';
+import {
+  InMemoryAiGovernanceRepository,
+  MikroAiGovernanceRepository,
+} from './mikro-ai-governance.repository';
+import { MikroAiRequestLogRepository } from './mikro-ai-request-log.repository';
+import { InMemoryAiRequestLogRepository } from './in-memory-ai-request-log.repository';
+import {
+  GetAiGovernanceUseCase,
+  GetAiUsageUseCase,
+  ListAiRequestsUseCase,
+  UpdateAiGovernanceUseCase,
+} from './ai-governance.use-cases';
 import { CreateSystemTenantUseCase } from './create-system-tenant.use-case';
 import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use-case';
 import { DeleteSystemTenantUseCase } from './delete-system-tenant.use-case';
@@ -533,6 +551,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailCredentialsController,
     MailboxController,
     PlatformAlertsController,
+    SystemAiController,
     CommunicationRatesController,
     OrganisationUpgradesController,
     InternalUsageController,
@@ -558,6 +577,35 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ReadinessController,
   ],
   providers: [
+    SystemSessionPolicyAdapter,
+    { provide: SESSION_POLICY_READER, useExisting: SystemSessionPolicyAdapter },
+    AiGatewayService,
+    GetAiGovernanceUseCase,
+    UpdateAiGovernanceUseCase,
+    GetAiUsageUseCase,
+    ListAiRequestsUseCase,
+    InMemoryAiGovernanceRepository,
+    MikroAiGovernanceRepository,
+    {
+      provide: AI_GOVERNANCE_REPOSITORY,
+      inject: [InMemoryAiGovernanceRepository, MikroAiGovernanceRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAiGovernanceRepository,
+        mikro: MikroAiGovernanceRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryAiRequestLogRepository,
+    MikroAiRequestLogRepository,
+    {
+      provide: AI_REQUEST_LOG_REPOSITORY,
+      inject: [InMemoryAiRequestLogRepository, MikroAiRequestLogRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAiRequestLogRepository,
+        mikro: MikroAiRequestLogRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     LoginRateLimitGuard,
     IdempotencyGuard,
     RedisClientProvider,

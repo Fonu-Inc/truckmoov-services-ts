@@ -69,6 +69,20 @@ export function isPlatformCurrency(value: unknown): value is PlatformCurrency {
   );
 }
 
+/**
+ * Platform-wide security posture. Enforced, not merely recorded: session
+ * timeout is checked on every refresh, audit logging gates whether activity is
+ * written, and two-factor is required at login when it is on.
+ */
+export type SystemSettingsSecurity = {
+  requireTwoFactor: boolean;
+  /** Idle minutes before a session is refused and destroyed. */
+  sessionTimeoutMinutes: number;
+  auditLogging: boolean;
+};
+
+export const SESSION_TIMEOUT_OPTIONS = [15, 30, 60, 120, 480] as const;
+
 export type SystemSettingsRetention = {
   gpsDataRetentionDays: number;
   logRetentionDays: number;
@@ -82,6 +96,7 @@ export type SystemSettings = {
   defaults: SystemSettingsDefaults;
   features: SystemSettingsFeatures;
   retention: SystemSettingsRetention;
+  security: SystemSettingsSecurity;
   updatedByUserId: string | null;
   updatedAt: Date;
 };
@@ -110,6 +125,13 @@ export function buildDefaultSystemSettings(): SystemSettings {
       logRetentionDays: 30,
       backupFrequency: 'daily',
     },
+    security: {
+      // Off by default so an upgrade does not lock every administrator out
+      // before anybody has enrolled.
+      requireTwoFactor: false,
+      sessionTimeoutMinutes: 30,
+      auditLogging: true,
+    },
     updatedByUserId: null,
     updatedAt: new Date(0),
   };
@@ -125,8 +147,17 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
   // undefined.
   const defaults = settings.defaults ?? ({} as SystemSettings['defaults']);
   const features = settings.features ?? ({} as SystemSettings['features']);
+  const security = settings.security ?? ({} as SystemSettings['security']);
   return {
     ...settings,
+    security: {
+      ...security,
+      // A row written before these existed must not read as two-factor
+      // enforced, which would lock out an administrator who cannot enrol yet.
+      requireTwoFactor: booleanOr(security.requireTwoFactor, false),
+      sessionTimeoutMinutes: numberOr(security.sessionTimeoutMinutes, 30),
+      auditLogging: booleanOr(security.auditLogging, true),
+    },
     features: {
       ...features,
       allowNewTenantRegistration: booleanOr(features.allowNewTenantRegistration, true),

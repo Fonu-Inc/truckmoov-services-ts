@@ -37,6 +37,13 @@ export class MikroSessionStore implements SessionStore {
     return record ? this.toDomain(record) : null;
   }
 
+  async lastActiveAt(refreshToken: string): Promise<Date | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const record = await em.findOne(AuthSessionRecord, { refreshToken });
+    return record?.updatedAt ?? null;
+  }
+
   async deleteByRefreshToken(refreshToken: string): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();

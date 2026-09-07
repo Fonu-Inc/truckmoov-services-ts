@@ -5,6 +5,12 @@ import { ResendVerificationUseCase } from '../../../apps/auth/src/contexts/auth/
 import { EmailNotVerifiedError } from '../../../apps/auth/src/contexts/auth/session/domain/errors/email-not-verified.error';
 import { InvalidCredentialsError } from '../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-credentials.error';
 
+/** These tests are about refresh, not about the idle timeout. */
+function noSessionTimeout() {
+  return { idleTimeoutMinutes: async () => null };
+}
+
+
 function storedUser(overrides: Record<string, unknown> = {}) {
   return {
     id: 'user-1',
@@ -67,6 +73,7 @@ describe('refresh refuses an unverified address', () => {
         issueRefreshToken: () => 'refresh',
       } as never,
       { findById: vi.fn(async () => user) } as never,
+          noSessionTimeout(),
     );
     return { useCase, deleteByRefreshToken };
   }
