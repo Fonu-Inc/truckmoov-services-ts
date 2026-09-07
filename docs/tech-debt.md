@@ -4,6 +4,46 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-5 — Vehicle search filters in memory, with no index behind it
+
+**Status:** open, recorded 7 September 2026. The Live Tracking search box ships
+working; this records that it does not scale past the page it was built for.
+
+### The problem
+
+`GET /fleet/tracking/vehicles?query=` filters the rows the map already loaded
+rather than querying. That is the right call for this page and only this page:
+the map draws every vehicle as a pin, so the whole roster is in hand before the
+operator types, and a second round trip would be slower than scanning what is
+already there. At thousands of vehicles per tenant it is imperceptible.
+
+It stops being the right call the moment something needs to search without
+loading everything first — a global search box, an admin view across tenants,
+or a tenant whose roster outgrows what one map response can carry. Each of
+those would either re-scan in application memory or fall back to `ILIKE '%…%'`,
+which cannot use a normal B-tree index and degrades linearly.
+
+### Direction
+
+`pg_trgm` with GIN indexes on the columns operators actually search:
+`fleet_vehicles.registration_number`, `make`, `model`, and `fleet_drivers.name`.
+Trigram similarity also gets fuzzy matching and misspelling tolerance, which
+plain `ILIKE` does not, and holds up into hundreds of thousands of rows — well
+past the point where a dedicated search service would be worth its operational
+cost.
+
+The matcher is already isolated in `vehicle-search.ts`, so the swap is a
+repository method and a migration, not a change to the page.
+
+### When this is picked up
+
+When a search is needed that cannot preload its candidates — most likely the
+global search in the top bar — or when a tenant's vehicle count makes the
+snapshot itself too large. Not before: an unused index is still a write cost on
+every vehicle insert.
+
+---
+
 ## TD-4 — Driver fatigue detection has no real inputs
 
 **Status:** open, recorded 5 September 2026. Related to the deferred Screen 4
