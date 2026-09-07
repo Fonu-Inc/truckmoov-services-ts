@@ -10,6 +10,24 @@ import { AppConfigService } from '@shared/config';
  * would put the same number in two places and let them disagree, which is the
  * coupling this platform has been removing.
  */
+/**
+ * Identifiers the platform will put into a URL path.
+ *
+ * Every id below arrives from a request — a path parameter or a request body —
+ * and is interpolated into a call carrying a cross-tenant platform-admin
+ * token. Without this, `../../` in an id walks out of the intended route and
+ * reaches any internal fleet endpoint with those privileges.
+ *
+ * Validation and encoding both, deliberately. Encoding alone would neutralise
+ * traversal, but a value outside this shape is not an id we issued and there
+ * is nothing useful to do with it but refuse.
+ */
+const SAFE_PATH_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isSafePathId(value: string): boolean {
+  return SAFE_PATH_ID.test(value);
+}
+
 @Injectable()
 export class FleetFactsService {
   private readonly logger = new Logger(FleetFactsService.name);
@@ -61,6 +79,10 @@ export class FleetFactsService {
     action: 'suspend' | 'reinstate',
     reason?: string | null,
   ): Promise<{ ok: true; device: Record<string, unknown> } | { ok: false; status: number; message: string }> {
+    if (!isSafePathId(deviceId)) {
+      return { ok: false, status: 404, message: 'Device not found' };
+    }
+
     const token = this.mintPlatformToken();
     if (!token) {
       return { ok: false, status: 503, message: 'Device service is not configured' };
@@ -68,7 +90,7 @@ export class FleetFactsService {
 
     try {
       const response = await axios.post<{ data?: Record<string, unknown>; message?: string }>(
-        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/${deviceId}/${action}`,
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/${encodeURIComponent(deviceId)}/${encodeURIComponent(action)}`,
         action === 'suspend' ? { reason: reason ?? null } : {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -104,13 +126,17 @@ export class FleetFactsService {
     tenantId: string,
     resource: 'vehicles' | 'drivers' | 'devices',
   ): Promise<{ total: number; items: Array<Record<string, unknown>> } | null> {
+    if (!isSafePathId(tenantId)) return null;
+
     const token = this.mintPlatformToken();
     if (!token) return null;
 
     try {
       const response = await axios.get<{
         data?: { total?: number; items?: Array<Record<string, unknown>> };
-      }>(`${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${tenantId}/${resource}`, {
+      }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/${encodeURIComponent(resource)}`,
+        {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 4000,
         validateStatus: () => true,
@@ -142,12 +168,16 @@ export class FleetFactsService {
     resource: 'device' | 'vehicle',
     recordId: string,
   ): Promise<Record<string, unknown> | null> {
+    // Refused rather than encoded away: an id outside this shape is not one we
+    // issued, and the caller treats a null as "no context", which is correct.
+    if (!isSafePathId(tenantId) || !isSafePathId(recordId)) return null;
+
     const token = this.mintPlatformToken();
     if (!token) return null;
 
     try {
       const response = await axios.get<{ data?: Record<string, unknown> }>(
-        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${tenantId}/context/${resource}/${recordId}`,
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/context/${encodeURIComponent(resource)}/${encodeURIComponent(recordId)}`,
         {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 4000,
