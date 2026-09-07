@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { type MiddlewareConsumer, type NestModule, Module } from '@nestjs/common';
 import { CryptoModule } from "@shared/crypto";
 import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
@@ -103,6 +103,15 @@ import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
+import { SystemAuditController } from './system-audit.controller';
+import { RequestContextMiddleware } from './request-context.middleware';
+import { TENANT_NAME_READER } from './tenant-name-reader.port';
+import { MikroTenantNameReader, NoopTenantNameReader } from './mikro-tenant-name-reader';
+import {
+  GetAuditFilterOptionsUseCase,
+  ListAuditLogUseCase,
+  VerifyAuditChainsUseCase,
+} from './audit-log.use-cases';
 import { TwoFactorController } from './two-factor.controller';
 import { TWO_FACTOR_REPOSITORY } from './two-factor.repository';
 import {
@@ -564,6 +573,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     MailboxController,
     PlatformAlertsController,
     SystemAiController,
+    SystemAuditController,
     TwoFactorController,
     CommunicationRatesController,
     OrganisationUpgradesController,
@@ -590,6 +600,21 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ReadinessController,
   ],
   providers: [
+    RequestContextMiddleware,
+    MikroTenantNameReader,
+    NoopTenantNameReader,
+    {
+      provide: TENANT_NAME_READER,
+      inject: [NoopTenantNameReader, MikroTenantNameReader, AppConfigService],
+      useFactory: (
+        noop: NoopTenantNameReader,
+        mikro: MikroTenantNameReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? noop : mikro),
+    },
+    ListAuditLogUseCase,
+    GetAuditFilterOptionsUseCase,
+    VerifyAuditChainsUseCase,
     BeginTwoFactorEnrolmentUseCase,
     ConfirmTwoFactorEnrolmentUseCase,
     DisableTwoFactorUseCase,
@@ -1509,4 +1534,11 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ExportBundleRatesUseCase,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // Everything, including the unauthenticated routes: an audit entry written
+    // during a login attempt wants the caller's address as much as one written
+    // afterwards.
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

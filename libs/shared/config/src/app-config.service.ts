@@ -187,6 +187,21 @@ export class AppConfigService {
     };
   }
 
+  get audit() {
+    return {
+      // Socket addresses whose forwarding headers may be believed. Empty means
+      // trust nothing, so the peer address is recorded as-is.
+      trustedProxies: this.config
+        .get<string>("AUDIT_TRUSTED_PROXIES", "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
+      // The header the gateway writes the real client address into. It must be
+      // overwritten by the gateway, never appended to.
+      clientIpHeader: this.config.get<string>("AUDIT_CLIENT_IP_HEADER", "x-forwarded-for"),
+    };
+  }
+
   get ai() {
     return {
       // A matching call is on a person's critical path, so it fails fast rather

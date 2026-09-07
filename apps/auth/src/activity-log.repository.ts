@@ -1,5 +1,10 @@
 import type { ChainBreak } from "@shared/audit";
-import type { ActivityLogEntry, ActivityLogQuery } from "./activity-log.types";
+import type {
+  ActivityLogEntry,
+  ActivityLogQuery,
+  AuditFilterOptions,
+  AuditLogQuery,
+} from "./activity-log.types";
 
 export type ChainVerification = {
   tenantId: string;
@@ -12,6 +17,15 @@ export interface ActivityLogRepository {
   save(entry: ActivityLogEntry): Promise<void>;
   query(tenantId: string, filters: ActivityLogQuery): Promise<ActivityLogEntry[]>;
   verifyChain(tenantId: string): Promise<ChainVerification>;
+  /**
+   * The platform-wide audit trail, across every tenant. Only the platform
+   * admin surface calls this; a tenant reads its own through `query`.
+   */
+  queryAcrossTenants(filters: AuditLogQuery): Promise<ActivityLogEntry[]>;
+  /** Distinct values behind the filter dropdowns. */
+  filterOptions(): Promise<AuditFilterOptions>;
+  /** Every tenant that has written an audit entry, for chain verification. */
+  listChainTenantIds(): Promise<string[]>;
 }
 
 export const ACTIVITY_LOG_REPOSITORY = Symbol("ACTIVITY_LOG_REPOSITORY");

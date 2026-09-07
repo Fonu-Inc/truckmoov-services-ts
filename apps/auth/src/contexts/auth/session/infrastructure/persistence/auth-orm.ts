@@ -317,6 +317,14 @@ export class ActivityLogRecord {
   summary!: string;
   actorId?: string | null;
   actorRole?: string | null;
+  /**
+   * Names as they were when the action happened. Denormalised on purpose: a
+   * join would show the name the actor has now, or nothing once they are
+   * deleted, and an audit row has to say what was true then.
+   */
+  actorName?: string | null;
+  actorEmail?: string | null;
+  tenantName?: string | null;
   metadata!: Record<string, unknown>;
   occurredAt!: Date;
   recordedAt!: Date;
@@ -338,6 +346,9 @@ export const ActivityLogRecordSchema = new EntitySchema<ActivityLogRecord>({
     summary: { type: 'string', length: 255 },
     actorId: { type: 'string', length: 128, nullable: true, index: true },
     actorRole: { type: 'string', length: 64, nullable: true },
+    actorName: { fieldName: 'actor_name', type: 'string', length: 160, nullable: true },
+    actorEmail: { fieldName: 'actor_email', type: 'string', length: 254, nullable: true, index: true },
+    tenantName: { fieldName: 'tenant_name', type: 'string', length: 200, nullable: true },
     metadata: { type: 'json', defaultRaw: "'{}'" },
     occurredAt: { type: 'datetime', index: true },
     recordedAt: { type: 'datetime', defaultRaw: 'now()' },

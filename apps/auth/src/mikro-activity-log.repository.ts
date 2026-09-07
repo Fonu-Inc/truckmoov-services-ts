@@ -3,7 +3,12 @@ import type { FilterQuery } from "@mikro-orm/core";
 import { ActivityLogRecord, getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
 import { AppConfigService } from "@shared/config";
 import { findChainBreak, sealAuditEntry, type ChainLink } from "@shared/audit";
-import type { ActivityLogEntry, ActivityLogQuery } from "./activity-log.types";
+import type {
+  ActivityLogEntry,
+  ActivityLogQuery,
+  AuditFilterOptions,
+  AuditLogQuery,
+} from "./activity-log.types";
 import { toHashableActivityEntry } from "./activity-log.repository";
 import type { ActivityLogRepository, ChainVerification } from "./activity-log.repository";
 
@@ -86,10 +91,128 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
       summary: row.summary,
       actorId: row.actorId ?? null,
       actorRole: row.actorRole ?? null,
+      actorName: row.actorName ?? null,
+      actorEmail: row.actorEmail ?? null,
+      tenantName: row.tenantName ?? null,
       metadata: row.metadata ?? {},
       occurredAt: row.occurredAt.toISOString(),
       recordedAt: row.recordedAt.toISOString(),
     }));
+  }
+
+  /**
+   * The cross-tenant audit trail.
+   *
+   * Filters are applied in the database rather than by loading and sieving:
+   * this reads every tenant's rows, so the set it starts from is the whole
+   * platform's history.
+   */
+  async queryAcrossTenants(filters: AuditLogQuery): Promise<ActivityLogEntry[]> {
+    const em = await this.em();
+    const where: FilterQuery<ActivityLogRecord> = {};
+
+    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.action) where.action = filters.action;
+    if (filters.entityType) where.entityType = filters.entityType;
+    if (filters.service) where.service = filters.service;
+    if (filters.from || filters.to) {
+      where.occurredAt = {
+        ...(filters.from ? { $gte: filters.from } : {}),
+        ...(filters.to ? { $lte: filters.to } : {}),
+      };
+    }
+
+    // One box on the screen for id, name or email, because an operator
+    // chasing a person has whichever of the three they happen to hold.
+    if (filters.actor?.trim()) {
+      const term = `%${filters.actor.trim()}%`;
+      where.$and = [
+        {
+          $or: [
+            { actorId: { $ilike: term } },
+            { actorName: { $ilike: term } },
+            { actorEmail: { $ilike: term } },
+          ],
+        },
+      ];
+    }
+
+    if (filters.search?.trim()) {
+      const term = `%${filters.search.trim()}%`;
+      const searchClause = {
+        $or: [
+          { action: { $ilike: term } },
+          { entityType: { $ilike: term } },
+          { entityId: { $ilike: term } },
+          { summary: { $ilike: term } },
+          { actorName: { $ilike: term } },
+          { actorEmail: { $ilike: term } },
+          { tenantName: { $ilike: term } },
+          { tenantId: { $ilike: term } },
+          { service: { $ilike: term } },
+        ],
+      };
+      where.$and = [...((where.$and as unknown[]) ?? []), searchClause] as never;
+    }
+
+    const rows = await em.find(ActivityLogRecord, where, {
+      orderBy: { occurredAt: "desc", recordedAt: "desc" },
+      limit: normalizeLimit(filters.limit),
+    });
+
+    return rows.map(toEntry);
+  }
+
+  async filterOptions(): Promise<AuditFilterOptions> {
+    const connection = (await this.orm()).em.getConnection();
+
+    const [tenants, actions, resourceTypes, services] = await Promise.all([
+      connection.execute<Array<{ tenant_id: string; tenant_name: string | null }>>(
+        `select tenant_id, max(tenant_name) as tenant_name
+           from activity_logs group by tenant_id order by tenant_id`,
+      ),
+      connection.execute<Array<{ action: string }>>(
+        `select distinct action from activity_logs order by action`,
+      ),
+      connection.execute<Array<{ entity_type: string }>>(
+        `select distinct entity_type from activity_logs order by entity_type`,
+      ),
+      connection.execute<Array<{ service: string }>>(
+        `select distinct service from activity_logs order by service`,
+      ),
+    ]);
+
+    return {
+      tenants: tenants.map((row) => ({
+        tenantId: row.tenant_id,
+        tenantName: row.tenant_name ?? null,
+      })),
+      actions: actions.map((row) => row.action),
+      resourceTypes: resourceTypes.map((row) => row.entity_type),
+      services: services.map((row) => row.service),
+    };
+  }
+
+  async listChainTenantIds(): Promise<string[]> {
+    const connection = (await this.orm()).em.getConnection();
+    const rows = await connection.execute<Array<{ tenant_id: string }>>(
+      `select distinct tenant_id from activity_logs order by tenant_id`,
+    );
+    return rows.map((row) => row.tenant_id);
+  }
+
+  private async orm() {
+    return getAuthOrm({
+      host: this.config.db.host,
+      port: this.config.db.port,
+      user: this.config.db.user,
+      password: this.config.db.password,
+      dbName: this.config.db.dbName,
+    });
+  }
+
+  private async em() {
+    return (await this.orm()).em.fork();
   }
 
   /**
@@ -117,6 +240,9 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
         ...row,
         actorId: row.actorId ?? null,
         actorRole: row.actorRole ?? null,
+        actorName: row.actorName ?? null,
+        actorEmail: row.actorEmail ?? null,
+        tenantName: row.tenantName ?? null,
         occurredAt: row.occurredAt.toISOString(),
         recordedAt: row.recordedAt.toISOString(),
       }),
@@ -135,4 +261,24 @@ function normalizeLimit(limit?: number) {
     return 100;
   }
   return Math.min(limit, 500);
+}
+
+function toEntry(row: ActivityLogRecord): ActivityLogEntry {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    service: row.service,
+    action: row.action,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    summary: row.summary,
+    actorId: row.actorId ?? null,
+    actorRole: row.actorRole ?? null,
+    actorName: row.actorName ?? null,
+    actorEmail: row.actorEmail ?? null,
+    tenantName: row.tenantName ?? null,
+    metadata: row.metadata ?? {},
+    occurredAt: row.occurredAt.toISOString(),
+    recordedAt: row.recordedAt.toISOString(),
+  };
 }

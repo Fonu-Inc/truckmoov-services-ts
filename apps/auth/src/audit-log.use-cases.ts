@@ -1,0 +1,145 @@
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  ACTIVITY_LOG_REPOSITORY,
+  type ActivityLogRepository,
+} from './activity-log.repository';
+import type { ActivityLogEntry, AuditLogQuery } from './activity-log.types';
+import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { ensureSystemActor } from './system-authz';
+
+/** Chains are verified per tenant, so a whole-platform check is many checks. */
+const MAX_CHAINS_VERIFIED = 200;
+
+export type AuditLogRow = {
+  id: string;
+  occurredAt: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  tenantId: string;
+  tenantName: string | null;
+  ipAddress: string | null;
+  /** Which service recorded the entry. The Source column. */
+  source: string;
+  summary: string;
+};
+
+@Injectable()
+export class ListAuditLogUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(ACTIVITY_LOG_REPOSITORY) private readonly repository: ActivityLogRepository,
+  ) {}
+
+  async execute(accessToken: string, filters: AuditLogQuery) {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      forbiddenMessage: 'You are not permitted to view the platform audit log',
+    });
+
+    const entries = await this.repository.queryAcrossTenants(filters);
+    return {
+      status: true,
+      message: 'success',
+      data: { total: entries.length, items: entries.map(toRow) },
+    };
+  }
+
+  /** Same rows, no envelope, for the export to format. */
+  async rows(accessToken: string, filters: AuditLogQuery): Promise<AuditLogRow[]> {
+    const result = await this.execute(accessToken, filters);
+    return result.data.items;
+  }
+}
+
+@Injectable()
+export class GetAuditFilterOptionsUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(ACTIVITY_LOG_REPOSITORY) private readonly repository: ActivityLogRepository,
+  ) {}
+
+  async execute(accessToken: string) {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      forbiddenMessage: 'You are not permitted to view the platform audit log',
+    });
+
+    return { status: true, message: 'success', data: await this.repository.filterOptions() };
+  }
+}
+
+/**
+ * Verifies every tenant's hash chain.
+ *
+ * The screen calls the trail immutable, and this is what makes that a claim
+ * anyone can check rather than a label. Chains are per tenant, so the platform
+ * answer is the aggregate: intact only when every one of them is.
+ */
+@Injectable()
+export class VerifyAuditChainsUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(ACTIVITY_LOG_REPOSITORY) private readonly repository: ActivityLogRepository,
+  ) {}
+
+  async execute(accessToken: string) {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      forbiddenMessage: 'You are not permitted to verify the platform audit log',
+    });
+
+    const tenantIds = (await this.repository.listChainTenantIds()).slice(0, MAX_CHAINS_VERIFIED);
+    const results = await Promise.all(
+      tenantIds.map((tenantId) => this.repository.verifyChain(tenantId)),
+    );
+
+    const broken = results.filter((result) => !result.intact);
+    return {
+      status: true,
+      message: 'success',
+      data: {
+        intact: broken.length === 0,
+        chainsChecked: results.length,
+        entriesChecked: results.reduce((total, result) => total + result.entriesChecked, 0),
+        // Only the chains that failed. A list of every intact chain is noise on
+        // a screen whose only question is whether anything was tampered with.
+        brokenChains: broken.map((result) => ({
+          tenantId: result.tenantId,
+          entriesChecked: result.entriesChecked,
+          firstBreak: result.firstBreak,
+        })),
+        verifiedAt: new Date().toISOString(),
+      },
+    };
+  }
+}
+
+function toRow(entry: ActivityLogEntry): AuditLogRow {
+  const ipAddress = entry.metadata?.['ipAddress'];
+
+  return {
+    id: entry.id,
+    occurredAt: entry.occurredAt,
+    actorId: entry.actorId,
+    actorName: entry.actorName,
+    actorEmail: entry.actorEmail,
+    actorRole: entry.actorRole,
+    action: entry.action,
+    resourceType: entry.entityType,
+    resourceId: entry.entityId,
+    tenantId: entry.tenantId,
+    tenantName: entry.tenantName,
+    // Recorded into metadata because the hash chain covers it there. Rows
+    // written before capture existed carry none, and say so rather than guess.
+    ipAddress: typeof ipAddress === 'string' ? ipAddress : null,
+    source: entry.service,
+    summary: entry.summary,
+  };
+}
