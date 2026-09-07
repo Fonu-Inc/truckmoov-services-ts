@@ -55,6 +55,28 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
 
 /* ── User ────────────────────────────────────────────── */
 
+export class TenantTerminationRecord {
+  tenantId!: string;
+  reason!: string;
+  terminatedBy!: string;
+  terminatedAt!: Date;
+  simsDeactivated!: number;
+  usersDisabled!: number;
+}
+
+export const TenantTerminationRecordSchema = new EntitySchema<TenantTerminationRecord>({
+  class: TenantTerminationRecord,
+  tableName: 'tenant_terminations',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    reason: { type: 'text' },
+    terminatedBy: { fieldName: 'terminated_by', type: 'string', length: 64 },
+    terminatedAt: { fieldName: 'terminated_at', type: 'datetime', defaultRaw: 'now()' },
+    simsDeactivated: { fieldName: 'sims_deactivated', type: 'number', default: 0 },
+    usersDisabled: { fieldName: 'users_disabled', type: 'number', default: 0 },
+  },
+});
+
 export class TwoFactorEnrolmentRecord {
   userId!: string;
   secretCiphertext!: string;
@@ -880,6 +902,10 @@ export const TenantKycDocumentRecordSchema =
 /* ── Onboarding Applications ─────────────────────────── */
 
 export class OnboardingApplicationRecord {
+  setupLinkStatus?: string | null;
+  setupLinkSentAt?: Date | null;
+  setupLinkError?: string | null;
+  setupLinkAttempts?: number;
   id!: string;
   reference!: string;
   tokenHash!: string;
@@ -912,6 +938,10 @@ export const OnboardingApplicationRecordSchema =
       id: { type: 'string', primary: true },
       reference: { type: 'string', length: 32, unique: true },
       tokenHash: { fieldName: 'token_hash', type: 'string', length: 128, unique: true },
+      setupLinkStatus: { fieldName: 'setup_link_status', type: 'string', length: 16, nullable: true },
+      setupLinkSentAt: { fieldName: 'setup_link_sent_at', type: 'datetime', nullable: true },
+      setupLinkError: { fieldName: 'setup_link_error', type: 'text', nullable: true },
+      setupLinkAttempts: { fieldName: 'setup_link_attempts', type: 'number', default: 0 },
       applicantType: { fieldName: 'applicant_type', type: 'string', length: 32 },
       organizationName: { fieldName: 'organization_name', type: 'string', length: 160 },
       businessEmail: { fieldName: 'business_email', type: 'string', length: 254, index: true },
@@ -2169,6 +2199,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       SystemSettingsRecordSchema,
       AiGovernanceRecordSchema,
       TwoFactorEnrolmentRecordSchema,
+      TenantTerminationRecordSchema,
       AiRequestLogRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,

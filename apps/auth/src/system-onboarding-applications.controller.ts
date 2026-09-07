@@ -42,6 +42,7 @@ import {
   ApplicationNotUnderReviewError,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
+  GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
   ReviewOnboardingApplicationDocumentUseCase,
 } from './review-onboarding-application.use-cases';
@@ -56,6 +57,8 @@ import {
 export class SystemOnboardingApplicationsController extends BaseAuthController {
   constructor(
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
+    @Inject(GetOnboardingReviewSummaryUseCase)
+    private readonly getOnboardingReviewSummaryUseCase: GetOnboardingReviewSummaryUseCase,
     @Inject(ListOnboardingApplicationsUseCase)
     private readonly listApplications: ListOnboardingApplicationsUseCase,
     @Inject(GetOnboardingApplicationForReviewUseCase)
@@ -105,6 +108,26 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         limit: this.parseNumericQuery(limit),
       }),
     );
+  }
+
+  @Get('summary')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'KYC review counters',
+    description: 'The four cards above the review queue.',
+  })
+  @ApiOkResponse({ description: 'Review counters' })
+  async summary(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getOnboardingReviewSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
   }
 
   @Get(':applicationId')

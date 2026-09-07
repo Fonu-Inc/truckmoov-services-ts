@@ -66,9 +66,24 @@ export type StoredOnboardingApplication = {
   reviewedAt: Date | null;
   decisionReason: string | null;
   tenantId: string | null;
+  /**
+   * What happened to the setup link the last time it was sent.
+   *
+   * `sent` means the mail transport accepted it, which is not the same as the
+   * recipient receiving it — there is no bounce feedback, so a link that is
+   * accepted and then rejected downstream still reads as sent.
+   */
+  setupLinkStatus: OnboardingSetupLinkStatus | null;
+  setupLinkSentAt: Date | null;
+  setupLinkError: string | null;
+  setupLinkAttempts: number;
   createdAt: Date;
   updatedAt: Date;
 };
+
+export const ONBOARDING_SETUP_LINK_STATUSES = ['sent', 'failed'] as const;
+export type OnboardingSetupLinkStatus =
+  (typeof ONBOARDING_SETUP_LINK_STATUSES)[number];
 
 export type StoredOnboardingApplicationDocument = {
   id: string;

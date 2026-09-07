@@ -23,7 +23,12 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
-import { ReinstateDeviceUseCase, SuspendDeviceUseCase } from "./contexts/fleet/devices";
+import {
+  DEVICE_REPOSITORY,
+  ReinstateDeviceUseCase,
+  SuspendDeviceUseCase,
+} from "./contexts/fleet/devices";
+import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
@@ -35,6 +40,9 @@ import { SuspendDeviceDto } from "./dto/vehicle.dto";
  * rather than reading fleet's tables, so the two services keep one answer to
  * "how many vehicles does this tenant have".
  */
+/** The tenant drawer shows a handful of rows; an operator manages the rest elsewhere. */
+const DRAWER_ROW_LIMIT = 25;
+
 @ApiExcludeController()
 @Controller("internal")
 @UseGuards(RolesGuard)
@@ -44,6 +52,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicles: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
+    @Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository,
     @Inject(SuspendDeviceUseCase) private readonly suspendDeviceUseCase: SuspendDeviceUseCase,
     @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
   ) {
@@ -117,5 +126,76 @@ export class InternalFleetController extends BaseFleetController {
       if (error instanceof FleetRuleError) throw new BadRequestException(error.message);
       throw error;
     }
+  }
+
+  /**
+   * A tenant's fleet, for the platform admin's tenant drawer.
+   *
+   * Capped rather than paginated: the drawer is a review surface showing a
+   * handful of rows, and an administrator who needs the whole roster opens the
+   * tenant's own pages. Cross-tenant, so it carries the platform roles.
+   */
+  @Get("tenants/:tenantId/vehicles")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async tenantVehicles(@Param("tenantId") tenantId: string) {
+    const vehicles = await this.vehicles.findAll({ tenantId });
+    const rows = (vehicles as unknown as Array<Record<string, unknown>>)
+      .slice(0, DRAWER_ROW_LIMIT)
+      .map((vehicle) => ({
+        vehicleId: String(vehicle["id"]),
+        registrationNumber: vehicle["registrationNumber"] ?? null,
+        make: vehicle["make"] ?? null,
+        model: vehicle["model"] ?? null,
+        status: vehicle["status"] ?? null,
+      }));
+
+    return {
+      status: true,
+      message: "success",
+      // The total is the whole fleet, not the page: the usage bar counts every
+      // vehicle even when only twenty-five are listed.
+      data: { total: vehicles.length, limit: DRAWER_ROW_LIMIT, items: rows },
+    };
+  }
+
+  @Get("tenants/:tenantId/drivers")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async tenantDrivers(@Param("tenantId") tenantId: string) {
+    const drivers = await this.drivers.findAll({ tenantId });
+    const rows = (drivers as unknown as Array<Record<string, unknown>>)
+      .slice(0, DRAWER_ROW_LIMIT)
+      .map((driver) => ({
+        driverId: String(driver["id"]),
+        name: driver["name"] ?? null,
+        phone: driver["phone"] ?? null,
+        licenseNumber: driver["licenseNumber"] ?? null,
+        status: driver["status"] ?? null,
+      }));
+
+    return {
+      status: true,
+      message: "success",
+      data: { total: drivers.length, limit: DRAWER_ROW_LIMIT, items: rows },
+    };
+  }
+
+  @Get("tenants/:tenantId/devices")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async tenantDevices(@Param("tenantId") tenantId: string) {
+    const devices = await this.devices.findAll({ tenantId });
+    const rows = devices.slice(0, DRAWER_ROW_LIMIT).map((device) => ({
+      deviceId: device.id,
+      manufacturer: device.manufacturer,
+      model: device.model,
+      imei: device.imei,
+      status: device.status,
+      assignedVehicleId: device.vehicleId,
+    }));
+
+    return {
+      status: true,
+      message: "success",
+      data: { total: devices.length, limit: DRAWER_ROW_LIMIT, items: rows },
+    };
   }
 }

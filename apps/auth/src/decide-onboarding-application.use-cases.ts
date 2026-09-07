@@ -175,7 +175,7 @@ export class ApproveOnboardingApplicationUseCase {
     };
     await this.applications.save(approved);
 
-    await this.notifier.sendTenantInviteEmail({
+    const delivery = await deliverSetupLink(this.applications, this.notifier, approved, {
       email: application.businessEmail,
       role: bootstrapRole,
       inviteToken,
@@ -183,7 +183,9 @@ export class ApproveOnboardingApplicationUseCase {
 
     return {
       status: true,
-      message: 'Application approved and setup link sent',
+      message: delivery.delivered
+        ? 'Application approved and setup link sent'
+        : 'Application approved, but the setup link could not be delivered',
       data: {
         applicationId: approved.id,
         reference: approved.reference,
@@ -194,6 +196,8 @@ export class ApproveOnboardingApplicationUseCase {
         setupLinkExpiresAt: new Date(
           now.getTime() + SETUP_LINK_TTL_MS,
         ).toISOString(),
+        setupLinkStatus: delivery.status,
+        setupLinkError: delivery.error,
       },
     };
   }
@@ -408,7 +412,7 @@ export class ResendOnboardingSetupLinkUseCase {
       createdAt: invite?.createdAt ?? now,
     });
 
-    await this.notifier.sendTenantInviteEmail({
+    const delivery = await deliverSetupLink(this.applications, this.notifier, application, {
       email: application.businessEmail,
       role: invite?.role ?? ORG_TYPE_TO_BOOTSTRAP_ROLE[application.applicantType],
       inviteToken: token,
@@ -416,7 +420,9 @@ export class ResendOnboardingSetupLinkUseCase {
 
     return {
       status: true,
-      message: 'Setup link resent',
+      message: delivery.delivered
+        ? 'Setup link resent'
+        : 'The setup link could not be delivered',
       data: {
         applicationId: application.id,
         setupLinkEmail: application.businessEmail,
@@ -425,7 +431,52 @@ export class ResendOnboardingSetupLinkUseCase {
         ).toISOString(),
         resentBy: actor.id,
         resentAt: now.toISOString(),
+        setupLinkStatus: delivery.status,
+        setupLinkError: delivery.error,
       },
     };
+  }
+}
+
+/**
+ * Sends the setup link and records what happened.
+ *
+ * A failed send must not fail the approval: the decision has been made and
+ * written, and the operator can resend. Recording the failure is what puts it
+ * on the screen instead of losing it in a log line.
+ *
+ * "sent" means the transport accepted the message. There is no bounce
+ * feedback, so a message accepted and rejected downstream still reads as sent.
+ */
+async function deliverSetupLink(
+  applications: OnboardingApplicationRepository,
+  notifier: { sendTenantInviteEmail(invite: never): Promise<void> },
+  application: StoredOnboardingApplication,
+  invite: { email: string; role: string; inviteToken: string },
+): Promise<{ delivered: boolean; status: 'sent' | 'failed'; error: string | null }> {
+  const attemptedAt = new Date();
+
+  try {
+    await notifier.sendTenantInviteEmail(invite as never);
+    await applications.save({
+      ...application,
+      setupLinkStatus: 'sent',
+      setupLinkSentAt: attemptedAt,
+      setupLinkError: null,
+      setupLinkAttempts: application.setupLinkAttempts + 1,
+      updatedAt: attemptedAt,
+    });
+    return { delivered: true, status: 'sent', error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown';
+    await applications.save({
+      ...application,
+      setupLinkStatus: 'failed',
+      setupLinkSentAt: attemptedAt,
+      setupLinkError: message,
+      setupLinkAttempts: application.setupLinkAttempts + 1,
+      updatedAt: attemptedAt,
+    });
+    return { delivered: false, status: 'failed', error: message };
   }
 }

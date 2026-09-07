@@ -21,6 +21,15 @@ import {
   SUBSCRIPTION_PLAN_REPOSITORY,
   type SubscriptionPlanRepository,
 } from './subscription-plan.repository';
+import {
+  TENANT_TERMINATION_REPOSITORY,
+  type TenantTerminationRepository,
+} from './tenant-termination.repository';
+import {
+  PLAN_ENTITLEMENTS_REPOSITORY,
+  type PlanEntitlementsRepository,
+} from './plan-entitlements.repository';
+import { UNLIMITED, type PlanEntitlements } from './plan-entitlements';
 import { LEGACY_PLAN_CODE_TO_TIER } from './system-subscription-plans';
 import {
   DEFAULT_TENANT_FEATURES,
@@ -48,6 +57,7 @@ const SYSTEM_TENANT_STATUS_VALUES = [
   'pending',
   'suspended',
   'inactive',
+  'terminated',
 ] as const;
 const SYSTEM_TENANT_PLAN_VALUES = [
   'starter',
@@ -88,6 +98,16 @@ type SystemTenantRow = {
   driverCount: number;
   deviceCount: number;
   simCount: number;
+  /**
+   * What the tenant's plan allows. Null is unlimited, which is not zero, and
+   * an absent plan leaves every limit null rather than guessing at one.
+   */
+  quotas: {
+    vehicles: number | null;
+    drivers: number | null;
+    devices: number | null;
+    sims: number | null;
+  };
   monthlyRevenueNgn: number;
   createdAt: string;
   lastActiveAt: string | null;
@@ -294,7 +314,11 @@ function deriveTenantStatus(params: {
   onboardingStatus?: string | null;
   enabledUsersCount: number;
   usersCount: number;
+  terminated?: boolean;
 }): SystemTenantStatus {
+  // Wins over everything. A terminated tenant has every user disabled, which
+  // is indistinguishable from a suspension by any other measure.
+  if (params.terminated) return 'terminated';
   if (
     params.onboardingStatus === 'pending_activation' &&
     params.enabledUsersCount === 0
@@ -347,6 +371,10 @@ export class ListSystemTenantsUseCase {
     private readonly organizationSettingsRepository: OrganizationSettingsRepository,
     @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
     private readonly planRepository: SubscriptionPlanRepository,
+    @Inject(TENANT_TERMINATION_REPOSITORY)
+    private readonly terminationRepository: TenantTerminationRepository,
+    @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
+    private readonly entitlementsRepository: PlanEntitlementsRepository,
   ) {}
 
   async execute(accessToken: string, filters: SystemTenantFilters) {
@@ -505,6 +533,14 @@ export class ListSystemTenantsUseCase {
     const onboardingByTenantId = new Map(
       onboardings.map((onboarding) => [onboarding.tenantId, onboarding]),
     );
+    const terminatedTenantIds = new Set(await this.terminationRepository.listTenantIds());
+    // Loaded once and keyed by plan, not per tenant: a hundred tenants share a
+    // handful of plans between them.
+    const entitlementsByPlanCode = new Map(
+      (await this.entitlementsRepository.findAll().catch(() => [])).map(
+        (entitlements) => [entitlements.planCode, entitlements],
+      ),
+    );
 
     const rows = await Promise.all(
       [...tenantIds].map(async (tenantId) => {
@@ -531,6 +567,8 @@ export class ListSystemTenantsUseCase {
 
         return this.composeTenantRow({
           tenantId,
+          terminated: terminatedTenantIds.has(tenantId),
+          entitlements: entitlementsFor(onboarding, entitlementsByPlanCode),
           onboarding,
           users: tenantUsers,
           enabledUsersCount: enabledUsers.length,
@@ -760,6 +798,14 @@ export class ListSystemTenantsUseCase {
       ...deviceCountByTenantId.keys(),
     ]);
     tenantIds.delete('');
+    const terminatedTenantIds = new Set(await this.terminationRepository.listTenantIds());
+    // Loaded once and keyed by plan, not per tenant: a hundred tenants share a
+    // handful of plans between them.
+    const entitlementsByPlanCode = new Map(
+      (await this.entitlementsRepository.findAll().catch(() => [])).map(
+        (entitlements) => [entitlements.planCode, entitlements],
+      ),
+    );
 
     const rows = [...tenantIds].map((tenantId) => {
       const tenantUsers = usersByTenantId.get(tenantId) ?? [];
@@ -782,6 +828,8 @@ export class ListSystemTenantsUseCase {
 
       return this.composeTenantRow({
         tenantId,
+        terminated: terminatedTenantIds.has(tenantId),
+        entitlements: entitlementsFor(onboarding, entitlementsByPlanCode),
         onboarding,
         users: tenantUsers,
         enabledUsersCount: enabledUsers.length,
@@ -806,6 +854,8 @@ export class ListSystemTenantsUseCase {
   }
 
   private composeTenantRow(params: {
+    terminated?: boolean;
+    entitlements?: PlanEntitlements | null;
     tenantId: string;
     onboarding: StoredTenantOnboarding | null;
     users: Array<StoredUser & { createdAt?: string | Date | null }>;
@@ -872,6 +922,7 @@ export class ListSystemTenantsUseCase {
       onboardingStatus: params.onboarding?.status,
       enabledUsersCount: params.enabledUsersCount,
       usersCount: params.users.length,
+      terminated: params.terminated,
     });
     const hasPendingInvitation =
       params.onboarding?.status === 'pending_activation' &&
@@ -897,6 +948,7 @@ export class ListSystemTenantsUseCase {
       driverCount: params.driverCount,
       deviceCount: params.deviceCount,
       simCount: params.onboarding?.simAssignment.numberOfSims ?? 0,
+      quotas: toQuotaLimits(params.entitlements ?? null),
       monthlyRevenueNgn: 0,
       createdAt: params.createdAt,
       lastActiveAt: params.lastActiveAt,
@@ -1015,3 +1067,34 @@ export type {
   SystemTenantRow,
   SystemTenantStatus,
 };
+
+/**
+ * The plan's limits, as the usage bars need them.
+ *
+ * `plan_entitlements.quotas` is authoritative; a plan that names no limit for a
+ * resource does not restrict it, and unlimited is null rather than a number so
+ * a client cannot render it as a full bar.
+ */
+function entitlementsFor(
+  onboarding: StoredTenantOnboarding | null | undefined,
+  byPlanCode: Map<string, PlanEntitlements>,
+): PlanEntitlements | null {
+  const planCode = onboarding?.subscription?.planCode;
+  if (!planCode) return null;
+  return byPlanCode.get(planCode) ?? null;
+}
+
+function toQuotaLimits(entitlements: PlanEntitlements | null) {
+  const limit = (resource: 'vehicles' | 'drivers' | 'devices' | 'sims'): number | null => {
+    const quota = entitlements?.quotas?.[resource];
+    if (quota === undefined || quota === UNLIMITED) return null;
+    return typeof quota === 'number' ? quota : null;
+  };
+
+  return {
+    vehicles: limit('vehicles'),
+    drivers: limit('drivers'),
+    devices: limit('devices'),
+    sims: limit('sims'),
+  };
+}

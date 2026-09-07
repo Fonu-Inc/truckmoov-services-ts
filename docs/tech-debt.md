@@ -4,6 +4,97 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-8 — Tenant termination promises four things it does not do
+
+**Status:** open, recorded 7 September 2026. The lifecycle half ships; this
+records the half that does not.
+
+### The problem
+
+The termination dialog tells the operator five things will happen. One does.
+
+- **"All active SIMs will be terminated at the MTN HLR."** There is no HLR
+  integration anywhere in the platform. Termination marks the tenant's SIMs
+  `deactivated` in our own table; MTN is never told. The SIM stays live on the
+  network and, presumably, stays billable. This is the most expensive of the
+  four to get wrong, because someone reading the dialog will believe the
+  carrier relationship has been closed.
+- **"All WhatsApp numbers will be retired from the WABA."** No WABA number
+  administration exists. We meter and bill WhatsApp messages; we do not manage
+  numbers on the business account.
+- **"A data export will be generated and emailed to the tenant's primary
+  contact (link valid for 30 days)."** No export job exists. The expiring-link
+  mechanism does — it was built for tracking share links — but nothing
+  assembles a tenant's data into a downloadable artefact.
+- **"Tenant data will be purged after 30 days per NDPR policy."** Nothing
+  purges anything; see TD-6. This one also needs a carve-out designed rather
+  than assumed: the audit trail is hash-chained, and deleting rows from the
+  middle of a chain breaks verification for everything after them.
+
+Only "Terminated tenants cannot be reinstated" is true, and that is enforced.
+
+### Direction
+
+Two parts, and they are independent.
+
+Near term, and cheap: cut the dialog copy back to what happens. Users lose
+access, sessions are revoked, SIMs are deactivated on the platform, the reason
+is recorded. A dialog that overstates is worse than a short one, because it is
+read once, at the moment of an irreversible action, by someone deciding whether
+to take it.
+
+Longer term, each item is its own piece of work with its own external
+dependency: an MTN HLR integration, WABA number administration, an export
+pipeline, and a purge job that understands which tables are exempt. None should
+be listed in the dialog until it exists.
+
+### When this is picked up
+
+The copy fix should happen before the screen ships. The four integrations are
+separate features and should be scheduled as such — a termination that silently
+skips them is a compliance statement the platform cannot support.
+
+---
+
+## TD-7 — The tenant Billing tab has no payment source
+
+**Status:** open, recorded 7 September 2026. Deferred deliberately.
+
+### The problem
+
+The Billing tab on the tenant drawer asks for plan, price, billing cycle,
+billing model, subscription status, payment status, period start, renewal date,
+payment method and auto-renew.
+
+The first six come from the subscription the tenant already has. The last four
+have no source: there is no invoice store, no payment record and no
+subscription period tracking. The mock reflects this honestly — it reads "No
+payments on record" with dashes down the right-hand column — but that is the
+mock describing an absence, not a design.
+
+Paystack is integrated for wallet top-ups, so payment events do reach the
+platform; they are just not reconciled into anything a tenant-level billing
+view could read.
+
+### Direction
+
+Decide what the billing record is before building the tab. Most likely a
+subscription-period record per tenant — period start and end, amount, status,
+payment reference — written when a subscription is activated or renewed, and
+reconciled against Paystack events. Payment method and auto-renew belong to
+that record too.
+
+Until then the tab should show what is known and say plainly that no payment
+history exists, rather than rendering empty fields that look like a loading
+failure.
+
+### When this is picked up
+
+When subscription billing is specified. The tab is otherwise a set of dashes
+with no way to tell a missing value from a broken one.
+
+---
+
 ## TD-6 — Data retention settings are stored and enforced by nothing
 
 **Status:** open, recorded 7 September 2026. Found while building the

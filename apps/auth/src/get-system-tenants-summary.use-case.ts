@@ -30,6 +30,14 @@ export class GetSystemTenantsSummaryUseCase {
         suspendedTenants: tenants.filter(
           (tenant) => tenant.status === "suspended",
         ).length,
+        terminatedTenants: tenants.filter(
+          (tenant) => tenant.status === "terminated",
+        ).length,
+        inactiveTenants: tenants.filter(
+          (tenant) => tenant.status === "inactive",
+        ).length,
+        pendingTenants: tenants.filter((tenant) => tenant.status === "pending")
+          .length,
         totalVehicles: tenants.reduce(
           (sum, tenant) => sum + tenant.vehicleCount,
           0,

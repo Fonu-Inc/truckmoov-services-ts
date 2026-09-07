@@ -39,6 +39,10 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     reviewedAt: r.reviewedAt ?? null,
     decisionReason: r.decisionReason ?? null,
     tenantId: r.tenantId ?? null,
+    setupLinkStatus: (r.setupLinkStatus as StoredOnboardingApplication['setupLinkStatus']) ?? null,
+    setupLinkSentAt: r.setupLinkSentAt ?? null,
+    setupLinkError: r.setupLinkError ?? null,
+    setupLinkAttempts: r.setupLinkAttempts ?? 0,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };

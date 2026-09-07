@@ -64,6 +64,15 @@ function summarize(application: StoredOnboardingApplication) {
     reviewedAt: application.reviewedAt?.toISOString() ?? null,
     decisionReason: application.decisionReason,
     tenantId: application.tenantId,
+    // Whether the setup link reached them. Null before an approval, `failed`
+    // when the last send was rejected, which is what puts the retry row on the
+    // review screen.
+    setupLink: {
+      status: application.setupLinkStatus,
+      sentAt: application.setupLinkSentAt?.toISOString() ?? null,
+      error: application.setupLinkError,
+      attempts: application.setupLinkAttempts,
+    },
     createdAt: application.createdAt.toISOString(),
   };
 }
@@ -98,11 +107,22 @@ export class ListOnboardingApplicationsUseCase {
     };
     const { items, total } = await this.applications.findForReview(queueFilters);
 
+    // The review screen groups by organisation and shows a document count on
+    // each header, so the count is fetched with the row rather than leaving
+    // the client to open every application to find out.
+    const withCounts = await Promise.all(
+      items.map(async (application) => ({
+        ...summarize(application),
+        documentCount: (await this.applications.findDocumentsByApplicationId(application.id))
+          .length,
+      })),
+    );
+
     return {
       status: true,
       message: 'success',
       data: {
-        items: items.map(summarize),
+        items: withCounts,
         total,
         page: filters.page ?? 1,
         limit: filters.limit ?? 50,
@@ -251,4 +271,40 @@ function asApplicantType(value?: string): OnboardingApplicantType | undefined {
     (ONBOARDING_APPLICANT_TYPES as readonly string[]).includes(candidate)
     ? (candidate as OnboardingApplicantType)
     : undefined;
+}
+
+/** The four cards above the KYC review queue. */
+@Injectable()
+export class GetOnboardingReviewSummaryUseCase {
+  constructor(
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications: OnboardingApplicationRepository,
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+  ) {}
+
+  async execute(accessToken: string) {
+    await ensureSystemActor(accessToken, this.tokenService, this.users);
+
+    // A high limit rather than a count query: the queue is small by nature,
+    // and an application nobody has decided on does not stay in it for long.
+    const { items } = await this.applications.findForReview({ limit: 1000 });
+
+    const countOf = (...statuses: string[]) =>
+      items.filter((application) => statuses.includes(application.status)).length;
+
+    return {
+      status: true,
+      message: 'success',
+      data: {
+        total: items.length,
+        // Submitted and under review are both waiting on the platform; the
+        // screen makes no distinction between them.
+        pendingReview: countOf('submitted', 'under_review'),
+        approved: countOf('approved'),
+        rejected: countOf('rejected'),
+        changesRequested: countOf('changes_requested'),
+      },
+    };
+  }
 }

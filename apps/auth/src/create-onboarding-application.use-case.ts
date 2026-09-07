@@ -70,6 +70,10 @@ export class CreateOnboardingApplicationUseCase {
       reviewedAt: null,
       decisionReason: null,
       tenantId: null,
+      setupLinkStatus: null,
+      setupLinkSentAt: null,
+      setupLinkError: null,
+      setupLinkAttempts: 0,
       createdAt: now,
       updatedAt: now,
     };

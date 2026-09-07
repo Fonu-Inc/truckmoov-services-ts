@@ -93,6 +93,42 @@ export class FleetFactsService {
     }
   }
 
+  /**
+   * A tenant's vehicles, drivers or devices for the platform admin drawer.
+   *
+   * Fleet owns them, so fleet lists them. Returns null when fleet cannot be
+   * reached, which the caller shows as unavailable rather than as an empty
+   * fleet — those mean very different things on a review screen.
+   */
+  async tenantResource(
+    tenantId: string,
+    resource: 'vehicles' | 'drivers' | 'devices',
+  ): Promise<{ total: number; items: Array<Record<string, unknown>> } | null> {
+    const token = this.mintPlatformToken();
+    if (!token) return null;
+
+    try {
+      const response = await axios.get<{
+        data?: { total?: number; items?: Array<Record<string, unknown>> };
+      }>(`${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${tenantId}/${resource}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 4000,
+        validateStatus: () => true,
+      });
+
+      if (response.status !== 200) return null;
+      return {
+        total: response.data?.data?.total ?? 0,
+        items: response.data?.data?.items ?? [],
+      };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_${resource}_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
   private mintServiceToken(tenantId: string): string | null {
     return this.mintToken('FLEET_ADMIN', tenantId);
   }

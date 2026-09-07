@@ -18,6 +18,7 @@ import {
   Delete,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiOkResponse,
   ApiForbiddenResponse,
@@ -45,6 +46,19 @@ import {
   SystemTenantDeleteResponse,
 } from './dto/auth.schema';
 import { CreateSystemTenantDto } from './dto/create-system-tenant.dto';
+import { TerminateTenantDto } from './dto/terminate-tenant.dto';
+import {
+  GetTenantAuditLogUseCase,
+  GetTenantDocumentsUseCase,
+  GetTenantResourceUseCase,
+  isTenantResourceTab,
+  TENANT_RESOURCE_TABS,
+} from './system-tenant-detail.use-cases';
+import {
+  TenantAlreadyTerminatedError,
+  TerminateSystemTenantUseCase,
+} from './terminate-system-tenant.use-case';
+import { TenantTerminationError } from './tenant-termination.repository';
 import { UpdateSystemTenantStatusDto } from './dto/update-system-tenant-status.dto';
 import { UpdateSystemTenantDto } from './dto/update-system-tenant.dto';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
@@ -69,6 +83,10 @@ export class SystemTenantsController extends BaseAuthController {
     @Inject(UpdateSystemTenantStatusUseCase) private readonly updateSystemTenantStatusUseCase: UpdateSystemTenantStatusUseCase,
     @Inject(UpdateSystemTenantUseCase) private readonly updateSystemTenantUseCase: UpdateSystemTenantUseCase,
     @Inject(DeleteSystemTenantUseCase) private readonly deleteSystemTenantUseCase: DeleteSystemTenantUseCase,
+    @Inject(TerminateSystemTenantUseCase) private readonly terminateSystemTenantUseCase: TerminateSystemTenantUseCase,
+    @Inject(GetTenantResourceUseCase) private readonly getTenantResourceUseCase: GetTenantResourceUseCase,
+    @Inject(GetTenantDocumentsUseCase) private readonly getTenantDocumentsUseCase: GetTenantDocumentsUseCase,
+    @Inject(GetTenantAuditLogUseCase) private readonly getTenantAuditLogUseCase: GetTenantAuditLogUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
   ) {
     super(activityLogService);
@@ -589,6 +607,127 @@ export class SystemTenantsController extends BaseAuthController {
         throw new ConflictException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get(':tenantId/resources/:tab')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'A tenant resource tab',
+    description:
+      'Vehicles, drivers, devices or SIMs for the tenant drawer, with the plan limit for the usage bar. Capped at 25 rows.',
+  })
+  @ApiOkResponse({ description: 'The resource rows and usage' })
+  @ApiBadRequestResponse({ description: 'Unknown tab' })
+  async getTenantResource(
+    @Param('tenantId') tenantId: string,
+    @Param('tab') tab: string,
+    @Query('planCode') planCode?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!isTenantResourceTab(tab)) {
+      throw new BadRequestException(`tab must be one of: ${TENANT_RESOURCE_TABS.join(', ')}`);
+    }
+
+    try {
+      return await this.getTenantResourceUseCase.execute(
+        accessToken,
+        tenantId,
+        tab,
+        planCode ?? null,
+      );
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get(':tenantId/documents')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Documents a tenant submitted at onboarding',
+    description: 'The Documents tab. Read from the onboarding application the tenant was approved from.',
+  })
+  @ApiOkResponse({ description: 'Submitted documents' })
+  async getTenantDocuments(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getTenantDocumentsUseCase.execute(accessToken, tenantId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get(':tenantId/audit-log')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Recent activity for one tenant',
+    description: 'The Audit Log tab. The ten most recent entries.',
+  })
+  @ApiOkResponse({ description: 'Recent activity' })
+  async getTenantAuditLog(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getTenantAuditLogUseCase.execute(accessToken, tenantId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post(':tenantId/terminate')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Terminate a tenant',
+    description:
+      'Permanently ends a tenant. Irreversible: there is no reinstate. Requires a reason of at least 10 characters and the literal confirmation TERMINATE.',
+  })
+  @ApiOkResponse({ description: 'The tenant was terminated' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to terminate tenants' })
+  @ApiBadRequestResponse({ description: 'Missing reason or confirmation' })
+  @ApiConflictResponse({ description: 'The tenant has already been terminated' })
+  async terminateSystemTenant(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: TerminateTenantDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.terminateSystemTenantUseCase.execute({
+        accessToken,
+        tenantId,
+        reason: payload.reason,
+        confirmation: payload.confirmation,
+      });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantAlreadyTerminatedError) {
+        throw new ConflictException(error.message);
+      }
+      if (error instanceof TenantTerminationError) {
+        throw new BadRequestException(error.message);
+      }
       throw error;
     }
   }

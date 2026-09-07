@@ -104,6 +104,17 @@ import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
 import { SystemAuditController } from './system-audit.controller';
+import { TerminateSystemTenantUseCase } from './terminate-system-tenant.use-case';
+import {
+  GetTenantAuditLogUseCase,
+  GetTenantDocumentsUseCase,
+  GetTenantResourceUseCase,
+} from './system-tenant-detail.use-cases';
+import { TENANT_TERMINATION_REPOSITORY } from './tenant-termination.repository';
+import {
+  InMemoryTenantTerminationRepository,
+  MikroTenantTerminationRepository,
+} from './mikro-tenant-termination.repository';
 import { RequestContextMiddleware } from './request-context.middleware';
 import { TENANT_NAME_READER } from './tenant-name-reader.port';
 import { MikroTenantNameReader, NoopTenantNameReader } from './mikro-tenant-name-reader';
@@ -423,6 +434,7 @@ import {
 } from './submit-onboarding-application.use-case';
 import {
   GetOnboardingApplicationForReviewUseCase,
+  GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
   ReviewOnboardingApplicationDocumentUseCase,
 } from './review-onboarding-application.use-cases';
@@ -601,6 +613,25 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   providers: [
     RequestContextMiddleware,
+    InMemoryTenantTerminationRepository,
+    MikroTenantTerminationRepository,
+    {
+      provide: TENANT_TERMINATION_REPOSITORY,
+      inject: [
+        InMemoryTenantTerminationRepository,
+        MikroTenantTerminationRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryTenantTerminationRepository,
+        mikro: MikroTenantTerminationRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    TerminateSystemTenantUseCase,
+    GetTenantResourceUseCase,
+    GetTenantDocumentsUseCase,
+    GetTenantAuditLogUseCase,
     MikroTenantNameReader,
     NoopTenantNameReader,
     {
@@ -1319,6 +1350,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SubmitOnboardingApplicationUseCase,
     GetOnboardingApplicationStatusUseCase,
     ListOnboardingApplicationsUseCase,
+    GetOnboardingReviewSummaryUseCase,
     GetOnboardingApplicationForReviewUseCase,
     ReviewOnboardingApplicationDocumentUseCase,
     ApproveOnboardingApplicationUseCase,
