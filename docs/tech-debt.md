@@ -4,6 +4,65 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-6 — Data retention settings are stored and enforced by nothing
+
+**Status:** open, recorded 7 September 2026. Found while building the
+cross-tenant audit log.
+
+### The problem
+
+`system_settings.retention` holds three values an administrator can set on the
+General settings screen — `gpsDataRetentionDays` (default 365),
+`logRetentionDays` (default 30) and `backupFrequency` (default daily). Nothing
+anywhere reads any of them. There is no sweep, no scheduled deletion and no
+backup job keyed off that setting.
+
+So the screen invites an operator to make a data-retention decision, tells them
+it took effect, and nothing happens. Two ways that hurts:
+
+- **It over-promises deletion.** An operator who sets GPS retention to ninety
+  days to satisfy a customer's data policy has not deleted anything. Position
+  history accumulates indefinitely, and the platform has stated in writing that
+  it does not.
+- **It under-promises retention.** `backupFrequency` reads as a guarantee that
+  backups are being taken on that cadence. Whatever backups exist are a
+  function of the database deployment, not this setting.
+
+There is also a live contradiction waiting. The audit page describes the trail
+as retained for seven years. `logRetentionDays` defaults to thirty. If someone
+builds the sweep and points it at `activity_logs`, it destroys a
+tamper-evident audit trail while the UI claims the opposite.
+
+### Direction
+
+Either enforce the settings or stop offering them; a control that does nothing
+is worse than no control, because it is believed.
+
+Enforcing means a scheduled sweep per data class, and each class needs its own
+decision about what deletion means:
+
+- GPS positions are the volume case and the one with a real privacy argument.
+  Deleting them changes what historical reports can say, so the reports need
+  to degrade honestly rather than silently show less.
+- Application logs are not in the database at all, so `logRetentionDays`
+  currently governs nothing that exists here. Either point it at whatever does
+  hold them or drop it.
+- Backup frequency belongs to the infrastructure, not to a settings row. It
+  should be read from the deployment and displayed, not set here.
+
+**Audit rows are deliberately excluded** and must stay excluded. They are
+hash-chained and deleting from the middle breaks verification; a compliance
+minimum an administrator can lower is not a minimum. See the audit log work
+recorded in batch 7.
+
+### When this is picked up
+
+Before the retention section is shown to a customer as a compliance feature.
+Until then the honest fix is small: mark those three controls as not yet
+enforced on the screen, so nobody sets one and believes it.
+
+---
+
 ## TD-5 — Vehicle search filters in memory, with no index behind it
 
 **Status:** open, recorded 7 September 2026. The Live Tracking search box ships
