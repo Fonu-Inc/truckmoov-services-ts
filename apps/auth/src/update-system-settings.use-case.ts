@@ -11,6 +11,8 @@ import { ensureSystemActor } from './system-authz';
 import { SystemSettingsChangedPublisher } from './system-settings-changed.publisher';
 import {
   DEFAULT_COMPLIANCE_REMINDER_DAYS,
+  DEFAULT_TIME_RANGES,
+  isDefaultTimeRange,
   MAX_COMPLIANCE_REMINDER_DAYS,
   SESSION_TIMEOUT_OPTIONS,
   SYSTEM_SETTINGS_REPOSITORY,
@@ -29,6 +31,7 @@ export type UpdateSystemSettingsCommand = {
   defaults?: {
     timezone?: string;
     language?: string;
+    defaultTimeRange?: string;
     complianceReminderDays?: number;
     walletTopUpMin?: number;
     walletTopUpMax?: number;
@@ -82,6 +85,10 @@ export class UpdateSystemSettingsUseCase {
       defaults: {
         timezone: normalizeTimezoneInput(timezoneInput),
         language: command.defaults?.language ?? current.defaults.language,
+        defaultTimeRange: resolveTimeRange(
+          command.defaults?.defaultTimeRange,
+          current.defaults.defaultTimeRange,
+        ),
         complianceReminderDays:
           command.defaults?.complianceReminderDays ??
           current.defaults.complianceReminderDays ??
@@ -222,4 +229,17 @@ function resolvePlatformCurrency(
     throw new UnsupportedPlatformCurrencyError(requested);
   }
   return normalized;
+}
+
+function resolveTimeRange(
+  wanted: string | undefined,
+  current: SystemSettings['defaults']['defaultTimeRange'],
+): SystemSettings['defaults']['defaultTimeRange'] {
+  if (wanted === undefined) return current;
+  if (!isDefaultTimeRange(wanted)) {
+    throw new InvalidSettingsError(
+      `defaultTimeRange must be one of: ${DEFAULT_TIME_RANGES.join(', ')}`,
+    );
+  }
+  return wanted;
 }

@@ -185,3 +185,26 @@ describe('Audit logging switch', () => {
     expect(save).toHaveBeenCalledOnce();
   });
 });
+
+describe('Display preferences', () => {
+  it('defaults the time range to the last seven days', () => {
+    expect(buildDefaultSystemSettings().defaults.defaultTimeRange).toBe('last_7_days');
+  });
+
+  // A row written before the setting existed must still open a chart on
+  // something sensible.
+  it('fills the range on a row that predates it', () => {
+    const stored = buildDefaultSystemSettings();
+    delete (stored.defaults as Record<string, unknown>).defaultTimeRange;
+
+    expect(normalizeSystemSettings(stored).defaults.defaultTimeRange).toBe('last_7_days');
+  });
+
+  it('ignores a range it does not offer rather than storing it', () => {
+    const stored = buildDefaultSystemSettings();
+    (stored.defaults as Record<string, unknown>).defaultTimeRange = 'last_decade';
+
+    expect(normalizeSystemSettings(stored).defaults.defaultTimeRange).toBe('last_7_days');
+  });
+});
+

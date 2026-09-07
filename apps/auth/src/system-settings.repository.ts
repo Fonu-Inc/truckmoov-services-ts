@@ -15,9 +15,31 @@ export const MAX_COMPLIANCE_REMINDER_DAYS = 180;
 export const DEFAULT_WALLET_TOP_UP_MIN_KOBO = 10_000;
 export const DEFAULT_WALLET_TOP_UP_MAX_KOBO = 500_000_000;
 
+/**
+ * Ranges the platform offers as a default filter. Stored as a key rather than
+ * a pair of dates: "last 7 days" means something different tomorrow, and every
+ * chart is meant to move with it.
+ */
+export const DEFAULT_TIME_RANGES = [
+  'today',
+  'last_7_days',
+  'last_30_days',
+  'last_90_days',
+  'this_month',
+  'this_year',
+] as const;
+
+export type DefaultTimeRange = (typeof DEFAULT_TIME_RANGES)[number];
+
+export function isDefaultTimeRange(value: unknown): value is DefaultTimeRange {
+  return typeof value === 'string' && (DEFAULT_TIME_RANGES as readonly string[]).includes(value);
+}
+
 export type SystemSettingsDefaults = {
   timezone: string;
   language: string;
+  /** The default filter charts, tables and reports open on. Overridable per view. */
+  defaultTimeRange: DefaultTimeRange;
   /**
    * How many days before expiry a compliance document counts as expiring, and
    * a reminder is sent. One platform-wide window: the per-document
@@ -109,6 +131,7 @@ export function buildDefaultSystemSettings(): SystemSettings {
     defaults: {
       timezone: 'Africa/Lagos',
       language: 'en',
+      defaultTimeRange: 'last_7_days',
       complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
       walletTopUpMinKobo: DEFAULT_WALLET_TOP_UP_MIN_KOBO,
       walletTopUpMaxKobo: DEFAULT_WALLET_TOP_UP_MAX_KOBO,
@@ -178,6 +201,9 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
       platformCurrency: isPlatformCurrency(defaults.platformCurrency)
         ? defaults.platformCurrency
         : DEFAULT_PLATFORM_CURRENCY,
+      defaultTimeRange: isDefaultTimeRange(defaults.defaultTimeRange)
+        ? defaults.defaultTimeRange
+        : 'last_7_days',
     },
   };
 }

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { SESSION_TIMEOUT_OPTIONS } from '../system-settings.repository';
+import { DEFAULT_TIME_RANGES, SESSION_TIMEOUT_OPTIONS } from '../system-settings.repository';
 import {
   IsBoolean,
   IsEmail,
@@ -29,6 +29,11 @@ class SystemSettingsDefaultsDto {
   @IsString()
   @MaxLength(16)
   language?: string;
+
+  @ApiPropertyOptional({ enum: DEFAULT_TIME_RANGES })
+  @IsOptional()
+  @IsIn(DEFAULT_TIME_RANGES)
+  defaultTimeRange?: string;
 
   @IsOptional()
   @IsInt()
