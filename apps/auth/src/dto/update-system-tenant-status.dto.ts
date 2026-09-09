@@ -1,8 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum } from "class-validator";
+import {
+  IsIn,
+} from "class-validator";
 
 export class UpdateSystemTenantStatusDto {
   @ApiProperty({ enum: ["active", "suspended"] })
-  @IsEnum(["active", "suspended"])
+  @IsIn(["active", "suspended"])
   status!: "active" | "suspended";
 }

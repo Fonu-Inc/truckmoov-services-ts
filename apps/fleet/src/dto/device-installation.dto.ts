@@ -3,7 +3,7 @@ import { Type } from "class-transformer";
 import {
   ArrayNotEmpty,
   IsArray,
-  IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -39,7 +39,7 @@ export class BulkConfigureDevicesDto extends ConfigureDeviceDto {
 
 export class RecordVerificationFailureDto {
   @ApiProperty({ enum: VERIFICATION_FAILURE_REASONS })
-  @IsEnum(VERIFICATION_FAILURE_REASONS)
+  @IsIn(VERIFICATION_FAILURE_REASONS)
   reason!: (typeof VERIFICATION_FAILURE_REASONS)[number];
 
   @ApiPropertyOptional({ nullable: true })

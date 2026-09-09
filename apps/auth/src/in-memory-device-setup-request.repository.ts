@@ -132,13 +132,18 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     });
   }
 
-  async assign(id: string, assignedTo: string): Promise<void> {
+  async assign(
+    id: string,
+    assignedTo: string,
+    timeline: Array<{ status: string; at: string; note: string | null }>,
+  ): Promise<void> {
     const current = this.store.get(id);
     if (!current) return;
     this.store.set(id, {
       ...current,
       assignedTo,
       status: 'in_progress',
+      timeline,
       updatedAt: new Date(),
     });
   }

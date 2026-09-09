@@ -5,8 +5,8 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsISO8601,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -101,7 +101,7 @@ export class SavePricingRuleDto {
   destinationAliases?: string[];
 
   @ApiProperty({ enum: PRICING_MODES })
-  @IsEnum(PRICING_MODES)
+  @IsIn(PRICING_MODES)
   mode!: (typeof PRICING_MODES)[number];
 
   @ApiPropertyOptional({ nullable: true, type: Number, description: "Naira" })

@@ -4,10 +4,10 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import {
+  appendSetupRequestTimeline,
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
   type DeviceSetupRequestStatus,
-  type StoredDeviceSetupRequest,
 } from './device-setup-request.repository';
 import {
   DeviceSetupRequestNotFoundError,
@@ -69,7 +69,7 @@ abstract class DecideDeviceSetupRequestUseCase {
       status: this.decision,
       decidedBy: actor.id,
       reason: trimmed,
-      timeline: appendTimeline(request, this.decision, trimmed),
+      timeline: appendSetupRequestTimeline(request, this.decision, trimmed),
     });
 
     const updated = await this.repo.findById(requestId);
@@ -141,12 +141,4 @@ export class GetSystemDeviceSetupSummaryUseCase {
       data: await this.repo.summary(),
     };
   }
-}
-
-function appendTimeline(
-  request: StoredDeviceSetupRequest,
-  status: DeviceSetupRequestStatus,
-  note: string | null,
-) {
-  return [...request.timeline, { status, at: new Date().toISOString(), note }];
 }

@@ -193,12 +193,16 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     );
   }
 
-  async assign(id: string, assignedTo: string): Promise<void> {
+  async assign(
+    id: string,
+    assignedTo: string,
+    timeline: Array<{ status: string; at: string; note: string | null }>,
+  ): Promise<void> {
     await this.execute(
       `update fleet_device_setup_requests
-          set assigned_to = ?, status = 'in_progress', updated_at = now()
+          set assigned_to = ?, status = 'in_progress', timeline = ?::jsonb, updated_at = now()
         where id = ?`,
-      [assignedTo, id],
+      [assignedTo, JSON.stringify(timeline), id],
     );
   }
 

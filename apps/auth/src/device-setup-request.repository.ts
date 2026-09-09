@@ -85,7 +85,20 @@ export interface DeviceSetupRequestRepository {
     reason: string | null;
     timeline: Array<{ status: string; at: string; note: string | null }>;
   }): Promise<void>;
-  assign(id: string, assignedTo: string): Promise<void>;
+  assign(
+    id: string,
+    assignedTo: string,
+    timeline: Array<{ status: string; at: string; note: string | null }>,
+  ): Promise<void>;
 }
 
 export const DEVICE_SETUP_REQUEST_REPOSITORY = Symbol('DEVICE_SETUP_REQUEST_REPOSITORY');
+
+/** Every status change is recorded, so the detail drawer's timeline is complete. */
+export function appendSetupRequestTimeline(
+  request: StoredDeviceSetupRequest,
+  status: DeviceSetupRequestStatus,
+  note: string | null,
+) {
+  return [...request.timeline, { status, at: new Date().toISOString(), note }];
+}

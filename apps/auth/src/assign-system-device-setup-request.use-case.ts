@@ -4,6 +4,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import {
+  appendSetupRequestTimeline,
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
 } from './device-setup-request.repository';
@@ -47,7 +48,7 @@ export class AssignSystemDeviceSetupRequestUseCase {
       throw new DeviceSetupRequestNotApprovedError(request.status);
     }
 
-    await this.repo.assign(requestId, actor.id);
+    await this.repo.assign(requestId, actor.id, appendSetupRequestTimeline(request, 'in_progress', null));
     const updated = await this.repo.findById(requestId);
     if (!updated) throw new DeviceSetupRequestNotFoundError(requestId);
 

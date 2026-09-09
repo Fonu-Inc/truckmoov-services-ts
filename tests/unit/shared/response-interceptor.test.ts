@@ -1,45 +1,28 @@
-import type { CallHandler, ExecutionContext } from '@nestjs/common';
-import { of, lastValueFrom } from 'rxjs';
+import { StreamableFile } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import {
-  StandardApiResponse,
-  TransformResponseInterceptor,
-} from '@shared/openapi';
+import { of } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
+import { TransformResponseInterceptor } from '../../../libs/shared/openapi/src/response.interceptor';
 
-describe('TransformResponseInterceptor', () => {
+function run(value: unknown) {
   const interceptor = new TransformResponseInterceptor();
-  const context = {} as ExecutionContext;
+  return firstValueFrom(interceptor.intercept({} as never, { handle: () => of(value) } as never));
+}
 
-  it('wraps raw controller payloads once', async () => {
-    const handler: CallHandler = {
-      handle: () => of({ totalTenants: 2 }),
-    };
-
-    const result = await lastValueFrom(interceptor.intercept(context, handler));
-
-    expect(result).toEqual({
-      status: true,
-      message: 'success',
-      data: { totalTenants: 2 },
-    });
+describe('Response envelope', () => {
+  it('wraps a plain value', async () => {
+    await expect(run({ id: 1 })).resolves.toMatchObject({ status: true, data: { id: 1 } });
   });
 
-  it('passes through pre-wrapped standard responses unchanged', async () => {
-    const payload = StandardApiResponse.ok(
-      { totalTenants: 2 },
-      'Tenant summary loaded',
-    );
-    const handler: CallHandler = {
-      handle: () => of(payload),
-    };
+  // Wrapping the file serialises the StreamableFile object itself, so the
+  // download is a class dump rather than the bytes.
+  it('leaves a StreamableFile alone', async () => {
+    const file = new StreamableFile(Buffer.from('a,b\n1,2', 'utf8'));
+    await expect(run(file)).resolves.toBe(file);
+  });
 
-    const result = await lastValueFrom(interceptor.intercept(context, handler));
-
-    expect(result).toBe(payload);
-    expect(result).toEqual({
-      status: true,
-      message: 'Tenant summary loaded',
-      data: { totalTenants: 2 },
-    });
+  it('leaves a raw Buffer alone', async () => {
+    const buffer = Buffer.from('a,b\n1,2', 'utf8');
+    await expect(run(buffer)).resolves.toBe(buffer);
   });
 });

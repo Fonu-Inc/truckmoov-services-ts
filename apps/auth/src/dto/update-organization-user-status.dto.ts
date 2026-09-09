@@ -1,8 +1,10 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum } from "class-validator";
+import {
+  IsIn,
+} from "class-validator";
 
 export class UpdateOrganizationUserStatusDto {
   @ApiProperty({ enum: ["enabled", "disabled"] })
-  @IsEnum(["enabled", "disabled"])
+  @IsIn(["enabled", "disabled"])
   accountStatus!: "enabled" | "disabled";
 }

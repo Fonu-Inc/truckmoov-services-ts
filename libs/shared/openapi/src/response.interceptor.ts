@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -23,17 +24,28 @@ function isStandardApiResponse(
   );
 }
 
+/**
+ * A file is the response, not something to wrap in one. Passing a
+ * StreamableFile through the envelope serialises the wrapper object and the
+ * caller downloads a class dump instead of the bytes.
+ */
+function isRawResponse(value: unknown): value is StreamableFile | Buffer {
+  return value instanceof StreamableFile || Buffer.isBuffer(value);
+}
+
 @Injectable()
 export class TransformResponseInterceptor implements NestInterceptor {
   intercept(
     _ctx: ExecutionContext,
     next: CallHandler,
-  ): Observable<StandardApiResponse<unknown>> {
+  ): Observable<StandardApiResponse<unknown> | StreamableFile | Buffer> {
     return next
       .handle()
       .pipe(
         map((data: unknown) =>
-          isStandardApiResponse(data) ? data : StandardApiResponse.ok(data),
+          isStandardApiResponse(data) || isRawResponse(data)
+            ? data
+            : StandardApiResponse.ok(data),
         ),
       );
   }

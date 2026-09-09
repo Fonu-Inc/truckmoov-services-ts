@@ -24,6 +24,18 @@ import { AppConfigService } from '@shared/config';
  */
 const SAFE_PATH_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+/**
+ * Nest's unmatched-route fallback names the path it could not match, and this
+ * service calls fleet on an internal URL the caller never sees. Forwarding that
+ * message verbatim hands the service topology to anyone who sends a bad id.
+ */
+const ROUTE_FALLBACK = /^Cannot (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /i;
+
+function safeDownstreamMessage(raw: string | undefined, fallback: string): string {
+  if (!raw || ROUTE_FALLBACK.test(raw) || raw.includes('/fleet/internal')) return fallback;
+  return raw;
+}
+
 function isSafePathId(value: string): boolean {
   return SAFE_PATH_ID.test(value);
 }
@@ -103,7 +115,10 @@ export class FleetFactsService {
         return {
           ok: false,
           status: response.status,
-          message: response.data?.message ?? 'The device service refused the change',
+          message: safeDownstreamMessage(
+            response.data?.message,
+            'The device service refused the change',
+          ),
         };
       }
       return { ok: true, device: response.data?.data ?? {} };

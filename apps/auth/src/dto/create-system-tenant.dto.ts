@@ -2,8 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsEnum,
   IsEmail,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
@@ -54,7 +54,7 @@ export class TenantCompanyDetailsDto {
   businessAddress?: string;
 
   @ApiProperty({ enum: TENANT_ORGANIZATION_TYPES })
-  @IsEnum(TENANT_ORGANIZATION_TYPES)
+  @IsIn(TENANT_ORGANIZATION_TYPES)
   organizationType!: (typeof TENANT_ORGANIZATION_TYPES)[number];
 }
 
@@ -66,7 +66,7 @@ export class TenantSubscriptionSelectionDto {
   planCode!: string;
 
   @ApiProperty({ enum: TENANT_BILLING_CYCLES })
-  @IsEnum(TENANT_BILLING_CYCLES)
+  @IsIn(TENANT_BILLING_CYCLES)
   billingCycle!: (typeof TENANT_BILLING_CYCLES)[number];
 }
 
@@ -107,12 +107,12 @@ export class TenantSimAssignmentDto {
 
   @ApiPropertyOptional({ enum: SIM_CARRIERS, nullable: true })
   @ValidateIf((value) => value.provisionNow)
-  @IsEnum(SIM_CARRIERS)
+  @IsIn(SIM_CARRIERS)
   carrier?: (typeof SIM_CARRIERS)[number];
 
   @ApiPropertyOptional({ enum: SIM_DATA_PACKAGES, nullable: true })
   @ValidateIf((value) => value.provisionNow)
-  @IsEnum(SIM_DATA_PACKAGES)
+  @IsIn(SIM_DATA_PACKAGES)
   dataPackage?: (typeof SIM_DATA_PACKAGES)[number];
 }
 

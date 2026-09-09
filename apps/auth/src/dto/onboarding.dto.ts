@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
-  IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -19,11 +19,11 @@ export class CreatePaymentIntentDto {
   planCode!: string;
 
   @ApiProperty({ enum: ['monthly', 'yearly'] })
-  @IsEnum(['monthly', 'yearly'])
+  @IsIn(['monthly', 'yearly'])
   billingCycle!: 'monthly' | 'yearly';
 
   @ApiProperty({ enum: ['paystack', 'momo'] })
-  @IsEnum(['paystack', 'momo'])
+  @IsIn(['paystack', 'momo'])
   gateway!: 'paystack' | 'momo';
 
   @ApiPropertyOptional({ description: 'Phone number for MoMo USSD push' })
