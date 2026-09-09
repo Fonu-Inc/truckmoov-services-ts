@@ -47,6 +47,30 @@ export class PlatformIntegrationCredentialsController extends BaseAuthController
     }
   }
 
+  @Get(':serviceKey')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'One platform integration, without its secret',
+    description:
+      'Returns configured: false rather than 404 when the service has never been set up, because that is a state the settings page renders rather than a failed lookup.',
+  })
+  @ApiOkResponse()
+  async findOne(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('serviceKey') serviceKey: string,
+  ) {
+    const token = this.requireToken(authorization);
+    try {
+      return {
+        status: true,
+        message: 'success',
+        data: await this.credentials.findOne(token, serviceKey),
+      };
+    } catch (error) {
+      throw this.toHttpError(error);
+    }
+  }
+
   @Put(':serviceKey')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create or update a platform integration credential' })

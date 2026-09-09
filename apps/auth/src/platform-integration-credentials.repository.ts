@@ -13,13 +13,45 @@ export type StoredPlatformIntegrationCredential = {
   updatedAt: string;
 };
 
-export type PlatformIntegrationCredentialView = Omit<StoredPlatformIntegrationCredential, 'secretCiphertext'>;
+export type PlatformIntegrationCredentialView = Omit<
+  StoredPlatformIntegrationCredential,
+  'secretCiphertext' | 'category' | 'updatedAt'
+> & {
+  /** Both null on a service nobody has configured yet. */
+  category: string | null;
+  updatedAt: string | null;
+  /** A secret is held. The secret itself is never returned by any read. */
+  configured: boolean;
+};
 
 export function toIntegrationCredentialView(
   value: StoredPlatformIntegrationCredential,
 ): PlatformIntegrationCredentialView {
-  const { secretCiphertext: _secret, ...view } = value;
-  return view;
+  const { secretCiphertext, ...view } = value;
+  return { ...view, configured: secretCiphertext !== null };
+}
+
+/**
+ * What a service that has never been configured looks like.
+ *
+ * Read as a 200 rather than a 404: "no key has been set yet" is a state the
+ * settings page has to render, not a failed lookup.
+ */
+export function unconfiguredIntegrationCredentialView(
+  serviceKey: string,
+): PlatformIntegrationCredentialView {
+  return {
+    serviceKey,
+    category: null,
+    enabled: false,
+    secretPreview: null,
+    config: {},
+    status: 'not_configured',
+    lastTestedAt: null,
+    lastError: null,
+    updatedAt: null,
+    configured: false,
+  };
 }
 
 export interface PlatformIntegrationCredentialsRepository {

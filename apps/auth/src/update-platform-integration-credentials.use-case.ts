@@ -8,6 +8,7 @@ import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import {
   PLATFORM_INTEGRATION_CREDENTIALS_REPOSITORY,
   toIntegrationCredentialView,
+  unconfiguredIntegrationCredentialView,
   type PlatformIntegrationCredentialView,
   type PlatformIntegrationCredentialsRepository,
   PlatformIntegrationCredentialStorageError,
@@ -54,6 +55,25 @@ export class UpdatePlatformIntegrationCredentialsUseCase {
       return (await this.repository.list()).map(toIntegrationCredentialView);
     } catch (error) {
       this.logStorageFailure('list', error);
+      throw error;
+    }
+  }
+
+  /**
+   * One service's configuration, for the settings page deciding between
+   * "Set key" and "Rotate key".
+   */
+  async findOne(accessToken: string, serviceKey: string): Promise<PlatformIntegrationCredentialView> {
+    await this.authorize(accessToken);
+    const key = serviceKey.trim().toLowerCase();
+    if (!key) throw new IntegrationCredentialKeyError();
+    try {
+      const record = await this.repository.findByServiceKey(key);
+      return record
+        ? toIntegrationCredentialView(record)
+        : unconfiguredIntegrationCredentialView(key);
+    } catch (error) {
+      this.logStorageFailure('find', error);
       throw error;
     }
   }
@@ -107,10 +127,14 @@ export class UpdatePlatformIntegrationCredentialsUseCase {
     });
   }
 
+  /**
+   * The wrapper's own message says nothing but "could not save", so the
+   * database error underneath is what gets logged. Without it a 503 here is
+   * unattributable — a missing table and a dead connection read the same.
+   */
   private logStorageFailure(operation: string, error: unknown): void {
-    const safeError = error instanceof PlatformIntegrationCredentialStorageError
-      ? error.message
-      : 'unexpected storage error';
-    this.logger.error(`platform_integration_${operation}_failed:${safeError}`);
+    const cause = error instanceof PlatformIntegrationCredentialStorageError ? error.cause : error;
+    const detail = cause instanceof Error ? cause.message : 'unexpected storage error';
+    this.logger.error(`platform_integration_${operation}_failed:${detail}`);
   }
 }
