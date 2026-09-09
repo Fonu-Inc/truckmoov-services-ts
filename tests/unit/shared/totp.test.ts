@@ -7,7 +7,7 @@ import {
   totpCodeAt,
   totpEnrolmentUri,
   verifyTotp,
-} from "../../../libs/shared/crypto/src/totp";
+} from "@shared/crypto";
 
 // RFC 6238 test vector: the ASCII secret "12345678901234567890", SHA-1.
 const RFC_SECRET = base32Encode(Buffer.from("12345678901234567890", "ascii"));

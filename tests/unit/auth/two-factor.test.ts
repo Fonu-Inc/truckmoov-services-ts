@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateTotpSecret, totpCodeAt } from '../../../libs/shared/crypto/src/totp';
+import { generateTotpSecret, totpCodeAt } from '@shared/crypto';
 import {
   BeginTwoFactorEnrolmentUseCase,
   ConfirmTwoFactorEnrolmentUseCase,

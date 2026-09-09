@@ -2,7 +2,7 @@ import { StreamableFile } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
-import { TransformResponseInterceptor } from '../../../libs/shared/openapi/src/response.interceptor';
+import { TransformResponseInterceptor } from '@shared/openapi';
 
 function run(value: unknown) {
   const interceptor = new TransformResponseInterceptor();

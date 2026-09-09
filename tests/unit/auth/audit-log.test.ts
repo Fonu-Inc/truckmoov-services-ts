@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clientIpFrom } from '../../../libs/shared/http/src/client-ip';
+import { clientIpFrom } from '@shared/http';
 import { InMemoryActivityLogRepository } from '../../../apps/auth/src/in-memory-activity-log.repository';
 import {
   GetAuditFilterOptionsUseCase,
