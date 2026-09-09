@@ -28,7 +28,7 @@ import {
 } from './two-factor.use-cases';
 
 @ApiTags('Two-factor')
-@Controller('auth/two-factor')
+@Controller('two-factor')
 export class TwoFactorController extends BaseAuthController {
   constructor(
     @Inject(ActivityLogService) activityLogService: ActivityLogService,

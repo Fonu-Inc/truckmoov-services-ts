@@ -258,6 +258,21 @@ describe('Auth HTTP contract', () => {
     expect(meRes.body.role).toBe('ENTERPRISE_ADMIN');
   });
 
+  // Every auth controller relies on the global "auth" prefix, so one that
+  // names the prefix itself lands on /auth/auth/... and 404s. Unit tests over
+  // the use cases cannot see that; only a real request can.
+  it('GET /auth/two-factor is reachable at the documented path', async () => {
+    const login = await seedEnterpriseAdmin('twofactorpath@contract.com');
+    expect(login.status).toBe(201);
+
+    const res = await request(app.getHttpServer())
+      .get('/auth/two-factor')
+      .set('Authorization', `Bearer ${login.body.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ enrolled: false, pendingConfirmation: false });
+  });
+
   it('POST /auth/login rejects wrong credentials', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/login')
