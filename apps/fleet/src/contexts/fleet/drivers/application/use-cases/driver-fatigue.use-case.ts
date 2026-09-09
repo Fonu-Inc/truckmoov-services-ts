@@ -36,7 +36,14 @@ export class DriverFatigueUseCase {
    */
   private assertEnabled(): void {
     if (!this.enabled) {
-      throw new ServiceUnavailableException("Fatigue detection is not enabled for this deployment");
+      // Machine-readable so the tab can tell "switched off" from "broken" and
+      // render its empty state instead of an error toast.
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        error: "FeatureDisabled",
+        feature: "driver_fatigue",
+        message: "Fatigue detection is not enabled for this deployment",
+      });
     }
   }
 

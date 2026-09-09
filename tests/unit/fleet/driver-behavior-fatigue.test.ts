@@ -12,6 +12,7 @@ import {
   type StoredFatigueAnalysis,
 } from "../../../apps/fleet/src/contexts/fleet/drivers/domain/driver-fatigue";
 import { buildLicense } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/driver-detail.use-case";
+import { DriverFatigueUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/driver-fatigue.use-case";
 
 function event(overrides: Partial<StoredBehaviorEvent> = {}): StoredBehaviorEvent {
   const now = new Date("2026-09-06T09:00:00.000Z");
@@ -266,5 +267,31 @@ describe("Fatigue summary scoping", () => {
     const summary = summarizeFatigue(scoped);
     expect(summary.totalAnalyses).toBe(1);
     expect(summary.averageScore).toBe(8);
+  });
+});
+
+describe("fatigue feature flag", () => {
+  function disabledUseCase() {
+    return new DriverFatigueUseCase(
+      {} as never,
+      {} as never,
+      {} as never,
+      { drivers: { fatigueEnabled: false } } as never,
+    );
+  }
+
+  // A 404 and a switched-off feature are different things to the tab: one is a
+  // bug, the other is its empty state. The body has to say which.
+  it("refuses with a machine-readable 503 when the flag is unset", async () => {
+    for (const call of [
+      () => disabledUseCase().summary("tenant-1"),
+      () => disabledUseCase().forDriver("tenant-1", "driver-1"),
+      () => disabledUseCase().run("tenant-1", "driver-1", 240, 15),
+    ]) {
+      await expect(call()).rejects.toMatchObject({
+        status: 503,
+        response: { error: "FeatureDisabled", feature: "driver_fatigue" },
+      });
+    }
   });
 });
