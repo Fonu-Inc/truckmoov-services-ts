@@ -18,6 +18,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { buildAnalyticsCsv } from "./contexts/fleet/reports/domain/analytics-csv";
+import { ANALYTICS_PERIOD_DAYS, parseAnalyticsPeriodDays } from "./contexts/fleet/reports/domain/analytics-period";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import {
   AnalyticsSummaryResponse,
@@ -47,53 +48,53 @@ export class AnalyticsController extends BaseFleetController {
   @Get("summary")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Analytics summary", description: "High-level fleet summary across vehicles, drivers, jobs, and safety events for the given period." })
-  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Analytics summary object", type: AnalyticsSummaryResponse })
   async getAnalyticsSummary(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.summary(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    const data = await this.fleetAnalyticsUseCase.summary(this.tenantIdFromRequest(req), parseAnalyticsPeriodDays(periodDays));
     return { status: true, message: "success", data };
   }
 
   @Get("fleet-status")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet status breakdown", description: "Vehicles grouped by status for the calling tenant." })
-  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Fleet status breakdown", type: FleetStatusResponse })
   async getFleetStatus(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.fleetStatus(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    const data = await this.fleetAnalyticsUseCase.fleetStatus(this.tenantIdFromRequest(req), parseAnalyticsPeriodDays(periodDays));
     return { status: true, message: "success", data };
   }
 
   @Get("job-pipeline")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Job pipeline", description: "Jobs grouped by status for the given period." })
-  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Job pipeline breakdown", type: JobPipelineResponse })
   async getJobPipeline(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.jobPipeline(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    const data = await this.fleetAnalyticsUseCase.jobPipeline(this.tenantIdFromRequest(req), parseAnalyticsPeriodDays(periodDays));
     return { status: true, message: "success", data };
   }
 
   @Get("fuel-levels")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel levels", description: "Per-vehicle fuel level (from telemetry where available)." })
-  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Fuel level array per vehicle", type: FuelLevelsResponse })
   async getFuelLevels(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.fuelLevels(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    const data = await this.fleetAnalyticsUseCase.fuelLevels(this.tenantIdFromRequest(req), parseAnalyticsPeriodDays(periodDays));
     return { status: true, message: "success", data };
   }
 
   @Get("driver-scores")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Driver safety scores", description: "Safety scores per driver based on behavior events in the given period." })
-  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiOkResponse({ description: "Driver scores array", type: DriverScoreListResponse })
   async getDriverScores(@Query("period_days") periodDays: string, @Query("limit") limit: string, @Req() req: FleetRequestContext) {
     const data = await this.fleetAnalyticsUseCase.driverScores(
       this.tenantIdFromRequest(req),
-      parseInt(periodDays ?? "30", 10),
+      parseAnalyticsPeriodDays(periodDays),
       parseInt(limit ?? "20", 10),
     );
     return { status: true, message: "success", data };
@@ -102,7 +103,7 @@ export class AnalyticsController extends BaseFleetController {
   @Get("events")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Behavior events", description: "Alert/behavior event list with filters for the given period." })
-  @ApiQuery({ name: "period_days", required: false, enum: [7, 30, 60, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "severity", required: false, enum: ["low", "medium", "high", "critical"] })
   @ApiOkResponse({ description: "Events array", type: AnalyticsEventListResponse })
@@ -114,7 +115,7 @@ export class AnalyticsController extends BaseFleetController {
   ) {
     const data = await this.fleetAnalyticsUseCase.events(
       this.tenantIdFromRequest(req),
-      parseInt(periodDays ?? "30", 10),
+      parseAnalyticsPeriodDays(periodDays),
       parseInt(limit ?? "50", 10),
       severity,
     );
@@ -124,10 +125,10 @@ export class AnalyticsController extends BaseFleetController {
   @Get("vehicle-safety-radar")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet safety radar", description: "Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period." })
-  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Average behavior scores per dimension (0-100)", type: VehicleSafetyRadarResponse })
   async getVehicleSafetyRadar(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(this.tenantIdFromRequest(req), parseInt(periodDays ?? "30", 10));
+    const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(this.tenantIdFromRequest(req), parseAnalyticsPeriodDays(periodDays));
     return { status: true, message: "success", data };
   }
 
@@ -139,7 +140,7 @@ export class AnalyticsController extends BaseFleetController {
     description:
       "One file covering the summary, fleet status, job pipeline, fuel levels and driver scores for the period, so the tab exports like every other tab.",
   })
-  @ApiQuery({ name: "period_days", required: false, enum: [1, 2, 7, 30, 90], type: Number })
+  @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportAnalytics(
     @Query("period_days") periodDays: string,
@@ -147,7 +148,7 @@ export class AnalyticsController extends BaseFleetController {
     @Res({ passthrough: false }) res: any,
   ): Promise<void> {
     const tenantId = this.tenantIdFromRequest(req);
-    const days = parseInt(periodDays ?? "30", 10);
+    const days = parseAnalyticsPeriodDays(periodDays);
     const [summary, fleetStatus, jobPipeline, fuelLevels, driverScores] = await Promise.all([
       this.fleetAnalyticsUseCase.summary(tenantId, days),
       this.fleetAnalyticsUseCase.fleetStatus(tenantId, days),

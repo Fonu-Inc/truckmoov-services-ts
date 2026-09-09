@@ -54,16 +54,37 @@ describe("financial statement renderers", () => {
     expect(csv).toContain("Notes,internal use only");
   });
 
-  it("omits per-vehicle breakdown when toggled off", () => {
-    const csv = renderStatementCsv(sample(), { includePerVehicleBreakdown: false });
-    expect(csv).not.toContain("vehicleId,plateNumber,revenue");
+  it("omits per-vehicle P&L when toggled off", () => {
+    const csv = renderStatementCsv(sample(), { includeVehiclePL: false });
+    expect(csv).not.toContain("Vehicle P&L");
     expect(csv).toContain("Total Profit,60000");
   });
 
+  it("renders the cost breakdown as its own section", () => {
+    const csv = renderStatementCsv(sample(), { includeVehiclePL: false });
+    expect(csv).toContain("Cost Breakdown");
+    expect(csv).toContain("vehicleId,plateNumber,fuel,maintenance,wages,insurance,depreciation,other,totalCost");
+  });
+
   it("omits cover page and summary in PDF when toggled off", () => {
-    const pdf = renderStatementPdf(sample(), { includeCoverPage: false, includeFleetSummary: false });
+    const pdf = renderStatementPdf(sample(), { includeCoverPage: false, includeSummary: false });
     const body = pdf.toString("latin1");
     expect(body).not.toContain("TruckMoov");
     expect(body).toContain("Per-Vehicle P&L");
+  });
+
+  // A query DTO hands unset toggles over as explicit undefined. Spreading those
+  // onto the defaults used to blank every section, which is how ?format=csv
+  // came back as an empty file.
+  it("keeps the defaults when every toggle arrives undefined", () => {
+    const csv = renderStatementCsv(sample(), {
+      includeCoverPage: undefined,
+      includeSummary: undefined,
+      includeVehiclePL: undefined,
+      includeCostBreakdown: undefined,
+    });
+    expect(csv.length).toBeGreaterThan(0);
+    expect(csv).toContain("Total Profit,60000");
+    expect(csv).toContain("Vehicle P&L");
   });
 });

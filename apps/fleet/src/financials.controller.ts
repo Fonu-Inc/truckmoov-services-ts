@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Res,
   Param,
@@ -27,6 +28,8 @@ import {
   StatementQueryDto,
   UpsertFinancialConfigDto,
   FinancialSummaryQueryDto,
+  normalizeFinancialConfig,
+  normalizeStatementOptions,
 } from "./dto/financials.dto";
 import {
   FinancialSummaryResponse,
@@ -107,7 +110,13 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "Upsert financial config for a vehicle" })
   @ApiOkResponse({ description: "Config upserted", type: FinancialConfigResponse })
   async upsertFinancialConfig(@Param("vehicleId") vehicleId: string, @Body() body: UpsertFinancialConfigDto, @Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.upsertConfig(this.tenantIdFromRequest(req), vehicleId, body);
+    const fields = normalizeFinancialConfig(body);
+    // An empty body would otherwise write a row of nulls that the UI then
+    // reads back as a configured vehicle.
+    if (Object.keys(fields).length === 0) {
+      throw new BadRequestException("No cost fields supplied");
+    }
+    const data = await this.fleetFinancialsUseCase.upsertConfig(this.tenantIdFromRequest(req), vehicleId, fields);
     return { status: true, message: "success", data };
   }
 
@@ -144,16 +153,7 @@ export class FinancialsController extends BaseFleetController {
       this.tenantIdFromRequest(req),
       query.format ?? "pdf",
       query.periodMonths ?? 1,
-      {
-        title: query.title,
-        companyName: query.companyName,
-        preparedBy: query.preparedBy,
-        notes: query.notes,
-        includeCoverPage: query.includeCoverPage,
-        includeFleetSummary: query.includeFleetSummary,
-        includePerVehicleBreakdown: query.includePerVehicleBreakdown,
-        accentColor: query.accentColor,
-      },
+      normalizeStatementOptions(query),
     );
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);

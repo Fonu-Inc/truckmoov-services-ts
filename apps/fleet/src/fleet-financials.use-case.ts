@@ -80,7 +80,10 @@ export class FleetFinancialsUseCase {
   private async saveConfig(cfg: FleetFinancialConfigRecord): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
-    await em.upsert(FleetFinancialConfigRecord, cfg);
+    // The row is unique on (tenantId, vehicleId), not on the generated id, so
+    // conflicting on the id would insert a second row for the same vehicle.
+    await em.upsert(FleetFinancialConfigRecord, cfg, { onConflictFields: ["tenantId", "vehicleId"] });
+    await em.flush();
   }
 
   async getConfig(tenantId: string, vehicleId: string): Promise<FleetFinancialConfigRecord | null> {
@@ -89,7 +92,7 @@ export class FleetFinancialsUseCase {
     return em.findOne(FleetFinancialConfigRecord, { tenantId, vehicleId });
   }
 
-  async upsertConfig(tenantId: string, vehicleId: string, data: Partial<Omit<FleetFinancialConfigRecord, "id" | "tenantId" | "vehicleId" | "createdAt" | "updatedAt">>) {
+  async upsertConfig(tenantId: string, vehicleId: string, data: Record<string, unknown>) {
     const existing = await this.getConfig(tenantId, vehicleId);
     const cfg: FleetFinancialConfigRecord = {
       ...(existing ?? { id: randomUUID(), tenantId, vehicleId, createdAt: new Date() }),
@@ -97,7 +100,8 @@ export class FleetFinancialsUseCase {
       updatedAt: new Date(),
     } as FleetFinancialConfigRecord;
     await this.saveConfig(cfg);
-    return cfg;
+    // Read back so the caller sees what was stored rather than what was sent.
+    return (await this.getConfig(tenantId, vehicleId)) ?? cfg;
   }
 
   async listConfigs(tenantId: string) {

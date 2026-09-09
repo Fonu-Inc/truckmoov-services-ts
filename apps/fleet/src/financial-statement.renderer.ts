@@ -48,8 +48,9 @@ export type StatementOptions = {
   preparedBy?: string;
   notes?: string;
   includeCoverPage?: boolean;
-  includeFleetSummary?: boolean;
-  includePerVehicleBreakdown?: boolean;
+  includeSummary?: boolean;
+  includeVehiclePL?: boolean;
+  includeCostBreakdown?: boolean;
   // Carried so a preview can render in the chosen accent. The PDF writer here
   // emits text only, so it does not colour anything yet.
   accentColor?: string;
@@ -58,21 +59,36 @@ export type StatementOptions = {
 const DEFAULT_OPTIONS: Required<Omit<StatementOptions, "companyName" | "preparedBy" | "notes" | "accentColor">> = {
   title: "TruckMoov — Financial Statement",
   includeCoverPage: true,
-  includeFleetSummary: true,
-  includePerVehicleBreakdown: true,
+  includeSummary: true,
+  includeVehiclePL: true,
+  includeCostBreakdown: true,
 };
 
-const VEHICLE_HEADERS = [
-  "vehicleId", "plateNumber", "revenue", "fuel", "maintenance", "wages",
-  "insurance", "depreciation", "other", "totalCost", "profit", "marginPercent", "score", "tier", "jobCount",
+const PL_HEADERS = [
+  "vehicleId", "plateNumber", "revenue", "totalCost", "profit", "marginPercent", "score", "tier", "jobCount",
 ];
 
-function vehicleRow(v: StatementVehicle): (string | number)[] {
-  return [
-    v.vehicleId, v.plateNumber, v.revenue, v.costBreakdown.fuel, v.costBreakdown.maintenance,
-    v.costBreakdown.wages, v.costBreakdown.insurance, v.costBreakdown.depreciation, v.costBreakdown.other,
-    v.totalCost, v.profit, v.marginPercent, v.score, v.tier, v.jobCount,
-  ];
+const COST_HEADERS = [
+  "vehicleId", "plateNumber", "fuel", "maintenance", "wages", "insurance", "depreciation", "other", "totalCost",
+];
+
+/**
+ * A query DTO hands every unset toggle over as an explicit `undefined`, and
+ * spreading that straight onto the defaults overwrites `true` with `undefined`
+ * — which is how an export with no options came back as an empty file.
+ */
+function withDefaults(opts: StatementOptions): typeof DEFAULT_OPTIONS {
+  const set = Object.fromEntries(Object.entries(opts).filter(([, value]) => value !== undefined));
+  return { ...DEFAULT_OPTIONS, ...set };
+}
+
+function plRow(v: StatementVehicle): (string | number)[] {
+  return [v.vehicleId, v.plateNumber, v.revenue, v.totalCost, v.profit, v.marginPercent, v.score, v.tier, v.jobCount];
+}
+
+function costRow(v: StatementVehicle): (string | number)[] {
+  const c = v.costBreakdown;
+  return [v.vehicleId, v.plateNumber, c.fuel, c.maintenance, c.wages, c.insurance, c.depreciation, c.other, v.totalCost];
 }
 
 function csvCell(value: string | number): string {
@@ -81,7 +97,7 @@ function csvCell(value: string | number): string {
 }
 
 export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions = {}): string {
-  const o = { ...DEFAULT_OPTIONS, ...opts };
+  const o = withDefaults(opts);
   const lines: string[] = [];
   if (o.includeCoverPage) {
     lines.push(`${o.title},${s.generatedAt}`);
@@ -89,7 +105,7 @@ export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions
     if (opts.preparedBy) lines.push(`Prepared By,${opts.preparedBy}`);
     lines.push(`Period (months),${s.periodMonths}`);
   }
-  if (o.includeFleetSummary) {
+  if (o.includeSummary) {
     lines.push(
       `Total Revenue,${s.summary.totalRevenue}`,
       `Total Cost,${s.summary.totalCost}`,
@@ -99,19 +115,22 @@ export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions
       `Vehicles,${s.summary.vehicleCount}`,
     );
   }
-  if (o.includePerVehicleBreakdown) {
-    lines.push("", VEHICLE_HEADERS.join(","), ...s.vehicles.map((v) => vehicleRow(v).map(csvCell).join(",")));
+  if (o.includeVehiclePL) {
+    lines.push("", "Vehicle P&L", PL_HEADERS.join(","), ...s.vehicles.map((v) => plRow(v).map(csvCell).join(",")));
+  }
+  if (o.includeCostBreakdown) {
+    lines.push("", "Cost Breakdown", COST_HEADERS.join(","), ...s.vehicles.map((v) => costRow(v).map(csvCell).join(",")));
   }
   if (opts.notes) lines.push("", `Notes,${csvCell(opts.notes)}`);
   return lines.join("\n");
 }
 
 export async function renderStatementXlsx(s: FinancialStatement, opts: StatementOptions = {}): Promise<Buffer> {
-  const o = { ...DEFAULT_OPTIONS, ...opts };
+  const o = withDefaults(opts);
   const wb = new Workbook();
   wb.creator = opts.companyName ?? "TruckMoov";
 
-  if (o.includeFleetSummary) {
+  if (o.includeSummary) {
     const summary = wb.addWorksheet("Summary");
     const rows: (string | number)[][] = [[o.title, s.generatedAt]];
     if (opts.companyName) rows.push(["Company", opts.companyName]);
@@ -130,11 +149,18 @@ export async function renderStatementXlsx(s: FinancialStatement, opts: Statement
     summary.getColumn(1).font = { bold: true };
   }
 
-  if (o.includePerVehicleBreakdown) {
-    const sheet = wb.addWorksheet("Vehicles");
-    sheet.addRow(VEHICLE_HEADERS);
+  if (o.includeVehiclePL) {
+    const sheet = wb.addWorksheet("Vehicle P&L");
+    sheet.addRow(PL_HEADERS);
     sheet.getRow(1).font = { bold: true };
-    for (const v of s.vehicles) sheet.addRow(vehicleRow(v));
+    for (const v of s.vehicles) sheet.addRow(plRow(v));
+  }
+
+  if (o.includeCostBreakdown) {
+    const sheet = wb.addWorksheet("Cost Breakdown");
+    sheet.addRow(COST_HEADERS);
+    sheet.getRow(1).font = { bold: true };
+    for (const v of s.vehicles) sheet.addRow(costRow(v));
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer());
@@ -145,7 +171,7 @@ function money(n: number): string {
 }
 
 export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions = {}): Buffer {
-  const o = { ...DEFAULT_OPTIONS, ...opts };
+  const o = withDefaults(opts);
   const pdf = new SimplePdf();
 
   if (o.includeCoverPage) {
@@ -157,7 +183,7 @@ export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions
     pdf.spacer();
   }
 
-  if (o.includeFleetSummary) {
+  if (o.includeSummary) {
     pdf.heading("Summary", 13);
     const summaryRow = (label: string, value: string): PdfCell[] => [
       { text: label, width: 220 },
@@ -172,7 +198,7 @@ export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions
     pdf.spacer();
   }
 
-  if (o.includePerVehicleBreakdown) {
+  if (o.includeVehiclePL) {
     pdf.heading("Per-Vehicle P&L", 13);
     const header: PdfCell[] = [
       { text: "Vehicle", width: 110 },
@@ -191,6 +217,33 @@ export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions
         { text: money(v.profit), width: 90, align: "right" },
         { text: `${v.marginPercent}`, width: 65, align: "right" },
         { text: `${v.score}`, width: 55, align: "right" },
+      ]);
+    }
+    pdf.spacer();
+  }
+
+  if (o.includeCostBreakdown) {
+    pdf.heading("Cost Breakdown", 13);
+    const header: PdfCell[] = [
+      { text: "Vehicle", width: 110 },
+      { text: "Fuel", width: 75, align: "right" },
+      { text: "Maint.", width: 75, align: "right" },
+      { text: "Wages", width: 75, align: "right" },
+      { text: "Insurance", width: 75, align: "right" },
+      { text: "Deprec.", width: 75, align: "right" },
+      { text: "Other", width: 75, align: "right" },
+    ];
+    pdf.row(header, { bold: true });
+    for (const v of s.vehicles) {
+      const c = v.costBreakdown;
+      pdf.row([
+        { text: v.plateNumber || v.vehicleId, width: 110 },
+        { text: money(c.fuel), width: 75, align: "right" },
+        { text: money(c.maintenance), width: 75, align: "right" },
+        { text: money(c.wages), width: 75, align: "right" },
+        { text: money(c.insurance), width: 75, align: "right" },
+        { text: money(c.depreciation), width: 75, align: "right" },
+        { text: money(c.other), width: 75, align: "right" },
       ]);
     }
   }

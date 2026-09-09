@@ -31,6 +31,9 @@ export function createCorsOptions(originsEnv?: string): CorsOptions {
       "Idempotency-Key",
       "X-Application-Token",
       "x-user-role",
+      // The vehicles list sends the tab it is rendering in this header; see
+      // VEHICLE_TAB_HEADER. A browser cannot send it unless preflight allows it.
+      "tabs",
     ],
   };
 }

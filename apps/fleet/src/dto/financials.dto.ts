@@ -1,6 +1,19 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { IsBoolean, IsISO8601, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
+
+/**
+ * A query string carries "false", and `Boolean("false")` is true, so the
+ * built-in Boolean transform turns every toggle on regardless of what was sent.
+ */
+const toBoolean = () =>
+  Transform(({ value }) => {
+    if (typeof value === "boolean" || value === undefined) return value;
+    const text = String(value).trim().toLowerCase();
+    if (["false", "0", "no"].includes(text)) return false;
+    if (["true", "1", "yes"].includes(text)) return true;
+    return value;
+  });
 
 const STATEMENT_FORMATS = ["pdf", "csv", "xlsx"] as const;
 const DRIVER_WAGE_ALLOCATION_METHODS = ["fixed_monthly", "per_trip", "per_kilometer", "hybrid"] as const;
@@ -132,19 +145,37 @@ export class StatementQueryDto {
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
-  @Type(() => Boolean)
+  @toBoolean()
   @IsBoolean()
   includeCoverPage?: boolean;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ default: true, description: "Fleet totals section" })
   @IsOptional()
-  @Type(() => Boolean)
+  @toBoolean()
+  @IsBoolean()
+  includeSummary?: boolean;
+
+  @ApiPropertyOptional({ default: true, description: "Per-vehicle profit and loss table" })
+  @IsOptional()
+  @toBoolean()
+  @IsBoolean()
+  includeVehiclePL?: boolean;
+
+  @ApiPropertyOptional({ default: true, description: "Per-vehicle cost category table" })
+  @IsOptional()
+  @toBoolean()
+  @IsBoolean()
+  includeCostBreakdown?: boolean;
+
+  @ApiPropertyOptional({ deprecated: true, description: "Former name for includeSummary" })
+  @IsOptional()
+  @toBoolean()
   @IsBoolean()
   includeFleetSummary?: boolean;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ deprecated: true, description: "Former name for includeVehiclePL" })
   @IsOptional()
-  @Type(() => Boolean)
+  @toBoolean()
   @IsBoolean()
   includePerVehicleBreakdown?: boolean;
 }
@@ -254,4 +285,91 @@ export class UpsertFinancialConfigDto {
   @IsOptional()
   @IsIn(DEPRECIATION_METHODS)
   depreciationMethod?: (typeof DEPRECIATION_METHODS)[number] | null;
+
+  /* The names the Configure Costs form posts. Kept alongside the stored names
+     so neither spelling is rejected. */
+
+  @ApiPropertyOptional({ nullable: true, description: "Alias of monthlyOtherNgn" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  fixedCostMonthly?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Alias of monthlyDriverWageNgn" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  driverWageMonthly?: number | null;
+
+  @ApiPropertyOptional({ enum: DRIVER_WAGE_ALLOCATION_METHODS, nullable: true, description: "Alias of driverWageAllocationMethod" })
+  @IsOptional()
+  @IsIn(DRIVER_WAGE_ALLOCATION_METHODS)
+  wageAllocationMethod?: (typeof DRIVER_WAGE_ALLOCATION_METHODS)[number] | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Alias of assetUsefulLifeMonths" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  depreciationLifetimeMonths?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Alias of assetPurchasePriceNgn" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  vehicleCostNgn?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, description: "Alias of assetSalvageValueNgn" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  salvageValueNgn?: number | null;
+}
+
+/** Alias name posted by the form -> the column it is stored in. */
+const CONFIG_ALIASES: Record<string, string> = {
+  fixedCostMonthly: "monthlyOtherNgn",
+  driverWageMonthly: "monthlyDriverWageNgn",
+  wageAllocationMethod: "driverWageAllocationMethod",
+  depreciationLifetimeMonths: "assetUsefulLifeMonths",
+  vehicleCostNgn: "assetPurchasePriceNgn",
+  salvageValueNgn: "assetSalvageValueNgn",
+};
+
+/**
+ * Folds the alias spellings onto the stored column names. A canonical name
+ * present in the same body wins, so a client sending both cannot be surprised
+ * by which one landed.
+ */
+export function normalizeFinancialConfig(dto: UpsertFinancialConfigDto): Record<string, unknown> {
+  const source = dto as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || key in CONFIG_ALIASES) continue;
+    out[key] = value;
+  }
+  for (const [alias, column] of Object.entries(CONFIG_ALIASES)) {
+    if (source[alias] !== undefined && out[column] === undefined) out[column] = source[alias];
+  }
+  return out;
+}
+
+/** Maps the deprecated statement toggle names onto the current ones. */
+export function normalizeStatementOptions(query: StatementQueryDto) {
+  return {
+    title: query.title,
+    companyName: query.companyName,
+    preparedBy: query.preparedBy,
+    notes: query.notes,
+    accentColor: query.accentColor,
+    includeCoverPage: query.includeCoverPage,
+    includeSummary: query.includeSummary ?? query.includeFleetSummary,
+    includeVehiclePL: query.includeVehiclePL ?? query.includePerVehicleBreakdown,
+    includeCostBreakdown: query.includeCostBreakdown,
+  };
 }
