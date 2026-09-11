@@ -7,6 +7,8 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { FleetFactsService } from './fleet-facts.service';
+import { SystemTenantNotFoundError } from './get-system-tenant.use-case';
+import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
@@ -45,6 +47,8 @@ export class GetTenantResourceUseCase {
     @Inject(SIM_REPOSITORY) private readonly sims: SimRepository,
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly entitlements: PlanEntitlementsRepository,
+    @Inject(ListSystemTenantsUseCase)
+    private readonly tenants: ListSystemTenantsUseCase,
   ) {}
 
   async execute(accessToken: string, tenantId: string, tab: TenantResourceTab, planCode: string | null) {
@@ -52,7 +56,14 @@ export class GetTenantResourceUseCase {
       forbiddenMessage: 'You are not permitted to view tenant detail',
     });
 
-    const limit = await this.quotaFor(planCode, tab);
+    // Without this a mistyped id answers exactly like a real tenant whose
+    // fleet service is down, and the drawer cannot tell the two apart.
+    const tenant = (await this.tenants.list(accessToken, {})).find((row) => row.id === tenantId);
+    if (!tenant) throw new SystemTenantNotFoundError();
+
+    // The caller should not have to know the tenant's plan to get its limit;
+    // the query parameter stays as an override.
+    const limit = await this.quotaFor(planCode ?? tenant.planCode, tab);
     const resource = tab === 'sims' ? await this.tenantSims(tenantId) : await this.fleet.tenantResource(tenantId, tab);
 
     if (!resource) {

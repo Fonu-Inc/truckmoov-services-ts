@@ -642,6 +642,8 @@ export class SystemTenantsController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError)
+        throw new NotFoundException(error.message);
       throw error;
     }
   }

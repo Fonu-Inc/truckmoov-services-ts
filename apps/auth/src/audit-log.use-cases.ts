@@ -8,6 +8,14 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
+import { TENANT_NAME_READER, type TenantNameReader } from './tenant-name-reader.port';
+
+/**
+ * The platform's own audit rows are filed under a tenant id that is not a
+ * tenant. Left bare it reads as an unnamed customer in the dropdown.
+ */
+const SYSTEM_TENANT_ID = 'system';
+const SYSTEM_TENANT_LABEL = 'System / Platform';
 
 /** Chains are verified per tenant, so a whole-platform check is many checks. */
 const MAX_CHAINS_VERIFIED = 200;
@@ -64,6 +72,7 @@ export class GetAuditFilterOptionsUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(ACTIVITY_LOG_REPOSITORY) private readonly repository: ActivityLogRepository,
+    @Inject(TENANT_NAME_READER) private readonly tenantNames: TenantNameReader,
   ) {}
 
   async execute(accessToken: string) {
@@ -71,7 +80,33 @@ export class GetAuditFilterOptionsUseCase {
       forbiddenMessage: 'You are not permitted to view the platform audit log',
     });
 
-    return { status: true, message: 'success', data: await this.repository.filterOptions() };
+    const options = await this.repository.filterOptions();
+    return {
+      status: true,
+      message: 'success',
+      data: { ...options, tenants: await this.labelTenants(options.tenants) },
+    };
+  }
+
+  /**
+   * Audit rows only started carrying tenant_name when the column was added, so
+   * every tenant whose rows predate it has nothing to show. The name is looked
+   * up for those, which means a renamed tenant labels its old rows with its
+   * current name — the alternative is a dropdown of bare UUIDs.
+   */
+  private async labelTenants(tenants: Array<{ tenantId: string; tenantName: string | null }>) {
+    return Promise.all(
+      tenants.map(async (tenant) => {
+        if (tenant.tenantId === SYSTEM_TENANT_ID) {
+          return { ...tenant, tenantName: SYSTEM_TENANT_LABEL };
+        }
+        if (tenant.tenantName) return tenant;
+        return {
+          ...tenant,
+          tenantName: await this.tenantNames.organizationNameFor(tenant.tenantId),
+        };
+      }),
+    );
   }
 }
 

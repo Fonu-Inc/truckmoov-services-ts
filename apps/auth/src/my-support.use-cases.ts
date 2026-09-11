@@ -85,7 +85,10 @@ export class GetSupportOptionsUseCase {
           value,
           label: PRIORITY_LABELS[value] ?? value,
         })),
-        contextTypes: [...SUPPORT_TICKET_CONTEXT_TYPES],
+        contextTypes: SUPPORT_TICKET_CONTEXT_TYPES.map((value) => ({
+          value,
+          label: CONTEXT_TYPE_LABELS[value] ?? value,
+        })),
       },
     };
   }
@@ -110,6 +113,19 @@ const CHANNEL_LABELS: Record<string, string> = {
   messaging: 'Messaging',
   billing: 'Billing',
   other: 'Other',
+};
+
+/**
+ * Labelled like the three lists beside it, so the wizard can render all four
+ * dropdowns the same way instead of special-casing this one.
+ */
+const CONTEXT_TYPE_LABELS: Record<string, string> = {
+  device: 'Device',
+  sim: 'SIM',
+  vehicle: 'Vehicle',
+  whatsapp: 'WhatsApp',
+  billing: 'Billing',
+  none: 'None',
 };
 
 /** The wording on the priority dropdown, which explains the choice rather than naming it. */

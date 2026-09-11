@@ -3,7 +3,11 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import {
+  SUPPORT_TICKET_REPOSITORY,
+  type StoredSupportTicket,
+  type SupportTicketRepository,
+} from './support-ticket.repository';
 import {
   SUPPORT_MESSAGE_REPOSITORY,
   type SupportMessageRepository,
@@ -49,28 +53,13 @@ export class GetSystemSupportDashboardUseCase {
     );
     const metrics = buildDashboardMetrics({ tickets: allTickets, messagesByTicketId });
 
-    const needsAttention = [...escalatedTickets, ...openTickets]
-      .slice(0, 5)
-      .map((t) => ({
-        id: t.id,
-        subject: t.subject,
-        tenantId: t.tenantId,
-        category: t.category,
-        status: t.status,
-        priority: t.priority,
-      }));
+    const needsAttention = [...escalatedTickets, ...openTickets].slice(0, 5).map(dashboardTicket);
 
     const recentlyResolved = resolvedTickets
       .filter((t) => t.resolvedAt)
       .sort((a, b) => (b.resolvedAt!.getTime() ?? 0) - (a.resolvedAt!.getTime() ?? 0))
       .slice(0, 5)
-      .map((t) => ({
-        id: t.id,
-        subject: t.subject,
-        tenantId: t.tenantId,
-        category: t.category,
-        resolvedAt: t.resolvedAt!.toISOString(),
-      }));
+      .map(dashboardTicket);
 
     return {
       status: true,
@@ -91,4 +80,26 @@ export class GetSystemSupportDashboardUseCase {
       },
     };
   }
+}
+
+/**
+ * The same field set the ticket list returns, so a client can type both as one
+ * shape. The cards need the timestamps: Needs Attention sorts by age and
+ * Recently Resolved shows a relative-time chip, and neither can do that from a
+ * row that carries none.
+ */
+export function dashboardTicket(ticket: StoredSupportTicket) {
+  return {
+    id: ticket.id,
+    subject: ticket.subject,
+    tenantId: ticket.tenantId,
+    category: ticket.category,
+    status: ticket.status,
+    priority: ticket.priority,
+    createdAt: ticket.createdAt.toISOString(),
+    updatedAt: ticket.updatedAt.toISOString(),
+    escalatedAt: ticket.escalatedAt?.toISOString() ?? null,
+    resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+    closedAt: ticket.closedAt?.toISOString() ?? null,
+  };
 }
