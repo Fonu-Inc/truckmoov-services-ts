@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { sweepSafely } from '@shared/observability';
 import { ChargeUsageUseCase } from './charge-usage.use-case';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 
@@ -40,7 +41,10 @@ export class SimRecurringChargeService implements OnApplicationBootstrap, OnAppl
     // Runs more often than monthly on purpose: the billing month in the
     // reference is what makes it once-per-month, so a frequent sweep simply
     // catches tenants whose charge has not landed yet.
-    this.timer = setInterval(() => void this.run(), SWEEP_INTERVAL_MS);
+    this.timer = setInterval(
+      () => sweepSafely(this.logger, 'sim_recurring_charge', () => this.run()),
+      SWEEP_INTERVAL_MS,
+    );
   }
 
   onApplicationShutdown(): void {

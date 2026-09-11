@@ -3,3 +3,5 @@ export {
   registerSentryProcessHandlers,
   SentryExceptionFilter,
 } from "./sentry";
+
+export { sweepSafely } from "./sweep";

@@ -9,6 +9,8 @@ export type DbConfig = {
   user: string;
   password: string;
   dbName: string;
+  poolMin?: number;
+  poolMax?: number;
 };
 
 export class AuthRoleRecord {
@@ -2237,6 +2239,7 @@ export async function getAuthOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
+    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10 },
     schema: 'public',
     migrations: {
       path:

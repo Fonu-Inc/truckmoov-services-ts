@@ -8,6 +8,8 @@ export type DbConfig = {
   user: string;
   password: string;
   dbName: string;
+  poolMin?: number;
+  poolMax?: number;
 };
 
 export class VehicleRecord {
@@ -1220,6 +1222,7 @@ export async function getFleetOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
+    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10 },
     migrations: {
       path: process.env.NODE_ENV === "production"
         ? "dist/apps/fleet/src/migrations"

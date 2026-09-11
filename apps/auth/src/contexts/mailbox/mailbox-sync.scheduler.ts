@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { sweepSafely } from '@shared/observability';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
   type MailCredentialsRepository,
@@ -45,7 +46,7 @@ export class MailboxSyncScheduler implements OnApplicationBootstrap, OnApplicati
     }
 
     this.timer = setInterval(() => {
-      void this.run();
+      sweepSafely(this.logger, 'mailbox_sync', () => this.run());
     }, this.config.mailbox.syncIntervalSeconds * 1000);
   }
 

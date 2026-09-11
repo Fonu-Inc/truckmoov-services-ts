@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { sweepSafely } from '@shared/observability';
 import { ObjectStorageService } from '@shared/object-storage';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
@@ -47,8 +48,14 @@ export class StorageReconciliationService implements OnApplicationBootstrap, OnA
 
     // Not at the instant of boot: a rolling deploy would otherwise have every
     // replica sweep the same tenants at once.
-    this.firstRun = setTimeout(() => void this.run(), FIRST_SWEEP_DELAY_MS);
-    this.timer = setInterval(() => void this.run(), SWEEP_INTERVAL_MS);
+    this.firstRun = setTimeout(
+      () => sweepSafely(this.logger, 'storage_reconciliation', () => this.run()),
+      FIRST_SWEEP_DELAY_MS,
+    );
+    this.timer = setInterval(
+      () => sweepSafely(this.logger, 'storage_reconciliation', () => this.run()),
+      SWEEP_INTERVAL_MS,
+    );
   }
 
   onApplicationShutdown(): void {

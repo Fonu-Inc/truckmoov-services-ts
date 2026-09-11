@@ -41,6 +41,13 @@ export class AppConfigService {
       user: this.config.get("POSTGRES_USER", "truckmoov"),
       password: this.config.get("POSTGRES_PASSWORD", "truckmoov"),
       dbName: this.config.get("POSTGRES_DB", "truckmoov"),
+      // Knex defaults to a maximum of 10 whether or not anybody chose it, and
+      // a service that serves HTTP while running background sweeps can sit on
+      // all ten. Named here so the ceiling is a decision rather than a default,
+      // and raisable without a code change — mind the server's max_connections
+      // against pool size times replica count.
+      poolMin: this.config.get<number>("DB_POOL_MIN", 2),
+      poolMax: this.config.get<number>("DB_POOL_MAX", 10),
     };
   }
 
