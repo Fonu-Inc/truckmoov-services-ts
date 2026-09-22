@@ -5,7 +5,7 @@ import {
   parseCsvRecords,
   type CsvColumn,
   type CsvRowError,
-} from "../../shared/domain/csv";
+} from "@shared/csv";
 
 export type DeviceCsvRow = {
   imei: string;

@@ -6,27 +6,23 @@ import {
   ONBOARDING_VERIFICATION_CODE_TEMPLATE,
 } from '@auth/templates/onboarding-verification-code.template';
 import { VERIFICATION_CODE_TTL_MS } from '@auth/onboarding/domain/onboarding-application.support';
+import {
+  VerificationDispatchError,
+  type OnboardingVerificationNotifier,
+  type VerificationCodeMessage,
+} from '@auth/onboarding/domain/ports/onboarding-verification-notifier.port';
 
 // The applicant has no tenant and no wallet, so onboarding messages are sent
 // as the platform and charged to it, never to the organisation applying.
 const PLATFORM_TENANT_ID = 'system';
 
-export class VerificationDispatchError extends Error {
-  constructor(channel: string) {
-    super(`Could not send the ${channel} verification code`);
-    this.name = 'VerificationDispatchError';
-  }
-}
-
-export type VerificationCodeMessage = {
-  destination: string;
-  code: string;
-  organizationName: string;
-};
-
 @Injectable()
-export class OnboardingVerificationNotifier {
-  private readonly logger = new Logger(OnboardingVerificationNotifier.name);
+export class MailerOnboardingVerificationNotifier
+  implements OnboardingVerificationNotifier
+{
+  private readonly logger = new Logger(
+    MailerOnboardingVerificationNotifier.name,
+  );
 
   constructor(
     @Inject(MailerService) private readonly mailer: MailerService,

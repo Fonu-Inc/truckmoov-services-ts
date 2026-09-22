@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@shared/config": path.resolve(__dirname, "libs/shared/config/src"),
       "@shared/crypto": path.resolve(__dirname, "libs/shared/crypto/src"),
+      "@shared/csv": path.resolve(__dirname, "libs/shared/csv/src"),
       "@shared/devices": path.resolve(__dirname, "libs/shared/devices/src"),
       "@shared/audit": path.resolve(__dirname, "libs/shared/audit/src"),
       "@shared/logger": path.resolve(__dirname, "libs/shared/logger/src"),

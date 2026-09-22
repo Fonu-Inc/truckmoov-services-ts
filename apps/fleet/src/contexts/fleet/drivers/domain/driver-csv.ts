@@ -4,7 +4,7 @@ import {
   parseCsvRecords,
   type CsvColumn,
   type CsvRowError,
-} from "../../shared/domain/csv";
+} from "@shared/csv";
 import { DRIVER_COMMUNICATION_PREFERENCES } from "./entities/driver.entity";
 
 export type DriverCsvRow = {

@@ -19,7 +19,10 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { validateVerificationCode } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
-import { OnboardingVerificationNotifier } from '@auth/onboarding/infrastructure/notifications/onboarding-verification-notifier';
+import {
+  ONBOARDING_VERIFICATION_NOTIFIER,
+  type OnboardingVerificationNotifier,
+} from '@auth/onboarding/domain/ports/onboarding-verification-notifier.port';
 
 export class VerificationResendTooSoonError extends Error {
   constructor(secondsRemaining: number) {
@@ -48,7 +51,7 @@ export class SendOnboardingVerificationCodeUseCase {
     @Inject(ONBOARDING_APPLICATION_REPOSITORY)
     private readonly applications: OnboardingApplicationRepository,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
-    @Inject(OnboardingVerificationNotifier)
+    @Inject(ONBOARDING_VERIFICATION_NOTIFIER)
     private readonly notifier: OnboardingVerificationNotifier,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,

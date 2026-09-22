@@ -9,7 +9,7 @@ import {
 } from "../../domain/ports/device-identity-event.publisher";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
 import { emitDeviceIdentity } from "./device-identity-emit";
-import type { CsvRowError } from "../../../shared/domain/csv";
+import type { CsvRowError } from "@shared/csv";
 
 export type BulkImportDevicesCommand = {
   tenantId?: string;

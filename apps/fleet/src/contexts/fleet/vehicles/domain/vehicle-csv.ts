@@ -4,7 +4,7 @@ import {
   parseCsvRecords,
   type CsvColumn,
   type CsvRowError,
-} from "../../shared/domain/csv";
+} from "@shared/csv";
 import { FLEET_ASSET_STATUSES } from "../../shared/domain/fleet-status";
 import {
   DEFAULT_CAPACITY_UNIT,

@@ -5,7 +5,10 @@ import {
   TOKEN_SERVICE,
   USER_REPOSITORY,
 } from '@auth/session';
-import type { AuthNotifier } from '@auth/session/domain/ports/auth-notifier.port';
+import type {
+  AuthNotifier,
+  InviteEmail,
+} from '@auth/session/domain/ports/auth-notifier.port';
 import type { InviteRepository } from '@auth/session/domain/ports/invite-repository.port';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
@@ -38,7 +41,10 @@ import {
   DecisionReasonRequiredError,
   REVIEWABLE_STATUSES,
 } from './review-onboarding-application.use-cases';
-import { OnboardingDecisionNotifier } from '@auth/onboarding/infrastructure/notifications/onboarding-decision-notifier';
+import {
+  ONBOARDING_DECISION_NOTIFIER,
+  type OnboardingDecisionNotifier,
+} from '@auth/onboarding/domain/ports/onboarding-decision-notifier.port';
 import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
 
 // Matches the existing tenant bootstrap invite window.
@@ -231,7 +237,7 @@ export class RejectOnboardingApplicationUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(OnboardingDecisionNotifier)
+    @Inject(ONBOARDING_DECISION_NOTIFIER)
     private readonly notifier: OnboardingDecisionNotifier,
   ) {}
 
@@ -294,7 +300,7 @@ export class RequestOnboardingApplicationChangesUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(OnboardingDecisionNotifier)
+    @Inject(ONBOARDING_DECISION_NOTIFIER)
     private readonly notifier: OnboardingDecisionNotifier,
   ) {}
 
@@ -450,14 +456,14 @@ export class ResendOnboardingSetupLinkUseCase {
  */
 async function deliverSetupLink(
   applications: OnboardingApplicationRepository,
-  notifier: { sendTenantInviteEmail(invite: never): Promise<void> },
+  notifier: Pick<AuthNotifier, 'sendTenantInviteEmail'>,
   application: StoredOnboardingApplication,
-  invite: { email: string; role: string; inviteToken: string },
+  invite: InviteEmail,
 ): Promise<{ delivered: boolean; status: 'sent' | 'failed'; error: string | null }> {
   const attemptedAt = new Date();
 
   try {
-    await notifier.sendTenantInviteEmail(invite as never);
+    await notifier.sendTenantInviteEmail(invite);
     await applications.save({
       ...application,
       setupLinkStatus: 'sent',

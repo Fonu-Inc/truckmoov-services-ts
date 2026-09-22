@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
-  getAuthOrm,
   OnboardingApplicationDocumentRecord,
   OnboardingApplicationRecord,
   OnboardingVerificationCodeRecord,
-} from '@auth/session/infrastructure/persistence/auth-orm';
+} from './onboarding-orm';
 import type {
   OnboardingApplicationQueueFilters,
   OnboardingApplicationRepository,

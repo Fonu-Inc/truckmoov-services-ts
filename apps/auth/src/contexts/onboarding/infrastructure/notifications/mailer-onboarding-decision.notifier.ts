@@ -7,22 +7,17 @@ import {
   APPLICATION_REJECTED_SUBJECT,
   APPLICATION_REJECTED_TEMPLATE,
 } from '@auth/templates/onboarding-application-decision.template';
-
-export type ApplicationDecisionEmail = {
-  email: string;
-  organizationName: string;
-  reference: string;
-  reason: string;
-};
-
-export type ApplicationChangesRequestedEmail = ApplicationDecisionEmail & {
-  applicationId: string;
-  applicationToken: string;
-};
+import type {
+  ApplicationChangesRequestedEmail,
+  ApplicationDecisionEmail,
+  OnboardingDecisionNotifier,
+} from '@auth/onboarding/domain/ports/onboarding-decision-notifier.port';
 
 @Injectable()
-export class OnboardingDecisionNotifier {
-  private readonly logger = new Logger(OnboardingDecisionNotifier.name);
+export class MailerOnboardingDecisionNotifier
+  implements OnboardingDecisionNotifier
+{
+  private readonly logger = new Logger(MailerOnboardingDecisionNotifier.name);
 
   constructor(
     @Inject(MailerService) private readonly mailer: MailerService,

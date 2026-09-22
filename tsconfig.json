@@ -28,6 +28,7 @@
       "@shared/geofence": ["libs/shared/geofence/src"],
       "@shared/sms": ["libs/shared/sms/src"],
       "@shared/crypto": ["libs/shared/crypto/src"],
+      "@shared/csv": ["libs/shared/csv/src"],
       "@shared/devices": ["libs/shared/devices/src"],
       "@shared/audit": ["libs/shared/audit/src"],
       "@auth/session": ["apps/auth/src/contexts/auth/session"],

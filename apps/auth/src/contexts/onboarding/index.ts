@@ -7,6 +7,15 @@ export { OnboardingValidationError } from "./domain/onboarding-application.valid
 
 // Domain ports and types
 export { ONBOARDING_APPLICATION_REPOSITORY } from "./domain/onboarding-application.repository";
+export {
+  ONBOARDING_DECISION_NOTIFIER,
+  type OnboardingDecisionNotifier,
+} from "./domain/ports/onboarding-decision-notifier.port";
+export {
+  ONBOARDING_VERIFICATION_NOTIFIER,
+  VerificationDispatchError,
+  type OnboardingVerificationNotifier,
+} from "./domain/ports/onboarding-verification-notifier.port";
 export type {
   OnboardingApplicantType,
   OnboardingApplicationQueueFilters,
@@ -68,10 +77,7 @@ export {
 
 // Infrastructure
 export { OnboardingApplicationRateLimitGuard } from "./infrastructure/http/onboarding-application-rate-limit.guard";
-export { OnboardingDecisionNotifier } from "./infrastructure/notifications/onboarding-decision-notifier";
-export {
-  OnboardingVerificationNotifier,
-  VerificationDispatchError,
-} from "./infrastructure/notifications/onboarding-verification-notifier";
+export { MailerOnboardingDecisionNotifier } from "./infrastructure/notifications/mailer-onboarding-decision.notifier";
+export { MailerOnboardingVerificationNotifier } from "./infrastructure/notifications/mailer-onboarding-verification.notifier";
 export { InMemoryOnboardingApplicationRepository } from "./infrastructure/persistence/in-memory-onboarding-application.repository";
 export { MikroOnboardingApplicationRepository } from "./infrastructure/persistence/mikro-onboarding-application.repository";
