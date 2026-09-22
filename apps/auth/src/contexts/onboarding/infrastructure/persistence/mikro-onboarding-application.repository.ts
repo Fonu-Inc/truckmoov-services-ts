@@ -4,6 +4,8 @@ import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
   OnboardingApplicationDocumentRecord,
   OnboardingApplicationRecord,
+  OnboardingApplicationVehicleRecord,
+  OnboardingDeviceRequestRecord,
   OnboardingVerificationCodeRecord,
 } from './onboarding-orm';
 import type {
@@ -12,6 +14,8 @@ import type {
   OnboardingVerificationChannel,
   StoredOnboardingApplication,
   StoredOnboardingApplicationDocument,
+  StoredOnboardingApplicationVehicle,
+  StoredOnboardingDeviceRequest,
   StoredOnboardingVerificationCode,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 
@@ -27,7 +31,14 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     businessEmail: r.businessEmail,
     organizationPhone: r.organizationPhone,
     contactFullName: r.contactFullName,
-    contactRole: r.contactRole,
+    contactRole: r.contactRole ?? null,
+    rcNumber: r.rcNumber ?? null,
+    taxIdentificationNumber: r.taxIdentificationNumber ?? null,
+    identificationType:
+      (r.identificationType as StoredOnboardingApplication['identificationType']) ??
+      null,
+    identificationNumber: r.identificationNumber ?? null,
+    m2mPlanCode: r.m2mPlanCode ?? null,
     streetAddress: r.streetAddress,
     city: r.city,
     state: r.state,
@@ -48,12 +59,52 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
   };
 }
 
+function toStoredVehicle(
+  r: OnboardingApplicationVehicleRecord,
+): StoredOnboardingApplicationVehicle {
+  return {
+    id: r.id,
+    applicationId: r.applicationId,
+    registrationNumber: r.registrationNumber,
+    vehicleType: r.vehicleType as StoredOnboardingApplicationVehicle['vehicleType'],
+    make: r.make,
+    model: r.model,
+    year: r.year ?? null,
+    engineNumber: r.engineNumber ?? null,
+    chassisNumber: r.chassisNumber ?? null,
+    color: r.color ?? null,
+    engineCapacity: r.engineCapacity ?? null,
+    odometerReading: r.odometerReading ?? null,
+    purchaseType:
+      (r.purchaseType as StoredOnboardingApplicationVehicle['purchaseType']) ??
+      null,
+    purchaseTypeOther: r.purchaseTypeOther ?? null,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+function toStoredDeviceRequest(
+  r: OnboardingDeviceRequestRecord,
+): StoredOnboardingDeviceRequest {
+  return {
+    id: r.id,
+    applicationId: r.applicationId,
+    quantity: r.quantity,
+    useCase: r.useCase,
+    notes: r.notes ?? null,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
 function toStoredDocument(
   r: OnboardingApplicationDocumentRecord,
 ): StoredOnboardingApplicationDocument {
   return {
     id: r.id,
     applicationId: r.applicationId,
+    vehicleId: r.vehicleId ?? null,
     tenantId: r.tenantId ?? null,
     documentType: r.documentType as StoredOnboardingApplicationDocument['documentType'],
     documentName: r.documentName,
@@ -155,6 +206,95 @@ export class MikroOnboardingApplicationRepository
       { orderBy: { createdAt: 'asc' }, limit, offset: (page - 1) * limit },
     );
     return { items: records.map(toStored), total };
+  }
+
+  async saveVehicle(vehicle: StoredOnboardingApplicationVehicle): Promise<void> {
+    const em = await this.em();
+    const existing = await em.findOne(OnboardingApplicationVehicleRecord, {
+      id: vehicle.id,
+    });
+    const target = existing ?? new OnboardingApplicationVehicleRecord();
+    Object.assign(target, vehicle);
+    if (!existing) em.persist(target);
+    await em.flush();
+  }
+
+  async findVehicleById(
+    id: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null> {
+    const em = await this.em();
+    const record = await em.findOne(OnboardingApplicationVehicleRecord, { id });
+    return record ? toStoredVehicle(record) : null;
+  }
+
+  async findVehiclesByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingApplicationVehicle[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingApplicationVehicleRecord,
+      { applicationId },
+      { orderBy: { createdAt: 'asc' } },
+    );
+    return records.map(toStoredVehicle);
+  }
+
+  async findVehicleByRegistration(
+    applicationId: string,
+    registrationNumber: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null> {
+    const em = await this.em();
+    const record = await em.findOne(OnboardingApplicationVehicleRecord, {
+      applicationId,
+      registrationNumber,
+    });
+    return record ? toStoredVehicle(record) : null;
+  }
+
+  async deleteVehicle(id: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(OnboardingApplicationDocumentRecord, {
+      vehicleId: id,
+    });
+    await em.nativeDelete(OnboardingApplicationVehicleRecord, { id });
+  }
+
+  async saveDeviceRequest(
+    request: StoredOnboardingDeviceRequest,
+  ): Promise<void> {
+    const em = await this.em();
+    const existing = await em.findOne(OnboardingDeviceRequestRecord, {
+      id: request.id,
+    });
+    const target = existing ?? new OnboardingDeviceRequestRecord();
+    Object.assign(target, request);
+    if (!existing) em.persist(target);
+    await em.flush();
+  }
+
+  async findDeviceRequestById(
+    id: string,
+  ): Promise<StoredOnboardingDeviceRequest | null> {
+    const em = await this.em();
+    const record = await em.findOne(OnboardingDeviceRequestRecord, { id });
+    return record ? toStoredDeviceRequest(record) : null;
+  }
+
+  async findDeviceRequestsByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingDeviceRequest[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingDeviceRequestRecord,
+      { applicationId },
+      { orderBy: { createdAt: 'asc' } },
+    );
+    return records.map(toStoredDeviceRequest);
+  }
+
+  async deleteDeviceRequest(id: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(OnboardingDeviceRequestRecord, { id });
   }
 
   async saveDocument(

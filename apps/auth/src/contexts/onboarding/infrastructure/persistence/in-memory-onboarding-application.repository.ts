@@ -5,6 +5,8 @@ import type {
   OnboardingVerificationChannel,
   StoredOnboardingApplication,
   StoredOnboardingApplicationDocument,
+  StoredOnboardingApplicationVehicle,
+  StoredOnboardingDeviceRequest,
   StoredOnboardingVerificationCode,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 
@@ -25,6 +27,14 @@ export class InMemoryOnboardingApplicationRepository
     StoredOnboardingApplicationDocument
   >();
   private readonly codes = new Map<string, StoredOnboardingVerificationCode>();
+  private readonly vehicles = new Map<
+    string,
+    StoredOnboardingApplicationVehicle
+  >();
+  private readonly deviceRequests = new Map<
+    string,
+    StoredOnboardingDeviceRequest
+  >();
 
   async save(application: StoredOnboardingApplication): Promise<void> {
     this.applications.set(application.id, { ...application });
@@ -86,6 +96,68 @@ export class InMemoryOnboardingApplicationRepository
     return { items: matches.slice(offset, offset + limit), total: matches.length };
   }
 
+  async saveVehicle(
+    vehicle: StoredOnboardingApplicationVehicle,
+  ): Promise<void> {
+    this.vehicles.set(vehicle.id, { ...vehicle });
+  }
+
+  async findVehicleById(
+    id: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null> {
+    return this.vehicles.get(id) ?? null;
+  }
+
+  async findVehiclesByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingApplicationVehicle[]> {
+    return [...this.vehicles.values()]
+      .filter((vehicle) => vehicle.applicationId === applicationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async findVehicleByRegistration(
+    applicationId: string,
+    registrationNumber: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null> {
+    return (
+      [...this.vehicles.values()].find(
+        (vehicle) =>
+          vehicle.applicationId === applicationId &&
+          vehicle.registrationNumber === registrationNumber,
+      ) ?? null
+    );
+  }
+
+  async deleteVehicle(id: string): Promise<void> {
+    this.vehicles.delete(id);
+    for (const [documentId, document] of this.documents) {
+      if (document.vehicleId === id) this.documents.delete(documentId);
+    }
+  }
+
+  async saveDeviceRequest(request: StoredOnboardingDeviceRequest): Promise<void> {
+    this.deviceRequests.set(request.id, { ...request });
+  }
+
+  async findDeviceRequestById(
+    id: string,
+  ): Promise<StoredOnboardingDeviceRequest | null> {
+    return this.deviceRequests.get(id) ?? null;
+  }
+
+  async findDeviceRequestsByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingDeviceRequest[]> {
+    return [...this.deviceRequests.values()]
+      .filter((request) => request.applicationId === applicationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async deleteDeviceRequest(id: string): Promise<void> {
+    this.deviceRequests.delete(id);
+  }
+
   async saveDocument(
     document: StoredOnboardingApplicationDocument,
   ): Promise<void> {
@@ -93,6 +165,7 @@ export class InMemoryOnboardingApplicationRepository
       (candidate) =>
         candidate.applicationId === document.applicationId &&
         candidate.documentType === document.documentType &&
+        candidate.vehicleId === document.vehicleId &&
         candidate.id !== document.id,
     );
     if (replaced) this.documents.delete(replaced.id);

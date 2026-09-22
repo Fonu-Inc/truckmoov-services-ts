@@ -10,13 +10,13 @@ import {
   assertApplicationEditable,
   generateVerificationCode,
   hashApplicationToken,
-  toApplicationView,
   verificationCodeMatches,
   VERIFICATION_CODE_TTL_MS,
   VERIFICATION_MAX_ATTEMPTS,
   VERIFICATION_MAX_SENDS_PER_HOUR,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { loadApplicationView } from './support/load-application-view';
 import { validateVerificationCode } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 import {
@@ -220,7 +220,7 @@ export class ConfirmOnboardingVerificationCodeUseCase {
     return {
       status: true,
       message: input.channel === 'email' ? 'Email verified' : 'Phone number verified',
-      data: toApplicationView(updated, documents),
+      data: await loadApplicationView(this.applications, updated),
     };
   }
 }

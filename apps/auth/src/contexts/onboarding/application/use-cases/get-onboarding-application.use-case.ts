@@ -7,8 +7,9 @@ import {
 import {
   ApplicationNotFoundError,
   hashApplicationToken,
-  toApplicationView,
+  isDraftExpired,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { loadApplicationView } from './support/load-application-view';
 
 @Injectable()
 export class GetOnboardingApplicationUseCase {
@@ -19,14 +20,11 @@ export class GetOnboardingApplicationUseCase {
 
   async execute(applicationId: string, applicationToken: string) {
     const application = await this.resolve(applicationId, applicationToken);
-    const documents = await this.applications.findDocumentsByApplicationId(
-      application.id,
-    );
 
     return {
       status: true,
       message: 'success',
-      data: toApplicationView(application, documents),
+      data: await loadApplicationView(this.applications, application),
     };
   }
 
@@ -41,6 +39,10 @@ export class GetOnboardingApplicationUseCase {
     if (application.tokenHash !== hashApplicationToken(applicationToken)) {
       throw new ApplicationNotFoundError();
     }
+    // An abandoned draft reads as gone rather than as a locked application:
+    // there is nothing the applicant can do with it, and the next step is to
+    // start again, not to ask support to unlock it.
+    if (isDraftExpired(application)) throw new ApplicationNotFoundError();
     return application;
   }
 }

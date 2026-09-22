@@ -7,8 +7,9 @@ import {
 import {
   ApplicationNotFoundError,
   assertApplicationEditable,
-  toApplicationView,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { loadApplicationView } from './support/load-application-view';
+import { touchApplication } from './support/touch-application';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
 @Injectable()
@@ -58,10 +59,12 @@ export class DeleteOnboardingApplicationDocumentUseCase {
       application.id,
     );
 
+    await touchApplication(this.applications, application);
+
     return {
       status: true,
       message: 'Document removed',
-      data: toApplicationView(application, documents),
+      data: await loadApplicationView(this.applications, application),
     };
   }
 }

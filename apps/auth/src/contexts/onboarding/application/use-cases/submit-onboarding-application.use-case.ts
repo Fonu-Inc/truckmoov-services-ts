@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  INDEMNITY_AGREEMENT_REPOSITORY,
+  type IndemnityAgreementRepository,
+} from '@auth/onboarding/domain/indemnity-agreement.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
@@ -7,8 +11,10 @@ import {
 import {
   assertApplicationEditable,
   missingDocumentTypes,
-  toApplicationView,
+  requestedDeviceCount,
+  vehiclesMissingDocuments,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { loadApplicationView } from './support/load-application-view';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
 export class ApplicationIncompleteError extends Error {
@@ -18,6 +24,11 @@ export class ApplicationIncompleteError extends Error {
       emailVerified: boolean;
       phoneVerified: boolean;
       missingDocuments: string[];
+      vehiclesMissingDocuments: { vehicleId: string; registrationNumber: string; documentType: string }[];
+      vehicleCount: number;
+      requestedDevices: number;
+      indemnitySigned: boolean;
+      planSelected: boolean;
     },
   ) {
     super(message);
@@ -32,6 +43,8 @@ export class SubmitOnboardingApplicationUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(INDEMNITY_AGREEMENT_REPOSITORY)
+    private readonly agreements: IndemnityAgreementRepository,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {
@@ -41,10 +54,27 @@ export class SubmitOnboardingApplicationUseCase {
     );
     assertApplicationEditable(application);
 
-    const documents = await this.applications.findDocumentsByApplicationId(
-      application.id,
-    );
-    this.assertComplete(application, missingDocumentTypes(documents));
+    const [documents, vehicles, deviceRequests, signature] = await Promise.all([
+      this.applications.findDocumentsByApplicationId(application.id),
+      this.applications.findVehiclesByApplicationId(application.id),
+      this.applications.findDeviceRequestsByApplicationId(application.id),
+      this.agreements.findSignatureByApplicationId(application.id),
+    ]);
+    this.assertComplete(application, {
+      missingDocuments: missingDocumentTypes(
+        application.applicantType,
+        documents,
+      ),
+      vehiclesMissing: vehiclesMissingDocuments(
+        application.applicantType,
+        vehicles,
+        documents,
+      ),
+      vehicleCount: vehicles.length,
+      requestedDevices: requestedDeviceCount(deviceRequests),
+      indemnitySigned: signature !== null,
+      planSelected: application.m2mPlanCode !== null,
+    });
 
     const now = new Date();
     const submitted: StoredOnboardingApplication = {
@@ -63,28 +93,67 @@ export class SubmitOnboardingApplicationUseCase {
     return {
       status: true,
       message: 'Application submitted',
-      data: toApplicationView(submitted, documents),
+      data: await loadApplicationView(this.applications, submitted),
     };
   }
 
   private assertComplete(
     application: StoredOnboardingApplication,
-    missingDocuments: string[],
+    fleet: {
+      missingDocuments: string[];
+      vehiclesMissing: {
+        vehicleId: string;
+        registrationNumber: string;
+        documentType: string;
+      }[];
+      vehicleCount: number;
+      requestedDevices: number;
+      indemnitySigned: boolean;
+      planSelected: boolean;
+    },
   ): void {
     const emailVerified = application.emailVerifiedAt !== null;
     const phoneVerified = application.phoneVerifiedAt !== null;
-    if (emailVerified && phoneVerified && missingDocuments.length === 0) return;
 
     const reasons: string[] = [];
     if (!emailVerified) reasons.push('the business email is not verified');
     if (!phoneVerified) reasons.push('the phone number is not verified');
-    if (missingDocuments.length > 0) {
-      reasons.push(`${missingDocuments.length} required document(s) are missing`);
+    if (!fleet.planSelected) reasons.push('no M2M licence plan was chosen');
+    if (!fleet.indemnitySigned) {
+      reasons.push('the indemnity agreement is not signed');
     }
+    if (fleet.vehicleCount === 0) reasons.push('no vehicles have been added');
+    if (fleet.missingDocuments.length > 0) {
+      reasons.push(
+        `${fleet.missingDocuments.length} required document(s) are missing`,
+      );
+    }
+    if (fleet.vehiclesMissing.length > 0) {
+      reasons.push(
+        `${fleet.vehiclesMissing.length} vehicle document(s) are missing`,
+      );
+    }
+    // Every device is fitted to one vehicle, so a request beyond the fleet on
+    // the application has nowhere to go at installation.
+    if (fleet.requestedDevices > fleet.vehicleCount) {
+      reasons.push(
+        `${fleet.requestedDevices} devices were requested for ${fleet.vehicleCount} vehicle(s)`,
+      );
+    }
+    if (reasons.length === 0) return;
 
     throw new ApplicationIncompleteError(
       `This application cannot be submitted yet: ${reasons.join(', ')}`,
-      { emailVerified, phoneVerified, missingDocuments },
+      {
+        emailVerified,
+        phoneVerified,
+        missingDocuments: fleet.missingDocuments,
+        vehiclesMissingDocuments: fleet.vehiclesMissing,
+        vehicleCount: fleet.vehicleCount,
+        requestedDevices: fleet.requestedDevices,
+        indemnitySigned: fleet.indemnitySigned,
+        planSelected: fleet.planSelected,
+      },
     );
   }
 }
@@ -96,6 +165,8 @@ export class GetOnboardingApplicationStatusUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(INDEMNITY_AGREEMENT_REPOSITORY)
+    private readonly agreements: IndemnityAgreementRepository,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {
@@ -126,7 +197,10 @@ export class GetOnboardingApplicationStatusUseCase {
           {
             key: 'documents_received',
             label: 'Documents received',
-            complete: submitted && missingDocumentTypes(documents).length === 0,
+            complete:
+              submitted &&
+              missingDocumentTypes(application.applicantType, documents)
+                .length === 0,
           },
           {
             key: 'application_review',

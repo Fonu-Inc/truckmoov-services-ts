@@ -3,8 +3,13 @@ import { MikroORM } from '@mikro-orm/postgresql';
 import { ROLE_SEED_ROWS, roleFromId, roleToId } from '@shared/rbac';
 import { runMigrationsExclusively } from "@shared/db";
 import {
+  IndemnitySignatureRecordSchema,
+  IndemnityTemplateRecordSchema,
+  M2mLicensePlanRecordSchema,
   OnboardingApplicationDocumentRecordSchema,
   OnboardingApplicationRecordSchema,
+  OnboardingApplicationVehicleRecordSchema,
+  OnboardingDeviceRequestRecordSchema,
   OnboardingVerificationCodeRecordSchema,
 } from '@auth/onboarding/infrastructure/persistence/onboarding-orm';
 
@@ -2093,6 +2098,11 @@ export async function getAuthOrm(cfg: DbConfig) {
       TenantBusinessInfoRecordSchema,
       TenantKycDocumentRecordSchema,
       OnboardingApplicationRecordSchema,
+      IndemnityTemplateRecordSchema,
+      IndemnitySignatureRecordSchema,
+      M2mLicensePlanRecordSchema,
+      OnboardingApplicationVehicleRecordSchema,
+      OnboardingDeviceRequestRecordSchema,
       OnboardingApplicationDocumentRecordSchema,
       OnboardingVerificationCodeRecordSchema,
       BundleCarrierRecordSchema,

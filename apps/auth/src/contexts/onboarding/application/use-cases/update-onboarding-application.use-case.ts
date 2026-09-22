@@ -4,6 +4,10 @@ import {
   type UserRepository,
 } from '@auth/session/domain/ports/user-repository.port';
 import {
+  M2M_LICENSE_PLAN_REPOSITORY,
+  type M2mLicensePlanRepository,
+} from '@auth/onboarding/domain/m2m-license-plan.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
@@ -15,8 +19,9 @@ import { GetOnboardingApplicationUseCase } from './get-onboarding-application.us
 import {
   assertApplicationEditable,
   BusinessEmailInUseError,
-  toApplicationView,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { loadApplicationView } from './support/load-application-view';
+import { resolveM2mPlanCode } from './support/resolve-m2m-plan';
 
 @Injectable()
 export class UpdateOnboardingApplicationUseCase {
@@ -27,6 +32,8 @@ export class UpdateOnboardingApplicationUseCase {
     private readonly users: UserRepository,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(M2M_LICENSE_PLAN_REPOSITORY)
+    private readonly plans: M2mLicensePlanRepository,
   ) {}
 
   async execute(
@@ -41,6 +48,7 @@ export class UpdateOnboardingApplicationUseCase {
     assertApplicationEditable(application);
 
     const details = validateApplicationDetails(command);
+    const m2mPlanCode = await resolveM2mPlanCode(this.plans, command.m2mPlanCode);
     if (details.businessEmail !== application.businessEmail) {
       await this.assertEmailIsFree(details.businessEmail, application.id);
     }
@@ -48,6 +56,7 @@ export class UpdateOnboardingApplicationUseCase {
     const updated = {
       ...application,
       ...details,
+      m2mPlanCode,
       // Changing a verified contact drops that verification: the code was
       // proven against the old address, not the new one.
       emailVerifiedAt:
@@ -69,14 +78,11 @@ export class UpdateOnboardingApplicationUseCase {
     }
 
     await this.applications.save(updated);
-    const documents = await this.applications.findDocumentsByApplicationId(
-      application.id,
-    );
 
     return {
       status: true,
       message: 'Application updated',
-      data: toApplicationView(updated, documents),
+      data: await loadApplicationView(this.applications, updated),
     };
   }
 

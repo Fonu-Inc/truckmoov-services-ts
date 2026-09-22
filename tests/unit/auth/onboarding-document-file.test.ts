@@ -88,13 +88,14 @@ describe("Document inspection", () => {
 });
 
 describe("Document type", () => {
-  it("accepts the ten document types from the upload screen", () => {
+  it("accepts the document types from the upload screen", () => {
     expect(validateDocumentType("cac_document")).toBe("cac_document");
-    expect(validateDocumentType(" form_c02_c07 ")).toBe("form_c02_c07");
+    expect(validateDocumentType(" vehicle_license ")).toBe("vehicle_license");
+    expect(validateDocumentType("proof_of_ownership")).toBe("proof_of_ownership");
   });
 
-  it("rejects legacy KYC document types and unknown values", () => {
-    for (const input of ["certificate_of_incorporation", "other", "", null]) {
+  it("rejects retired and unknown document types", () => {
+    for (const input of ["form_c02_c07", "agreement_form", "letter_of_authorization", "other", "", null]) {
       expect(() => validateDocumentType(input)).toThrow(InvalidDocumentFileError);
     }
   });

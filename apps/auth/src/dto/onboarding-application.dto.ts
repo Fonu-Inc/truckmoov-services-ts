@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ONBOARDING_APPLICANT_TYPES,
+  ONBOARDING_IDENTIFICATION_TYPES,
 } from '@auth/onboarding';
 
 // Shapes the OpenAPI contract only. Enforcement lives in
@@ -24,8 +25,8 @@ export class OnboardingApplicationDto {
   @ApiProperty({ example: 'Jane Doe', maxLength: 80 })
   contactFullName!: string;
 
-  @ApiProperty({ example: 'Fleet Manager', maxLength: 80 })
-  contactRole!: string;
+  @ApiPropertyOptional({ example: 'Fleet Manager', maxLength: 80 })
+  contactRole?: string;
 
   @ApiProperty({ example: 'Mazi Fedelis Street', maxLength: 200 })
   streetAddress!: string;
@@ -35,4 +36,25 @@ export class OnboardingApplicationDto {
 
   @ApiProperty({ example: 'FCT', description: 'A Nigerian state or FCT.' })
   state!: string;
+
+  @ApiPropertyOptional({
+    example: 'RC1234567',
+    description: 'CAC registration number. Needed for automated verification.',
+  })
+  rcNumber?: string;
+
+  @ApiPropertyOptional({
+    example: '12345678-0001',
+    description: 'Tax identification number. Needed for automated verification.',
+  })
+  taxIdentificationNumber?: string;
+
+  @ApiPropertyOptional({ enum: [...ONBOARDING_IDENTIFICATION_TYPES] })
+  identificationType?: string;
+
+  @ApiPropertyOptional({
+    example: '12345678901',
+    description: 'Number on the identification document supplied.',
+  })
+  identificationNumber?: string;
 }

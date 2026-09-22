@@ -9,19 +9,31 @@ const PNG = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   Buffer.alloc(128),
 ]);
+// Uploads are only sniffed, but a signature is decoded and drawn into the
+// signed agreement, so that one has to be a PNG a decoder accepts.
+const REAL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
+// What an enterprise applicant uploads once for the whole application. The
+// vehicle licence is per vehicle and is uploaded separately.
 const DOCUMENT_TYPES = [
   'customer_request_letter',
-  'letter_of_authorization',
-  'signed_indemnity_form',
   'cac_document',
   'tax_certificate_or_tin',
   'signature_card',
   'utility_bill',
   'identification_card',
-  'form_c02_c07',
-  'agreement_form',
+  'proof_of_ownership',
 ];
+
+const VEHICLE = {
+  registrationNumber: 'LAG-123-ABC',
+  vehicleType: 'truck',
+  make: 'Toyota',
+  model: 'Hilux',
+};
 
 function applicationPayload(overrides: Record<string, string> = {}) {
   return {
@@ -31,6 +43,7 @@ function applicationPayload(overrides: Record<string, string> = {}) {
     organizationPhone: '+234 80 0000 0000',
     contactFullName: 'Jane Doe',
     contactRole: 'Fleet Manager',
+    m2mPlanCode: 'm2m_standard',
     streetAddress: 'Mazi Fedelis Street',
     city: 'Abuja',
     state: 'FCT',
@@ -184,6 +197,28 @@ describe('Onboarding applications HTTP contract', () => {
     };
   }
 
+  async function addVehicle(
+    id: string,
+    token: string,
+    overrides: Record<string, string> = {},
+  ) {
+    const res = await request(app.getHttpServer())
+      .post(`/auth/onboarding/applications/${id}/vehicles`)
+      .set('x-application-token', token)
+      .send({ ...VEHICLE, ...overrides });
+    expect(res.status).toBe(201);
+    const vehicles = res.body.data.vehicles as Array<{
+      id: string;
+      registrationNumber: string;
+    }>;
+    const registrationNumber = (
+      overrides.registrationNumber ?? VEHICLE.registrationNumber
+    ).toUpperCase();
+    return vehicles.find(
+      (vehicle) => vehicle.registrationNumber === registrationNumber,
+    )!.id;
+  }
+
   async function uploadAll(id: string, token: string) {
     for (const documentType of DOCUMENT_TYPES) {
       const pdf = documentType === 'customer_request_letter';
@@ -194,6 +229,35 @@ describe('Onboarding applications HTTP contract', () => {
         .attach('file', pdf ? PDF : PNG, pdf ? 'letter.pdf' : 'scan.png');
       expect(res.status).toBe(201);
     }
+  }
+
+  async function signIndemnity(id: string, token: string) {
+    const agreement = await request(app.getHttpServer()).get(
+      '/auth/onboarding/applications/indemnity-agreement',
+    );
+    expect(agreement.status).toBe(200);
+
+    const res = await request(app.getHttpServer())
+      .post(`/auth/onboarding/applications/${id}/indemnity-signature`)
+      .set('x-application-token', token)
+      .field('signer_name', 'Jane Doe')
+      .field('template_version', agreement.body.data.version)
+      .field('method', 'drawn')
+      .attach('file', REAL_PNG, 'signature.png');
+    expect(res.status).toBe(201);
+  }
+
+  /** A vehicle plus its licence, which is what the submit gate counts. */
+  async function addVehicleWithLicence(id: string, token: string) {
+    const vehicleId = await addVehicle(id, token);
+    const res = await request(app.getHttpServer())
+      .post(`/auth/onboarding/applications/${id}/documents`)
+      .set('x-application-token', token)
+      .field('document_type', 'vehicle_license')
+      .field('vehicle_id', vehicleId)
+      .attach('file', PNG, 'licence.png');
+    expect(res.status).toBe(201);
+    return vehicleId;
   }
 
   async function verifyBoth(id: string, token: string) {
@@ -224,7 +288,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('draft');
     expect(res.body.data.organization.organizationPhone).toBe('+2348000000000');
-    expect(res.body.data.missingDocuments).toHaveLength(10);
+    expect(res.body.data.missingDocuments).toHaveLength(8);
     expect(res.body.data.verification).toEqual({
       emailVerified: false,
       phoneVerified: false,
@@ -420,7 +484,9 @@ describe('Onboarding applications HTTP contract', () => {
       .set('x-application-token', token);
 
     expect(res.status).toBe(400);
-    expect(res.body.missingDocuments).toHaveLength(10);
+    expect(res.body.missingDocuments).toHaveLength(8);
+    expect(res.body.vehicleCount).toBe(0);
+    expect(res.body.indemnitySigned).toBe(false);
     expect(res.body.emailVerified).toBe(false);
     expect(res.body.phoneVerified).toBe(false);
   });
@@ -428,6 +494,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('submits a complete application and reports the review timeline', async () => {
     const { id, token } = await startApplication('complete@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
 
     const submitted = await request(app.getHttpServer())
@@ -450,6 +518,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('refuses edits once the application is submitted', async () => {
     const { id, token } = await startApplication('locked@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)
@@ -474,6 +544,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('approves a submitted application, creating a tenant and a setup link', async () => {
     const { id, token } = await startApplication('approve@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)
@@ -495,7 +567,8 @@ describe('Onboarding applications HTTP contract', () => {
       .get(`/auth/system/onboarding/applications/${id}`)
       .set('Authorization', `Bearer ${accessToken}`);
     expect(detail.status).toBe(200);
-    expect(detail.body.data.documents).toHaveLength(10);
+    // Eight uploads plus the signed indemnity form the signature produced.
+    expect(detail.body.data.documents).toHaveLength(9);
 
     const approved = await request(app.getHttpServer())
       .post(`/auth/system/onboarding/applications/${id}/approve`)
@@ -511,6 +584,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('rejects an application with a reason the applicant can read back', async () => {
     const { id, token } = await startApplication('reject@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)
@@ -543,6 +618,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('sends an application back for changes and invalidates the old token', async () => {
     const { id, token } = await startApplication('changes@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)
@@ -568,6 +645,8 @@ describe('Onboarding applications HTTP contract', () => {
   it('refuses to approve while a document is rejected', async () => {
     const { id, token } = await startApplication('docreject@arne.com');
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)
@@ -604,6 +683,8 @@ describe('Onboarding applications HTTP contract', () => {
     expect(tooEarly.status).toBe(409);
 
     await uploadAll(id, token);
+    await addVehicleWithLicence(id, token);
+    await signIndemnity(id, token);
     await verifyBoth(id, token);
     await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/submit`)

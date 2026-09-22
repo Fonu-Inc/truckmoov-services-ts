@@ -36,7 +36,9 @@ export default defineConfig({
     setupFiles: ["tests/setup.ts"],
     // Booting a Nest app is the slow hook, and the auth module has grown a
     // long way this year. Thirty seconds was enough until the whole suite ran
-    // in parallel with it; the boot is not hanging, it is being starved.
-    hookTimeout: 60_000,
+    // in parallel with it; the boot is not hanging, it is being starved. Sixty
+    // stopped being enough once the onboarding context was added, for the same
+    // reason rather than a new one.
+    hookTimeout: 120_000,
   },
 });

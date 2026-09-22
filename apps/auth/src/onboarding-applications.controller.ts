@@ -9,10 +9,12 @@ import {
   HttpException,
   HttpStatus,
   Inject,
+  Ip,
   NotFoundException,
   Param,
   Patch,
   Post,
+  Res,
   ServiceUnavailableException,
   UnauthorizedException,
   UploadedFile,
@@ -35,31 +37,75 @@ import {
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import {
+  AddApplicationVehicleUseCase,
   ApplicationIncompleteError,
   ApplicationNotEditableError,
   ApplicationNotFoundError,
   BusinessEmailInUseError,
   ConfirmOnboardingVerificationCodeUseCase,
+  buildOnboardingVehicleCsvTemplate,
   CreateOnboardingApplicationUseCase,
   DeleteOnboardingApplicationDocumentUseCase,
+  DeviceRequestNotFoundError,
+  DuplicateVehicleError,
+  GetIndemnityTemplateUseCase,
+  GetM2mLicensePlansUseCase,
   GetOnboardingApplicationStatusUseCase,
   GetOnboardingApplicationUseCase,
+  ImportApplicationVehiclesUseCase,
+  IndemnityTemplateNotFoundError,
+  IndemnityTemplateSupersededError,
   InvalidDocumentFileError,
   InvalidVerificationCodeError,
+  INDEMNITY_SIGNATURE_METHODS,
   ONBOARDING_DOCUMENT_TYPES,
+  ONBOARDING_VEHICLE_CSV_COLUMNS,
   OnboardingApplicationRateLimitGuard,
   OnboardingValidationError,
+  RemoveApplicationDeviceRequestUseCase,
+  RemoveApplicationVehicleUseCase,
+  RequestApplicationDevicesUseCase,
+  ResumeOnboardingApplicationUseCase,
   SendOnboardingVerificationCodeUseCase,
+  SignIndemnityAgreementUseCase,
   SubmitOnboardingApplicationUseCase,
+  UpdateApplicationVehicleUseCase,
   UpdateOnboardingApplicationUseCase,
   UploadOnboardingApplicationDocumentUseCase,
+  VehicleCsvColumnsMissingError,
+  VehicleCsvEmptyError,
+  VehicleNotFoundError,
   VerificationDispatchError,
   VerificationResendTooSoonError,
   VerificationSendLimitError,
 } from '@auth/onboarding';
 import { OnboardingApplicationDto } from './dto/onboarding-application.dto';
+import {
+  OnboardingDeviceRequestDto,
+  OnboardingVehicleDto,
+} from './dto/onboarding-vehicle.dto';
 
 const APPLICATION_TOKEN_HEADER = 'x-application-token';
+
+// A fleet of a few hundred vehicles is a file of tens of kilobytes. The limit
+// is here to stop a large upload being parsed at all, not to bound a real one.
+const MAX_VEHICLE_CSV_BYTES = 2 * 1024 * 1024;
+
+// The two methods the CSV download needs. Typed here rather than pulled from
+// express so the controller does not depend on the HTTP adapter in use.
+type FileResponse = {
+  setHeader(name: string, value: string): void;
+  send(body: string): void;
+};
+
+type UploadedSignatureFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
+
+const MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 @ApiTags('Onboarding Applications')
 @Controller('onboarding/applications')
@@ -85,6 +131,26 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly submitApplication: SubmitOnboardingApplicationUseCase,
     @Inject(GetOnboardingApplicationStatusUseCase)
     private readonly applicationStatus: GetOnboardingApplicationStatusUseCase,
+    @Inject(AddApplicationVehicleUseCase)
+    private readonly addVehicle: AddApplicationVehicleUseCase,
+    @Inject(UpdateApplicationVehicleUseCase)
+    private readonly updateVehicle: UpdateApplicationVehicleUseCase,
+    @Inject(RemoveApplicationVehicleUseCase)
+    private readonly removeVehicle: RemoveApplicationVehicleUseCase,
+    @Inject(ImportApplicationVehiclesUseCase)
+    private readonly importVehicles: ImportApplicationVehiclesUseCase,
+    @Inject(RequestApplicationDevicesUseCase)
+    private readonly requestDevices: RequestApplicationDevicesUseCase,
+    @Inject(RemoveApplicationDeviceRequestUseCase)
+    private readonly removeDeviceRequest: RemoveApplicationDeviceRequestUseCase,
+    @Inject(GetM2mLicensePlansUseCase)
+    private readonly m2mPlans: GetM2mLicensePlansUseCase,
+    @Inject(GetIndemnityTemplateUseCase)
+    private readonly indemnityTemplate: GetIndemnityTemplateUseCase,
+    @Inject(SignIndemnityAgreementUseCase)
+    private readonly signIndemnity: SignIndemnityAgreementUseCase,
+    @Inject(ResumeOnboardingApplicationUseCase)
+    private readonly resumeApplication: ResumeOnboardingApplicationUseCase,
   ) {
     super(activityLogService);
   }
@@ -102,6 +168,70 @@ export class OnboardingApplicationsController extends BaseAuthController {
   })
   async create(@Body() payload: OnboardingApplicationDto) {
     return this.run(() => this.createApplication.execute(payload));
+  }
+
+  @Get('m2m-plans')
+  @ApiOperation({
+    summary: 'List the M2M licence plans',
+    description:
+      'The plans shown on the customer details step. Each is priced per device, with a first year price and a renewal price.',
+  })
+  @ApiOkResponse({ description: 'Plans returned' })
+  async listM2mPlans() {
+    return this.m2mPlans.execute();
+  }
+
+  @Post('resume')
+  @ApiOperation({
+    summary: 'Email a link back into an open application',
+    description:
+      'Sends a fresh link to the verified business email and retires the previous one. The reply is the same whether or not an application exists for the address.',
+  })
+  @ApiCreatedResponse({ description: 'Request accepted' })
+  async resume(@Body('businessEmail') businessEmail?: string) {
+    return this.run(() => this.resumeApplication.execute(businessEmail));
+  }
+
+  @Get('indemnity-agreement')
+  @ApiOperation({
+    summary: 'Read the indemnity agreement',
+    description:
+      'The wording currently in force, with the version to send back when signing.',
+  })
+  @ApiOkResponse({ description: 'Agreement returned' })
+  async readIndemnityAgreement() {
+    return this.run(() => this.indemnityTemplate.execute());
+  }
+
+  @Get('vehicle-import/template')
+  @ApiOperation({
+    summary: 'Download the vehicle CSV template',
+    description:
+      'Returns the column layout the vehicle import expects, with one example row.',
+  })
+  @ApiOkResponse({ description: 'CSV file', content: { 'text/csv': {} } })
+  downloadVehicleTemplate(@Res() res: FileResponse): void {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=vehicle-import-template.csv',
+    );
+    res.send(buildOnboardingVehicleCsvTemplate());
+  }
+
+  @Get('vehicle-import/columns')
+  @ApiOperation({
+    summary: 'Describe the vehicle CSV columns',
+    description:
+      'The column list behind the template, so the upload screen can explain the format without parsing a CSV.',
+  })
+  @ApiOkResponse({ description: 'Column definitions' })
+  describeVehicleColumns() {
+    return {
+      status: true,
+      message: 'success',
+      data: { columns: ONBOARDING_VEHICLE_CSV_COLUMNS },
+    };
   }
 
   @Get(':applicationId')
@@ -141,6 +271,198 @@ export class OnboardingApplicationsController extends BaseAuthController {
     );
   }
 
+  @Post(':applicationId/vehicles')
+  @ApiOperation({
+    summary: 'Add a vehicle',
+    description:
+      'Adds one vehicle to the application. A registration can only appear once per application.',
+  })
+  @ApiCreatedResponse({ description: 'Vehicle added' })
+  @ApiBadRequestResponse({ description: 'A submitted field is invalid' })
+  @ApiConflictResponse({ description: 'This registration is already on the application' })
+  async addApplicationVehicle(
+    @Param('applicationId') applicationId: string,
+    @Body() payload: OnboardingVehicleDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.addVehicle.execute({
+        applicationId,
+        applicationToken: token,
+        vehicle: payload,
+      }),
+    );
+  }
+
+  @Patch(':applicationId/vehicles/:vehicleId')
+  @ApiOperation({ summary: 'Update a vehicle' })
+  @ApiOkResponse({ description: 'Vehicle updated' })
+  @ApiNotFoundResponse({ description: 'Vehicle not found' })
+  async updateApplicationVehicle(
+    @Param('applicationId') applicationId: string,
+    @Param('vehicleId') vehicleId: string,
+    @Body() payload: OnboardingVehicleDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.updateVehicle.execute({
+        applicationId,
+        applicationToken: token,
+        vehicleId,
+        vehicle: payload,
+      }),
+    );
+  }
+
+  @Delete(':applicationId/vehicles/:vehicleId')
+  @ApiOperation({
+    summary: 'Remove a vehicle',
+    description: 'Removes the vehicle and any document filed against it.',
+  })
+  @ApiOkResponse({ description: 'Vehicle removed' })
+  @ApiNotFoundResponse({ description: 'Vehicle not found' })
+  async removeApplicationVehicle(
+    @Param('applicationId') applicationId: string,
+    @Param('vehicleId') vehicleId: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.removeVehicle.execute({
+        applicationId,
+        applicationToken: token,
+        vehicleId,
+      }),
+    );
+  }
+
+  @Post(':applicationId/vehicles/import')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Import vehicles from a CSV',
+    description:
+      'Adds the rows in the uploaded CSV. A row whose registration is already on the application updates that vehicle, so the same file can be uploaded twice without duplicating the fleet. Unreadable rows are reported and the rest are still imported.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Vehicles imported' })
+  @ApiBadRequestResponse({ description: 'The file is empty or missing columns' })
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_VEHICLE_CSV_BYTES)))
+  async importApplicationVehicles(
+    @Param('applicationId') applicationId: string,
+    @UploadedFile() file?: { buffer: Buffer },
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    if (!file) throw new BadRequestException('A CSV file is required');
+    return this.run(() =>
+      this.importVehicles.execute({
+        applicationId,
+        applicationToken: token,
+        content: file.buffer.toString('utf8'),
+      }),
+    );
+  }
+
+  @Post(':applicationId/device-requests')
+  @ApiOperation({
+    summary: 'Request tracking devices',
+    description:
+      'Devices are fitted one per vehicle, so the total requested cannot exceed the vehicles on the application.',
+  })
+  @ApiCreatedResponse({ description: 'Device request submitted' })
+  @ApiBadRequestResponse({ description: 'More devices than vehicles, or an invalid field' })
+  async requestApplicationDevices(
+    @Param('applicationId') applicationId: string,
+    @Body() payload: OnboardingDeviceRequestDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.requestDevices.execute({
+        applicationId,
+        applicationToken: token,
+        quantity: payload.quantity,
+        useCase: payload.useCase,
+        notes: payload.notes,
+      }),
+    );
+  }
+
+  @Delete(':applicationId/device-requests/:requestId')
+  @ApiOperation({ summary: 'Withdraw a device request' })
+  @ApiOkResponse({ description: 'Device request removed' })
+  @ApiNotFoundResponse({ description: 'Device request not found' })
+  async removeApplicationDeviceRequest(
+    @Param('applicationId') applicationId: string,
+    @Param('requestId') requestId: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.removeDeviceRequest.execute({
+        applicationId,
+        applicationToken: token,
+        requestId,
+      }),
+    );
+  }
+
+  @Post(':applicationId/indemnity-signature')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Sign the indemnity agreement',
+    description:
+      'Records the signature drawn or uploaded on the agreement panel, against the version that was on screen. Signing again replaces the previous signature.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['signer_name', 'template_version', 'method', 'file'],
+      properties: {
+        signer_name: { type: 'string' },
+        template_version: { type: 'string' },
+        method: { type: 'string', enum: [...INDEMNITY_SIGNATURE_METHODS] },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Agreement signed' })
+  @ApiBadRequestResponse({ description: 'Missing signature image or an invalid field' })
+  @ApiConflictResponse({ description: 'A newer version of the agreement is in force' })
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_SIGNATURE_UPLOAD_BYTES)))
+  async signIndemnityAgreement(
+    @Param('applicationId') applicationId: string,
+    @UploadedFile() file?: UploadedSignatureFile,
+    @Body('signer_name') signerName?: string,
+    @Body('template_version') templateVersion?: string,
+    @Body('method') method?: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+    @Headers('user-agent') userAgent?: string,
+    @Ip() ipAddress?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.signIndemnity.execute({
+        applicationId,
+        applicationToken: token,
+        signerName,
+        templateVersion,
+        method,
+        file,
+        ipAddress,
+        userAgent,
+      }),
+    );
+  }
+
   @Post(':applicationId/documents')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -154,6 +476,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
       required: ['document_type', 'file'],
       properties: {
         document_type: { type: 'string', enum: [...ONBOARDING_DOCUMENT_TYPES] },
+        vehicle_id: {
+          type: 'string',
+          description: 'Required for per-vehicle documents such as the vehicle licence.',
+        },
         file: { type: 'string', format: 'binary' },
       },
     },
@@ -175,6 +501,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
       buffer: Buffer;
     },
     @Body('document_type') documentType?: string,
+    @Body('vehicle_id') vehicleId?: string,
     @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
   ) {
     const token = this.requireApplicationToken(applicationToken);
@@ -183,6 +510,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
         applicationId,
         applicationToken: token,
         documentType,
+        vehicleId,
         file,
       }),
     );
@@ -379,8 +707,27 @@ export class OnboardingApplicationsController extends BaseAuthController {
       if (error instanceof VerificationDispatchError) {
         throw new ServiceUnavailableException(error.message);
       }
-      if (error instanceof ApplicationNotFoundError) {
+      if (
+        error instanceof VehicleCsvEmptyError ||
+        error instanceof VehicleCsvColumnsMissingError
+      ) {
+        throw new BadRequestException(error.message);
+      }
+      if (
+        error instanceof ApplicationNotFoundError ||
+        error instanceof VehicleNotFoundError ||
+        error instanceof DeviceRequestNotFoundError
+      ) {
         throw new NotFoundException(error.message);
+      }
+      if (error instanceof DuplicateVehicleError) {
+        throw new ConflictException(error.message);
+      }
+      if (error instanceof IndemnityTemplateSupersededError) {
+        throw new ConflictException(error.message);
+      }
+      if (error instanceof IndemnityTemplateNotFoundError) {
+        throw new ServiceUnavailableException(error.message);
       }
       if (
         error instanceof ApplicationNotEditableError ||

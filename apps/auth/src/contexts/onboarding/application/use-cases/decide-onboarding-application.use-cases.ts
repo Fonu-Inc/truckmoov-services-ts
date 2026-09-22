@@ -27,8 +27,10 @@ import {
 } from '../../../../tenant-onboarding.repository';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicantType,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
+  type StoredOnboardingApplicationDocument,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   ApplicationNotFoundError,
@@ -97,7 +99,7 @@ export class ApproveOnboardingApplicationUseCase {
     const documents = await this.applications.findDocumentsByApplicationId(
       application.id,
     );
-    this.assertDocumentsSettled(documents);
+    this.assertDocumentsSettled(application.applicantType, documents);
 
     // Re-checked at the decision, not only at draft time: an address can be
     // claimed by another route while an application sits in the queue.
@@ -209,11 +211,10 @@ export class ApproveOnboardingApplicationUseCase {
   }
 
   private assertDocumentsSettled(
-    documents: { status: string; documentType: string }[],
+    applicantType: OnboardingApplicantType,
+    documents: StoredOnboardingApplicationDocument[],
   ): void {
-    const missing = missingDocumentTypes(
-      documents as Parameters<typeof missingDocumentTypes>[0],
-    );
+    const missing = missingDocumentTypes(applicantType, documents);
     if (missing.length > 0) {
       throw new ApplicationDocumentsIncompleteError(
         `${missing.length} required document(s) are missing`,

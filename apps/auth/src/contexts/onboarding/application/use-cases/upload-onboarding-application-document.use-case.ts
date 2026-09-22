@@ -9,13 +9,17 @@ import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-ge
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
+  type OnboardingDocumentType,
   type StoredOnboardingApplicationDocument,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   applicationDocumentKey,
   assertApplicationEditable,
-  toApplicationView,
+  isPerVehicleDocument,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
+import { loadApplicationView } from './support/load-application-view';
+import { touchApplication } from './support/touch-application';
 import {
   inspectDocumentFile,
   validateDocumentType,
@@ -44,6 +48,7 @@ export class UploadOnboardingApplicationDocumentUseCase {
     applicationId: string;
     applicationToken: string;
     documentType: unknown;
+    vehicleId?: string;
     file?: UploadedDocumentFile;
   }) {
     const application = await this.getApplication.resolve(
@@ -53,6 +58,11 @@ export class UploadOnboardingApplicationDocumentUseCase {
     assertApplicationEditable(application);
 
     const documentType = validateDocumentType(input.documentType);
+    const vehicleId = await this.resolveVehicle(
+      application.id,
+      documentType,
+      input.vehicleId,
+    );
     const inspected = inspectDocumentFile(documentType, input.file);
     const file = input.file as UploadedDocumentFile;
 
@@ -82,6 +92,7 @@ export class UploadOnboardingApplicationDocumentUseCase {
     const existing = await this.findExistingDocument(
       application.id,
       documentType,
+      vehicleId,
     );
     const now = new Date();
     const document: StoredOnboardingApplicationDocument = {
@@ -90,6 +101,7 @@ export class UploadOnboardingApplicationDocumentUseCase {
       // Ownership is stamped at approval. Documents stay in the platform's own
       // storage prefix for life, so this column is the only owner record.
       tenantId: existing?.tenantId ?? null,
+      vehicleId,
       documentType,
       documentName: inspected.documentName,
       fileKey: key,
@@ -114,22 +126,62 @@ export class UploadOnboardingApplicationDocumentUseCase {
       application.id,
     );
 
+    await touchApplication(this.applications, application);
+
     return {
       status: true,
       message: 'Document uploaded',
-      data: toApplicationView(application, documents),
+      data: await loadApplicationView(this.applications, application),
     };
+  }
+
+  /**
+   * A per-vehicle document must name its vehicle; an application-wide one must
+   * not. Without both halves a licence could be filed against the application
+   * and pass a gate that is counting licences per vehicle.
+   */
+  private async resolveVehicle(
+    applicationId: string,
+    documentType: OnboardingDocumentType,
+    vehicleId?: string,
+  ): Promise<string | null> {
+    if (!isPerVehicleDocument(documentType)) {
+      if (vehicleId) {
+        throw new OnboardingValidationError(
+          'vehicleId',
+          `${documentType} is not uploaded per vehicle`,
+        );
+      }
+      return null;
+    }
+
+    if (!vehicleId) {
+      throw new OnboardingValidationError(
+        'vehicleId',
+        `${documentType} must be uploaded against a vehicle`,
+      );
+    }
+
+    const vehicle = await this.applications.findVehicleById(vehicleId);
+    if (!vehicle || vehicle.applicationId !== applicationId) {
+      throw new OnboardingValidationError('vehicleId', 'Vehicle not found');
+    }
+    return vehicle.id;
   }
 
   private async findExistingDocument(
     applicationId: string,
     documentType: string,
+    vehicleId: string | null,
   ): Promise<StoredOnboardingApplicationDocument | null> {
     const documents =
       await this.applications.findDocumentsByApplicationId(applicationId);
     return (
-      documents.find((document) => document.documentType === documentType) ??
-      null
+      documents.find(
+        (document) =>
+          document.documentType === documentType &&
+          document.vehicleId === vehicleId,
+      ) ?? null
     );
   }
 

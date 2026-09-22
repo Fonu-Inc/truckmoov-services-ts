@@ -1,9 +1,13 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import {
-  ONBOARDING_DOCUMENT_TYPES,
+  PER_VEHICLE_DOCUMENT_TYPES,
+  REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE,
+  type OnboardingApplicantType,
   type OnboardingDocumentType,
   type StoredOnboardingApplication,
   type StoredOnboardingApplicationDocument,
+  type StoredOnboardingApplicationVehicle,
+  type StoredOnboardingDeviceRequest,
 } from './onboarding-application.repository';
 
 export const APPLICATION_TOKEN_BYTES = 32;
@@ -12,6 +16,16 @@ export const VERIFICATION_MAX_ATTEMPTS = 5;
 export const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 export const VERIFICATION_MAX_SENDS_PER_HOUR = 5;
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * How long an unsubmitted application survives without being touched.
+ *
+ * Measured from the last activity rather than from creation, so an applicant
+ * gathering documents over several weeks does not lose the work, while an
+ * abandoned draft holding a verified email and a business address does not sit
+ * there indefinitely.
+ */
+export const DRAFT_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class ApplicationNotFoundError extends Error {
   constructor() {
@@ -62,6 +76,20 @@ export function generateApplicationReference(): string {
   return `APP-${new Date().getFullYear()}-${suffix}`;
 }
 
+export function draftExpiresAt(
+  application: StoredOnboardingApplication,
+): Date {
+  return new Date(application.updatedAt.getTime() + DRAFT_LIFETIME_MS);
+}
+
+export function isDraftExpired(
+  application: StoredOnboardingApplication,
+  now: Date = new Date(),
+): boolean {
+  if (!isApplicationEditable(application)) return false;
+  return draftExpiresAt(application).getTime() <= now.getTime();
+}
+
 export function isApplicationEditable(
   application: StoredOnboardingApplication,
 ): boolean {
@@ -78,11 +106,68 @@ export function assertApplicationEditable(
   }
 }
 
+export function requiredDocumentTypes(
+  applicantType: OnboardingApplicantType,
+): readonly OnboardingDocumentType[] {
+  return REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE[applicantType];
+}
+
+export function isPerVehicleDocument(type: OnboardingDocumentType): boolean {
+  return PER_VEHICLE_DOCUMENT_TYPES.includes(type);
+}
+
 export function missingDocumentTypes(
+  applicantType: OnboardingApplicantType,
   documents: StoredOnboardingApplicationDocument[],
 ): OnboardingDocumentType[] {
   const present = new Set(documents.map((document) => document.documentType));
-  return ONBOARDING_DOCUMENT_TYPES.filter((type) => !present.has(type));
+  return requiredDocumentTypes(applicantType).filter(
+    (type) => !present.has(type),
+  );
+}
+
+/**
+ * Vehicles still waiting on a per-vehicle document.
+ *
+ * A vehicle with no licence on file is as incomplete as a missing
+ * application-wide document, and the applicant cannot tell which vehicle is
+ * short without being told which one.
+ */
+export function vehiclesMissingDocuments(
+  applicantType: OnboardingApplicantType,
+  vehicles: StoredOnboardingApplicationVehicle[],
+  documents: StoredOnboardingApplicationDocument[],
+): { vehicleId: string; registrationNumber: string; documentType: OnboardingDocumentType }[] {
+  const perVehicleRequired = requiredDocumentTypes(applicantType).filter(
+    isPerVehicleDocument,
+  );
+  if (perVehicleRequired.length === 0) return [];
+
+  const held = new Set(
+    documents
+      .filter((document) => document.vehicleId !== null)
+      .map((document) => `${document.vehicleId}:${document.documentType}`),
+  );
+
+  return vehicles.flatMap((vehicle) =>
+    perVehicleRequired
+      .filter((type) => !held.has(`${vehicle.id}:${type}`))
+      .map((documentType) => ({
+        vehicleId: vehicle.id,
+        registrationNumber: vehicle.registrationNumber,
+        documentType,
+      })),
+  );
+}
+
+/**
+ * Devices cannot outnumber vehicles: every device is fitted to one vehicle, so
+ * a request beyond the fleet submitted has nowhere to go at installation.
+ */
+export function requestedDeviceCount(
+  requests: StoredOnboardingDeviceRequest[],
+): number {
+  return requests.reduce((total, request) => total + request.quantity, 0);
 }
 
 export function applicationDocumentKey(
@@ -96,6 +181,8 @@ export function applicationDocumentKey(
 export function toApplicationView(
   application: StoredOnboardingApplication,
   documents: StoredOnboardingApplicationDocument[],
+  vehicles: StoredOnboardingApplicationVehicle[] = [],
+  deviceRequests: StoredOnboardingDeviceRequest[] = [],
 ) {
   return {
     id: application.id,
@@ -114,12 +201,42 @@ export function toApplicationView(
       fullName: application.contactFullName,
       role: application.contactRole,
     },
+    m2mPlanCode: application.m2mPlanCode,
+    registry: {
+      rcNumber: application.rcNumber,
+      taxIdentificationNumber: application.taxIdentificationNumber,
+      identificationType: application.identificationType,
+      identificationNumber: application.identificationNumber,
+    },
+    vehicles: vehicles.map((vehicle) => ({
+      id: vehicle.id,
+      registrationNumber: vehicle.registrationNumber,
+      vehicleType: vehicle.vehicleType,
+      make: vehicle.make,
+      model: vehicle.model,
+      year: vehicle.year,
+      engineNumber: vehicle.engineNumber,
+      chassisNumber: vehicle.chassisNumber,
+      color: vehicle.color,
+      engineCapacity: vehicle.engineCapacity,
+      odometerReading: vehicle.odometerReading,
+      purchaseType: vehicle.purchaseType,
+      purchaseTypeOther: vehicle.purchaseTypeOther,
+    })),
+    deviceRequests: deviceRequests.map((request) => ({
+      id: request.id,
+      quantity: request.quantity,
+      useCase: request.useCase,
+      notes: request.notes,
+    })),
+    requestedDevices: requestedDeviceCount(deviceRequests),
     verification: {
       emailVerified: application.emailVerifiedAt !== null,
       phoneVerified: application.phoneVerifiedAt !== null,
     },
     documents: documents.map((document) => ({
       id: document.id,
+      vehicleId: document.vehicleId,
       documentType: document.documentType,
       documentName: document.documentName,
       fileSize: document.fileSize,
@@ -127,7 +244,12 @@ export function toApplicationView(
       rejectionReason: document.rejectionReason,
       uploadedAt: document.createdAt.toISOString(),
     })),
-    missingDocuments: missingDocumentTypes(documents),
+    missingDocuments: missingDocumentTypes(application.applicantType, documents),
+    vehiclesMissingDocuments: vehiclesMissingDocuments(
+      application.applicantType,
+      vehicles,
+      documents,
+    ),
     decisionReason: application.decisionReason,
     submittedAt: application.submittedAt?.toISOString() ?? null,
     createdAt: application.createdAt.toISOString(),

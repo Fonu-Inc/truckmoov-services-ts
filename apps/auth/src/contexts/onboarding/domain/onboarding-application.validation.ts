@@ -1,6 +1,12 @@
 import {
   ONBOARDING_APPLICANT_TYPES,
+  ONBOARDING_IDENTIFICATION_TYPES,
+  ONBOARDING_VEHICLE_PURCHASE_TYPES,
+  ONBOARDING_VEHICLE_TYPES,
   type OnboardingApplicantType,
+  type OnboardingIdentificationType,
+  type OnboardingVehiclePurchaseType,
+  type OnboardingVehicleType,
 } from './onboarding-application.repository';
 
 // Nested DTO validation does not fire under BodyOrDataPipe, so these functions
@@ -150,8 +156,9 @@ export function validateContactFullName(value: unknown): string {
   return name;
 }
 
-export function validateContactRole(value: unknown): string {
+export function validateContactRole(value: unknown): string | null {
   const role = collapseSpaces(String(value ?? ''));
+  if (role.length === 0) return null;
   assertLength('contactRole', 'Role', role, 2, 80);
   if (!/\p{L}/u.test(role)) {
     throw new OnboardingValidationError(
@@ -160,6 +167,159 @@ export function validateContactRole(value: unknown): string {
     );
   }
   return role;
+}
+
+export function validateRcNumber(value: unknown): string | null {
+  const rc = collapseSpaces(String(value ?? '')).toUpperCase();
+  if (rc.length === 0) return null;
+  if (!/^(RC|BN|IT)?[- ]?\d{4,10}$/.test(rc)) {
+    throw new OnboardingValidationError(
+      'rcNumber',
+      'RC number must be 4 to 10 digits, optionally prefixed with RC, BN or IT',
+    );
+  }
+  return rc.replace(/[- ]/g, '');
+}
+
+export function validateTaxIdentificationNumber(value: unknown): string | null {
+  const tin = collapseSpaces(String(value ?? '')).toUpperCase();
+  if (tin.length === 0) return null;
+  if (!/^\d{8,15}(-\d{4})?$/.test(tin)) {
+    throw new OnboardingValidationError(
+      'taxIdentificationNumber',
+      'Tax identification number must be 8 to 15 digits',
+    );
+  }
+  return tin;
+}
+
+export function validateIdentificationType(
+  value: unknown,
+): OnboardingIdentificationType | null {
+  const candidate = String(value ?? '').trim().toLowerCase();
+  if (candidate.length === 0) return null;
+  if (!(ONBOARDING_IDENTIFICATION_TYPES as readonly string[]).includes(candidate)) {
+    throw new OnboardingValidationError(
+      'identificationType',
+      `Identification type must be one of: ${ONBOARDING_IDENTIFICATION_TYPES.join(', ')}`,
+    );
+  }
+  return candidate as OnboardingIdentificationType;
+}
+
+export function validateIdentificationNumber(value: unknown): string | null {
+  const number = collapseSpaces(String(value ?? '')).toUpperCase();
+  if (number.length === 0) return null;
+  if (!/^[A-Z0-9]{6,20}$/.test(number)) {
+    throw new OnboardingValidationError(
+      'identificationNumber',
+      'Identification number must be 6 to 20 letters or digits',
+    );
+  }
+  return number;
+}
+
+export function validateRegistrationNumber(value: unknown): string {
+  const plate = collapseSpaces(String(value ?? '')).toUpperCase();
+  assertLength('registrationNumber', 'Registration number', plate, 4, 20);
+  if (!/^[A-Z0-9][A-Z0-9 -]*$/.test(plate)) {
+    throw new OnboardingValidationError(
+      'registrationNumber',
+      'Registration number must contain only letters, digits, spaces and hyphens',
+    );
+  }
+  return plate;
+}
+
+export function validateVehicleType(value: unknown): OnboardingVehicleType {
+  const candidate = String(value ?? '').trim().toLowerCase();
+  if (!(ONBOARDING_VEHICLE_TYPES as readonly string[]).includes(candidate)) {
+    throw new OnboardingValidationError(
+      'vehicleType',
+      `Vehicle type must be one of: ${ONBOARDING_VEHICLE_TYPES.join(', ')}`,
+    );
+  }
+  return candidate as OnboardingVehicleType;
+}
+
+export function validateVehicleTextField(
+  field: string,
+  label: string,
+  value: unknown,
+  { required, max }: { required: boolean; max: number },
+): string | null {
+  const text = collapseSpaces(String(value ?? ''));
+  if (text.length === 0) {
+    if (!required) return null;
+    throw new OnboardingValidationError(field, `${label} is required`);
+  }
+  assertLength(field, label, text, 1, max);
+  return text;
+}
+
+export function validateVehicleYear(value: unknown): number | null {
+  const text = String(value ?? '').trim();
+  if (text.length === 0) return null;
+  const year = Number(text);
+  const limit = new Date().getFullYear() + 1;
+  if (!Number.isInteger(year) || year < 1950 || year > limit) {
+    throw new OnboardingValidationError(
+      'year',
+      `Vehicle year must be between 1950 and ${limit}`,
+    );
+  }
+  return year;
+}
+
+export function validateOdometerReading(value: unknown): number | null {
+  const text = String(value ?? '').trim();
+  if (text.length === 0) return null;
+  const reading = Number(text.replace(/[, ]/g, ''));
+  if (!Number.isInteger(reading) || reading < 0 || reading > 10_000_000) {
+    throw new OnboardingValidationError(
+      'odometerReading',
+      'Odometer reading must be a whole number of kilometres',
+    );
+  }
+  return reading;
+}
+
+export function validateVehiclePurchaseType(
+  value: unknown,
+): OnboardingVehiclePurchaseType | null {
+  const candidate = String(value ?? '').trim().toLowerCase();
+  if (candidate.length === 0) return null;
+  if (!(ONBOARDING_VEHICLE_PURCHASE_TYPES as readonly string[]).includes(candidate)) {
+    throw new OnboardingValidationError(
+      'purchaseType',
+      `Purchase type must be one of: ${ONBOARDING_VEHICLE_PURCHASE_TYPES.join(', ')}`,
+    );
+  }
+  return candidate as OnboardingVehiclePurchaseType;
+}
+
+export function validateDeviceQuantity(value: unknown): number {
+  const quantity = Number(String(value ?? '').trim());
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) {
+    throw new OnboardingValidationError(
+      'quantity',
+      'Number of devices must be a whole number between 1 and 500',
+    );
+  }
+  return quantity;
+}
+
+export function validateDeviceUseCase(value: unknown): string {
+  const useCase = collapseSpaces(String(value ?? ''));
+  assertLength('useCase', 'Use case', useCase, 10, 1000);
+  return useCase;
+}
+
+export function validateDeviceNotes(value: unknown): string | null {
+  const notes = collapseSpaces(String(value ?? ''));
+  if (notes.length === 0) return null;
+  assertLength('notes', 'Notes', notes, 1, 1000);
+  return notes;
 }
 
 export function validateStreetAddress(value: unknown): string {

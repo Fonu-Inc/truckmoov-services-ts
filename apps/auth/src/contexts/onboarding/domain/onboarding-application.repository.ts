@@ -5,22 +5,58 @@ export const ONBOARDING_APPLICANT_TYPES = [
 export type OnboardingApplicantType =
   (typeof ONBOARDING_APPLICANT_TYPES)[number];
 
-// Both applicant types submit the same paperwork. Kept as one list rather than
-// a per-type map so the submit gate cannot drift from the upload screen.
 export const ONBOARDING_DOCUMENT_TYPES = [
   'customer_request_letter',
-  'letter_of_authorization',
-  'signed_indemnity_form',
   'cac_document',
   'tax_certificate_or_tin',
   'signature_card',
   'utility_bill',
   'identification_card',
-  'form_c02_c07',
-  'agreement_form',
+  'proof_of_ownership',
+  'vehicle_license',
+  // Produced by signing the indemnity form, never uploaded, so it is a
+  // document type without being a required upload for either applicant type.
+  'signed_indemnity_form',
 ] as const;
 export type OnboardingDocumentType =
   (typeof ONBOARDING_DOCUMENT_TYPES)[number];
+
+// The two applicant types submit different paperwork. One map keyed by type is
+// what stops the submit gate drifting from the upload screen.
+export const REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE: Record<
+  OnboardingApplicantType,
+  readonly OnboardingDocumentType[]
+> = {
+  fleet_provider: [
+    'customer_request_letter',
+    'cac_document',
+    'tax_certificate_or_tin',
+    'signature_card',
+    'utility_bill',
+    'identification_card',
+    'proof_of_ownership',
+    'vehicle_license',
+  ],
+  owner_operator: ['proof_of_ownership', 'vehicle_license'],
+};
+
+/**
+ * Document types supplied once per vehicle rather than once per application.
+ * A licence belongs to a vehicle, so the submit gate counts them against the
+ * vehicles on the application, not against a single slot.
+ */
+export const PER_VEHICLE_DOCUMENT_TYPES: readonly OnboardingDocumentType[] = [
+  'vehicle_license',
+];
+
+export const ONBOARDING_IDENTIFICATION_TYPES = [
+  'nin',
+  'drivers_licence',
+  'voters_card',
+  'passport',
+] as const;
+export type OnboardingIdentificationType =
+  (typeof ONBOARDING_IDENTIFICATION_TYPES)[number];
 
 export const ONBOARDING_APPLICATION_STATUSES = [
   'draft',
@@ -54,10 +90,21 @@ export type StoredOnboardingApplication = {
   businessEmail: string;
   organizationPhone: string;
   contactFullName: string;
-  contactRole: string;
+  contactRole: string | null;
   streetAddress: string;
   city: string;
   state: string;
+  /**
+   * Registry identifiers the automated checks run against. They are optional
+   * because the application form does not yet collect them; an application
+   * without them cannot be decided automatically and falls to manual review.
+   */
+  rcNumber: string | null;
+  taxIdentificationNumber: string | null;
+  identificationType: OnboardingIdentificationType | null;
+  identificationNumber: string | null;
+  /** The M2M licence the applicant chose, priced per device at payment. */
+  m2mPlanCode: string | null;
   emailVerifiedAt: Date | null;
   phoneVerifiedAt: Date | null;
   status: OnboardingApplicationStatus;
@@ -85,9 +132,63 @@ export const ONBOARDING_SETUP_LINK_STATUSES = ['sent', 'failed'] as const;
 export type OnboardingSetupLinkStatus =
   (typeof ONBOARDING_SETUP_LINK_STATUSES)[number];
 
+export const ONBOARDING_VEHICLE_TYPES = [
+  'truck',
+  'van',
+  'bus',
+  'car',
+  'suv',
+  'trailer',
+  'motorcycle',
+  'tricycle',
+] as const;
+export type OnboardingVehicleType = (typeof ONBOARDING_VEHICLE_TYPES)[number];
+
+export const ONBOARDING_VEHICLE_PURCHASE_TYPES = [
+  'outright',
+  'lease',
+  'hire_purchase',
+  'financed',
+  'other',
+] as const;
+export type OnboardingVehiclePurchaseType =
+  (typeof ONBOARDING_VEHICLE_PURCHASE_TYPES)[number];
+
+export type StoredOnboardingApplicationVehicle = {
+  id: string;
+  applicationId: string;
+  registrationNumber: string;
+  vehicleType: OnboardingVehicleType;
+  make: string;
+  model: string;
+  year: number | null;
+  engineNumber: string | null;
+  chassisNumber: string | null;
+  color: string | null;
+  engineCapacity: string | null;
+  odometerReading: number | null;
+  purchaseType: OnboardingVehiclePurchaseType | null;
+  /** Free text, required only when purchaseType is `other`. */
+  purchaseTypeOther: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type StoredOnboardingDeviceRequest = {
+  id: string;
+  applicationId: string;
+  quantity: number;
+  useCase: string;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type StoredOnboardingApplicationDocument = {
   id: string;
   applicationId: string;
+  /** Set for per-vehicle document types, null for application-wide ones. */
+  vehicleId: string | null;
   // Set when the application is approved. The bytes never move out of the
   // platform's own prefix, so this column is what says whose document it is.
   tenantId: string | null;
@@ -137,6 +238,28 @@ export interface OnboardingApplicationRepository {
     items: StoredOnboardingApplication[];
     total: number;
   }>;
+
+  saveVehicle(vehicle: StoredOnboardingApplicationVehicle): Promise<void>;
+  findVehicleById(
+    id: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null>;
+  findVehiclesByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingApplicationVehicle[]>;
+  findVehicleByRegistration(
+    applicationId: string,
+    registrationNumber: string,
+  ): Promise<StoredOnboardingApplicationVehicle | null>;
+  deleteVehicle(id: string): Promise<void>;
+
+  saveDeviceRequest(request: StoredOnboardingDeviceRequest): Promise<void>;
+  findDeviceRequestById(
+    id: string,
+  ): Promise<StoredOnboardingDeviceRequest | null>;
+  findDeviceRequestsByApplicationId(
+    applicationId: string,
+  ): Promise<StoredOnboardingDeviceRequest[]>;
+  deleteDeviceRequest(id: string): Promise<void>;
 
   saveDocument(document: StoredOnboardingApplicationDocument): Promise<void>;
   findDocumentById(

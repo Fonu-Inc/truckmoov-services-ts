@@ -14,7 +14,16 @@ export type ApplicationChangesRequestedEmail = ApplicationDecisionEmail & {
   applicationToken: string;
 };
 
+export type ApplicationResumeEmail = {
+  email: string;
+  organizationName: string;
+  reference: string;
+  applicationId: string;
+  applicationToken: string;
+};
+
 export interface OnboardingDecisionNotifier {
   sendRejected(input: ApplicationDecisionEmail): Promise<void>;
   sendChangesRequested(input: ApplicationChangesRequestedEmail): Promise<void>;
+  sendResumeLink(input: ApplicationResumeEmail): Promise<void>;
 }

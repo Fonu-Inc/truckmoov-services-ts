@@ -70,3 +70,31 @@ export const APPLICATION_CHANGES_REQUESTED_TEMPLATE = `
 </body>
 </html>
 `;
+
+export const APPLICATION_RESUME_SUBJECT =
+  'Continue your Fleet Pro application — TruckMoov';
+
+export const APPLICATION_RESUME_TEMPLATE = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${SHELL_STYLES}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="body">
+      <h2>Pick up where you left off</h2>
+      <p>Here is the link back into the Fleet Pro application for {{organizationName}}. It opens the application exactly as you left it.</p>
+      <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Continue my application</a></div>
+      <p class="fallback">{{resumeLink}}</p>
+      <p>This link replaces any earlier one, so older links no longer work. It is as good as a password: anyone holding it can see and change your application.</p>
+      <p class="meta">Application reference: {{reference}}</p>
+    </div>
+    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+  </div>
+</body>
+</html>
+`;
