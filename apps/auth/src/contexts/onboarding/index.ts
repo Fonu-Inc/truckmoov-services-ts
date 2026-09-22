@@ -56,6 +56,20 @@ export {
   type StoredM2mLicensePlan,
 } from "./domain/m2m-license-plan.repository";
 export {
+  ONBOARDING_ADMIN_NOTIFIER,
+  type NewApplicationAlert,
+  type OnboardingAdminNotifier,
+} from "./domain/ports/onboarding-admin-notifier.port";
+export {
+  ONBOARDING_STAGES,
+  assertStageAdvance,
+  canAdvanceTo,
+  InvalidStageTransitionError,
+  stageProgress,
+  stageStatusLabel,
+  type OnboardingStage,
+} from "./domain/onboarding-stage";
+export {
   ONBOARDING_DECISION_NOTIFIER,
   type OnboardingDecisionNotifier,
 } from "./domain/ports/onboarding-decision-notifier.port";
@@ -138,6 +152,7 @@ export { ApplyAutomatedDecisionUseCase } from "./application/use-cases/apply-aut
 export { DuplicateIdentityError } from "./application/use-cases/support/enforce-identity-claims";
 export { VerifyApplicationAutomaticallyUseCase } from "./application/use-cases/verify-application-automatically.use-case";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
+export { GetOnboardingApplicationTimelineUseCase } from "./application/use-cases/get-application-timeline.use-case";
 export {
   GetIndemnityTemplateUseCase,
   IndemnityTemplateNotFoundError,
@@ -185,6 +200,7 @@ export {
   M2mLicensePlansBootstrapService,
 } from "./infrastructure/bootstrap/m2m-license-plans-bootstrap.service";
 export { OnboardingApplicationRateLimitGuard } from "./infrastructure/http/onboarding-application-rate-limit.guard";
+export { MailerOnboardingAdminNotifier } from "./infrastructure/notifications/mailer-onboarding-admin.notifier";
 export { MailerOnboardingDecisionNotifier } from "./infrastructure/notifications/mailer-onboarding-decision.notifier";
 export { MailerOnboardingVerificationNotifier } from "./infrastructure/notifications/mailer-onboarding-verification.notifier";
 export { InMemoryIdentityClaimRepository } from "./infrastructure/persistence/in-memory-identity-claim.repository";

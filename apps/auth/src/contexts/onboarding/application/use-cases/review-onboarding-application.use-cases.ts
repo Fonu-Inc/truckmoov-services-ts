@@ -15,7 +15,18 @@ import {
   type StoredOnboardingApplication,
   type StoredOnboardingApplicationDocument,
 } from '@auth/onboarding/domain/onboarding-application.repository';
-import { ApplicationNotFoundError } from '@auth/onboarding/domain/onboarding-application.support';
+import {
+  ApplicationNotFoundError,
+  requestedDeviceCount,
+} from '@auth/onboarding/domain/onboarding-application.support';
+import {
+  stageProgress,
+  stageStatusLabel,
+} from '@auth/onboarding/domain/onboarding-stage';
+import {
+  VERIFICATION_RESULT_REPOSITORY,
+  type VerificationResultRepository,
+} from '@auth/onboarding/domain/verification-result.repository';
 
 const DOWNLOAD_URL_TTL_SECONDS = 300;
 
@@ -57,6 +68,11 @@ function summarize(application: StoredOnboardingApplication) {
     contactRole: application.contactRole,
     address: `${application.streetAddress}, ${application.city}, ${application.state}`,
     status: application.status,
+    stage: application.stage,
+    // The queue shows a stage and a label beside it. The label is derived from
+    // the pair rather than stored, so it cannot drift from the stage it
+    // describes.
+    stageStatus: stageStatusLabel(application.stage, application.status),
     emailVerified: application.emailVerifiedAt !== null,
     phoneVerified: application.phoneVerifiedAt !== null,
     submittedAt: application.submittedAt?.toISOString() ?? null,
@@ -111,11 +127,20 @@ export class ListOnboardingApplicationsUseCase {
     // each header, so the count is fetched with the row rather than leaving
     // the client to open every application to find out.
     const withCounts = await Promise.all(
-      items.map(async (application) => ({
-        ...summarize(application),
-        documentCount: (await this.applications.findDocumentsByApplicationId(application.id))
-          .length,
-      })),
+      items.map(async (application) => {
+        const [documents, vehicles, deviceRequests] = await Promise.all([
+          this.applications.findDocumentsByApplicationId(application.id),
+          this.applications.findVehiclesByApplicationId(application.id),
+          this.applications.findDeviceRequestsByApplicationId(application.id),
+        ]);
+
+        return {
+          ...summarize(application),
+          documentCount: documents.length,
+          vehicleCount: vehicles.length,
+          deviceCount: requestedDeviceCount(deviceRequests),
+        };
+      }),
     );
 
     return {
@@ -138,6 +163,8 @@ export class GetOnboardingApplicationForReviewUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(ObjectStorageService)
     private readonly objectStorage: ObjectStorageService,
+    @Inject(VERIFICATION_RESULT_REPOSITORY)
+    private readonly verificationResults: VerificationResultRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
   ) {}
@@ -148,14 +175,44 @@ export class GetOnboardingApplicationForReviewUseCase {
     const application = await this.applications.findById(applicationId);
     if (!application) throw new ApplicationNotFoundError();
 
-    const documents =
-      await this.applications.findDocumentsByApplicationId(application.id);
+    const [documents, vehicles, deviceRequests, verifications] =
+      await Promise.all([
+        this.applications.findDocumentsByApplicationId(application.id),
+        this.applications.findVehiclesByApplicationId(application.id),
+        this.applications.findDeviceRequestsByApplicationId(application.id),
+        this.verificationResults.findByApplicationId(application.id),
+      ]);
 
     return {
       status: true,
       message: 'success',
       data: {
         ...summarize(application),
+        progress: stageProgress(application.stage),
+        vehicleCount: vehicles.length,
+        deviceCount: requestedDeviceCount(deviceRequests),
+        vehicles: vehicles.map((vehicle) => ({
+          id: vehicle.id,
+          registrationNumber: vehicle.registrationNumber,
+          vehicleType: vehicle.vehicleType,
+          make: vehicle.make,
+          model: vehicle.model,
+        })),
+        deviceRequests: deviceRequests.map((request) => ({
+          id: request.id,
+          quantity: request.quantity,
+          useCase: request.useCase,
+        })),
+        // What each registry answered, so a reviewer looking at an application
+        // the checks could not settle sees why without leaving the screen.
+        verifications: verifications.map((result) => ({
+          check: result.check,
+          verdict: result.verdict,
+          summary: result.summary,
+          fields: result.fields,
+          provider: result.provider,
+          checkedAt: result.checkedAt.toISOString(),
+        })),
         documents: await Promise.all(
           documents.map(async (document) => ({
             id: document.id,

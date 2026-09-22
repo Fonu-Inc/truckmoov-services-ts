@@ -98,3 +98,32 @@ export const APPLICATION_RESUME_TEMPLATE = `
 </body>
 </html>
 `;
+
+export const NEW_APPLICATION_ALERT_SUBJECT =
+  'New Fleet Pro application — TruckMoov';
+
+export const NEW_APPLICATION_ALERT_TEMPLATE = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${SHELL_STYLES}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="body">
+      <h2>{{organizationName}} has applied</h2>
+      <p>A new {{applicantType}} application is in the onboarding queue.</p>
+      <div class="reason">
+        Automated checks: {{automatedOutcome}}<br />
+        Fleet: {{vehicleCount}} vehicle(s), {{deviceCount}} device(s) requested
+      </div>
+      <p class="meta">Application reference: {{reference}}</p>
+    </div>
+    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+  </div>
+</body>
+</html>
+`;

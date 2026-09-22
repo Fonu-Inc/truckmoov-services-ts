@@ -49,6 +49,7 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     emailVerifiedAt: r.emailVerifiedAt ?? null,
     phoneVerifiedAt: r.phoneVerifiedAt ?? null,
     status: r.status as StoredOnboardingApplication['status'],
+    stage: (r.stage as StoredOnboardingApplication['stage']) ?? 'application',
     submittedAt: r.submittedAt ?? null,
     reviewedBy: r.reviewedBy ?? null,
     reviewedAt: r.reviewedAt ?? null,

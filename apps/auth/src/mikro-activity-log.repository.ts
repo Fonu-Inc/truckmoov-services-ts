@@ -73,6 +73,7 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
     if (filters.service) where.service = filters.service;
     if (filters.entityType) where.entityType = filters.entityType;
     if (filters.entityId) where.entityId = filters.entityId;
+    if (filters.entityId) where.entityId = filters.entityId;
     if (filters.action) where.action = filters.action;
     if (filters.actorId) where.actorId = filters.actorId;
 
@@ -114,6 +115,7 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
     if (filters.tenantId) where.tenantId = filters.tenantId;
     if (filters.action) where.action = filters.action;
     if (filters.entityType) where.entityType = filters.entityType;
+    if (filters.entityId) where.entityId = filters.entityId;
     if (filters.service) where.service = filters.service;
     if (filters.from || filters.to) {
       where.occurredAt = {

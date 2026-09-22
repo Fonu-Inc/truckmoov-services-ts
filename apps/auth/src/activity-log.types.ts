@@ -38,6 +38,8 @@ export type AuditLogQuery = {
   actor?: string;
   action?: string;
   entityType?: string;
+  /** One record's own history, for a detail screen's timeline. */
+  entityId?: string;
   service?: string;
   from?: Date;
   to?: Date;

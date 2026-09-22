@@ -38,6 +38,7 @@ import {
   BusinessEmailInUseError,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
+  GetOnboardingApplicationTimelineUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
   RejectOnboardingApplicationUseCase,
@@ -59,6 +60,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly listApplications: ListOnboardingApplicationsUseCase,
     @Inject(GetOnboardingApplicationForReviewUseCase)
     private readonly getApplication: GetOnboardingApplicationForReviewUseCase,
+    @Inject(GetOnboardingApplicationTimelineUseCase)
+    private readonly getTimeline: GetOnboardingApplicationTimelineUseCase,
     @Inject(ReviewOnboardingApplicationDocumentUseCase)
     private readonly reviewDocument: ReviewOnboardingApplicationDocumentUseCase,
     @Inject(ApproveOnboardingApplicationUseCase)
@@ -142,6 +145,22 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     return this.run(() =>
       this.getApplication.execute(accessToken, applicationId),
     );
+  }
+
+  @Get(':applicationId/timeline')
+  @ApiOperation({
+    summary: 'Get an application timeline',
+    description:
+      'Everything that has happened to this application, oldest first, read from the audit trail.',
+  })
+  @ApiOkResponse({ description: 'Timeline returned' })
+  @ApiNotFoundResponse({ description: 'Application not found' })
+  async timeline(
+    @Param('applicationId') applicationId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(() => this.getTimeline.execute(accessToken, applicationId));
   }
 
   @Patch(':applicationId/documents/:documentId/approve')

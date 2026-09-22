@@ -90,6 +90,7 @@ export class CreateOnboardingApplicationUseCase {
       emailVerifiedAt: null,
       phoneVerifiedAt: null,
       status: 'draft',
+      stage: 'application',
       submittedAt: null,
       reviewedBy: null,
       reviewedAt: null,

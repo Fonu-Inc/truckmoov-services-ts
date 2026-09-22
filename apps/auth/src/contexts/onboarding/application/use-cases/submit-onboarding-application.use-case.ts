@@ -14,6 +14,10 @@ import {
   requestedDeviceCount,
   vehiclesMissingDocuments,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import {
+  ONBOARDING_ADMIN_NOTIFIER,
+  type OnboardingAdminNotifier,
+} from '@auth/onboarding/domain/ports/onboarding-admin-notifier.port';
 import { ApplyAutomatedDecisionUseCase } from './apply-automated-decision.use-case';
 import { loadApplicationView } from './support/load-application-view';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
@@ -48,6 +52,8 @@ export class SubmitOnboardingApplicationUseCase {
     private readonly agreements: IndemnityAgreementRepository,
     @Inject(ApplyAutomatedDecisionUseCase)
     private readonly automatedDecision: ApplyAutomatedDecisionUseCase,
+    @Inject(ONBOARDING_ADMIN_NOTIFIER)
+    private readonly adminNotifier: OnboardingAdminNotifier,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {
@@ -98,6 +104,15 @@ export class SubmitOnboardingApplicationUseCase {
     // sit in a review queue waiting for somebody to notice it.
     const decision = await this.automatedDecision.execute(submitted);
     const decided = (await this.applications.findById(submitted.id)) ?? submitted;
+
+    await this.adminNotifier.sendNewApplicationAlert({
+      organizationName: application.organizationName,
+      reference: application.reference,
+      applicantType: application.applicantType,
+      vehicleCount: vehicles.length,
+      deviceCount: requestedDeviceCount(deviceRequests),
+      automatedOutcome: decision.outcome,
+    });
 
     return {
       status: true,
@@ -181,6 +196,8 @@ export class GetOnboardingApplicationStatusUseCase {
     private readonly agreements: IndemnityAgreementRepository,
     @Inject(ApplyAutomatedDecisionUseCase)
     private readonly automatedDecision: ApplyAutomatedDecisionUseCase,
+    @Inject(ONBOARDING_ADMIN_NOTIFIER)
+    private readonly adminNotifier: OnboardingAdminNotifier,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {

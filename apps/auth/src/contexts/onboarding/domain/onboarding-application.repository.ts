@@ -58,6 +58,8 @@ export const ONBOARDING_IDENTIFICATION_TYPES = [
 export type OnboardingIdentificationType =
   (typeof ONBOARDING_IDENTIFICATION_TYPES)[number];
 
+import type { OnboardingStage } from './onboarding-stage';
+
 export const ONBOARDING_APPLICATION_STATUSES = [
   'draft',
   'submitted',
@@ -108,6 +110,8 @@ export type StoredOnboardingApplication = {
   emailVerifiedAt: Date | null;
   phoneVerifiedAt: Date | null;
   status: OnboardingApplicationStatus;
+  /** How far along the onboarding is, separate from what was decided. */
+  stage: OnboardingStage;
   submittedAt: Date | null;
   reviewedBy: string | null;
   reviewedAt: Date | null;

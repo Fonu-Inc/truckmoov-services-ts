@@ -71,6 +71,7 @@ export class InMemoryActivityLogRepository implements ActivityLogRepository {
     if (filters.tenantId) results = results.filter((e) => e.tenantId === filters.tenantId);
     if (filters.action) results = results.filter((e) => e.action === filters.action);
     if (filters.entityType) results = results.filter((e) => e.entityType === filters.entityType);
+    if (filters.entityId) results = results.filter((e) => e.entityId === filters.entityId);
     if (filters.service) results = results.filter((e) => e.service === filters.service);
     if (filters.from) results = results.filter((e) => new Date(e.occurredAt) >= filters.from!);
     if (filters.to) results = results.filter((e) => new Date(e.occurredAt) <= filters.to!);

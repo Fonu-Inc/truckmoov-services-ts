@@ -3,6 +3,7 @@ import { EntitySchema } from '@mikro-orm/core';
 /* ── Onboarding Applications ─────────────────────────── */
 
 export class OnboardingApplicationRecord {
+  stage?: string | null;
   m2mPlanCode?: string | null;
   rcNumber?: string | null;
   taxIdentificationNumber?: string | null;
@@ -65,6 +66,7 @@ export const OnboardingApplicationRecordSchema =
       emailVerifiedAt: { fieldName: 'email_verified_at', type: 'datetime', nullable: true },
       phoneVerifiedAt: { fieldName: 'phone_verified_at', type: 'datetime', nullable: true },
       status: { type: 'string', length: 32, default: 'draft', index: true },
+      stage: { type: 'string', length: 32, default: 'application', index: true },
       submittedAt: { fieldName: 'submitted_at', type: 'datetime', nullable: true },
       reviewedBy: { fieldName: 'reviewed_by', type: 'string', length: 64, nullable: true },
       reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },

@@ -209,6 +209,9 @@ export class ApproveOnboardingApplicationUseCase {
     const approved: StoredOnboardingApplication = {
       ...application,
       status: 'approved',
+      // Approval is no longer the end of the journey, it is the point the
+      // tenant exists and provisioning can start.
+      stage: 'provisioning',
       tenantId,
       reviewedBy: actorId,
       reviewedAt: now,

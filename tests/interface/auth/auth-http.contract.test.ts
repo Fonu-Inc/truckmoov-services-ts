@@ -285,7 +285,13 @@ describe('Auth HTTP contract', () => {
     // Uses its own app instance with a tight burst so this doesn't disturb
     // the shared app's bucket used by every other test in this file.
     const previousBurst = process.env.LOGIN_RATE_LIMIT_BURST;
+    const previousRps = process.env.LOGIN_RATE_LIMIT_RPS;
     process.env.LOGIN_RATE_LIMIT_BURST = '3';
+    // The default refill of one token per ten seconds makes this a race
+    // against the clock: under a loaded parallel run these four requests can
+    // span longer than that, the bucket refills, and the fourth is allowed.
+    // What is being tested is the burst, so the refill is turned off.
+    process.env.LOGIN_RATE_LIMIT_RPS = '0.0001';
     vi.resetModules();
     // prom-client's registry is process-global; the shared app already
     // registered its metrics, so clear it before this second in-process app
@@ -318,6 +324,7 @@ describe('Auth HTTP contract', () => {
     } finally {
       await rateLimitedApp.close();
       process.env.LOGIN_RATE_LIMIT_BURST = previousBurst;
+      process.env.LOGIN_RATE_LIMIT_RPS = previousRps;
       vi.resetModules();
     }
   });
