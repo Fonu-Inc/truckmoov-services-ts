@@ -80,6 +80,30 @@ export class ObjectStorageService {
     );
   }
 
+  /**
+   * The stored bytes.
+   *
+   * Buffered rather than streamed: callers read whole documents that are
+   * already bounded at upload, and a stream would push that bound out to every
+   * one of them.
+   */
+  async getObject(
+    key: string,
+    visibility: "private" | "public" = "private",
+  ): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.resolveBucket(visibility),
+        Key: this.buildKey(key),
+      }),
+    );
+
+    const body = response.Body;
+    if (!body) throw new Error(`Object ${key} has no content`);
+
+    return Buffer.from(await body.transformToByteArray());
+  }
+
   async putObject(input: PutObjectInput): Promise<string> {
     const objectKey = this.buildKey(input.key);
     const visibility = input.visibility ?? "private";

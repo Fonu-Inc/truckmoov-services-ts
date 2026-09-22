@@ -102,6 +102,27 @@ describe("Automated decision", () => {
     expect(decision.outcome).toBe("reject");
   });
 
+  it("holds back an approval the documents disagree with", () => {
+    const decision = decideAutomatically("fleet_provider", ENTERPRISE_PASS, [
+      "rc_number reads RC7654321 on the document, not RC1234567",
+    ]);
+
+    // Held for a person, never rejected: OCR on Nigerian paperwork is not
+    // accurate enough to end an application on.
+    expect(decision.outcome).toBe("manual_review");
+    expect(decision.reason).toContain("RC7654321");
+  });
+
+  it("ignores document disagreement when a registry already contradicted", () => {
+    const decision = decideAutomatically(
+      "fleet_provider",
+      [...ENTERPRISE_PASS.slice(1), result("cac_registration", "mismatch")],
+      ["rc_number reads something else"],
+    );
+
+    expect(decision.outcome).toBe("reject");
+  });
+
   it("does not let an extra passing check stand in for a required one", () => {
     const decision = decideAutomatically("owner_operator", [
       result("identity", "match"),

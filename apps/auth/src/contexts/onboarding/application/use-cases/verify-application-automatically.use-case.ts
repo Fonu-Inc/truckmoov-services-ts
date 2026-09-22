@@ -1,9 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ObjectStorageService } from '@shared/object-storage';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   decideAutomatically,
   type AutomatedDecision,
 } from '@auth/onboarding/domain/automated-decision';
+import { findContradictionsBeforeApproval } from './support/check-document-contradictions';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
@@ -14,6 +16,10 @@ import {
   type KybCheckResult,
   type KybVerification,
 } from '@auth/onboarding/domain/ports/kyb-verification.port';
+import {
+  DOCUMENT_EXTRACTOR,
+  type DocumentExtractor,
+} from '@auth/onboarding/domain/ports/document-extraction.port';
 import {
   VERIFICATION_RESULT_REPOSITORY,
   type StoredVerificationResult,
@@ -30,6 +36,9 @@ export class VerifyApplicationAutomaticallyUseCase {
     @Inject(KYB_VERIFICATION) private readonly registries: KybVerification,
     @Inject(VERIFICATION_RESULT_REPOSITORY)
     private readonly results: VerificationResultRepository,
+    @Inject(DOCUMENT_EXTRACTOR) private readonly extractor: DocumentExtractor,
+    @Inject(ObjectStorageService)
+    private readonly storage: ObjectStorageService,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
   ) {}
 
@@ -53,7 +62,27 @@ export class VerifyApplicationAutomaticallyUseCase {
     }));
     await this.results.replaceForApplication(application.id, stored);
 
-    const decision = decideAutomatically(application.applicantType, checks);
+    let decision = decideAutomatically(application.applicantType, checks);
+
+    // Reading the documents costs the applicant real time, so it happens only
+    // where it could change the answer: at the point the registries would
+    // otherwise approve.
+    if (decision.outcome === 'approve') {
+      const contradictions = await findContradictionsBeforeApproval(
+        this.applications,
+        this.extractor,
+        this.storage,
+        application,
+      );
+      decision = decideAutomatically(
+        application.applicantType,
+        checks,
+        contradictions.map(
+          (entry) =>
+            `${entry.field} reads ${entry.read} on the document, not ${entry.claimed}`,
+        ),
+      );
+    }
     this.logger.log(
       `application_verified:${application.reference}:${decision.outcome}:checks=${checks.length}`,
     );

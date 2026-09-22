@@ -27,6 +27,11 @@ export {
   type VerificationResultRepository,
 } from "./domain/verification-result.repository";
 export {
+  CONTRADICTION_CONFIDENCE_FLOOR,
+  findDocumentContradictions,
+  type DocumentContradiction,
+} from "./domain/document-contradictions";
+export {
   AUTOMATED_OUTCOMES,
   decideAutomatically,
   REQUIRED_CHECKS_BY_APPLICANT_TYPE,
@@ -190,6 +195,7 @@ export {
 export { IndemnityTemplateBootstrapService } from "./infrastructure/bootstrap/indemnity-template-bootstrap.service";
 export { PdfSignedAgreementRenderer } from "./infrastructure/documents/pdf-signed-agreement.renderer";
 export { AbandonedApplicationSweepService } from "./infrastructure/retention/abandoned-application-sweep.service";
+export { HttpDocumentExtractor } from "./infrastructure/extraction/http-document.extractor";
 export { DojahKybAdapter } from "./infrastructure/kyb/dojah-kyb.adapter";
 export { QoreIdKybAdapter } from "./infrastructure/kyb/qoreid-kyb.adapter";
 export { RoutedKybVerification } from "./infrastructure/kyb/routed-kyb-verification";

@@ -54,6 +54,13 @@ export const REQUIRED_CHECKS_BY_APPLICANT_TYPE: Record<
 export function decideAutomatically(
   applicantType: OnboardingApplicantType,
   results: KybCheckResult[],
+  /**
+   * Where an uploaded document plainly states something other than what was
+   * typed. These can only hold an approval back, never cause a rejection:
+   * production OCR on Nigerian paperwork is not accurate enough to end an
+   * application on, but it is accurate enough to be worth a person's look.
+   */
+  documentContradictions: string[] = [],
 ): AutomatedDecision {
   const contradicted = results.filter(
     (result) => result.verdict === 'mismatch' || result.verdict === 'not_found',
@@ -87,6 +94,13 @@ export function decideAutomatically(
     return {
       outcome: 'manual_review',
       reason: `Nothing was checked for ${missing.map(checkLabel).join(', ')}.`,
+    };
+  }
+
+  if (documentContradictions.length > 0) {
+    return {
+      outcome: 'manual_review',
+      reason: `The registries matched, but the documents disagree: ${documentContradictions.join('; ')}.`,
     };
   }
 

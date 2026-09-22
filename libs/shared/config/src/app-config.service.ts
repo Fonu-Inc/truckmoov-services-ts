@@ -294,6 +294,20 @@ export class AppConfigService {
     };
   }
 
+  /**
+   * The self-hosted OCR service onboarding documents are read by.
+   *
+   * Unset means no extraction is attempted, which leaves a decision exactly
+   * where it would have been: an extraction can only contradict a registry
+   * answer or support one, never carry a decision on its own.
+   */
+  get documentExtraction() {
+    return {
+      serviceUrl: this.config.get<string>("DOC_EXTRACTOR_URL", ""),
+      authToken: this.config.get<string>("DOC_EXTRACTOR_AUTH_TOKEN", ""),
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),
