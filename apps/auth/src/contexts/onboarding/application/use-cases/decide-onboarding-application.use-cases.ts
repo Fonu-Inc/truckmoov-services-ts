@@ -4,42 +4,42 @@ import {
   INVITE_REPOSITORY,
   TOKEN_SERVICE,
   USER_REPOSITORY,
-} from './contexts/auth/session';
-import type { AuthNotifier } from './contexts/auth/session/domain/ports/auth-notifier.port';
-import type { InviteRepository } from './contexts/auth/session/domain/ports/invite-repository.port';
-import { ID_GENERATOR, type IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+} from '@auth/session';
+import type { AuthNotifier } from '@auth/session/domain/ports/auth-notifier.port';
+import type { InviteRepository } from '@auth/session/domain/ports/invite-repository.port';
+import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   ORGANIZATION_SETTINGS_REPOSITORY,
   buildDefaultOrganizationSettings,
   type OrganizationSettingsRepository,
-} from './contexts/auth/session/domain/ports/organization-settings.repository.port';
-import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
-import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
+} from '@auth/session/domain/ports/organization-settings.repository.port';
+import type { TokenService } from '@auth/session/domain/ports/token-service.port';
+import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
+import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from '../../../../system-authz';
 import {
   DEFAULT_TENANT_FEATURES,
   ORG_TYPE_TO_BOOTSTRAP_ROLE,
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
-} from './tenant-onboarding.repository';
+} from '../../../../tenant-onboarding.repository';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   ApplicationNotFoundError,
   generateApplicationToken,
   hashApplicationToken,
   missingDocumentTypes,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 import {
   ApplicationNotUnderReviewError,
   DecisionReasonRequiredError,
   REVIEWABLE_STATUSES,
 } from './review-onboarding-application.use-cases';
-import { OnboardingDecisionNotifier } from './onboarding-decision-notifier';
-import { BusinessEmailInUseError } from './onboarding-application.support';
+import { OnboardingDecisionNotifier } from '@auth/onboarding/infrastructure/notifications/onboarding-decision-notifier';
+import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
 
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;

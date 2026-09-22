@@ -30,7 +30,10 @@
       "@shared/crypto": ["libs/shared/crypto/src"],
       "@shared/devices": ["libs/shared/devices/src"],
       "@shared/audit": ["libs/shared/audit/src"],
+      "@auth/session": ["apps/auth/src/contexts/auth/session"],
       "@auth/session/*": ["apps/auth/src/contexts/auth/session/*"],
+      "@auth/onboarding": ["apps/auth/src/contexts/onboarding"],
+      "@auth/onboarding/*": ["apps/auth/src/contexts/onboarding/*"],
       "@fleet/shared/*": ["apps/fleet/src/contexts/fleet/shared/*"],
       "@auth/templates/*": ["apps/auth/src/templates/*"]
     }

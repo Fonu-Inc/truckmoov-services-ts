@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ONBOARDING_APPLICANT_TYPES } from '../onboarding-application.repository';
+import {
+  ONBOARDING_APPLICANT_TYPES,
+} from '@auth/onboarding';
 
 // Shapes the OpenAPI contract only. Enforcement lives in
 // onboarding-application.validation.ts, which the use cases call directly.

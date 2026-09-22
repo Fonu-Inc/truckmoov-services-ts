@@ -4,8 +4,8 @@ import { MailerService } from '@shared/mailer';
 import {
   ONBOARDING_VERIFICATION_CODE_SUBJECT,
   ONBOARDING_VERIFICATION_CODE_TEMPLATE,
-} from './templates/onboarding-verification-code.template';
-import { VERIFICATION_CODE_TTL_MS } from './onboarding-application.support';
+} from '@auth/templates/onboarding-verification-code.template';
+import { VERIFICATION_CODE_TTL_MS } from '@auth/onboarding/domain/onboarding-application.support';
 
 // The applicant has no tenant and no wallet, so onboarding messages are sent
 // as the platform and charged to it, never to the organisation applying.

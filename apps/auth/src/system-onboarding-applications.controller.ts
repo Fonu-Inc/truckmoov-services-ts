@@ -30,26 +30,22 @@ import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
 import {
-  ApplicationDocumentsIncompleteError,
-  ApproveOnboardingApplicationUseCase,
-  RejectOnboardingApplicationUseCase,
-  RequestOnboardingApplicationChangesUseCase,
-  ResendOnboardingSetupLinkUseCase,
-  SetupLinkNotResendableError,
-} from './decide-onboarding-application.use-cases';
-import {
   ApplicationDocumentNotFoundError,
+  ApplicationDocumentsIncompleteError,
+  ApplicationNotFoundError,
   ApplicationNotUnderReviewError,
+  ApproveOnboardingApplicationUseCase,
+  BusinessEmailInUseError,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
+  RejectOnboardingApplicationUseCase,
+  RequestOnboardingApplicationChangesUseCase,
+  ResendOnboardingSetupLinkUseCase,
   ReviewOnboardingApplicationDocumentUseCase,
-} from './review-onboarding-application.use-cases';
-import {
-  ApplicationNotFoundError,
-  BusinessEmailInUseError,
-} from './onboarding-application.support';
+  SetupLinkNotResendableError,
+} from '@auth/onboarding';
 
 @ApiTags('System Onboarding Applications')
 @ApiBearerAuth()

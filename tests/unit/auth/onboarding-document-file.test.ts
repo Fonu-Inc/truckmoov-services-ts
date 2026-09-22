@@ -5,7 +5,7 @@ import {
   sanitizeDocumentName,
   sniffDocumentFormat,
   validateDocumentType,
-} from "../../../apps/auth/src/onboarding-document-file";
+} from "@auth/onboarding/domain/onboarding-document-file";
 
 const PDF = Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(64)]);
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);

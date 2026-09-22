@@ -34,34 +34,30 @@ import {
 } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
-import { CreateOnboardingApplicationUseCase } from './create-onboarding-application.use-case';
-import { DeleteOnboardingApplicationDocumentUseCase } from './delete-onboarding-application-document.use-case';
-import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
-import { OnboardingApplicationRateLimitGuard } from './onboarding-application-rate-limit.guard';
-import { ONBOARDING_DOCUMENT_TYPES } from './onboarding-application.repository';
 import {
+  ApplicationIncompleteError,
   ApplicationNotEditableError,
   ApplicationNotFoundError,
   BusinessEmailInUseError,
-} from './onboarding-application.support';
-import { OnboardingValidationError } from './onboarding-application.validation';
-import { InvalidDocumentFileError } from './onboarding-document-file';
-import { OnboardingApplicationDto } from './dto/onboarding-application.dto';
-import { UpdateOnboardingApplicationUseCase } from './update-onboarding-application.use-case';
-import {
   ConfirmOnboardingVerificationCodeUseCase,
+  CreateOnboardingApplicationUseCase,
+  DeleteOnboardingApplicationDocumentUseCase,
+  GetOnboardingApplicationStatusUseCase,
+  GetOnboardingApplicationUseCase,
+  InvalidDocumentFileError,
   InvalidVerificationCodeError,
+  ONBOARDING_DOCUMENT_TYPES,
+  OnboardingApplicationRateLimitGuard,
+  OnboardingValidationError,
   SendOnboardingVerificationCodeUseCase,
+  SubmitOnboardingApplicationUseCase,
+  UpdateOnboardingApplicationUseCase,
+  UploadOnboardingApplicationDocumentUseCase,
+  VerificationDispatchError,
   VerificationResendTooSoonError,
   VerificationSendLimitError,
-} from './verify-onboarding-application-contact.use-cases';
-import { VerificationDispatchError } from './onboarding-verification-notifier';
-import {
-  ApplicationIncompleteError,
-  GetOnboardingApplicationStatusUseCase,
-  SubmitOnboardingApplicationUseCase,
-} from './submit-onboarding-application.use-case';
-import { UploadOnboardingApplicationDocumentUseCase } from './upload-onboarding-application-document.use-case';
+} from '@auth/onboarding';
+import { OnboardingApplicationDto } from './dto/onboarding-application.dto';
 
 const APPLICATION_TOKEN_HEADER = 'x-application-token';
 

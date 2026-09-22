@@ -3,12 +3,12 @@ import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   assertApplicationEditable,
   missingDocumentTypes,
   toApplicationView,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
 export class ApplicationIncompleteError extends Error {

@@ -3,12 +3,12 @@ import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   ApplicationNotFoundError,
   hashApplicationToken,
   toApplicationView,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 
 @Injectable()
 export class GetOnboardingApplicationUseCase {

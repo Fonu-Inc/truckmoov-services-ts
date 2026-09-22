@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ObjectStorageService } from '@shared/object-storage';
-import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
-import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
-import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
+import { TOKEN_SERVICE, USER_REPOSITORY } from '@auth/session';
+import type { TokenService } from '@auth/session/domain/ports/token-service.port';
+import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
+import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from '../../../../system-authz';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   ONBOARDING_APPLICATION_STATUSES,
@@ -14,8 +14,8 @@ import {
   type OnboardingApplicationStatus,
   type StoredOnboardingApplication,
   type StoredOnboardingApplicationDocument,
-} from './onboarding-application.repository';
-import { ApplicationNotFoundError } from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.repository';
+import { ApplicationNotFoundError } from '@auth/onboarding/domain/onboarding-application.support';
 
 const DOWNLOAD_URL_TTL_SECONDS = 300;
 

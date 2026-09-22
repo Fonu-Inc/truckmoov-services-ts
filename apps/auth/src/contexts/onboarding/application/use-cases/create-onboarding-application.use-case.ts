@@ -1,21 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ID_GENERATOR, type IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   USER_REPOSITORY,
   type UserRepository,
-} from './contexts/auth/session/domain/ports/user-repository.port';
+} from '@auth/session/domain/ports/user-repository.port';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   BusinessEmailInUseError,
   generateApplicationReference,
   generateApplicationToken,
   hashApplicationToken,
   toApplicationView,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 import {
   validateApplicantType,
   validateBusinessEmail,
@@ -26,7 +26,7 @@ import {
   validateOrganizationName,
   validateState,
   validateStreetAddress,
-} from './onboarding-application.validation';
+} from '@auth/onboarding/domain/onboarding-application.validation';
 
 export type CreateOnboardingApplicationCommand = {
   applicantType: unknown;

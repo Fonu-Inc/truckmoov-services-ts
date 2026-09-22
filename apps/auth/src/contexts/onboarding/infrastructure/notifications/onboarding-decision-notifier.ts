@@ -6,7 +6,7 @@ import {
   APPLICATION_CHANGES_REQUESTED_TEMPLATE,
   APPLICATION_REJECTED_SUBJECT,
   APPLICATION_REJECTED_TEMPLATE,
-} from './templates/onboarding-application-decision.template';
+} from '@auth/templates/onboarding-application-decision.template';
 
 export type ApplicationDecisionEmail = {
   email: string;

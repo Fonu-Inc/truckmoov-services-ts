@@ -11,7 +11,7 @@ import {
   validateState,
   validateStreetAddress,
   validateVerificationCode,
-} from "../../../apps/auth/src/onboarding-application.validation";
+} from "@auth/onboarding/domain/onboarding-application.validation";
 
 describe("Nigerian phone validation", () => {
   it("normalises every accepted local and international shape to E.164", () => {

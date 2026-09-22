@@ -23,6 +23,7 @@ export default defineConfig({
       "@shared/geofence": path.resolve(__dirname, "libs/shared/geofence/src"),
       "@shared/sms": path.resolve(__dirname, "libs/shared/sms/src"),
       "@auth/session": path.resolve(__dirname, "apps/auth/src/contexts/auth/session"),
+      "@auth/onboarding": path.resolve(__dirname, "apps/auth/src/contexts/onboarding"),
       "@fleet/shared": path.resolve(__dirname, "apps/fleet/src/contexts/fleet/shared"),
       "@auth/templates": path.resolve(__dirname, "apps/auth/src/templates"),
     },

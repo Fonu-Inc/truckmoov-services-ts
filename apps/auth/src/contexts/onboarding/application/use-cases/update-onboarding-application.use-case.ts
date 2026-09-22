@@ -2,11 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   USER_REPOSITORY,
   type UserRepository,
-} from './contexts/auth/session/domain/ports/user-repository.port';
+} from '@auth/session/domain/ports/user-repository.port';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   validateApplicationDetails,
   type CreateOnboardingApplicationCommand,
@@ -16,7 +16,7 @@ import {
   assertApplicationEditable,
   BusinessEmailInUseError,
   toApplicationView,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 
 @Injectable()
 export class UpdateOnboardingApplicationUseCase {

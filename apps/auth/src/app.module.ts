@@ -420,38 +420,32 @@ import { MikroTenantBusinessInfoRepository } from './mikro-tenant-business-info.
 import { KYC_DOCUMENT_REPOSITORY } from './tenant-kyc-document.repository';
 import { InMemoryKycDocumentRepository } from './in-memory-tenant-kyc-document.repository';
 import { MikroKycDocumentRepository } from './mikro-tenant-kyc-document.repository';
-import { ONBOARDING_APPLICATION_REPOSITORY } from './onboarding-application.repository';
-import { InMemoryOnboardingApplicationRepository } from './in-memory-onboarding-application.repository';
-import { MikroOnboardingApplicationRepository } from './mikro-onboarding-application.repository';
-import { CreateOnboardingApplicationUseCase } from './create-onboarding-application.use-case';
-import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
-import { UpdateOnboardingApplicationUseCase } from './update-onboarding-application.use-case';
-import { UploadOnboardingApplicationDocumentUseCase } from './upload-onboarding-application-document.use-case';
-import { DeleteOnboardingApplicationDocumentUseCase } from './delete-onboarding-application-document.use-case';
-import { OnboardingApplicationsController } from './onboarding-applications.controller';
-import { SystemOnboardingApplicationsController } from './system-onboarding-applications.controller';
-import { OnboardingVerificationNotifier } from './onboarding-verification-notifier';
-import { OnboardingDecisionNotifier } from './onboarding-decision-notifier';
-import {
-  ConfirmOnboardingVerificationCodeUseCase,
-  SendOnboardingVerificationCodeUseCase,
-} from './verify-onboarding-application-contact.use-cases';
-import {
-  GetOnboardingApplicationStatusUseCase,
-  SubmitOnboardingApplicationUseCase,
-} from './submit-onboarding-application.use-case';
-import {
-  GetOnboardingApplicationForReviewUseCase,
-  GetOnboardingReviewSummaryUseCase,
-  ListOnboardingApplicationsUseCase,
-  ReviewOnboardingApplicationDocumentUseCase,
-} from './review-onboarding-application.use-cases';
 import {
   ApproveOnboardingApplicationUseCase,
+  ConfirmOnboardingVerificationCodeUseCase,
+  CreateOnboardingApplicationUseCase,
+  DeleteOnboardingApplicationDocumentUseCase,
+  GetOnboardingApplicationForReviewUseCase,
+  GetOnboardingApplicationStatusUseCase,
+  GetOnboardingApplicationUseCase,
+  GetOnboardingReviewSummaryUseCase,
+  InMemoryOnboardingApplicationRepository,
+  ListOnboardingApplicationsUseCase,
+  MikroOnboardingApplicationRepository,
+  ONBOARDING_APPLICATION_REPOSITORY,
+  OnboardingDecisionNotifier,
+  OnboardingVerificationNotifier,
   RejectOnboardingApplicationUseCase,
   RequestOnboardingApplicationChangesUseCase,
   ResendOnboardingSetupLinkUseCase,
-} from './decide-onboarding-application.use-cases';
+  ReviewOnboardingApplicationDocumentUseCase,
+  SendOnboardingVerificationCodeUseCase,
+  SubmitOnboardingApplicationUseCase,
+  UpdateOnboardingApplicationUseCase,
+  UploadOnboardingApplicationDocumentUseCase,
+} from '@auth/onboarding';
+import { OnboardingApplicationsController } from './onboarding-applications.controller';
+import { SystemOnboardingApplicationsController } from './system-onboarding-applications.controller';
 import { PaymentEventService } from './payment-event.service';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
 import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';

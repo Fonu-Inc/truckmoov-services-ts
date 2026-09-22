@@ -5,22 +5,22 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ObjectStorageService } from '@shared/object-storage';
-import { ID_GENERATOR, type IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplicationDocument,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   applicationDocumentKey,
   assertApplicationEditable,
   toApplicationView,
-} from './onboarding-application.support';
+} from '@auth/onboarding/domain/onboarding-application.support';
 import {
   inspectDocumentFile,
   validateDocumentType,
   type UploadedDocumentFile,
-} from './onboarding-document-file';
+} from '@auth/onboarding/domain/onboarding-document-file';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
 @Injectable()

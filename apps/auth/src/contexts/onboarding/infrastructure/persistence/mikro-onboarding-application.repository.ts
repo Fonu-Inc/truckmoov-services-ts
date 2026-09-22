@@ -5,7 +5,7 @@ import {
   OnboardingApplicationDocumentRecord,
   OnboardingApplicationRecord,
   OnboardingVerificationCodeRecord,
-} from './contexts/auth/session/infrastructure/persistence/auth-orm';
+} from '@auth/session/infrastructure/persistence/auth-orm';
 import type {
   OnboardingApplicationQueueFilters,
   OnboardingApplicationRepository,
@@ -13,7 +13,7 @@ import type {
   StoredOnboardingApplication,
   StoredOnboardingApplicationDocument,
   StoredOnboardingVerificationCode,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 
 const LIVE_STATUSES = ['draft', 'submitted', 'under_review', 'changes_requested'];
 

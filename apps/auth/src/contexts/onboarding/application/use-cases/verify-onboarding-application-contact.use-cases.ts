@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ID_GENERATOR, type IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
+import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type OnboardingVerificationChannel,
   type StoredOnboardingApplication,
-} from './onboarding-application.repository';
+} from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   assertApplicationEditable,
   generateVerificationCode,
@@ -16,10 +16,10 @@ import {
   VERIFICATION_MAX_ATTEMPTS,
   VERIFICATION_MAX_SENDS_PER_HOUR,
   VERIFICATION_RESEND_COOLDOWN_MS,
-} from './onboarding-application.support';
-import { validateVerificationCode } from './onboarding-application.validation';
+} from '@auth/onboarding/domain/onboarding-application.support';
+import { validateVerificationCode } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
-import { OnboardingVerificationNotifier } from './onboarding-verification-notifier';
+import { OnboardingVerificationNotifier } from '@auth/onboarding/infrastructure/notifications/onboarding-verification-notifier';
 
 export class VerificationResendTooSoonError extends Error {
   constructor(secondsRemaining: number) {

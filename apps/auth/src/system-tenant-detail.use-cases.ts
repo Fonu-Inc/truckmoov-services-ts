@@ -12,7 +12,7 @@ import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
-} from './onboarding-application.repository';
+} from '@auth/onboarding';
 import {
   PLAN_ENTITLEMENTS_REPOSITORY,
   type PlanEntitlementsRepository,
