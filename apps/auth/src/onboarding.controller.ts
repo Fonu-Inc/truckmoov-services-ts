@@ -43,6 +43,7 @@ import { ObjectStorageService } from '@shared/object-storage';
 import { Observable } from 'rxjs';
 import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
 import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
+import { ConfirmApplicationPaymentUseCase } from '@auth/onboarding';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -116,6 +117,8 @@ export class OnboardingController extends BaseAuthController {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(SubscribePaymentEventsUseCase) private readonly subscribePaymentEventsUseCase: SubscribePaymentEventsUseCase,
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
+    @Inject(ConfirmApplicationPaymentUseCase)
+    private readonly confirmApplicationPayment: ConfirmApplicationPaymentUseCase,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
     @Inject(GetSubscriptionCapsUseCase) private readonly getSubscriptionCapsUseCase: GetSubscriptionCapsUseCase,
     @Inject(GetBusinessInfoUseCase) private readonly getBusinessInfoUseCase: GetBusinessInfoUseCase,
@@ -211,6 +214,23 @@ export class OnboardingController extends BaseAuthController {
 
     const callback = this.gatewayRegistry.parse(payload, req.headers, body);
     if (!callback) throw new ForbiddenException('Invalid webhook signature');
+
+    // An onboarding payment is settled whatever the outcome: a failed attempt
+    // has to be visible on the application, not silently absent.
+    if (callback.reference && callback.metadata['kind'] === 'onboarding') {
+      try {
+        await this.confirmApplicationPayment.execute(
+          callback.reference,
+          callback.succeeded,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to settle onboarding payment ${callback.reference}: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`,
+        );
+      }
+    }
 
     if (callback.succeeded) {
       const metadata = callback.metadata;

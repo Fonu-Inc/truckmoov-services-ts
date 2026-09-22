@@ -3,6 +3,8 @@ import { EntitySchema } from '@mikro-orm/core';
 /* ── Onboarding Applications ─────────────────────────── */
 
 export class OnboardingApplicationRecord {
+  billingEmail?: string | null;
+  billingEmailVerifiedAt?: Date | null;
   stage?: string | null;
   m2mPlanCode?: string | null;
   rcNumber?: string | null;
@@ -60,6 +62,8 @@ export const OnboardingApplicationRecordSchema =
       identificationType: { fieldName: 'identification_type', type: 'string', length: 32, nullable: true },
       identificationNumber: { fieldName: 'identification_number', type: 'string', length: 24, nullable: true, index: true },
       m2mPlanCode: { fieldName: 'm2m_plan_code', type: 'string', length: 64, nullable: true },
+      billingEmail: { fieldName: 'billing_email', type: 'string', length: 254, nullable: true },
+      billingEmailVerifiedAt: { fieldName: 'billing_email_verified_at', type: 'datetime', nullable: true },
       streetAddress: { fieldName: 'street_address', type: 'string', length: 200 },
       city: { type: 'string', length: 80 },
       state: { type: 'string', length: 64 },
@@ -361,5 +365,42 @@ export const OnboardingVerificationResultRecordSchema =
       fields: { type: 'json' },
       provider: { type: 'string', length: 40 },
       checkedAt: { fieldName: 'checked_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
+/* ── Onboarding Payments ────────────────────────────── */
+
+export class OnboardingPaymentRecord {
+  id!: string;
+  applicationId!: string;
+  reference!: string;
+  provider!: string;
+  amountKobo!: number;
+  billingEmail!: string;
+  planCode!: string;
+  deviceCount!: number;
+  status!: string;
+  paidAt!: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const OnboardingPaymentRecordSchema =
+  new EntitySchema<OnboardingPaymentRecord>({
+    class: OnboardingPaymentRecord,
+    tableName: 'onboarding_payments',
+    properties: {
+      id: { type: 'string', primary: true },
+      applicationId: { fieldName: 'application_id', type: 'string', length: 64, index: true },
+      reference: { type: 'string', length: 64, unique: true },
+      provider: { type: 'string', length: 40 },
+      amountKobo: { fieldName: 'amount_kobo', type: 'number' },
+      billingEmail: { fieldName: 'billing_email', type: 'string', length: 254 },
+      planCode: { fieldName: 'plan_code', type: 'string', length: 64 },
+      deviceCount: { fieldName: 'device_count', type: 'number' },
+      status: { type: 'string', length: 20, default: 'pending', index: true },
+      paidAt: { fieldName: 'paid_at', type: 'datetime', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
   });

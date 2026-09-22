@@ -87,6 +87,8 @@ export class CreateOnboardingApplicationUseCase {
       tokenHash: hashApplicationToken(token),
       ...details,
       m2mPlanCode,
+      billingEmail: null,
+      billingEmailVerifiedAt: null,
       emailVerifiedAt: null,
       phoneVerifiedAt: null,
       status: 'draft',

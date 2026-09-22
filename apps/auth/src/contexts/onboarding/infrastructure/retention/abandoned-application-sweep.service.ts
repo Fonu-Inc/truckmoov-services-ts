@@ -17,6 +17,14 @@ import {
   type IndemnityAgreementRepository,
 } from '@auth/onboarding/domain/indemnity-agreement.repository';
 import {
+  INSTALLATION_ORDER_REPOSITORY,
+  type InstallationOrderRepository,
+} from '@auth/installation';
+import {
+  ONBOARDING_PAYMENT_REPOSITORY,
+  type OnboardingPaymentRepository,
+} from '@auth/onboarding/domain/onboarding-payment.repository';
+import {
   VERIFICATION_RESULT_REPOSITORY,
   type VerificationResultRepository,
 } from '@auth/onboarding/domain/verification-result.repository';
@@ -66,6 +74,10 @@ export class AbandonedApplicationSweepService
     private readonly identityClaims: IdentityClaimRepository,
     @Inject(VERIFICATION_RESULT_REPOSITORY)
     private readonly verificationResults: VerificationResultRepository,
+    @Inject(ONBOARDING_PAYMENT_REPOSITORY)
+    private readonly payments: OnboardingPaymentRepository,
+    @Inject(INSTALLATION_ORDER_REPOSITORY)
+    private readonly installationOrders: InstallationOrderRepository,
     @Inject(ObjectStorageService)
     private readonly storage: ObjectStorageService,
   ) {}
@@ -156,6 +168,8 @@ export class AbandonedApplicationSweepService
     // whoever legitimately holds those details next.
     await this.identityClaims.deleteForApplication(application.id);
     await this.verificationResults.deleteForApplication(application.id);
+    await this.payments.deleteForApplication(application.id);
+    await this.installationOrders.deleteForApplication(application.id);
     await this.applications.deleteApplication(application.id);
     return true;
   }

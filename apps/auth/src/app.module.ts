@@ -101,6 +101,17 @@ import {
 import { ActivityLogListener } from './activity-log.listener';
 import { ComplianceReminderListener } from './compliance-reminder.listener';
 import { ACTIVITY_LOG_REPOSITORY } from './activity-log.repository';
+import {
+  INSTALLATION_ORDER_REPOSITORY,
+  INSTALLER_REPOSITORY,
+  InMemoryInstallationOrderRepository,
+  InMemoryInstallerRepository,
+  InstallersBootstrapService,
+  IssueSetupLinkUseCase,
+  MikroInstallationOrderRepository,
+  MikroInstallerRepository,
+  ScheduleInstallationUseCase,
+} from '@auth/installation';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
 import { SystemAuditController } from './system-audit.controller';
@@ -427,7 +438,15 @@ import {
   CreateOnboardingApplicationUseCase,
   GetIndemnityTemplateUseCase,
   GetM2mLicensePlansUseCase,
+  CompleteProvisioningUseCase,
+  ConfirmApplicationPaymentUseCase,
+  CreateApplicationPaymentUseCase,
+  GetApplicationOrderUseCase,
   GetOnboardingApplicationTimelineUseCase,
+  InMemoryOnboardingPaymentRepository,
+  MikroOnboardingPaymentRepository,
+  ONBOARDING_PAYMENT_REPOSITORY,
+  SetBillingEmailUseCase,
   INDEMNITY_AGREEMENT_REPOSITORY,
   IndemnityTemplateBootstrapService,
   InMemoryIndemnityAgreementRepository,
@@ -1406,6 +1425,51 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     GetM2mLicensePlansUseCase,
+    InMemoryInstallerRepository,
+    MikroInstallerRepository,
+    {
+      provide: INSTALLER_REPOSITORY,
+      inject: [InMemoryInstallerRepository, MikroInstallerRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInstallerRepository,
+        mikro: MikroInstallerRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryInstallationOrderRepository,
+    MikroInstallationOrderRepository,
+    {
+      provide: INSTALLATION_ORDER_REPOSITORY,
+      inject: [InMemoryInstallationOrderRepository, MikroInstallationOrderRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInstallationOrderRepository,
+        mikro: MikroInstallationOrderRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    IssueSetupLinkUseCase,
+    ScheduleInstallationUseCase,
+    InstallersBootstrapService,
+    InMemoryOnboardingPaymentRepository,
+    MikroOnboardingPaymentRepository,
+    {
+      provide: ONBOARDING_PAYMENT_REPOSITORY,
+      inject: [
+        InMemoryOnboardingPaymentRepository,
+        MikroOnboardingPaymentRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryOnboardingPaymentRepository,
+        mikro: MikroOnboardingPaymentRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    GetApplicationOrderUseCase,
+    CreateApplicationPaymentUseCase,
+    ConfirmApplicationPaymentUseCase,
+    SetBillingEmailUseCase,
+    CompleteProvisioningUseCase,
     GetOnboardingApplicationTimelineUseCase,
     M2mLicensePlansBootstrapService,
     InMemoryIndemnityAgreementRepository,

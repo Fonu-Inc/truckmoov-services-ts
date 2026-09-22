@@ -14,6 +14,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Res,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -49,6 +50,10 @@ import {
   DeviceRequestNotFoundError,
   DuplicateIdentityError,
   DuplicateVehicleError,
+  ApplicationNotPayableError,
+  BillingEmailNotVerifiedError,
+  CreateApplicationPaymentUseCase,
+  GetApplicationOrderUseCase,
   GetIndemnityTemplateUseCase,
   GetM2mLicensePlansUseCase,
   GetOnboardingApplicationStatusUseCase,
@@ -67,7 +72,9 @@ import {
   RemoveApplicationVehicleUseCase,
   RequestApplicationDevicesUseCase,
   ResumeOnboardingApplicationUseCase,
+  PaymentProviderUnavailableError,
   SendOnboardingVerificationCodeUseCase,
+  SetBillingEmailUseCase,
   SignIndemnityAgreementUseCase,
   SubmitOnboardingApplicationUseCase,
   UpdateApplicationVehicleUseCase,
@@ -82,9 +89,17 @@ import {
 } from '@auth/onboarding';
 import { OnboardingApplicationDto } from './dto/onboarding-application.dto';
 import {
+  DeviceAssignmentMismatchError,
+  InstallationNotSchedulableError,
+  InvalidInstallationDateError,
+  ScheduleInstallationUseCase,
+  VehicleAlreadyAssignedError,
+} from '@auth/installation';
+import {
   OnboardingDeviceRequestDto,
   OnboardingVehicleDto,
 } from './dto/onboarding-vehicle.dto';
+import { ScheduleInstallationDto } from './dto/schedule-installation.dto';
 
 const APPLICATION_TOKEN_HEADER = 'x-application-token';
 
@@ -152,6 +167,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly signIndemnity: SignIndemnityAgreementUseCase,
     @Inject(ResumeOnboardingApplicationUseCase)
     private readonly resumeApplication: ResumeOnboardingApplicationUseCase,
+    @Inject(GetApplicationOrderUseCase)
+    private readonly applicationOrder: GetApplicationOrderUseCase,
+    @Inject(CreateApplicationPaymentUseCase)
+    private readonly startPayment: CreateApplicationPaymentUseCase,
+    @Inject(SetBillingEmailUseCase)
+    private readonly setBillingEmail: SetBillingEmailUseCase,
+    @Inject(ScheduleInstallationUseCase)
+    private readonly scheduleInstallation: ScheduleInstallationUseCase,
   ) {
     super(activityLogService);
   }
@@ -412,6 +435,146 @@ export class OnboardingApplicationsController extends BaseAuthController {
         applicationId,
         applicationToken: token,
         requestId,
+      }),
+    );
+  }
+
+  @Get(':applicationId/order')
+  @ApiOperation({
+    summary: 'Get the order for an application',
+    description:
+      'What the applicant owes: the licence per device, the installation fee, and the total. Priced from the application, never from the request.',
+  })
+  @ApiOkResponse({ description: 'Order returned' })
+  async order(
+    @Param('applicationId') applicationId: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() => this.applicationOrder.execute(applicationId, token));
+  }
+
+  @Put(':applicationId/billing-email')
+  @ApiOperation({
+    summary: 'Set the billing email',
+    description:
+      'Where the invoice and receipt go. Changing it clears its verification, so a code has to be confirmed again before payment.',
+  })
+  @ApiOkResponse({ description: 'Billing email saved' })
+  @ApiBadRequestResponse({ description: 'The address is invalid' })
+  async billingEmail(
+    @Param('applicationId') applicationId: string,
+    @Body('billingEmail') billingEmail?: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.setBillingEmail.execute({
+        applicationId,
+        applicationToken: token,
+        billingEmail,
+      }),
+    );
+  }
+
+  @Post(':applicationId/verify/billing-email/send')
+  @ApiOperation({
+    summary: 'Send the billing email verification code',
+    description: 'Sends a 6 digit code to the billing address.',
+  })
+  @ApiCreatedResponse({ description: 'Code sent' })
+  async sendBillingEmailCode(
+    @Param('applicationId') applicationId: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.sendCode.execute({
+        applicationId,
+        applicationToken: token,
+        channel: 'billing_email',
+      }),
+    );
+  }
+
+  @Post(':applicationId/verify/billing-email')
+  @ApiOperation({ summary: 'Verify the billing email code' })
+  @ApiCreatedResponse({ description: 'Billing email verified' })
+  @ApiBadRequestResponse({ description: 'The code is wrong or has expired' })
+  async verifyBillingEmail(
+    @Param('applicationId') applicationId: string,
+    @Body('code') code?: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.confirmCode.execute({
+        applicationId,
+        applicationToken: token,
+        channel: 'billing_email',
+        code,
+      }),
+    );
+  }
+
+  @Post(':applicationId/payment')
+  @ApiOperation({
+    summary: 'Start the payment',
+    description:
+      'Initialises a charge for the order. The amount is computed from the application, so a request cannot name its own price.',
+  })
+  @ApiCreatedResponse({ description: 'Payment initialised' })
+  @ApiConflictResponse({
+    description: 'Not at the payment stage, or already paid',
+  })
+  @ApiBadRequestResponse({ description: 'The billing email is not verified' })
+  async pay(
+    @Param('applicationId') applicationId: string,
+    @Body('redirectUrl') redirectUrl?: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.startPayment.execute({
+        applicationId,
+        applicationToken: token,
+        redirectUrl,
+      }),
+    );
+  }
+
+  @Post(':applicationId/installation')
+  @ApiOperation({
+    summary: 'Schedule the installation',
+    description:
+      'Books the fitting and assigns an installer. Every paid-for device is assigned to one vehicle, and no vehicle takes two. The account setup link is emailed once this succeeds.',
+  })
+  @ApiCreatedResponse({ description: 'Installation scheduled' })
+  @ApiBadRequestResponse({
+    description: 'The date, the address or the device assignment is invalid',
+  })
+  @ApiConflictResponse({
+    description: 'Not at the scheduling stage, or already scheduled',
+  })
+  async schedule(
+    @Param('applicationId') applicationId: string,
+    @Body() payload: ScheduleInstallationDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.scheduleInstallation.execute({
+        applicationId,
+        applicationToken: token,
+        scheduledDate: payload.scheduledDate,
+        timeSlot: payload.timeSlot,
+        addressLine: payload.addressLine,
+        city: payload.city,
+        state: payload.state,
+        siteContactName: payload.siteContactName,
+        siteContactPhone: payload.siteContactPhone,
+        notes: payload.notes,
+        assignments: payload.assignments ?? [],
       }),
     );
   }
@@ -735,6 +898,25 @@ export class OnboardingApplicationsController extends BaseAuthController {
       }
       if (error instanceof IndemnityTemplateNotFoundError) {
         throw new ServiceUnavailableException(error.message);
+      }
+      if (error instanceof PaymentProviderUnavailableError) {
+        throw new ServiceUnavailableException(error.message);
+      }
+      if (
+        error instanceof ApplicationNotPayableError ||
+        error instanceof InstallationNotSchedulableError
+      ) {
+        throw new ConflictException(error.message);
+      }
+      if (
+        error instanceof InvalidInstallationDateError ||
+        error instanceof DeviceAssignmentMismatchError ||
+        error instanceof VehicleAlreadyAssignedError
+      ) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof BillingEmailNotVerifiedError) {
+        throw new BadRequestException(error.message);
       }
       if (
         error instanceof ApplicationNotEditableError ||

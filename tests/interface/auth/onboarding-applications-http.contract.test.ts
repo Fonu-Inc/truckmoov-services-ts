@@ -559,7 +559,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(401);
   });
 
-  it('approves a submitted application, creating a tenant and a setup link', async () => {
+  it('approves a submitted application, creating a tenant and opening provisioning', async () => {
     const { id, token } = await startApplication('approve@arne.com');
     await uploadAll(id, token);
     await addVehicleWithLicence(id, token);
@@ -596,7 +596,10 @@ describe('Onboarding applications HTTP contract', () => {
     expect(approved.body.data.status).toBe('approved');
     expect(approved.body.data.tenantId).toBeTypeOf('string');
     expect(approved.body.data.bootstrapRole).toBe('FLEET_ADMIN');
-    expect(approved.body.data.setupLinkEmail).toBe('approve@arne.com');
+    // No setup link yet. The account is created when an installation is
+    // booked, which is the first moment there is anything to log in and see.
+    expect(approved.body.data.stage).toBe('provisioning');
+    expect(approved.body.data.setupLinkEmail).toBeUndefined();
   });
 
   it('rejects an application with a reason the applicant can read back', async () => {

@@ -16,6 +16,7 @@ import {
   VERIFICATION_MAX_SENDS_PER_HOUR,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import { loadApplicationView } from './support/load-application-view';
 import { validateVerificationCode } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
@@ -91,7 +92,7 @@ export class SendOnboardingVerificationCodeUseCase {
       createdAt: now,
     });
 
-    if (input.channel === 'email') {
+    if (input.channel === 'email' || input.channel === 'billing_email') {
       await this.notifier.sendEmailCode({
         destination,
         code,
@@ -209,6 +210,10 @@ export class ConfirmOnboardingVerificationCodeUseCase {
         input.channel === 'email' ? now : application.emailVerifiedAt,
       phoneVerifiedAt:
         input.channel === 'sms' ? now : application.phoneVerifiedAt,
+      billingEmailVerifiedAt:
+        input.channel === 'billing_email'
+          ? now
+          : application.billingEmailVerifiedAt,
       updatedAt: now,
     };
     await this.applications.save(updated);
@@ -219,19 +224,32 @@ export class ConfirmOnboardingVerificationCodeUseCase {
 
     return {
       status: true,
-      message: input.channel === 'email' ? 'Email verified' : 'Phone number verified',
+      message: VERIFIED_MESSAGES[input.channel],
       data: await loadApplicationView(this.applications, updated),
     };
   }
 }
 
+const VERIFIED_MESSAGES: Record<OnboardingVerificationChannel, string> = {
+  email: 'Email verified',
+  sms: 'Phone number verified',
+  billing_email: 'Billing email verified',
+};
+
 function destinationFor(
   application: StoredOnboardingApplication,
   channel: OnboardingVerificationChannel,
 ): string {
-  return channel === 'email'
-    ? application.businessEmail
-    : application.organizationPhone;
+  if (channel === 'sms') return application.organizationPhone;
+  if (channel === 'email') return application.businessEmail;
+
+  if (!application.billingEmail) {
+    throw new OnboardingValidationError(
+      'billingEmail',
+      'Set a billing email before requesting a code for it',
+    );
+  }
+  return application.billingEmail;
 }
 
 function maskDestination(

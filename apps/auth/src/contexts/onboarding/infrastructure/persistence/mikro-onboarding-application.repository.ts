@@ -43,6 +43,8 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
       null,
     identificationNumber: r.identificationNumber ?? null,
     m2mPlanCode: r.m2mPlanCode ?? null,
+    billingEmail: r.billingEmail ?? null,
+    billingEmailVerifiedAt: r.billingEmailVerifiedAt ?? null,
     streetAddress: r.streetAddress,
     city: r.city,
     state: r.state,

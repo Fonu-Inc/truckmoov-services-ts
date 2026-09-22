@@ -33,6 +33,8 @@
       "@shared/audit": ["libs/shared/audit/src"],
       "@auth/session": ["apps/auth/src/contexts/auth/session"],
       "@auth/session/*": ["apps/auth/src/contexts/auth/session/*"],
+      "@auth/installation": ["apps/auth/src/contexts/installation"],
+      "@auth/installation/*": ["apps/auth/src/contexts/installation/*"],
       "@auth/onboarding": ["apps/auth/src/contexts/onboarding"],
       "@auth/onboarding/*": ["apps/auth/src/contexts/onboarding/*"],
       "@fleet/shared/*": ["apps/fleet/src/contexts/fleet/shared/*"],

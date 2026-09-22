@@ -3,6 +3,8 @@ import { AbandonedApplicationSweepService } from "@auth/onboarding/infrastructur
 import { InMemoryIdentityClaimRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-identity-claim.repository";
 import { InMemoryIndemnityAgreementRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-indemnity-agreement.repository";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
+import { InMemoryInstallationOrderRepository } from "@auth/installation";
+import { InMemoryOnboardingPaymentRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-payment.repository";
 import { InMemoryVerificationResultRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-verification-result.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 
@@ -84,6 +86,8 @@ describe("Abandoned application sweep", () => {
       agreements,
       identityClaims,
       new InMemoryVerificationResultRepository(),
+      new InMemoryOnboardingPaymentRepository(),
+      new InMemoryInstallationOrderRepository(),
       storage as never,
     );
   });

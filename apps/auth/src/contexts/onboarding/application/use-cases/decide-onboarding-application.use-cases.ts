@@ -141,7 +141,6 @@ export class ApproveOnboardingApplicationUseCase {
     if (existingUser) throw new BusinessEmailInUseError();
 
     const tenantId = this.idGenerator.generate();
-    const inviteToken = this.idGenerator.generate();
     const bootstrapRole = ORG_TYPE_TO_BOOTSTRAP_ROLE[application.applicantType];
     const now = new Date();
 
@@ -190,18 +189,6 @@ export class ApproveOnboardingApplicationUseCase {
       updatedAt: now,
     });
 
-    await this.invites.save({
-      id: this.idGenerator.generate(),
-      email: application.businessEmail,
-      role: bootstrapRole,
-      tenantId,
-      token: inviteToken,
-      invitedBy: actorId,
-      status: 'pending',
-      expiresAt: new Date(now.getTime() + SETUP_LINK_TTL_MS),
-      createdAt: now,
-    });
-
     // Ownership of the paperwork moves by column. The files themselves stay in
     // the platform's storage prefix for life.
     await this.applications.assignDocumentsToTenant(application.id, tenantId);
@@ -220,29 +207,18 @@ export class ApproveOnboardingApplicationUseCase {
     };
     await this.applications.save(approved);
 
-    const delivery = await deliverSetupLink(this.applications, this.notifier, approved, {
-      email: application.businessEmail,
-      role: bootstrapRole,
-      inviteToken,
-    });
-
     return {
       status: true,
-      message: delivery.delivered
-        ? 'Application approved and setup link sent'
-        : 'Application approved, but the setup link could not be delivered',
+      // No setup link yet: the account is created when an installation is
+      // booked, which is the first moment there is anything to log in and see.
+      message: 'Application approved, provisioning can begin',
       data: {
         applicationId: approved.id,
         reference: approved.reference,
         status: approved.status,
+        stage: approved.stage,
         tenantId,
         bootstrapRole,
-        setupLinkEmail: application.businessEmail,
-        setupLinkExpiresAt: new Date(
-          now.getTime() + SETUP_LINK_TTL_MS,
-        ).toISOString(),
-        setupLinkStatus: delivery.status,
-        setupLinkError: delivery.error,
       },
     };
   }

@@ -17,6 +17,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiCreatedResponse,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -38,6 +39,7 @@ import {
   BusinessEmailInUseError,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
+  CompleteProvisioningUseCase,
   GetOnboardingApplicationTimelineUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
@@ -62,6 +64,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly getApplication: GetOnboardingApplicationForReviewUseCase,
     @Inject(GetOnboardingApplicationTimelineUseCase)
     private readonly getTimeline: GetOnboardingApplicationTimelineUseCase,
+    @Inject(CompleteProvisioningUseCase)
+    private readonly completeProvisioning: CompleteProvisioningUseCase,
     @Inject(ReviewOnboardingApplicationDocumentUseCase)
     private readonly reviewDocument: ReviewOnboardingApplicationDocumentUseCase,
     @Inject(ApproveOnboardingApplicationUseCase)
@@ -145,6 +149,26 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     return this.run(() =>
       this.getApplication.execute(accessToken, applicationId),
     );
+  }
+
+  @Post(':applicationId/provisioned')
+  @ApiOperation({
+    summary: 'Mark provisioning complete',
+    description:
+      'Says the devices and SIMs are allocated, which is what opens payment for the applicant.',
+  })
+  @ApiCreatedResponse({ description: 'Provisioning complete' })
+  @ApiConflictResponse({ description: 'The onboarding is not at the provisioning stage' })
+  async provisioned(
+    @Param('applicationId') applicationId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    const result = await this.run(() =>
+      this.completeProvisioning.execute({ accessToken, applicationId }),
+    );
+    await this.recordDecision(accessToken, applicationId, 'provisioned');
+    return result;
   }
 
   @Get(':applicationId/timeline')

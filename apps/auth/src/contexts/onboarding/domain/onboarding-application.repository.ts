@@ -79,7 +79,14 @@ export const ONBOARDING_DOCUMENT_STATUSES = [
 export type OnboardingDocumentStatus =
   (typeof ONBOARDING_DOCUMENT_STATUSES)[number];
 
-export const ONBOARDING_VERIFICATION_CHANNELS = ['email', 'sms'] as const;
+// The billing address is verified the same way as the business one, through
+// the same codes table, because it is the same problem: an address nobody
+// proved reaches the customer.
+export const ONBOARDING_VERIFICATION_CHANNELS = [
+  'email',
+  'sms',
+  'billing_email',
+] as const;
 export type OnboardingVerificationChannel =
   (typeof ONBOARDING_VERIFICATION_CHANNELS)[number];
 
@@ -107,6 +114,9 @@ export type StoredOnboardingApplication = {
   identificationNumber: string | null;
   /** The M2M licence the applicant chose, priced per device at payment. */
   m2mPlanCode: string | null;
+  /** Where the invoice and receipt go. Verified before any money moves. */
+  billingEmail: string | null;
+  billingEmailVerifiedAt: Date | null;
   emailVerifiedAt: Date | null;
   phoneVerifiedAt: Date | null;
   status: OnboardingApplicationStatus;

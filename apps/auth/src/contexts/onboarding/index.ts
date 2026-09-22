@@ -22,6 +22,18 @@ export {
   type DocumentExtractor,
 } from "./domain/ports/document-extraction.port";
 export {
+  ONBOARDING_PAYMENT_REPOSITORY,
+  ONBOARDING_PAYMENT_STATUSES,
+  type OnboardingPaymentRepository,
+  type StoredOnboardingPayment,
+} from "./domain/onboarding-payment.repository";
+export {
+  buildOrderSummary,
+  INSTALLATION_FEE_PER_DEVICE_NGN,
+  toKobo,
+  type OnboardingOrderSummary,
+} from "./domain/onboarding-order";
+export {
   VERIFICATION_RESULT_REPOSITORY,
   type StoredVerificationResult,
   type VerificationResultRepository,
@@ -158,6 +170,16 @@ export { DuplicateIdentityError } from "./application/use-cases/support/enforce-
 export { VerifyApplicationAutomaticallyUseCase } from "./application/use-cases/verify-application-automatically.use-case";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
 export { GetOnboardingApplicationTimelineUseCase } from "./application/use-cases/get-application-timeline.use-case";
+export { CompleteProvisioningUseCase } from "./application/use-cases/complete-provisioning.use-case";
+export { SetBillingEmailUseCase } from "./application/use-cases/set-billing-email.use-case";
+export {
+  ApplicationNotPayableError,
+  BillingEmailNotVerifiedError,
+  ConfirmApplicationPaymentUseCase,
+  CreateApplicationPaymentUseCase,
+  GetApplicationOrderUseCase,
+  PaymentProviderUnavailableError,
+} from "./application/use-cases/pay-for-application.use-cases";
 export {
   GetIndemnityTemplateUseCase,
   IndemnityTemplateNotFoundError,
@@ -210,6 +232,8 @@ export { MailerOnboardingAdminNotifier } from "./infrastructure/notifications/ma
 export { MailerOnboardingDecisionNotifier } from "./infrastructure/notifications/mailer-onboarding-decision.notifier";
 export { MailerOnboardingVerificationNotifier } from "./infrastructure/notifications/mailer-onboarding-verification.notifier";
 export { InMemoryIdentityClaimRepository } from "./infrastructure/persistence/in-memory-identity-claim.repository";
+export { InMemoryOnboardingPaymentRepository } from "./infrastructure/persistence/in-memory-onboarding-payment.repository";
+export { MikroOnboardingPaymentRepository } from "./infrastructure/persistence/mikro-onboarding-payment.repository";
 export { InMemoryIndemnityAgreementRepository } from "./infrastructure/persistence/in-memory-indemnity-agreement.repository";
 export { MikroIdentityClaimRepository } from "./infrastructure/persistence/mikro-identity-claim.repository";
 export { InMemoryM2mLicensePlanRepository } from "./infrastructure/persistence/in-memory-m2m-license-plan.repository";

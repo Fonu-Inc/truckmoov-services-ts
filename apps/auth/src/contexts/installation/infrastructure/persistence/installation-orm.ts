@@ -1,0 +1,99 @@
+import { EntitySchema } from '@mikro-orm/core';
+
+/* ── Installers ─────────────────────────────────────── */
+
+export class InstallerRecord {
+  id!: string;
+  fullName!: string;
+  email!: string;
+  phoneNumber!: string;
+  team!: string;
+  state!: string;
+  isActive!: boolean;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const InstallerRecordSchema = new EntitySchema<InstallerRecord>({
+  class: InstallerRecord,
+  tableName: 'installers',
+  properties: {
+    id: { type: 'string', primary: true },
+    fullName: { fieldName: 'full_name', type: 'string', length: 120 },
+    email: { type: 'string', length: 254, unique: true },
+    phoneNumber: { fieldName: 'phone_number', type: 'string', length: 20 },
+    team: { type: 'string', length: 120 },
+    state: { type: 'string', length: 64, index: true },
+    isActive: { fieldName: 'is_active', type: 'boolean', default: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+/* ── Installation Orders ────────────────────────────── */
+
+export class InstallationOrderRecord {
+  id!: string;
+  orderNumber!: string;
+  applicationId!: string;
+  tenantId!: string;
+  scheduledDate!: Date;
+  timeSlot!: string;
+  addressLine!: string;
+  city!: string;
+  state!: string;
+  siteContactName!: string;
+  siteContactPhone!: string;
+  notes!: string | null;
+  installerId!: string | null;
+  status!: string;
+  completedAt!: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const InstallationOrderRecordSchema =
+  new EntitySchema<InstallationOrderRecord>({
+    class: InstallationOrderRecord,
+    tableName: 'installation_orders',
+    properties: {
+      id: { type: 'string', primary: true },
+      orderNumber: { fieldName: 'order_number', type: 'string', length: 32, unique: true },
+      applicationId: { fieldName: 'application_id', type: 'string', length: 64, unique: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, index: true },
+      scheduledDate: { fieldName: 'scheduled_date', type: 'datetime' },
+      timeSlot: { fieldName: 'time_slot', type: 'string', length: 16 },
+      addressLine: { fieldName: 'address_line', type: 'string', length: 200 },
+      city: { type: 'string', length: 80 },
+      state: { type: 'string', length: 64 },
+      siteContactName: { fieldName: 'site_contact_name', type: 'string', length: 80 },
+      siteContactPhone: { fieldName: 'site_contact_phone', type: 'string', length: 20 },
+      notes: { type: 'text', nullable: true },
+      installerId: { fieldName: 'installer_id', type: 'string', length: 64, nullable: true, index: true },
+      status: { type: 'string', length: 24, default: 'scheduled', index: true },
+      completedAt: { fieldName: 'completed_at', type: 'datetime', nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+    },
+  });
+
+export class InstallationDeviceAssignmentRecord {
+  id!: string;
+  orderId!: string;
+  deviceIndex!: number;
+  vehicleId!: string;
+  createdAt!: Date;
+}
+
+export const InstallationDeviceAssignmentRecordSchema =
+  new EntitySchema<InstallationDeviceAssignmentRecord>({
+    class: InstallationDeviceAssignmentRecord,
+    tableName: 'installation_device_assignments',
+    properties: {
+      id: { type: 'string', primary: true },
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, index: true },
+      deviceIndex: { fieldName: 'device_index', type: 'number' },
+      vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64 },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
