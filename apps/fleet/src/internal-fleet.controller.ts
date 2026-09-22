@@ -201,6 +201,40 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   /**
+   * Whether every device a tenant holds is reporting.
+   *
+   * Read from the devices themselves rather than accepted from the caller:
+   * this closes the onboarding, and a customer who says the fitting worked is
+   * not evidence that the hardware is talking to us.
+   */
+  @Get("tenants/:tenantId/connectivity")
+  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  async tenantConnectivity(@Param("tenantId") tenantId: string) {
+    const devices = await this.devices.findAll({ tenantId });
+
+    const items = devices.map((device) => ({
+      deviceId: device.id,
+      imei: device.imei,
+      manufacturer: device.manufacturer,
+      model: device.model,
+      assignedVehicleId: device.vehicleId,
+      verificationStatus: device.verificationStatus,
+      lastSeen: device.lastSeen,
+      reporting: device.verificationStatus === "verified",
+    }));
+
+    return {
+      status: true,
+      message: "success",
+      data: {
+        total: items.length,
+        reporting: items.filter((item) => item.reporting).length,
+        items,
+      },
+    };
+  }
+
+  /**
    * A snapshot of one record, for a support ticket's auto-attached context.
    *
    * Read here rather than accepted from the client: a ticket that carries

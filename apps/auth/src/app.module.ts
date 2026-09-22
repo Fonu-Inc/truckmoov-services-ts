@@ -110,8 +110,13 @@ import {
   IssueSetupLinkUseCase,
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
+  ConfirmInstallationUseCase,
+  CONNECTIVITY_VERIFICATION,
+  FleetConnectivityVerification,
+  GetInstallationStatusUseCase,
   ScheduleInstallationUseCase,
 } from '@auth/installation';
+import { InstallationController } from './installation.controller';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
 import { SystemAuditController } from './system-audit.controller';
@@ -642,6 +647,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   controllers: [
     AuthController,
     OnboardingApplicationsController,
+    InstallationController,
     SystemOnboardingApplicationsController,
     MailCredentialsController,
     MailboxController,
@@ -1450,6 +1456,13 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     IssueSetupLinkUseCase,
     ScheduleInstallationUseCase,
     InstallersBootstrapService,
+    FleetConnectivityVerification,
+    {
+      provide: CONNECTIVITY_VERIFICATION,
+      useExisting: FleetConnectivityVerification,
+    },
+    GetInstallationStatusUseCase,
+    ConfirmInstallationUseCase,
     InMemoryOnboardingPaymentRepository,
     MikroOnboardingPaymentRepository,
     {

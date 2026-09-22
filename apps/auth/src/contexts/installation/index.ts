@@ -32,6 +32,19 @@ export {
   ScheduleInstallationUseCase,
 } from "./application/use-cases/schedule-installation.use-case";
 export {
+  CONNECTIVITY_VERIFICATION,
+  type ConnectivityVerification,
+  type DeviceConnectivity,
+  type TenantConnectivity,
+} from "./domain/ports/connectivity-verification.port";
+export {
+  ConfirmInstallationUseCase,
+  InstallationNotConfirmableError,
+  NoInstallationOrderError,
+} from "./application/use-cases/confirm-installation.use-case";
+export { GetInstallationStatusUseCase } from "./application/use-cases/get-installation-status.use-case";
+export { FleetConnectivityVerification } from "./infrastructure/connectivity/fleet-connectivity.verification";
+export {
   IssueSetupLinkUseCase,
   SETUP_LINK_TTL_MS,
 } from "./application/use-cases/issue-setup-link.use-case";

@@ -171,6 +171,52 @@ export class FleetFactsService {
   }
 
   /**
+   * Whether every device a tenant holds is reporting.
+   *
+   * Null when fleet could not be asked. The caller must not read that as every
+   * device being silent: one closes an onboarding, the other stalls it.
+   */
+  async tenantConnectivity(tenantId: string): Promise<{
+    total: number;
+    reporting: number;
+    items: Array<Record<string, unknown>>;
+  } | null> {
+    if (!isSafePathId(tenantId)) return null;
+
+    const token = this.mintPlatformToken();
+    if (!token) return null;
+
+    try {
+      const response = await axios.get<{
+        data?: {
+          total?: number;
+          reporting?: number;
+          items?: Array<Record<string, unknown>>;
+        };
+      }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/connectivity`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 8000,
+          validateStatus: () => true,
+        },
+      );
+
+      if (response.status !== 200) return null;
+      return {
+        total: response.data?.data?.total ?? 0,
+        reporting: response.data?.data?.reporting ?? 0,
+        items: response.data?.data?.items ?? [],
+      };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_connectivity_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * A snapshot of one record, for a support ticket's auto-attached context.
    *
    * Null when fleet cannot be reached or the record does not exist. The
