@@ -272,6 +272,28 @@ export class AppConfigService {
     };
   }
 
+  /**
+   * Registry providers used to verify an onboarding application.
+   *
+   * Unset by default, and an unset provider answers "unavailable", which sends
+   * the application to a human. A missing credential must never read as a
+   * passed check.
+   */
+  get kyb() {
+    return {
+      qoreid: {
+        baseUrl: this.config.get<string>("QOREID_BASE_URL", "https://api.qoreid.com"),
+        clientId: this.config.get<string>("QOREID_CLIENT_ID", ""),
+        secret: this.config.get<string>("QOREID_SECRET", ""),
+      },
+      dojah: {
+        baseUrl: this.config.get<string>("DOJAH_BASE_URL", "https://api.dojah.io"),
+        appId: this.config.get<string>("DOJAH_APP_ID", ""),
+        secretKey: this.config.get<string>("DOJAH_SECRET_KEY", ""),
+      },
+    };
+  }
+
   get persistence() {
     return {
       backend: this.config.get("PERSISTENCE_BACKEND", "mikro-orm"),

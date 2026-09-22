@@ -3,6 +3,7 @@ import { AbandonedApplicationSweepService } from "@auth/onboarding/infrastructur
 import { InMemoryIdentityClaimRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-identity-claim.repository";
 import { InMemoryIndemnityAgreementRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-indemnity-agreement.repository";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
+import { InMemoryVerificationResultRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-verification-result.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 
 const NOW = new Date("2026-09-22T12:00:00Z");
@@ -82,6 +83,7 @@ describe("Abandoned application sweep", () => {
       applications,
       agreements,
       identityClaims,
+      new InMemoryVerificationResultRepository(),
       storage as never,
     );
   });

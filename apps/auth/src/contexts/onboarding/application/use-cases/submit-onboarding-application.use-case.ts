@@ -14,6 +14,7 @@ import {
   requestedDeviceCount,
   vehiclesMissingDocuments,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { ApplyAutomatedDecisionUseCase } from './apply-automated-decision.use-case';
 import { loadApplicationView } from './support/load-application-view';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
@@ -45,6 +46,8 @@ export class SubmitOnboardingApplicationUseCase {
     private readonly getApplication: GetOnboardingApplicationUseCase,
     @Inject(INDEMNITY_AGREEMENT_REPOSITORY)
     private readonly agreements: IndemnityAgreementRepository,
+    @Inject(ApplyAutomatedDecisionUseCase)
+    private readonly automatedDecision: ApplyAutomatedDecisionUseCase,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {
@@ -90,10 +93,19 @@ export class SubmitOnboardingApplicationUseCase {
     };
     await this.applications.save(submitted);
 
+    // The registry checks run here rather than on a queue: the applicant is
+    // still on the page, and an application that clears every check should not
+    // sit in a review queue waiting for somebody to notice it.
+    const decision = await this.automatedDecision.execute(submitted);
+    const decided = (await this.applications.findById(submitted.id)) ?? submitted;
+
     return {
       status: true,
       message: 'Application submitted',
-      data: await loadApplicationView(this.applications, submitted),
+      data: {
+        ...(await loadApplicationView(this.applications, decided)),
+        automatedDecision: decision.outcome,
+      },
     };
   }
 
@@ -167,6 +179,8 @@ export class GetOnboardingApplicationStatusUseCase {
     private readonly getApplication: GetOnboardingApplicationUseCase,
     @Inject(INDEMNITY_AGREEMENT_REPOSITORY)
     private readonly agreements: IndemnityAgreementRepository,
+    @Inject(ApplyAutomatedDecisionUseCase)
+    private readonly automatedDecision: ApplyAutomatedDecisionUseCase,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {

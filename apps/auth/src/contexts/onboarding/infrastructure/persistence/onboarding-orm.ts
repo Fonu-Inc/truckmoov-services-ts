@@ -330,3 +330,34 @@ export const OnboardingIdentityClaimRecordSchema =
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     },
   });
+
+/* ── Verification Results ───────────────────────────── */
+
+export class OnboardingVerificationResultRecord {
+  id!: string;
+  applicationId!: string;
+  check!: string;
+  verdict!: string;
+  reference!: string;
+  summary!: string;
+  fields!: unknown;
+  provider!: string;
+  checkedAt!: Date;
+}
+
+export const OnboardingVerificationResultRecordSchema =
+  new EntitySchema<OnboardingVerificationResultRecord>({
+    class: OnboardingVerificationResultRecord,
+    tableName: 'onboarding_verification_results',
+    properties: {
+      id: { type: 'string', primary: true },
+      applicationId: { fieldName: 'application_id', type: 'string', length: 64, index: true },
+      check: { type: 'string', length: 40 },
+      verdict: { type: 'string', length: 20 },
+      reference: { type: 'string', length: 128 },
+      summary: { type: 'text' },
+      fields: { type: 'json' },
+      provider: { type: 'string', length: 40 },
+      checkedAt: { fieldName: 'checked_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });

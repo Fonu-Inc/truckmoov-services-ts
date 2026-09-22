@@ -9,6 +9,31 @@ export { OnboardingValidationError } from "./domain/onboarding-application.valid
 export { ONBOARDING_APPLICATION_REPOSITORY } from "./domain/onboarding-application.repository";
 export { DRAFT_LIFETIME_MS } from "./domain/onboarding-application.support";
 export {
+  KYB_VERIFICATION,
+  KYB_VERDICTS,
+  KYB_VERIFICATION_CHECKS,
+  type KybCheckResult,
+  type KybVerification,
+} from "./domain/ports/kyb-verification.port";
+export {
+  DOCUMENT_EXTRACTOR,
+  EXTRACTION_FIELDS,
+  type DocumentExtraction,
+  type DocumentExtractor,
+} from "./domain/ports/document-extraction.port";
+export {
+  VERIFICATION_RESULT_REPOSITORY,
+  type StoredVerificationResult,
+  type VerificationResultRepository,
+} from "./domain/verification-result.repository";
+export {
+  AUTOMATED_OUTCOMES,
+  decideAutomatically,
+  REQUIRED_CHECKS_BY_APPLICANT_TYPE,
+  type AutomatedDecision,
+  type AutomatedOutcome,
+} from "./domain/automated-decision";
+export {
   IDENTITY_CLAIM_REPOSITORY,
   IDENTITY_CLAIM_TYPES,
   type IdentityClaimRepository,
@@ -109,7 +134,9 @@ export {
   SetupLinkNotResendableError,
 } from "./application/use-cases/decide-onboarding-application.use-cases";
 export { DeleteOnboardingApplicationDocumentUseCase } from "./application/use-cases/delete-onboarding-application-document.use-case";
+export { ApplyAutomatedDecisionUseCase } from "./application/use-cases/apply-automated-decision.use-case";
 export { DuplicateIdentityError } from "./application/use-cases/support/enforce-identity-claims";
+export { VerifyApplicationAutomaticallyUseCase } from "./application/use-cases/verify-application-automatically.use-case";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
 export {
   GetIndemnityTemplateUseCase,
@@ -148,6 +175,11 @@ export {
 export { IndemnityTemplateBootstrapService } from "./infrastructure/bootstrap/indemnity-template-bootstrap.service";
 export { PdfSignedAgreementRenderer } from "./infrastructure/documents/pdf-signed-agreement.renderer";
 export { AbandonedApplicationSweepService } from "./infrastructure/retention/abandoned-application-sweep.service";
+export { DojahKybAdapter } from "./infrastructure/kyb/dojah-kyb.adapter";
+export { QoreIdKybAdapter } from "./infrastructure/kyb/qoreid-kyb.adapter";
+export { RoutedKybVerification } from "./infrastructure/kyb/routed-kyb-verification";
+export { InMemoryVerificationResultRepository } from "./infrastructure/persistence/in-memory-verification-result.repository";
+export { MikroVerificationResultRepository } from "./infrastructure/persistence/mikro-verification-result.repository";
 export {
   M2M_LICENSE_PLAN_SEEDS,
   M2mLicensePlansBootstrapService,

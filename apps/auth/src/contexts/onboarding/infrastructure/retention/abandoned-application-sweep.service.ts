@@ -17,6 +17,10 @@ import {
   type IndemnityAgreementRepository,
 } from '@auth/onboarding/domain/indemnity-agreement.repository';
 import {
+  VERIFICATION_RESULT_REPOSITORY,
+  type VerificationResultRepository,
+} from '@auth/onboarding/domain/verification-result.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
@@ -60,6 +64,8 @@ export class AbandonedApplicationSweepService
     private readonly agreements: IndemnityAgreementRepository,
     @Inject(IDENTITY_CLAIM_REPOSITORY)
     private readonly identityClaims: IdentityClaimRepository,
+    @Inject(VERIFICATION_RESULT_REPOSITORY)
+    private readonly verificationResults: VerificationResultRepository,
     @Inject(ObjectStorageService)
     private readonly storage: ObjectStorageService,
   ) {}
@@ -149,6 +155,7 @@ export class AbandonedApplicationSweepService
     // Claims go with the application: an erased application must stop blocking
     // whoever legitimately holds those details next.
     await this.identityClaims.deleteForApplication(application.id);
+    await this.verificationResults.deleteForApplication(application.id);
     await this.applications.deleteApplication(application.id);
     return true;
   }

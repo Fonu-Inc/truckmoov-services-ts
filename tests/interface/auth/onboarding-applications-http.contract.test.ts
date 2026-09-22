@@ -516,14 +516,18 @@ describe('Onboarding applications HTTP contract', () => {
       .post(`/auth/onboarding/applications/${id}/submit`)
       .set('x-application-token', token);
     expect(submitted.status).toBe(201);
-    expect(submitted.body.data.status).toBe('submitted');
+    // No registry provider is configured in a test run, so every check reads
+    // as unavailable and the application lands in the review queue rather than
+    // being approved on checks nobody answered.
+    expect(submitted.body.data.automatedDecision).toBe('manual_review');
+    expect(submitted.body.data.status).toBe('under_review');
 
     const status = await request(app.getHttpServer())
       .get(`/auth/onboarding/applications/${id}/status`)
       .set('x-application-token', token);
 
     expect(status.status).toBe(200);
-    expect(status.body.data.applicationStatus).toBe('submitted');
+    expect(status.body.data.applicationStatus).toBe('under_review');
     expect(status.body.data.timeline).toHaveLength(4);
     expect(status.body.data.timeline[2].complete).toBe(true);
     expect(status.body.data.timeline[3].inProgress).toBe(true);
@@ -568,7 +572,7 @@ describe('Onboarding applications HTTP contract', () => {
     const accessToken = await systemToken();
 
     const queue = await request(app.getHttpServer())
-      .get('/auth/system/onboarding/applications?status=submitted')
+      .get('/auth/system/onboarding/applications?status=under_review')
       .set('Authorization', `Bearer ${accessToken}`);
     expect(queue.status).toBe(200);
     expect(

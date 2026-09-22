@@ -52,6 +52,15 @@ import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-appl
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;
 
+/**
+ * Who a decision is attributed to when nobody made it by hand.
+ *
+ * Recorded as an actor rather than left null so the audit trail always answers
+ * "who decided this", and an automated approval is visibly distinguishable
+ * from an administrator's.
+ */
+export const SYSTEM_DECISION_ACTOR_ID = 'system';
+
 export class ApplicationDocumentsIncompleteError extends Error {
   constructor(message: string) {
     super(message);
@@ -101,6 +110,31 @@ export class ApproveOnboardingApplicationUseCase {
     );
     this.assertDocumentsSettled(application.applicantType, documents);
 
+    return this.approve(application, actor.id);
+  }
+
+  /**
+   * Approval reached by the registry checks rather than by a reviewer.
+   *
+   * The per-document review is skipped because nobody performed one: the
+   * evidence is the stored verification results, not a reviewer's ticks. The
+   * email-in-use re-check is not skipped, because that race is the same
+   * whoever decides.
+   */
+  async executeAsSystem(applicationId: string) {
+    const application = await this.applications.findById(applicationId);
+    if (!application) throw new ApplicationNotFoundError();
+    if (!REVIEWABLE_STATUSES.includes(application.status)) {
+      throw new ApplicationNotUnderReviewError(application.status);
+    }
+
+    return this.approve(application, SYSTEM_DECISION_ACTOR_ID);
+  }
+
+  private async approve(
+    application: StoredOnboardingApplication,
+    actorId: string,
+  ) {
     // Re-checked at the decision, not only at draft time: an address can be
     // claimed by another route while an application sits in the queue.
     const existingUser = await this.users.findByEmail(application.businessEmail);
@@ -151,7 +185,7 @@ export class ApproveOnboardingApplicationUseCase {
         dataPackage: null,
       },
       features: { ...DEFAULT_TENANT_FEATURES },
-      createdByUserId: actor.id,
+      createdByUserId: actorId,
       createdAt: now,
       updatedAt: now,
     });
@@ -162,7 +196,7 @@ export class ApproveOnboardingApplicationUseCase {
       role: bootstrapRole,
       tenantId,
       token: inviteToken,
-      invitedBy: actor.id,
+      invitedBy: actorId,
       status: 'pending',
       expiresAt: new Date(now.getTime() + SETUP_LINK_TTL_MS),
       createdAt: now,
@@ -176,7 +210,7 @@ export class ApproveOnboardingApplicationUseCase {
       ...application,
       status: 'approved',
       tenantId,
-      reviewedBy: actor.id,
+      reviewedBy: actorId,
       reviewedAt: now,
       decisionReason: null,
       updatedAt: now,
@@ -257,7 +291,20 @@ export class RejectOnboardingApplicationUseCase {
     const reason = input.reason?.trim();
     if (!reason) throw new DecisionReasonRequiredError();
 
-    const application = await this.applications.findById(input.applicationId);
+    return this.reject(input.applicationId, reason, actor.id);
+  }
+
+  /** Rejection reached by the registry checks rather than by a reviewer. */
+  async executeAsSystem(applicationId: string, reason: string) {
+    return this.reject(applicationId, reason, SYSTEM_DECISION_ACTOR_ID);
+  }
+
+  private async reject(
+    applicationId: string,
+    reason: string,
+    actorId: string,
+  ) {
+    const application = await this.applications.findById(applicationId);
     if (!application) throw new ApplicationNotFoundError();
     if (!REVIEWABLE_STATUSES.includes(application.status)) {
       throw new ApplicationNotUnderReviewError(application.status);
@@ -268,7 +315,7 @@ export class RejectOnboardingApplicationUseCase {
       ...application,
       status: 'rejected',
       decisionReason: reason,
-      reviewedBy: actor.id,
+      reviewedBy: actorId,
       reviewedAt: now,
       updatedAt: now,
     };
