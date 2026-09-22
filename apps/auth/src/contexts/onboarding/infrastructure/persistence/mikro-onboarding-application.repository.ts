@@ -21,6 +21,10 @@ import type {
 
 const LIVE_STATUSES = ['draft', 'submitted', 'under_review', 'changes_requested'];
 
+// The statuses the applicant can still act on, which is what makes an
+// untouched application abandoned rather than merely waiting on us.
+const EDITABLE_STATUSES = ['draft', 'changes_requested'];
+
 function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
   return {
     id: r.id,
@@ -109,6 +113,7 @@ function toStoredDocument(
     documentType: r.documentType as StoredOnboardingApplicationDocument['documentType'],
     documentName: r.documentName,
     fileKey: r.fileKey,
+    fileHash: r.fileHash ?? null,
     fileSize: r.fileSize,
     mimeType: r.mimeType,
     status: r.status as StoredOnboardingApplicationDocument['status'],
@@ -206,6 +211,37 @@ export class MikroOnboardingApplicationRepository
       { orderBy: { createdAt: 'asc' }, limit, offset: (page - 1) * limit },
     );
     return { items: records.map(toStored), total };
+  }
+
+  async findAbandoned(
+    lastActivityBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingApplicationRecord,
+      {
+        status: { $in: [...EDITABLE_STATUSES] },
+        updatedAt: { $lt: lastActivityBefore },
+      },
+      { orderBy: { updatedAt: 'asc' }, limit },
+    );
+    return records.map(toStored);
+  }
+
+  async deleteApplication(id: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(OnboardingApplicationDocumentRecord, {
+      applicationId: id,
+    });
+    await em.nativeDelete(OnboardingApplicationVehicleRecord, {
+      applicationId: id,
+    });
+    await em.nativeDelete(OnboardingDeviceRequestRecord, { applicationId: id });
+    await em.nativeDelete(OnboardingVerificationCodeRecord, {
+      applicationId: id,
+    });
+    await em.nativeDelete(OnboardingApplicationRecord, { id });
   }
 
   async saveVehicle(vehicle: StoredOnboardingApplicationVehicle): Promise<void> {

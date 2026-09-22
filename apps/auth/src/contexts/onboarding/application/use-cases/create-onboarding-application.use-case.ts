@@ -9,6 +9,10 @@ import {
   type M2mLicensePlanRepository,
 } from '@auth/onboarding/domain/m2m-license-plan.repository';
 import {
+  IDENTITY_CLAIM_REPOSITORY,
+  type IdentityClaimRepository,
+} from '@auth/onboarding/domain/identity-claim.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
   type StoredOnboardingApplication,
@@ -35,6 +39,7 @@ import {
   validateStreetAddress,
   validateTaxIdentificationNumber,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { enforceIdentityClaims } from './support/enforce-identity-claims';
 import { resolveM2mPlanCode } from './support/resolve-m2m-plan';
 
 export type CreateOnboardingApplicationCommand = {
@@ -65,6 +70,8 @@ export class CreateOnboardingApplicationUseCase {
     private readonly idGenerator: IdGenerator,
     @Inject(M2M_LICENSE_PLAN_REPOSITORY)
     private readonly plans: M2mLicensePlanRepository,
+    @Inject(IDENTITY_CLAIM_REPOSITORY)
+    private readonly identityClaims: IdentityClaimRepository,
   ) {}
 
   async execute(command: CreateOnboardingApplicationCommand) {
@@ -97,6 +104,11 @@ export class CreateOnboardingApplicationUseCase {
     };
 
     await this.applications.save(application);
+    await enforceIdentityClaims(
+      this.identityClaims,
+      this.applications,
+      application,
+    );
 
     return {
       status: true,

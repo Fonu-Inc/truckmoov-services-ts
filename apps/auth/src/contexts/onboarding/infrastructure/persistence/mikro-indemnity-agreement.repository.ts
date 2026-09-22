@@ -105,4 +105,9 @@ export class MikroIndemnityAgreementRepository
     });
     return record ? toStoredSignature(record) : null;
   }
+
+  async deleteSignatureByApplicationId(applicationId: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(IndemnitySignatureRecord, { applicationId });
+  }
 }

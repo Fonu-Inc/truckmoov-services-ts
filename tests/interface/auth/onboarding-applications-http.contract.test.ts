@@ -219,6 +219,16 @@ describe('Onboarding applications HTTP contract', () => {
     )!.id;
   }
 
+  // Two applicants never upload byte-identical documents, and the duplicate
+  // check treats it as one business applying twice, so each application's
+  // fixtures carry its own id.
+  function fileFor(id: string, documentType: string, pdf: boolean): Buffer {
+    return Buffer.concat([
+      pdf ? PDF : PNG,
+      Buffer.from(`${id}:${documentType}`),
+    ]);
+  }
+
   async function uploadAll(id: string, token: string) {
     for (const documentType of DOCUMENT_TYPES) {
       const pdf = documentType === 'customer_request_letter';
@@ -226,7 +236,11 @@ describe('Onboarding applications HTTP contract', () => {
         .post(`/auth/onboarding/applications/${id}/documents`)
         .set('x-application-token', token)
         .field('document_type', documentType)
-        .attach('file', pdf ? PDF : PNG, pdf ? 'letter.pdf' : 'scan.png');
+        .attach(
+          'file',
+          fileFor(id, documentType, pdf),
+          pdf ? 'letter.pdf' : 'scan.png',
+        );
       expect(res.status).toBe(201);
     }
   }
@@ -255,7 +269,7 @@ describe('Onboarding applications HTTP contract', () => {
       .set('x-application-token', token)
       .field('document_type', 'vehicle_license')
       .field('vehicle_id', vehicleId)
-      .attach('file', PNG, 'licence.png');
+      .attach('file', fileFor(id, 'vehicle_license', false), 'licence.png');
     expect(res.status).toBe(201);
     return vehicleId;
   }

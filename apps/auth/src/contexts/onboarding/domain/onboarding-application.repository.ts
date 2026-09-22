@@ -195,6 +195,8 @@ export type StoredOnboardingApplicationDocument = {
   documentType: OnboardingDocumentType;
   documentName: string;
   fileKey: string;
+  /** SHA-256 of the stored bytes, used to spot the same file twice. */
+  fileHash: string | null;
   fileSize: number;
   mimeType: string;
   status: OnboardingDocumentStatus;
@@ -238,6 +240,17 @@ export interface OnboardingApplicationRepository {
     items: StoredOnboardingApplication[];
     total: number;
   }>;
+  /**
+   * Applications the applicant walked away from: still theirs to edit, and not
+   * touched since `lastActivityBefore`. Batched, because a sweep that loads
+   * every abandoned application at once is the one that falls over first.
+   */
+  findAbandoned(
+    lastActivityBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]>;
+  /** Removes the application and everything filed against it. */
+  deleteApplication(id: string): Promise<void>;
 
   saveVehicle(vehicle: StoredOnboardingApplicationVehicle): Promise<void>;
   findVehicleById(

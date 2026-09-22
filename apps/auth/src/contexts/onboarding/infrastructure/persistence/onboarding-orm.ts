@@ -144,6 +144,7 @@ export const OnboardingDeviceRequestRecordSchema =
   });
 
 export class OnboardingApplicationDocumentRecord {
+  fileHash?: string | null;
   id!: string;
   applicationId!: string;
   vehicleId!: string | null;
@@ -173,6 +174,7 @@ export const OnboardingApplicationDocumentRecordSchema =
       documentType: { fieldName: 'document_type', type: 'string', length: 64 },
       documentName: { fieldName: 'document_name', type: 'string', length: 255 },
       fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
+      fileHash: { fieldName: 'file_hash', type: 'string', length: 64, nullable: true, index: true },
       fileSize: { fieldName: 'file_size', type: 'number', default: 0 },
       mimeType: { fieldName: 'mime_type', type: 'string', length: 100 },
       status: { type: 'string', length: 32, default: 'pending' },
@@ -303,5 +305,28 @@ export const IndemnitySignatureRecordSchema =
       ipAddress: { fieldName: 'ip_address', type: 'string', length: 64, nullable: true },
       userAgent: { fieldName: 'user_agent', type: 'string', length: 512, nullable: true },
       signedAt: { fieldName: 'signed_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
+/* ── Identity Claims ────────────────────────────────── */
+
+export class OnboardingIdentityClaimRecord {
+  id!: string;
+  applicationId!: string;
+  claimType!: string;
+  claimValue!: string;
+  createdAt!: Date;
+}
+
+export const OnboardingIdentityClaimRecordSchema =
+  new EntitySchema<OnboardingIdentityClaimRecord>({
+    class: OnboardingIdentityClaimRecord,
+    tableName: 'onboarding_identity_claims',
+    properties: {
+      id: { type: 'string', primary: true },
+      applicationId: { fieldName: 'application_id', type: 'string', length: 64, index: true },
+      claimType: { fieldName: 'claim_type', type: 'string', length: 40, index: true },
+      claimValue: { fieldName: 'claim_value', type: 'string', length: 128, index: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     },
   });

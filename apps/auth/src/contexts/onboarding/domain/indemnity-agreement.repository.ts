@@ -44,6 +44,7 @@ export interface IndemnityAgreementRepository {
   findSignatureByApplicationId(
     applicationId: string,
   ): Promise<StoredIndemnitySignature | null>;
+  deleteSignatureByApplicationId(applicationId: string): Promise<void>;
 }
 
 export const INDEMNITY_AGREEMENT_REPOSITORY = Symbol(

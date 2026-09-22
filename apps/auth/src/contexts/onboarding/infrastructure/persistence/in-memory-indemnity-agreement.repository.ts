@@ -39,4 +39,8 @@ export class InMemoryIndemnityAgreementRepository
   ): Promise<StoredIndemnitySignature | null> {
     return this.signatures.get(applicationId) ?? null;
   }
+
+  async deleteSignatureByApplicationId(applicationId: string): Promise<void> {
+    this.signatures.delete(applicationId);
+  }
 }

@@ -8,6 +8,10 @@ import {
   type M2mLicensePlanRepository,
 } from '@auth/onboarding/domain/m2m-license-plan.repository';
 import {
+  IDENTITY_CLAIM_REPOSITORY,
+  type IdentityClaimRepository,
+} from '@auth/onboarding/domain/identity-claim.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
@@ -21,6 +25,7 @@ import {
   BusinessEmailInUseError,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { loadApplicationView } from './support/load-application-view';
+import { enforceIdentityClaims } from './support/enforce-identity-claims';
 import { resolveM2mPlanCode } from './support/resolve-m2m-plan';
 
 @Injectable()
@@ -34,6 +39,8 @@ export class UpdateOnboardingApplicationUseCase {
     private readonly getApplication: GetOnboardingApplicationUseCase,
     @Inject(M2M_LICENSE_PLAN_REPOSITORY)
     private readonly plans: M2mLicensePlanRepository,
+    @Inject(IDENTITY_CLAIM_REPOSITORY)
+    private readonly identityClaims: IdentityClaimRepository,
   ) {}
 
   async execute(
@@ -78,6 +85,11 @@ export class UpdateOnboardingApplicationUseCase {
     }
 
     await this.applications.save(updated);
+    await enforceIdentityClaims(
+      this.identityClaims,
+      this.applications,
+      updated,
+    );
 
     return {
       status: true,

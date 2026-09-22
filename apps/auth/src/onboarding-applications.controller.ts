@@ -47,6 +47,7 @@ import {
   CreateOnboardingApplicationUseCase,
   DeleteOnboardingApplicationDocumentUseCase,
   DeviceRequestNotFoundError,
+  DuplicateIdentityError,
   DuplicateVehicleError,
   GetIndemnityTemplateUseCase,
   GetM2mLicensePlansUseCase,
@@ -722,6 +723,12 @@ export class OnboardingApplicationsController extends BaseAuthController {
       }
       if (error instanceof DuplicateVehicleError) {
         throw new ConflictException(error.message);
+      }
+      if (error instanceof DuplicateIdentityError) {
+        throw new ConflictException({
+          message: error.message,
+          claimTypes: error.claimTypes,
+        });
       }
       if (error instanceof IndemnityTemplateSupersededError) {
         throw new ConflictException(error.message);

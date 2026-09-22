@@ -392,6 +392,14 @@ export class AppConfigService {
       // Where onboarding OTP text messages are sent. In-cluster by default for
       // the same reason as the addresses above.
       notificationServiceUrl: this.config.get<string>("NOTIFICATION_SERVICE_URL", "http://notification-service:3004"),
+      // How long an abandoned application survives before it is erased. Longer
+      // than the draft lifetime on purpose: the link stopping and the data
+      // being gone must not be the same moment, or support has no window to
+      // recover an application somebody comes back to.
+      onboardingRetentionDays: this.config.get<number>(
+        "ONBOARDING_RETENTION_DAYS",
+        90,
+      ),
       // How long a service may trust a cached "tenant is active" answer. The
       // suspension event invalidates it sooner; this bounds the case where the
       // event was missed, so it is the worst-case delay, not the usual one.

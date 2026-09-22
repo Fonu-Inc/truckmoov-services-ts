@@ -1,6 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ObjectStorageService } from '@shared/object-storage';
 import {
+  IDENTITY_CLAIM_REPOSITORY,
+  type IdentityClaimRepository,
+} from '@auth/onboarding/domain/identity-claim.repository';
+import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
@@ -8,6 +12,7 @@ import {
   ApplicationNotFoundError,
   assertApplicationEditable,
 } from '@auth/onboarding/domain/onboarding-application.support';
+import { enforceIdentityClaims } from './support/enforce-identity-claims';
 import { loadApplicationView } from './support/load-application-view';
 import { touchApplication } from './support/touch-application';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
@@ -25,6 +30,8 @@ export class DeleteOnboardingApplicationDocumentUseCase {
     private readonly objectStorage: ObjectStorageService,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(IDENTITY_CLAIM_REPOSITORY)
+    private readonly identityClaims: IdentityClaimRepository,
   ) {}
 
   async execute(input: {
@@ -59,6 +66,11 @@ export class DeleteOnboardingApplicationDocumentUseCase {
       application.id,
     );
 
+    await enforceIdentityClaims(
+      this.identityClaims,
+      this.applications,
+      application,
+    );
     await touchApplication(this.applications, application);
 
     return {

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -6,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { ObjectStorageService } from '@shared/object-storage';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
+import {
+  IDENTITY_CLAIM_REPOSITORY,
+  type IdentityClaimRepository,
+} from '@auth/onboarding/domain/identity-claim.repository';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
@@ -18,6 +23,7 @@ import {
   isPerVehicleDocument,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
+import { enforceIdentityClaims } from './support/enforce-identity-claims';
 import { loadApplicationView } from './support/load-application-view';
 import { touchApplication } from './support/touch-application';
 import {
@@ -42,6 +48,8 @@ export class UploadOnboardingApplicationDocumentUseCase {
     private readonly idGenerator: IdGenerator,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(IDENTITY_CLAIM_REPOSITORY)
+    private readonly identityClaims: IdentityClaimRepository,
   ) {}
 
   async execute(input: {
@@ -105,6 +113,7 @@ export class UploadOnboardingApplicationDocumentUseCase {
       documentType,
       documentName: inspected.documentName,
       fileKey: key,
+      fileHash: createHash('sha256').update(file.buffer).digest('hex'),
       fileSize: file.buffer.byteLength,
       mimeType: inspected.mimeType,
       // A replacement re-enters review even if the previous file was rejected.
@@ -126,6 +135,13 @@ export class UploadOnboardingApplicationDocumentUseCase {
       application.id,
     );
 
+    // After the row is written, so the check sees the file that was just
+    // filed; a conflict throws and the applicant is told which detail clashes.
+    await enforceIdentityClaims(
+      this.identityClaims,
+      this.applications,
+      application,
+    );
     await touchApplication(this.applications, application);
 
     return {

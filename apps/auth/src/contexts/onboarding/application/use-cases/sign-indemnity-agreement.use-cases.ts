@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -197,6 +198,10 @@ export class SignIndemnityAgreementUseCase {
       documentType: 'signed_indemnity_form',
       documentName: `indemnity-agreement-${template.version}.pdf`,
       fileKey: agreementKey,
+      // Hashed like any other document, but never a duplicate signal: two
+      // applicants signing the same template produce different bytes because
+      // the page carries their own name, time and signature.
+      fileHash: createHash('sha256').update(agreementPdf).digest('hex'),
       fileSize: agreementPdf.byteLength,
       mimeType: 'application/pdf',
       status: 'pending',

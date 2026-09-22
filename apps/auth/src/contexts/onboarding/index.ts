@@ -9,6 +9,16 @@ export { OnboardingValidationError } from "./domain/onboarding-application.valid
 export { ONBOARDING_APPLICATION_REPOSITORY } from "./domain/onboarding-application.repository";
 export { DRAFT_LIFETIME_MS } from "./domain/onboarding-application.support";
 export {
+  IDENTITY_CLAIM_REPOSITORY,
+  IDENTITY_CLAIM_TYPES,
+  type IdentityClaimRepository,
+  type StoredIdentityClaim,
+} from "./domain/identity-claim.repository";
+export {
+  blocksOtherApplications,
+  identityClaimsOf,
+} from "./domain/identity-claims";
+export {
   INDEMNITY_AGREEMENT_REPOSITORY,
   INDEMNITY_SIGNATURE_METHODS,
   type IndemnityAgreementRepository,
@@ -99,6 +109,7 @@ export {
   SetupLinkNotResendableError,
 } from "./application/use-cases/decide-onboarding-application.use-cases";
 export { DeleteOnboardingApplicationDocumentUseCase } from "./application/use-cases/delete-onboarding-application-document.use-case";
+export { DuplicateIdentityError } from "./application/use-cases/support/enforce-identity-claims";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
 export {
   GetIndemnityTemplateUseCase,
@@ -136,6 +147,7 @@ export {
 // Infrastructure
 export { IndemnityTemplateBootstrapService } from "./infrastructure/bootstrap/indemnity-template-bootstrap.service";
 export { PdfSignedAgreementRenderer } from "./infrastructure/documents/pdf-signed-agreement.renderer";
+export { AbandonedApplicationSweepService } from "./infrastructure/retention/abandoned-application-sweep.service";
 export {
   M2M_LICENSE_PLAN_SEEDS,
   M2mLicensePlansBootstrapService,
@@ -143,7 +155,9 @@ export {
 export { OnboardingApplicationRateLimitGuard } from "./infrastructure/http/onboarding-application-rate-limit.guard";
 export { MailerOnboardingDecisionNotifier } from "./infrastructure/notifications/mailer-onboarding-decision.notifier";
 export { MailerOnboardingVerificationNotifier } from "./infrastructure/notifications/mailer-onboarding-verification.notifier";
+export { InMemoryIdentityClaimRepository } from "./infrastructure/persistence/in-memory-identity-claim.repository";
 export { InMemoryIndemnityAgreementRepository } from "./infrastructure/persistence/in-memory-indemnity-agreement.repository";
+export { MikroIdentityClaimRepository } from "./infrastructure/persistence/mikro-identity-claim.repository";
 export { InMemoryM2mLicensePlanRepository } from "./infrastructure/persistence/in-memory-m2m-license-plan.repository";
 export { MikroIndemnityAgreementRepository } from "./infrastructure/persistence/mikro-indemnity-agreement.repository";
 export { InMemoryOnboardingApplicationRepository } from "./infrastructure/persistence/in-memory-onboarding-application.repository";

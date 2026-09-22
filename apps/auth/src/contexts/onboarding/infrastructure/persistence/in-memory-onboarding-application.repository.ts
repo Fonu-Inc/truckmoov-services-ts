@@ -10,6 +10,10 @@ import type {
   StoredOnboardingVerificationCode,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 
+// The statuses the applicant can still act on, which is what makes an
+// untouched application abandoned rather than merely waiting on us.
+const EDITABLE_STATUSES = new Set(['draft', 'changes_requested']);
+
 const LIVE_STATUSES = new Set([
   'draft',
   'submitted',
@@ -94,6 +98,36 @@ export class InMemoryOnboardingApplicationRepository
     const limit = filters?.limit ?? 50;
     const offset = (page - 1) * limit;
     return { items: matches.slice(offset, offset + limit), total: matches.length };
+  }
+
+  async findAbandoned(
+    lastActivityBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    return [...this.applications.values()]
+      .filter(
+        (application) =>
+          EDITABLE_STATUSES.has(application.status) &&
+          application.updatedAt.getTime() < lastActivityBefore.getTime(),
+      )
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .slice(0, limit);
+  }
+
+  async deleteApplication(id: string): Promise<void> {
+    this.applications.delete(id);
+    for (const [key, document] of this.documents) {
+      if (document.applicationId === id) this.documents.delete(key);
+    }
+    for (const [key, vehicle] of this.vehicles) {
+      if (vehicle.applicationId === id) this.vehicles.delete(key);
+    }
+    for (const [key, request] of this.deviceRequests) {
+      if (request.applicationId === id) this.deviceRequests.delete(key);
+    }
+    for (const [key, code] of this.codes) {
+      if (code.applicationId === id) this.codes.delete(key);
+    }
   }
 
   async saveVehicle(
