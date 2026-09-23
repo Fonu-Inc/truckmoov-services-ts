@@ -356,6 +356,8 @@ import { InMemorySystemSettingsRepository } from './in-memory-system-settings.re
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
 import { InternalCallerService } from './internal-caller.service';
+import { accessProviders } from '@shared/access';
+import { AccessRefusedListener, AuthCallerAudience, AuthRefusalReporter } from './access-refusals';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
@@ -1335,6 +1337,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListSystemAdminInvitesUseCase,
     ListMisplacedSystemAccountsUseCase,
     InternalCallerService,
+    AuthRefusalReporter,
+    AccessRefusedListener,
+    ...accessProviders({ callers: AuthCallerAudience, reporter: AuthRefusalReporter }),
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
     GetSystemDeviceDetailUseCase,

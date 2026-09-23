@@ -14,11 +14,11 @@ function config(maxConnections = 2000, origins = [ORIGIN]) {
   } as never;
 }
 
-function makeToken(tenantId: string, secret = SECRET, expOffsetSeconds = 3600) {
+function makeToken(tenantId: string, secret = SECRET, expOffsetSeconds = 3600, role = 'FLEET_ADMIN') {
   const payload = JSON.stringify({
     sub: 'user-1',
     email: 'a@b.com',
-    role: 'FLEET_ADMIN',
+    role,
     tenantId,
     exp: Math.floor(Date.now() / 1000) + expOffsetSeconds,
   });
@@ -52,6 +52,15 @@ describe('who gets a socket', () => {
 
   beforeEach(() => {
     gateway = build();
+  });
+
+  it('refuses a token from the admin portal', () => {
+    const client = socket(makeToken('system', SECRET, 3600, 'PLATFORM_ADMIN'));
+
+    gateway.handleConnection(client as never);
+
+    expect(client.join).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalled();
   });
 
   it('admits a valid token and joins the tenant room', () => {

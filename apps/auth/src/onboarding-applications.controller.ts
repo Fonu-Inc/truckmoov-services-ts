@@ -37,6 +37,7 @@ import {
 } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
+import { Portals } from '@shared/access';
 import {
   AddApplicationVehicleUseCase,
   ApplicationIncompleteError,
@@ -124,6 +125,7 @@ type UploadedSignatureFile = {
 const MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 @ApiTags('Onboarding Applications')
+@Portals('public')
 @Controller('onboarding/applications')
 @UseGuards(OnboardingApplicationRateLimitGuard)
 export class OnboardingApplicationsController extends BaseAuthController {

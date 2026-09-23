@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { Role, normalizeRole } from "./role";
+import { normalizeRole } from "./role";
 import { ROLES_KEY } from "./roles.decorator";
 
 @Injectable()
@@ -39,10 +39,6 @@ export class RolesGuard implements CanActivate {
 
     if (!role) {
       throw new UnauthorizedException("Authentication is required for this route");
-    }
-
-    if (role === Role.SUPER_ADMIN) {
-      return true;
     }
 
     if (requiredRoles.includes(role)) {

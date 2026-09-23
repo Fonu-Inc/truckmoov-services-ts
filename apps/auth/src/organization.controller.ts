@@ -53,8 +53,10 @@ import { ResendInviteDto } from './dto/resend-invite.dto';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
 import { UpdateOrganizationUserStatusDto } from './dto/update-organization-user-status.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
+import { Portals } from '@shared/access';
 
 @ApiTags('Organization')
+@Portals('tenant')
 @Controller('organization')
 export class OrganizationController extends BaseAuthController {
   constructor(

@@ -38,8 +38,10 @@ import { DispatcherPreferencesResponse, NotificationPreferencesResponse, Profile
 import { UpdateDispatcherPreferencesDto } from './dto/update-dispatcher-preferences.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { Portals } from '@shared/access';
 
 @ApiTags('Profile')
+@Portals('tenant')
 @Controller('profile')
 export class ProfileController extends BaseAuthController {
   constructor(

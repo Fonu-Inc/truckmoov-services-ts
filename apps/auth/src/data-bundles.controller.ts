@@ -78,6 +78,7 @@ import { GetSpendBreakdownUseCase } from './get-spend-breakdown.use-case';
 import { GetSpendTrendUseCase } from './get-spend-trend.use-case';
 import { GetSpendingLimitUseCase } from './get-spending-limit.use-case';
 import { GetSubscriptionUsageUseCase } from './get-subscription-usage.use-case';
+import { Portals } from '@shared/access';
 import { GetWalletBalanceUseCase } from './get-wallet-balance.use-case';
 import { ListBundleAllocationsUseCase } from './list-bundle-allocations.use-case';
 import { ListBundleRatesUseCase } from './list-bundle-rates.use-case';
@@ -90,6 +91,7 @@ import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
 
 @ApiTags('Data Bundles')
+@Portals('tenant')
 @Controller('data-bundles')
 export class DataBundlesController extends BaseAuthController {
   constructor(

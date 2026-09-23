@@ -31,8 +31,10 @@ import { TRACKER_TYPE_OPTIONS } from "./contexts/fleet/device-setup-requests/dom
 import { UpdateDeviceSetupRequestStatusDto, CreateDeviceSetupRequestDto, DeviceSetupRequestListQueryDto } from "./dto/device-setup-request.dto";
 import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Device Setup Requests")
+@Portals("tenant")
 @Controller("device-setup-requests")
 @TenantScoped()
 @UseGuards(RolesGuard)

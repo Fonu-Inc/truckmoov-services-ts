@@ -70,8 +70,10 @@ import {
   FuelThresholdDto,
 } from "./dto/fuel.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Fuel")
+@Portals("tenant")
 @Controller("fuel")
 @TenantScoped()
 @UseGuards(RolesGuard)

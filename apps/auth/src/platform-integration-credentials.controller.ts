@@ -23,8 +23,10 @@ import {
 } from './update-platform-integration-credentials.use-case';
 import { PlatformIntegrationCredentialStorageError } from './platform-integration-credentials.repository';
 import { ForbiddenError } from './contexts/auth/session';
+import { Portals } from '@shared/access';
 
 @ApiTags('Platform Integrations')
+@Portals('admin')
 @Controller('system/integrations')
 export class PlatformIntegrationCredentialsController extends BaseAuthController {
   constructor(

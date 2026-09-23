@@ -42,8 +42,10 @@ import {
   MessageResponse,
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Compliance")
+@Portals("tenant")
 @Controller("compliance")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -145,6 +147,7 @@ export class ComplianceController extends BaseFleetController {
     return { status: true, message: "success", data };
   }
 
+  @Portals("tenant", "service")
   @Get("documents/summary")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Compliance documents summary" })

@@ -75,6 +75,7 @@ import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
 import { GetSystemHealthUseCase } from './get-system-health.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
 import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
+import { Portals } from '@shared/access';
 import {
   UpdateSubscriptionPlanPriceUseCase,
   SubscriptionPlanNotFoundError,
@@ -98,6 +99,7 @@ import { UpdateSystemSettingsUseCase } from './update-system-settings.use-case';
 import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 
 @ApiTags('System')
+@Portals('admin')
 @Controller('system')
 export class SystemController extends BaseAuthController {
   constructor(
@@ -145,6 +147,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Portals('public')
   @Post('login')
   @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: AuthResponse })

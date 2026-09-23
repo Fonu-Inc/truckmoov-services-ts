@@ -55,11 +55,13 @@ import {
 } from './support-ticket-attachment.errors';
 import { StorageQuotaExceededError } from './storage-usage.repository';
 import { CreateSupportTicketDto, ReopenTicketDto, ReplyToTicketDto } from './dto/support.dto';
+import { Portals } from '@shared/access';
 
 /** Up to 5 files per attach call — the requirements name a per-file cap, not a count, so this is a sane bound rather than a stated one. */
 const MAX_ATTACHMENTS_PER_CALL = 5;
 
 @ApiTags('Support Tickets')
+@Portals('tenant')
 @Controller('support-tickets')
 export class SupportTicketsController extends BaseAuthController {
   constructor(

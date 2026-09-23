@@ -24,8 +24,10 @@ import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 import { DispatchSearchResponse, RecommendDriversResponse } from "./dto/fleet.schema";
 import { RecommendDriversQueryDto, DispatchSearchQueryDto } from "./dto/vehicle.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Dispatch")
+@Portals("tenant")
 @Controller("dispatch")
 @TenantScoped()
 @UseGuards(RolesGuard)

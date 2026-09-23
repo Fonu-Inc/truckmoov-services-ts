@@ -19,8 +19,10 @@ import { ListDataBundlesUseCase } from "./contexts/fleet/carriers";
 import { DataBundleListQueryDto } from "./dto/carrier.dto";
 import { DataBundleListResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Data Bundles")
+@Portals("tenant")
 @Controller("data-bundles")
 @TenantScoped()
 @UseGuards(RolesGuard)

@@ -35,6 +35,15 @@ export type RecordAuthEventCommand = {
   userAgent: string | null;
 };
 
+// account_locked covers both a disabled account and an audience mismatch
+// (e.g. a superadmin hitting the tenant login endpoint with their correct
+// password) — neither is a credential-guessing signal.
+function countsTowardBlocking(command: RecordAuthEventCommand): boolean {
+  if (command.status !== 'failed') return false;
+  if (command.eventType === 'access') return true;
+  return command.eventType === 'login' && command.failureReason !== 'account_locked';
+}
+
 /**
  * Writes one auth event, and, for a failed login, checks whether that push
  * this IP past an enabled auto-block rule's threshold. Never throws — an
@@ -69,11 +78,7 @@ export class RecordAuthEventUseCase {
         occurredAt: new Date(),
       });
 
-      // account_locked covers both a disabled account and an audience
-      // mismatch (e.g. a superadmin hitting the tenant login endpoint with
-      // their correct password) — neither is a credential-guessing signal,
-      // so neither should feed the brute-force counter.
-      if (command.eventType === 'login' && command.status === 'failed' && command.failureReason !== 'account_locked') {
+      if (countsTowardBlocking(command)) {
         await this.evaluateAutoBlock(command.ipAddress);
       }
     } catch (error) {
@@ -94,7 +99,7 @@ export class RecordAuthEventUseCase {
     for (const rule of enabledRules) {
       if (!counted.has(rule.windowMinutes)) {
         const windowStart = new Date(now.getTime() - rule.windowMinutes * 60_000);
-        counted.set(rule.windowMinutes, await this.authEvents.countFailedLoginsFromIp(ipAddress, windowStart));
+        counted.set(rule.windowMinutes, await this.authEvents.countFailuresFromIp(ipAddress, windowStart));
       }
     }
     const decision = resolveTriggeredRule(enabledRules, (rule) => counted.get(rule.windowMinutes) ?? 0);
@@ -129,7 +134,7 @@ export class RecordAuthEventUseCase {
       alertType: 'security_alerts',
       severity: 'high',
       subject: `IP ${ipAddress} auto-blocked`,
-      body: `Rule "${decision.ruleName}" blocked ${ipAddress} after repeated failed logins.`,
+      body: `Rule "${decision.ruleName}" blocked ${ipAddress} after repeated failed logins or refused requests.`,
       context: { ipAddress, ruleId: decision.ruleId },
     });
   }

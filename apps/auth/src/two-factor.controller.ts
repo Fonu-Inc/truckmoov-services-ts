@@ -26,8 +26,10 @@ import {
   TwoFactorNotEnrolledError,
   TwoFactorRequiredError,
 } from './two-factor.use-cases';
+import { Portals } from '@shared/access';
 
 @ApiTags('Two-factor')
+@Portals('tenant', 'admin')
 @Controller('two-factor')
 export class TwoFactorController extends BaseAuthController {
   constructor(

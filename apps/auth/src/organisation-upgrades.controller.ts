@@ -38,6 +38,7 @@ import {
   TargetPlanNotFoundError,
   TargetPlanRequiredError,
 } from './organisation-upgrade.use-cases';
+import { Portals } from '@shared/access';
 
 /**
  * An owner-operator's way out of the vehicle cap.
@@ -47,6 +48,7 @@ import {
  * rather than a limit.
  */
 @ApiTags('Organisation Upgrades')
+@Portals('admin')
 @Controller('organisation-upgrades')
 export class OrganisationUpgradesController extends BaseAuthController {
   constructor(
@@ -59,6 +61,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
     super(activityLogService);
   }
 
+  @Portals('tenant')
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ask to be promoted to fleet provider' })

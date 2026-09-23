@@ -63,8 +63,10 @@ import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { SystemDeviceModelConflictError, SystemDeviceModelNotFoundError } from './system-device-model.errors';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
+import { Portals } from '@shared/access';
 
 @ApiTags('System Devices')
+@Portals('admin')
 @Controller('system/devices')
 export class SystemDevicesController extends BaseAuthController {
   constructor(

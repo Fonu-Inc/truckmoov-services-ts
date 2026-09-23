@@ -15,6 +15,7 @@ import {
   type DeviceModelCatalogRepository,
 } from './device-model-catalog.repository';
 import { toSystemDeviceModelResponse } from './system-device-model.presenter';
+import { Portals } from '@shared/access';
 
 /**
  * Read-only device catalogue for other services.
@@ -29,6 +30,7 @@ import { toSystemDeviceModelResponse } from './system-device-model.presenter';
  * to read reference data is not a reason to hand it an admin role.
  */
 @ApiExcludeController()
+@Portals('service')
 @Controller('internal/device-catalog')
 export class InternalDeviceCatalogController extends BaseAuthController {
   constructor(

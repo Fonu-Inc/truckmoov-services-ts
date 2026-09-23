@@ -39,6 +39,7 @@ import { InternalCallerService, type IncomingHeaders } from './internal-caller.s
 import { ChargeUsageDto } from './dto/charge-usage.dto';
 import { RecordStorageDto } from './dto/record-storage.dto';
 import { ReconcileStorageDto } from './dto/reconcile-storage.dto';
+import { Portals } from '@shared/access';
 
 /**
  * Service-to-service only. Hidden from the public API documentation because no
@@ -46,6 +47,7 @@ import { ReconcileStorageDto } from './dto/reconcile-storage.dto';
  * sends, so a refusal can stop the send.
  */
 @ApiExcludeController()
+@Portals('service')
 @Controller('internal/usage')
 export class InternalUsageController extends BaseAuthController {
   constructor(

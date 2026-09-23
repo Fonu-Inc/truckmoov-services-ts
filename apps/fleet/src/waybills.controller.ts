@@ -49,6 +49,7 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
+import { Portals } from "@shared/access";
 
 /** Reading revenue is a finance view; capturing a waybill is operations. */
 const WAYBILL_READ_ROLES = [
@@ -75,6 +76,7 @@ const WAYBILL_WRITE_ROLES = [
  * immediately as pending and watches it change rather than waiting on it.
  */
 @ApiTags("Waybills")
+@Portals("tenant")
 @Controller("waybills")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -134,6 +136,7 @@ export class WaybillsController extends BaseFleetController {
     return { status: true, message: "success", data };
   }
 
+  @Portals("tenant", "service")
   @Post("upload")
   @Roles(...WAYBILL_WRITE_ROLES)
   @UseInterceptors(FileInterceptor("file", uploadLimits(MAX_WAYBILL_IMAGE_BYTES)))

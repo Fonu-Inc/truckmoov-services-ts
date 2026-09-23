@@ -12,8 +12,10 @@ import { BaseFleetController } from "./base.controller";
 import { ListCarriersUseCase } from "./contexts/fleet/carriers";
 import { CarrierListResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Carriers")
+@Portals("tenant")
 @Controller("carriers")
 @TenantScoped()
 @UseGuards(RolesGuard)

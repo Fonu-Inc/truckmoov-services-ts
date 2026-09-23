@@ -68,6 +68,7 @@ import {
   InvalidCredentialsError,
   EmailNotVerifiedError,
 } from './contexts/auth/session';
+import { Portals } from '@shared/access';
 import {
   MessageResponse,
   ActivityLogResponse,
@@ -103,6 +104,7 @@ import { RecordAuthEventUseCase } from './record-auth-event.use-case';
 import type { AuthFailureReason } from './auth-event.repository';
 
 @ApiTags('Auth')
+@Portals('tenant')
 @Controller()
 export class AuthController extends BaseAuthController {
   constructor(
@@ -138,6 +140,7 @@ export class AuthController extends BaseAuthController {
     return 'invalid_password';
   }
 
+  @Portals('public')
   @Get('health')
   @ApiOkResponse({ type: HealthResponse })
   async health(): Promise<HealthResponse> {
@@ -153,6 +156,7 @@ export class AuthController extends BaseAuthController {
     }
   }
 
+  @Portals('public')
   @Get('test-sentry')
   @ApiOperation({
     summary: 'Trigger a test Sentry error',
@@ -162,6 +166,7 @@ export class AuthController extends BaseAuthController {
     throw new Error('Sentry test error from auth service');
   }
 
+  @Portals('tenant', 'admin')
   @Post('media/upload')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -213,6 +218,7 @@ export class AuthController extends BaseAuthController {
   // Rate limiter first: it's an in-memory token check, cheaper than the
   // block guard's DB read, and its own burst can be exhausted by the same
   // failures that trip auto-block — checking it first keeps that case a 429.
+  @Portals('public')
   @Post('login')
   @UseGuards(LoginRateLimitGuard, IpBlockGuard)
   @ApiOkResponse({ type: AuthResponse })
@@ -264,6 +270,7 @@ export class AuthController extends BaseAuthController {
 
   /** Authenticate a system account with email and password */
 
+  @Portals('public')
   @Post('refresh')
   @ApiOkResponse({ type: AuthResponse })
   async refresh(
@@ -310,6 +317,7 @@ export class AuthController extends BaseAuthController {
 
   /** Change password for an authenticated system account */
 
+  @Portals('tenant', 'admin')
   @Get('me')
   @ApiOkResponse({ type: MeResponse })
   async me(
@@ -372,6 +380,7 @@ export class AuthController extends BaseAuthController {
 
   /** Super admin creates a system admin account */
 
+  @Portals('public')
   @Get('invite/validate')
   @ApiOkResponse({ type: ValidateInviteResponse })
   async validateInvite(@Query() query: ValidateInviteDto) {
@@ -386,6 +395,7 @@ export class AuthController extends BaseAuthController {
 
   /** Register from an invitation link */
 
+  @Portals('public')
   @Post('register/invited')
   @ApiCreatedResponse({ type: AuthResponse })
   async registerInvited(
@@ -418,6 +428,7 @@ export class AuthController extends BaseAuthController {
 
   /** Request a password reset via email or SMS */
 
+  @Portals('public')
   @Post('forgot-password')
   @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: MessageResponse })
@@ -473,6 +484,7 @@ export class AuthController extends BaseAuthController {
 
   /** Request a new email verification link */
 
+  @Portals('public')
   @Post('resend-verification')
   @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: MessageResponse })
@@ -482,6 +494,7 @@ export class AuthController extends BaseAuthController {
 
   /** Verify a password reset token */
 
+  @Portals('public')
   @Post('verify-reset')
   @ApiOkResponse({ type: MessageResponse })
   async verifyReset(@Body(BodyOrDataPipe) payload: VerifyResetDto) {
@@ -496,6 +509,7 @@ export class AuthController extends BaseAuthController {
 
   /** Verify new-user email token */
 
+  @Portals('public')
   @Post('verify-email')
   @ApiOkResponse({ type: MessageResponse })
   async verifyEmail(@Body(BodyOrDataPipe) payload: VerifyEmailDto) {
@@ -552,6 +566,7 @@ export class AuthController extends BaseAuthController {
 
   /** Reset password using a verified token */
 
+  @Portals('public')
   @Post('reset-password')
   @ApiOkResponse({ type: MessageResponse })
   async resetPassword(@Body(BodyOrDataPipe) payload: ResetPasswordDto) {
@@ -616,6 +631,7 @@ export class AuthController extends BaseAuthController {
 
   /** Logout – invalidate the refresh token (and access token if possible) */
 
+  @Portals('public')
   @Post('logout')
   @ApiOkResponse({ type: MessageResponse })
   async logout(

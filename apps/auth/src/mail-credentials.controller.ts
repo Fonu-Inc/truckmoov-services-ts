@@ -31,6 +31,7 @@ import {
   UnsafeMailHostError,
   UnsupportedMailPortError,
 } from './save-mail-credentials.use-case';
+import { Portals } from '@shared/access';
 
 /**
  * The tenant's own mailbox, which this platform operates on their behalf.
@@ -40,6 +41,7 @@ import {
  * configured without the value leaving the server.
  */
 @ApiTags('Mailbox')
+@Portals('tenant')
 @Controller('mailbox/credentials')
 export class MailCredentialsController extends BaseAuthController {
   constructor(

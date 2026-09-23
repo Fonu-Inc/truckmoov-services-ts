@@ -44,13 +44,12 @@ export class InMemoryAuthEventRepository implements AuthEventRepository {
     );
   }
 
-  async countFailedLoginsFromIp(ipAddress: string, since: Date): Promise<number> {
+  async countFailuresFromIp(ipAddress: string, since: Date): Promise<number> {
     return [...this.store.values()].filter(
       (e) =>
         e.ipAddress === ipAddress &&
-        e.eventType === 'login' &&
         e.status === 'failed' &&
-        e.failureReason !== 'account_locked' &&
+        (e.eventType === 'access' || (e.eventType === 'login' && e.failureReason !== 'account_locked')) &&
         e.occurredAt >= since,
     ).length;
   }

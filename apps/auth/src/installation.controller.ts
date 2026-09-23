@@ -25,6 +25,7 @@ import {
   InvalidInstallationDateError,
   NoInstallationOrderError,
 } from '@auth/installation';
+import { Portals } from '@shared/access';
 
 /**
  * The customer's view of their own installation, once they have an account.
@@ -34,6 +35,7 @@ import {
  * token by a tenant who has.
  */
 @ApiTags('Installation')
+@Portals('tenant')
 @Controller('installation')
 export class InstallationController {
   constructor(

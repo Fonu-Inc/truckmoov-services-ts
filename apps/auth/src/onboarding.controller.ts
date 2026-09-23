@@ -78,6 +78,7 @@ import {
   KYC_DOCUMENT_TYPE_ENUM,
   SubmitDeviceProvisioningRequestDto,
 } from './dto/onboarding.dto';
+import { Portals } from '@shared/access';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
 import { PaymentGatewayRegistry } from './contexts/payments';
 import { StorageQuotaService } from './storage-quota.service';
@@ -101,6 +102,7 @@ import { SubmitSimProvisioningRequestUseCase } from './submit-sim-provisioning-r
 import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-case';
 
 @ApiTags('Onboarding')
+@Portals('tenant')
 @Controller('onboarding')
 export class OnboardingController extends BaseAuthController {
   constructor(
@@ -136,6 +138,7 @@ export class OnboardingController extends BaseAuthController {
     super(activityLogService);
   }
 
+  @Portals('public')
   @Get('plans')
   @ApiOperation({ summary: 'List subscription plans', description: 'Returns all active subscription plans with NGN prices and limits.' })
   @ApiOkResponse({ type: SystemSubscriptionPlansResponse })
@@ -143,6 +146,7 @@ export class OnboardingController extends BaseAuthController {
     return this.getOnboardingPlansUseCase.execute();
   }
 
+  @Portals('public')
   @Get('exchange-rate')
   @ApiOperation({
     summary: 'Platform currency',
@@ -195,6 +199,7 @@ export class OnboardingController extends BaseAuthController {
    * configured provider, not by the path, a header or the source address. A
    * header only decides which adapter is tried first.
    */
+  @Portals('public')
   @Post('payment/webhook')
   @ApiOperation({ summary: 'Payment provider webhook (no auth)', description: 'Receives payment callbacks from any configured provider. The sender is identified by verifying its signature; a callback no provider claims is refused.' })
   @ApiBody({ type: PaystackWebhookDto })

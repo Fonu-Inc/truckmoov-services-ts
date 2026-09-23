@@ -29,10 +29,12 @@ import {
 } from './audit-log.use-cases';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
+import { Portals } from '@shared/access';
 
 const EXPORT_LIMIT = 5000;
 
 @ApiTags('System Audit')
+@Portals('admin')
 @Controller('system/audit-log')
 export class SystemAuditController extends BaseAuthController {
   constructor(

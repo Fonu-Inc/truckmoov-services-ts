@@ -22,8 +22,10 @@ import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { VehicleHealthService } from "./vehicle-health.service";
+import { Portals } from "@shared/access";
 
 @ApiTags("Routes")
+@Portals("tenant")
 @Controller("routes")
 @TenantScoped()
 @UseGuards(RolesGuard)

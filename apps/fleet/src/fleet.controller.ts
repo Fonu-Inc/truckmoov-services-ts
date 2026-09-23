@@ -11,8 +11,10 @@ import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController } from "./base.controller";
 import { FleetHealthResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Fleet")
+@Portals("public")
 @Controller()
 @TenantScoped()
 @UseGuards(RolesGuard)

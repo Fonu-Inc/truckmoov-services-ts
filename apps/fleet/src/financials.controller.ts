@@ -41,8 +41,10 @@ import {
 } from "./dto/fleet.schema";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Financials")
+@Portals("tenant")
 @Controller("financials")
 @TenantScoped()
 @UseGuards(RolesGuard)

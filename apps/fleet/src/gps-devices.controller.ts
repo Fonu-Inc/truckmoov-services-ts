@@ -20,8 +20,10 @@ import { ListGpsDevicesUseCase } from "./contexts/fleet/vehicles";
 import { GpsDeviceListResponse } from "./dto/fleet.schema";
 import { GpsDeviceListQueryDto } from "./dto/vehicle.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("GPS Devices")
+@Portals("tenant")
 @Controller("gps-devices")
 @TenantScoped()
 @UseGuards(RolesGuard)

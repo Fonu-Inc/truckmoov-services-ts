@@ -56,7 +56,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     // is written to proxy and access logs, and this is a bearer token.
     const token = (client.handshake.auth as { token?: string } | undefined)?.token;
     const principal = this.tokens.verify(token);
-    if (!principal) {
+    // Rooms are tenants' live traffic; only the tenant portal has any here.
+    if (!principal || principal.portal !== 'tenant') {
       this.refuse(client, 'unauthenticated');
       return;
     }

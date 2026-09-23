@@ -16,8 +16,10 @@ import {
   type VehicleRepository,
 } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Live Tracking")
+@Portals("tenant")
 @Controller("tracking")
 @TenantScoped()
 @UseGuards(RolesGuard)

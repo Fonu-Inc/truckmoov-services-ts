@@ -305,6 +305,8 @@ import { InMemoryAuditLogRepository } from "./in-memory-audit-log.repository";
 import { MikroAuditLogRepository } from "./mikro-audit-log.repository";
 import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
+import { accessProviders } from "@shared/access";
+import { FleetCallerAudience, FleetRefusalReporter } from "./access-refusals";
 
 @Module({
   imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule, MailerModule],
@@ -540,6 +542,7 @@ import { AuthContextMiddleware } from "./auth-context.middleware";
     // route, so this cannot depend on a new controller remembering a decorator.
     // It is a no-op when the request carries no authenticated tenant, which
     // leaves the readiness probe and the external webhooks untouched.
+    ...accessProviders({ callers: FleetCallerAudience, reporter: FleetRefusalReporter }),
     { provide: APP_GUARD, useClass: TenantActiveGuard },
     InMemoryAuditLogRepository,
     MikroAuditLogRepository,

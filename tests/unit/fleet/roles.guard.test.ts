@@ -37,9 +37,11 @@ describe("RolesGuard", () => {
     );
   });
 
-  it("allows super admin regardless of route role list", () => {
-    expect(makeGuard(["DISPATCHER"]).canActivate(makeCtx("SUPER_ADMIN"))).toBe(
-      true,
+  // Super admin used to pass every role check. It is platform staff, and a
+  // tenant route does not list it, so it is refused like any other role.
+  it("gives super admin no way past a route that does not list it", () => {
+    expect(() => makeGuard(["DISPATCHER"]).canActivate(makeCtx("SUPER_ADMIN"))).toThrow(
+      ForbiddenException,
     );
   });
 

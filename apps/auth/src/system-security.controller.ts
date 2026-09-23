@@ -34,8 +34,10 @@ import { isAutoBlockRuleId } from './auto-block-rule.repository';
 import { ListSecurityEventsUseCase } from './list-security-events.use-case';
 import { GetSecurityOverviewUseCase } from './get-security-overview.use-case';
 import { BlockIpDto, UpdateAutoBlockRuleDto } from './dto/security.dto';
+import { Portals } from '@shared/access';
 
 @ApiTags('System Security')
+@Portals('admin')
 @Controller('system/security')
 export class SystemSecurityController extends BaseAuthController {
   constructor(

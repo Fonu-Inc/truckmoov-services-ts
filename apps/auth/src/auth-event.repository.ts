@@ -4,7 +4,9 @@
  * authentication request across every tenant, so volume and retention have
  * to be decided up front rather than discovered later.
  */
-export const AUTH_EVENT_TYPES = ['login', 'logout', 'refresh'] as const;
+// access is a request refused because the caller had no business on that
+// route. It counts toward automatic IP blocking alongside failed logins.
+export const AUTH_EVENT_TYPES = ['login', 'logout', 'refresh', 'access'] as const;
 export type AuthEventType = (typeof AUTH_EVENT_TYPES)[number];
 
 export const AUTH_EVENT_STATUSES = ['success', 'failed'] as const;
@@ -57,12 +59,12 @@ export interface AuthEventRepository {
   /** Failed login attempts, richer filters for the dedicated tab. */
   searchFailedLogins(filters: AuthEventFilters): Promise<AuthEventPage>;
   /**
-   * Failed login attempts from one IP within a trailing window, for auto-block
-   * evaluation. Each rule has its own window, so this is read once per rule.
-   * Excludes 'account_locked' failures (audience mismatch or a disabled
-   * account) — those are not a credential-guessing signal.
+   * Failed logins and refused requests from one IP within a trailing window,
+   * for auto-block evaluation. Each rule has its own window, so this is read
+   * once per rule. Excludes 'account_locked' failures (audience mismatch or a
+   * disabled account) — those are not a credential-guessing signal.
    */
-  countFailedLoginsFromIp(ipAddress: string, since: Date): Promise<number>;
+  countFailuresFromIp(ipAddress: string, since: Date): Promise<number>;
   countSince(status: AuthEventStatus, eventType: AuthEventType, since: Date): Promise<number>;
   /** Deletes events older than the cutoff. Returns how many rows were removed. */
   deleteOlderThan(cutoff: Date): Promise<number>;

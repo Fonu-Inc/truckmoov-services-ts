@@ -69,8 +69,10 @@ import { SystemTenantInviteResendConflictError, ResendSystemTenantInviteUseCase 
 import { InvalidSystemDeviceProvisioningError } from './system-device-model.errors';
 import { SystemTenantStatusConflictError, UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
 import { UpdateSystemTenantUseCase, SystemTenantUpdateConflictError } from './update-system-tenant.use-case';
+import { Portals } from '@shared/access';
 
 @ApiTags('System Tenants')
+@Portals('admin')
 @Controller('system/tenants')
 export class SystemTenantsController extends BaseAuthController {
   constructor(

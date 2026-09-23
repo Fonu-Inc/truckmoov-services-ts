@@ -47,8 +47,10 @@ import {
   AccessLogListResponse,
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
+import { Portals } from "@shared/access";
 
 @ApiTags("Documents")
+@Portals("tenant")
 @Controller("documents")
 @TenantScoped()
 @UseGuards(RolesGuard)

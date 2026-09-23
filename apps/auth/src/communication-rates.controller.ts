@@ -35,6 +35,7 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { UpdateCommunicationRatesDto } from './dto/communication-rates.dto';
+import { Portals } from '@shared/access';
 
 /**
  * What tenants pay per message, per minute and per active SIM.
@@ -44,6 +45,7 @@ import { UpdateCommunicationRatesDto } from './dto/communication-rates.dto';
  * explain what was already charged.
  */
 @ApiTags('Communication Pricing')
+@Portals('admin')
 @Controller('system/communication-rates')
 export class CommunicationRatesController extends BaseAuthController {
   constructor(

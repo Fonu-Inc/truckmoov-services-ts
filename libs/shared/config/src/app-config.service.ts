@@ -411,6 +411,14 @@ export class AppConfigService {
     };
   }
 
+  /**
+   * Refuse requests from outside a route's declared audience. Off, they are
+   * only logged, to find any caller the declarations missed before refusing.
+   */
+  get portalEnforced(): boolean {
+    return this.config.get<string>("PORTAL_ENFORCEMENT", "log") === "enforce";
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),

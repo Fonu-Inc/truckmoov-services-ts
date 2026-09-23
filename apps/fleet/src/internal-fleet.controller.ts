@@ -33,6 +33,7 @@ import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositor
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
+import { Portals } from "@shared/access";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -45,6 +46,7 @@ import { SuspendDeviceDto } from "./dto/vehicle.dto";
 const DRAWER_ROW_LIMIT = 25;
 
 @ApiExcludeController()
+@Portals("service")
 @SkipTenantScope()
 @Controller("internal")
 @UseGuards(RolesGuard)
@@ -65,6 +67,7 @@ export class InternalFleetController extends BaseFleetController {
    * Active vehicles only, matching what the quota counts. A decommissioned
    * vehicle is not evidence that a fleet has outgrown its plan.
    */
+  @Portals("tenant", "service")
   @Get("vehicle-count")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   async vehicleCount(@Req() req: FleetRequestContext) {
@@ -80,6 +83,7 @@ export class InternalFleetController extends BaseFleetController {
    * Drivers counted as active/available: suspended or offline is not
    * dispatchable capacity, even though the vehicle still exists.
    */
+  @Portals("tenant", "service")
   @Get("tenant-counts")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   async tenantCounts(@Req() req: FleetRequestContext) {

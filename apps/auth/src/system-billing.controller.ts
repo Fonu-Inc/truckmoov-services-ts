@@ -38,8 +38,10 @@ import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use
 import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
+import { Portals } from '@shared/access';
 
 @ApiTags('System Billing')
+@Portals('admin')
 @Controller('system')
 export class SystemBillingController extends BaseAuthController {
   constructor(

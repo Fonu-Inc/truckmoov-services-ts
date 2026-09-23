@@ -77,6 +77,7 @@ import {
   DRIVER_QUOTA_READER,
   type DriverQuotaReader,
 } from "./contexts/fleet/drivers/domain/ports/driver-quota-reader.port";
+import { Portals } from "@shared/access";
 import {
   DISPATCH_JOBS_READER,
   type DispatchJobsReader,
@@ -111,6 +112,7 @@ import { BulkDriverImportResponse, DriverListResponse, DriverResponse } from "./
 import { TenantScoped } from "./tenant-scoped.decorator";
 
 @ApiTags("Drivers")
+@Portals("tenant")
 @Controller("drivers")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -852,6 +854,7 @@ export class DriversController extends BaseFleetController {
 
   /** Retrieve a driver by ID */
 
+  @Portals("tenant", "service")
   @Get(":id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get driver by ID" })

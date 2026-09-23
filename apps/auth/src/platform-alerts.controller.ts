@@ -31,6 +31,7 @@ import {
   UnknownAlertChannelError,
   UnknownAlertTypeError,
 } from './platform-alert-settings.use-case';
+import { Portals } from '@shared/access';
 
 /**
  * One store for platform staff alerting, read and written from one place.
@@ -40,6 +41,7 @@ import {
  * from the first, and staff end up removed from one and not the other.
  */
 @ApiTags('Platform Alerts')
+@Portals('admin')
 @Controller('system/alert-settings')
 export class PlatformAlertsController extends BaseAuthController {
   constructor(

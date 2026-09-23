@@ -69,6 +69,7 @@ import {
 } from "./contexts/fleet/vehicles/domain/ports/vehicle-quota-reader.port";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { ListDevicesUseCase, ListVehicleTripsUseCase } from "./contexts/fleet/devices";
+import { Portals } from "@shared/access";
 import {
   BulkImportVehiclesUseCase,
   SetVehicleStatusUseCase,
@@ -107,6 +108,7 @@ import { haversineKm } from "./utils/haversine";
 import { VehicleHealthService } from "./vehicle-health.service";
 
 @ApiTags("Vehicles")
+@Portals("tenant")
 @Controller("vehicles")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -540,6 +542,7 @@ export class VehiclesController extends BaseFleetController {
 
   /** Retrieve a vehicle by ID */
 
+  @Portals("tenant", "service")
   @Get(":id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get vehicle by ID" })

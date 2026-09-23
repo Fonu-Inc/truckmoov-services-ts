@@ -17,6 +17,7 @@ import {
   GetCommunicationsSpendBreakdownUseCase,
   GetCommunicationsSpendTrendUseCase,
 } from './get-communications-spend-analytics.use-case';
+import { Portals } from '@shared/access';
 
 /**
  * The Communications Wallet screen's own reads: per-channel rates and comms-
@@ -30,6 +31,7 @@ import {
  * comms-specific views below are new.
  */
 @ApiTags('Communications Wallet')
+@Portals('tenant')
 @Controller('communications-wallet')
 export class CommunicationsWalletController extends BaseAuthController {
   constructor(
