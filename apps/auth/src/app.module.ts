@@ -365,6 +365,11 @@ import { MikroTenantRoleRepository } from './mikro-tenant-role.repository';
 import { TenantRolesUseCases } from './tenant-roles.use-cases';
 import { TenantRolesController } from './tenant-roles.controller';
 import { AccessGrantCheck } from './access-grant-check';
+import { GovernanceUseCases, PermissionRemovalSweep } from './governance.use-cases';
+import { GovernanceController, StaffRolesController } from './governance.controller';
+import { PERMISSION_REMOVAL_REPOSITORY } from './permission-removal.repository';
+import { InMemoryPermissionRemovalRepository } from './in-memory-permission-removal.repository';
+import { MikroPermissionRemovalRepository } from './mikro-permission-removal.repository';
 import { GRANT_CHECK } from './contexts/auth/session/domain/ports/grant-check.port';
 import { accessProviders } from '@shared/access';
 import { AccessRefusedListener, AuthCallerAudience, AuthPermissions, AuthRefusalReporter } from './access-refusals';
@@ -663,6 +668,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalAccessController,
     CapabilitiesController,
     TenantRolesController,
+    GovernanceController,
+    StaffRolesController,
     OnboardingApplicationsController,
     InstallationController,
     SystemOnboardingApplicationsController,
@@ -793,9 +800,22 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       useFactory: (inMemory: InMemoryTenantRoleRepository, mikro: MikroTenantRoleRepository, config: AppConfigService) =>
         config.persistence.backend === 'in-memory' ? inMemory : mikro,
     },
+    InMemoryPermissionRemovalRepository,
+    MikroPermissionRemovalRepository,
+    {
+      provide: PERMISSION_REMOVAL_REPOSITORY,
+      inject: [InMemoryPermissionRemovalRepository, MikroPermissionRemovalRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryPermissionRemovalRepository,
+        mikro: MikroPermissionRemovalRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     AccessResolver,
     AccessChangeNotifier,
     TenantRolesUseCases,
+    GovernanceUseCases,
+    PermissionRemovalSweep,
     { provide: GRANT_CHECK, useClass: AccessGrantCheck },
     {
       provide: USER_REPOSITORY,

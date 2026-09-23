@@ -7,6 +7,9 @@ export enum Role {
   SUPER_ADMIN        = "SUPER_ADMIN",
   SYSTEM_ADMIN       = "SYSTEM_ADMIN",
   PLATFORM_ADMIN     = "PLATFORM_ADMIN",
+  // Fonu's governance team: reviews what each tenant's roles grant and
+  // schedules permission removals. Platform admins cannot.
+  GOVERNANCE_OFFICER = "GOVERNANCE_OFFICER",
 
   // Stakeholder organisation roles. One per organisation type.
   ENTERPRISE_ADMIN   = "ENTERPRISE_ADMIN",
@@ -31,6 +34,7 @@ export const ROLE_IDS: Record<Role, number> = {
   [Role.OPERATIONS_MANAGER]: 6,
   [Role.DISPATCHER]: 7,
   [Role.FINANCE_VIEWER]: 8,
+  [Role.GOVERNANCE_OFFICER]: 11,
 };
 
 export const ROLE_SEED_ROWS = Object.entries(ROLE_IDS).map(([name, id]) => ({
@@ -59,6 +63,7 @@ export const SYSTEM_ROLES: readonly Role[] = [
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,
   Role.PLATFORM_ADMIN,
+  Role.GOVERNANCE_OFFICER,
 ];
 
 /** Roles a customer organisation may hold. */

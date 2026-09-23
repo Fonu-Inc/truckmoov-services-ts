@@ -74,6 +74,18 @@
       "admin.dashboard.manage"
     ]
   },
+  "GOVERNANCE_OFFICER": {
+    "portal": "admin",
+    "permissions": [
+      "admin.governance.read",
+      "admin.governance.manage",
+      "admin.staff.read",
+      "admin.staff.manage",
+      "admin.tenants.read",
+      "admin.dashboard.read",
+      "admin.audit.read"
+    ]
+  },
   "PLATFORM_ADMIN": {
     "portal": "admin",
     "permissions": [

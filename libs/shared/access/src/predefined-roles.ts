@@ -26,6 +26,15 @@ export const PREDEFINED_ROLES: Readonly<Record<Role, PredefinedRole>> = {
     portal: "admin",
     permissions: ALL_ADMIN.filter((p) => p !== "admin.staff.manage" && !p.startsWith("admin.governance.")),
   },
+  // Tenant permissions are the governance team's; staff roles they share
+  // with super admins.
+  [Role.GOVERNANCE_OFFICER]: {
+    portal: "admin",
+    permissions: [
+      "admin.governance.read", "admin.governance.manage", "admin.staff.read", "admin.staff.manage",
+      "admin.tenants.read", "admin.dashboard.read", "admin.audit.read",
+    ],
+  },
   [Role.PLATFORM_ADMIN]: {
     portal: "admin",
     permissions: [

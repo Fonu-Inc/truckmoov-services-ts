@@ -4,6 +4,7 @@ import { AccessChangeNotifier, AccessResolver } from '../../../apps/auth/src/acc
 import { AccessNotifyingUserRepository } from '../../../apps/auth/src/access-notifying-user.repository';
 import { InMemoryUserRepository } from '../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-user.repository';
 import { InMemoryTenantRoleRepository } from '../../../apps/auth/src/in-memory-tenant-role.repository';
+import { InMemoryPermissionRemovalRepository } from '../../../apps/auth/src/in-memory-permission-removal.repository';
 import {
   InvalidTenantRoleError,
   TenantRoleInUseError,
@@ -22,7 +23,7 @@ async function harness() {
   ];
   for (const u of seed) await inner.save({ ...u, email: `${u.id}@co.com`, passwordHash: 'x' });
   const tenantRoles = new InMemoryTenantRoleRepository();
-  const resolver = new AccessResolver(tenantRoles);
+  const resolver = new AccessResolver(tenantRoles, new InMemoryPermissionRemovalRepository());
   const bus = { publish: vi.fn(async () => {}) };
   const users = new AccessNotifyingUserRepository(inner, new AccessChangeNotifier(resolver, bus as never));
   const activity = { record: vi.fn(async () => ({})) };

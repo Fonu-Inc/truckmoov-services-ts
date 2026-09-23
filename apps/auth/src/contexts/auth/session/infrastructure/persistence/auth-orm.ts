@@ -617,6 +617,41 @@ export const TenantRoleRecordSchema = new EntitySchema<TenantRoleRecord>({
 });
 
 
+/* ── Permission Removals ────────────────────────────── */
+
+export class PermissionRemovalRecord {
+  id!: string;
+  tenantId!: string;
+  permission!: string;
+  effectiveAt!: Date;
+  reason!: string;
+  status!: string;
+  createdBy!: string;
+  createdAt!: Date;
+  cancelledBy!: string | null;
+  cancelledAt!: Date | null;
+  appliedAt!: Date | null;
+}
+
+export const PermissionRemovalRecordSchema = new EntitySchema<PermissionRemovalRecord>({
+  class: PermissionRemovalRecord,
+  tableName: 'tenant_permission_removals',
+  properties: {
+    id: { type: 'string', length: 64, primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64 },
+    permission: { type: 'string', length: 96 },
+    effectiveAt: { fieldName: 'effective_at', type: 'datetime' },
+    reason: { type: 'string', length: 500 },
+    status: { type: 'string', length: 16 },
+    createdBy: { fieldName: 'created_by', type: 'string', length: 64 },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    cancelledBy: { fieldName: 'cancelled_by', type: 'string', length: 64, nullable: true },
+    cancelledAt: { fieldName: 'cancelled_at', type: 'datetime', nullable: true },
+    appliedAt: { fieldName: 'applied_at', type: 'datetime', nullable: true },
+  },
+});
+
+
 /* ── Communication Rates ────────────────────────────── */
 
 export class CommunicationRateRecord {
@@ -2106,6 +2141,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       CommunicationRateRecordSchema,
       PlatformAlertSettingRecordSchema,
       TenantRoleRecordSchema,
+      PermissionRemovalRecordSchema,
       MailThreadRecordSchema,
       MailMessageRecordSchema,
       MailSyncStateRecordSchema,

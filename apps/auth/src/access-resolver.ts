@@ -5,6 +5,7 @@ import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { SYSTEM_TENANT_ID, portalFor, type Portal } from '@shared/identity';
 import type { StoredUser, UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TENANT_ROLE_REPOSITORY, type TenantRoleRepository } from './tenant-role.repository';
+import { PERMISSION_REMOVAL_REPOSITORY, type PermissionRemovalRepository } from './permission-removal.repository';
 
 export type ResolvedAccess = {
   userId: string;
@@ -20,16 +21,31 @@ const CACHE_TTL_MS = 30_000;
 /** What a user may do right now, read from the account rather than from their token. */
 @Injectable()
 export class AccessResolver {
-  private readonly cache = new Map<string, { access: ResolvedAccess | null; at: number }>();
+  private readonly cache = new Map<string, { access: ResolvedAccess | null; expiresAt: number }>();
 
-  constructor(@Inject(TENANT_ROLE_REPOSITORY) private readonly roles: TenantRoleRepository) {}
+  constructor(
+    @Inject(TENANT_ROLE_REPOSITORY) private readonly roles: TenantRoleRepository,
+    @Inject(PERMISSION_REMOVAL_REPOSITORY) private readonly removals: PermissionRemovalRepository,
+  ) {}
 
   async resolve(userRepository: Pick<UserRepository, 'findById'>, userId: string): Promise<ResolvedAccess | null> {
+    const now = Date.now();
     const cached = this.cache.get(userId);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.access;
+    if (cached && now < cached.expiresAt) return cached.access;
     const user = await userRepository.findById(userId);
-    const access = user ? toAccess(user, await this.permissionsOf(user)) : null;
-    this.cache.set(userId, { access, at: Date.now() });
+    let expiresAt = now + CACHE_TTL_MS;
+    let access: ResolvedAccess | null = null;
+    if (user) {
+      const removals = await this.removals.activeForTenant(user.tenantId);
+      const removed = new Set(removals.filter((r) => r.effectiveAt.getTime() <= now).map((r) => r.permission));
+      // A removal applies on the first request at its effective time, so a
+      // cached answer never outlives the next one due.
+      for (const r of removals) {
+        if (r.effectiveAt.getTime() > now) expiresAt = Math.min(expiresAt, r.effectiveAt.getTime());
+      }
+      access = toAccess(user, (await this.permissionsOf(user)).filter((p) => !removed.has(p)));
+    }
+    this.cache.set(userId, { access, expiresAt });
     return access;
   }
 
