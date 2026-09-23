@@ -125,8 +125,8 @@ export class AppConfigService {
   get traccar() {
     return {
       baseUrl: this.config.get<string>("TRACCAR_BASE_URL", ""),
-      adminEmail: this.config.get<string>("TRACCAR_ADMIN_EMAIL", ""),
-      adminPassword: this.config.get<string>("TRACCAR_ADMIN_PASSWORD", ""),
+      serviceEmail: this.config.get<string>("TRACCAR_SERVICE_EMAIL", ""),
+      servicePassword: this.config.get<string>("TRACCAR_SERVICE_PASSWORD", ""),
     };
   }
 
@@ -237,6 +237,8 @@ export class AppConfigService {
   get nats() {
     return {
       url: this.config.get<string>("NATS_URL", "nats://localhost:4222"),
+      user: this.config.get<string>("NATS_USER", ""),
+      password: this.config.get<string>("NATS_PASSWORD", ""),
     };
   }
 

@@ -15,6 +15,10 @@ import { NatsJetStreamEventBus } from "./nats-jetstream.eventbus";
           logger,
           configService.get<string>("NATS_URL", "nats://localhost:4222"),
           configService.get<string>("NATS_STREAM", "truckmoov_events"),
+          {
+            user: configService.get<string>("NATS_USER"),
+            password: configService.get<string>("NATS_PASSWORD"),
+          },
         );
       },
     },

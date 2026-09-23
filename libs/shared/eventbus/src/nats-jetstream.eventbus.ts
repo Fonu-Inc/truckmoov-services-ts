@@ -1,7 +1,22 @@
-import { AckPolicy, connect, DeliverPolicy, JSONCodec, type JetStreamClient, type NatsConnection } from "nats";
+import {
+  AckPolicy,
+  connect,
+  DeliverPolicy,
+  JSONCodec,
+  type ConnectionOptions,
+  type JetStreamClient,
+  type NatsConnection,
+} from "nats";
 import { AppLogger } from "../../logger/src";
 import type { EventBus } from "./event-bus.interface";
 import type { EventEnvelope } from "./event-envelope";
+
+/** The login a service presents to the bus. Empty connects anonymously. */
+export type NatsCredentials = { user?: string; password?: string };
+
+export function natsLogin(credentials: NatsCredentials): Pick<ConnectionOptions, "user" | "pass"> {
+  return credentials.user ? { user: credentials.user, pass: credentials.password } : {};
+}
 
 function sanitizeJetStreamName(streamName: string): string {
   const normalized = streamName
@@ -22,6 +37,7 @@ export class NatsJetStreamEventBus implements EventBus {
     private readonly logger: AppLogger,
     private readonly natsUrl: string,
     streamName: string,
+    private readonly credentials: NatsCredentials = {},
   ) {
     // JetStream stream names cannot contain "." even though event subjects do.
     this.streamName = sanitizeJetStreamName(streamName);
@@ -116,7 +132,7 @@ export class NatsJetStreamEventBus implements EventBus {
     }
 
     try {
-      this.connection = await connect({ servers: this.natsUrl });
+      this.connection = await connect({ servers: this.natsUrl, ...natsLogin(this.credentials) });
       this.jetstream = this.connection.jetstream();
       await this.ensureStream();
       this.logger.log("Connected to NATS JetStream", {

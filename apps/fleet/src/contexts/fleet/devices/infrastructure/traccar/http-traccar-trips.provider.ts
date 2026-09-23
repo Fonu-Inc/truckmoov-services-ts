@@ -26,7 +26,7 @@ export class HttpTraccarTripsProvider implements TraccarTripsProvider {
   constructor(@Inject(AppConfigService) config: AppConfigService) {
     this.baseUrl = config.traccar.baseUrl.replace(/\/+$/, "");
     const token = Buffer.from(
-      `${config.traccar.adminEmail}:${config.traccar.adminPassword}`,
+      `${config.traccar.serviceEmail}:${config.traccar.servicePassword}`,
     ).toString("base64");
     this.authHeader = `Basic ${token}`;
   }

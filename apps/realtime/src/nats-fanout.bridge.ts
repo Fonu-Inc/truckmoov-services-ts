@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { connect, type NatsConnection, type Subscription } from 'nats';
 import { AppConfigService } from '@shared/config';
+import { natsLogin } from '@shared/eventbus';
 import { PositionCoalescer, readPosition } from './position-coalescer';
 import { RealtimeGateway } from './realtime.gateway';
 import { tenantOfSubject, SYSTEM_TENANT } from './tenant-subject';
@@ -63,6 +64,7 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     try {
       this.connection = await connect({
         servers: this.config.nats.url,
+        ...natsLogin(this.config.nats),
         // Reconnects forever. A dropped link would otherwise leave the gateway
         // holding sockets it can never deliver anything to, which looks healthy
         // from outside and is not.
