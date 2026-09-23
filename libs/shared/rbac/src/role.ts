@@ -54,6 +54,32 @@ export function roleFromId(id: number): Role {
   return match;
 }
 
+/** Roles that govern the platform itself. Only ever held in the system tenant. */
+export const SYSTEM_ROLES: readonly Role[] = [
+  Role.SUPER_ADMIN,
+  Role.SYSTEM_ADMIN,
+  Role.PLATFORM_ADMIN,
+];
+
+/** Roles a customer organisation may hold. */
+export const TENANT_ROLES: readonly Role[] = [
+  Role.ENTERPRISE_ADMIN,
+  Role.AGGREGATOR_ADMIN,
+  Role.OWNER_OPERATOR,
+  Role.FLEET_ADMIN,
+  Role.OPERATIONS_MANAGER,
+  Role.DISPATCHER,
+  Role.FINANCE_VIEWER,
+];
+
+export function isSystemRole(role: string): boolean {
+  return (SYSTEM_ROLES as readonly string[]).includes(role);
+}
+
+export function isTenantRole(role: string): boolean {
+  return (TENANT_ROLES as readonly string[]).includes(role);
+}
+
 export const MULTI_STAKEHOLDER_ROLES = [
   Role.ENTERPRISE_ADMIN,
   Role.AGGREGATOR_ADMIN,
@@ -61,7 +87,6 @@ export const MULTI_STAKEHOLDER_ROLES = [
 ] as const;
 
 export const FLEET_PROVIDER_ROLES = [
-  Role.PLATFORM_ADMIN,
   Role.FLEET_ADMIN,
   Role.OPERATIONS_MANAGER,
   Role.DISPATCHER,
@@ -71,7 +96,6 @@ export const FLEET_PROVIDER_ROLES = [
 export const INVITABLE_ROLES = [
   Role.AGGREGATOR_ADMIN,
   Role.OWNER_OPERATOR,
-  Role.PLATFORM_ADMIN,
   Role.FLEET_ADMIN,
   Role.OPERATIONS_MANAGER,
   Role.DISPATCHER,

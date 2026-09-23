@@ -15,5 +15,9 @@ export {
   INVITABLE_ROLES,
   MULTI_STAKEHOLDER_ROLES,
   FLEET_PROVIDER_ROLES,
+  SYSTEM_ROLES,
+  TENANT_ROLES,
+  isSystemRole,
+  isTenantRole,
 } from "./role";
 export { ROLE_PERMISSIONS, hasPermission } from "./role-permissions.seed";

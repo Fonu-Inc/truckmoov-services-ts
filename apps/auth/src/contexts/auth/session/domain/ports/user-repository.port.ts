@@ -102,6 +102,7 @@ export interface UserRepository {
   findById(id: string): Promise<StoredUser | null>;
   findAll(): Promise<StoredUser[]>;
   findAllByTenant(tenantId: string): Promise<StoredUser[]>;
+  findByRoles(roles: readonly string[]): Promise<StoredUser[]>;
   findAllByTenantFiltered(
     tenantId: string,
     filters: { search?: string; role?: string; accountStatus?: string },

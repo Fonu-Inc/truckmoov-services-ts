@@ -14,7 +14,9 @@ import {
 } from '../../../apps/auth/src/organisation-upgrade.repository';
 import { ForbiddenError } from '../../../apps/auth/src/contexts/auth/session';
 
-function harness(options: { orgType?: string; role?: string; vehicles?: number | null } = {}) {
+function harness(
+  options: { orgType?: string; role?: string; actorTenant?: string; vehicles?: number | null } = {},
+) {
   const requests = new InMemoryOrganisationUpgradeRepository();
   const members = [
     { id: 'u1', role: 'OWNER_OPERATOR', tenantId: 'tenant-a', email: 'a@b.com', passwordHash: 'x', accountStatus: 'enabled', profile: {} },
@@ -26,7 +28,7 @@ function harness(options: { orgType?: string; role?: string; vehicles?: number |
     findById: async () => ({
       id: 'actor-1',
       role: options.role ?? 'OWNER_OPERATOR',
-      tenantId: 'tenant-a',
+      tenantId: options.actorTenant ?? (options.role === 'PLATFORM_ADMIN' ? 'system' : 'tenant-a'),
       email: 'a@b.com',
       passwordHash: 'x',
       accountStatus: 'enabled',
@@ -122,6 +124,12 @@ describe('reviewing', () => {
     const tenant = harness({ role: 'FLEET_ADMIN' });
 
     await expect(tenant.review.list('token')).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('refuses a platform admin held inside a customer tenant', async () => {
+    const misplaced = harness({ role: 'PLATFORM_ADMIN', actorTenant: 'tenant-a' });
+
+    await expect(misplaced.review.list('token')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('promotes the organisation type', async () => {

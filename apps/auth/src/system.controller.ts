@@ -88,6 +88,7 @@ import {
   UpdatePlanEntitlementsUseCase,
 } from './update-plan-entitlements.use-case';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
+import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
@@ -115,6 +116,7 @@ export class SystemController extends BaseAuthController {
     @Inject(UpdatePlanEntitlementsUseCase) private readonly updatePlanEntitlementsUseCase: UpdatePlanEntitlementsUseCase,
     @Inject(GetSystemActivityLogUseCase) private readonly getSystemActivityLogUseCase: GetSystemActivityLogUseCase,
     @Inject(ListSystemAdminInvitesUseCase) private readonly listSystemAdminInvitesUseCase: ListSystemAdminInvitesUseCase,
+    @Inject(ListMisplacedSystemAccountsUseCase) private readonly listMisplacedSystemAccountsUseCase: ListMisplacedSystemAccountsUseCase,
     @Inject(ListSystemFeatureFlagsUseCase) private readonly listSystemFeatureFlagsUseCase: ListSystemFeatureFlagsUseCase,
     @Inject(ResendSystemAdminInviteUseCase) private readonly resendSystemAdminInviteUseCase: ResendSystemAdminInviteUseCase,
     @Inject(UpdateSystemFeatureFlagUseCase) private readonly updateSystemFeatureFlagUseCase: UpdateSystemFeatureFlagUseCase,
@@ -510,6 +512,34 @@ export class SystemController extends BaseAuthController {
 
     try {
       return await this.listSystemAdminInvitesUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('misplaced-system-accounts')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List system-role accounts outside the system tenant',
+    description:
+      'Accounts holding a system role inside a customer tenant, for governance review. Nothing is changed.',
+  })
+  @ApiOkResponse({ description: 'Accounts returned' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not a system admin' })
+  async listMisplacedSystemAccounts(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.listMisplacedSystemAccountsUseCase.execute(accessToken);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)

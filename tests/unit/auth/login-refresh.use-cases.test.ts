@@ -3,6 +3,7 @@ import { AuthUser } from "../../../apps/auth/src/contexts/auth/session/domain/en
 import { InvalidRefreshTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-refresh-token.error";
 import { LoginUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/login.use-case";
 import { RefreshUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/refresh.use-case";
+import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
 
 /** These tests are about refresh, not about the idle timeout. */
 function noSessionTimeout() {
@@ -11,8 +12,13 @@ function noSessionTimeout() {
 
 
 class FakeIdentityProvider {
+  constructor(
+    private readonly role = "admin",
+    private readonly tenantId = "tenant-1",
+  ) {}
+
   async verifyCredentials(email: string, _password: string) {
-    return AuthUser.create({ id: "user-1", email, role: "admin", tenantId: "tenant-1" });
+    return AuthUser.create({ id: "user-1", email, role: this.role, tenantId: this.tenantId });
   }
 }
 
@@ -33,11 +39,18 @@ class FakeTokenService {
   }
 }
 
-class FakeUserRepository {
-  private readonly users = new Map<string, { id: string; accountStatus: "enabled" | "disabled" }>();
+type SeededUser = { id: string; accountStatus: "enabled" | "disabled"; role: string; tenantId: string };
 
-  seed(id: string, accountStatus: "enabled" | "disabled" = "enabled") {
-    this.users.set(id, { id, accountStatus });
+class FakeUserRepository {
+  private readonly users = new Map<string, SeededUser>();
+
+  seed(
+    id: string,
+    accountStatus: "enabled" | "disabled" = "enabled",
+    role = "admin",
+    tenantId = "tenant-1",
+  ) {
+    this.users.set(id, { id, accountStatus, role, tenantId });
   }
 
   async findById(id: string) {
@@ -161,5 +174,48 @@ describe("Auth use-cases", () => {
     );
 
     expect(await sessionStore.getByRefreshToken(loginResult.refreshToken)).toBeNull();
+  });
+});
+
+describe("each login admits only its own people", () => {
+  function login(role: string, tenantId: string) {
+    return new LoginUseCase(new FakeIdentityProvider(role, tenantId), new FakeTokenService(), new FakeSessionStore());
+  }
+  const credentials = { email: "someone@co.com", password: "StrongPass123!" };
+
+  it("tenant login refuses a platform admin held inside a tenant", async () => {
+    await expect(login("PLATFORM_ADMIN", "tenant-1").execute(credentials)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("admin login refuses a platform admin held inside a tenant", async () => {
+    await expect(
+      login("PLATFORM_ADMIN", "tenant-1").executeForAudience(credentials, "system"),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("admin login admits a platform admin in the system tenant", async () => {
+    const result = await login("PLATFORM_ADMIN", "system").executeForAudience(credentials, "system");
+
+    expect(result.user.role).toBe("PLATFORM_ADMIN");
+  });
+
+  it("admin login refuses a tenant role", async () => {
+    await expect(
+      login("FLEET_ADMIN", "tenant-1").executeForAudience(credentials, "system"),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("refresh ends a session held by a platform admin inside a tenant", async () => {
+    const sessionStore = new FakeSessionStore();
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1", "enabled", "PLATFORM_ADMIN", "tenant-1");
+    const misplaced = AuthUser.create({ id: "user-1", email: "x@co.com", role: "PLATFORM_ADMIN", tenantId: "tenant-1" });
+    await sessionStore.save("old-session", misplaced);
+
+    const refresh = new RefreshUseCase(sessionStore, tokenService, userRepo as never, noSessionTimeout());
+
+    await expect(refresh.execute("old-session")).rejects.toBeInstanceOf(ForbiddenError);
+    expect(await sessionStore.getByRefreshToken("old-session")).toBeNull();
   });
 });

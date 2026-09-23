@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Role, hasPermission, Permission } from "@shared/rbac";
+import { Role, hasPermission, isTenantRole, Permission } from "@shared/rbac";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
@@ -48,12 +48,11 @@ export class ChangeRoleUseCase {
       throw new ForbiddenError("System accounts cannot be managed through tenant organization endpoints");
     }
 
+    // An allow-list rather than a list of forbidden roles: a role added later
+    // is refused here until someone decides a tenant may hold it.
     const newRole = command.newRole as Role;
-    if (!Object.values(Role).includes(newRole)) {
-      throw new ForbiddenError("Invalid role");
-    }
-    if (newRole === Role.SUPER_ADMIN || newRole === Role.SYSTEM_ADMIN) {
-      throw new ForbiddenError("Cannot assign system roles through tenant organization endpoints");
+    if (!isTenantRole(newRole)) {
+      throw new ForbiddenError("Cannot assign this role through tenant organization endpoints");
     }
 
     await this.userRepo.updateRole(command.targetUserId, newRole);

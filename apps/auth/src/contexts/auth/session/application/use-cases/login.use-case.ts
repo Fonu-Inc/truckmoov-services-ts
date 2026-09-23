@@ -12,7 +12,8 @@ import {
   TOKEN_SERVICE,
   type TokenService,
 } from '../../domain/ports/token-service.port';
-import { Role } from '@shared/rbac';
+import { isSystemRole } from '@shared/rbac';
+import { isPlatformActor } from '@shared/identity';
 import { ForbiddenError } from '../../domain/errors/forbidden.error';
 
 export type LoginCommand = {
@@ -39,7 +40,7 @@ export class LoginUseCase {
       command.password,
     );
 
-    this.assertAudience(user.role, 'tenant');
+    this.assertAudience(user, 'tenant');
 
     return this.issueSession(user);
   }
@@ -50,21 +51,26 @@ export class LoginUseCase {
       command.password,
     );
 
-    this.assertAudience(user.role, audience);
+    this.assertAudience(user, audience);
 
     return this.issueSession(user);
   }
 
-  private assertAudience(role: string, audience: LoginAudience) {
-    const isSuperAdmin = role === Role.SUPER_ADMIN;
-    const isSystemAdmin = role === Role.SYSTEM_ADMIN;
-
-    if (audience === 'tenant' && (isSuperAdmin || isSystemAdmin)) {
+  /**
+   * Each login admits only its own people.
+   *
+   * The tenant login refuses every system role, including one held somewhere
+   * it should not be. The system login requires a system role in the system
+   * tenant: checking the role alone would let an account that was wrongly
+   * given platform admin inside a tenant into the admin portal.
+   */
+  private assertAudience(user: AuthUser, audience: LoginAudience) {
+    if (audience === 'tenant' && isSystemRole(user.role)) {
       throw new ForbiddenError(
         'System accounts must use the system login endpoint',
       );
     }
-    if (audience === 'system' && !isSuperAdmin && !isSystemAdmin) {
+    if (audience === 'system' && !isPlatformActor(user)) {
       throw new ForbiddenError('This endpoint is reserved for system accounts');
     }
   }

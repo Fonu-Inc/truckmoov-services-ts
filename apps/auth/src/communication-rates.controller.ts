@@ -19,7 +19,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Role } from '@shared/rbac';
+import { isPlatformActor } from '@shared/identity';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -35,12 +35,6 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { UpdateCommunicationRatesDto } from './dto/communication-rates.dto';
-
-const PRICING_ROLES = new Set<string>([
-  Role.PLATFORM_ADMIN,
-  Role.SUPER_ADMIN,
-  Role.SYSTEM_ADMIN,
-]);
 
 /**
  * What tenants pay per message, per minute and per active SIM.
@@ -149,7 +143,7 @@ export class CommunicationRatesController extends BaseAuthController {
 
     try {
       const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
-      if (!PRICING_ROLES.has(actor.role)) {
+      if (!isPlatformActor(actor)) {
         throw new ForbiddenException('You are not permitted to set communication pricing');
       }
       return actor;

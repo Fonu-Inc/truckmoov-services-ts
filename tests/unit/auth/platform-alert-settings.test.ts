@@ -9,7 +9,7 @@ import {
 import { shouldRaise } from '../../../apps/auth/src/platform-alert-settings.repository';
 import { ForbiddenError } from '../../../apps/auth/src/contexts/auth/session';
 
-function build(role = 'PLATFORM_ADMIN') {
+function build(role = 'PLATFORM_ADMIN', tenantId = 'system') {
   const repository = new InMemoryPlatformAlertSettingsRepository();
   const useCase = new PlatformAlertSettingsUseCase(
     { resolveAccessToken: () => ({ id: 'staff-1' }) } as never,
@@ -18,7 +18,7 @@ function build(role = 'PLATFORM_ADMIN') {
         id: 'staff-1',
         email: 'staff@truckmoov.com',
         role,
-        tenantId: 'system',
+        tenantId,
         accountStatus: 'enabled',
         passwordHash: 'x',
         profile: {},
@@ -44,6 +44,12 @@ describe('who may configure platform alerts', () => {
     for (const role of ['ENTERPRISE_ADMIN', 'FLEET_ADMIN', 'AGGREGATOR_ADMIN', 'OWNER_OPERATOR']) {
       await expect(build(role).useCase.list('token')).rejects.toBeInstanceOf(ForbiddenError);
     }
+  });
+
+  it('refuses a platform admin held inside a customer tenant', async () => {
+    await expect(build('PLATFORM_ADMIN', 'tenant-a').useCase.list('token')).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
   });
 });
 

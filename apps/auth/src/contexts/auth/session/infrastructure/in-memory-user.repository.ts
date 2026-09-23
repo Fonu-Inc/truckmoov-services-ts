@@ -30,6 +30,10 @@ export class InMemoryUserRepository implements UserRepository {
       .sort((left, right) => left.email.localeCompare(right.email));
   }
 
+  async findByRoles(roles: readonly string[]): Promise<StoredUser[]> {
+    return (await this.findAll()).filter((user) => roles.includes(user.role));
+  }
+
   async findAllByTenant(tenantId: string): Promise<StoredUser[]> {
     const users: StoredUser[] = [];
     for (const user of this.store.values()) {

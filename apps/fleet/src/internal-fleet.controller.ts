@@ -13,6 +13,7 @@ import {
 import { ApiExcludeController } from "@nestjs/swagger";
 import { Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
+import { PlatformActorGuard } from "./platform-actor.guard";
 import { AuditLogService } from "./audit-log.service";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
@@ -104,7 +105,7 @@ export class InternalFleetController extends BaseFleetController {
    * which is why this is not on the tenant-scoped devices controller.
    */
   @Post("devices/:deviceId/suspend")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async suspendDevice(@Param("deviceId") deviceId: string, @Body() payload: SuspendDeviceDto) {
     const data = await this.runDeviceAction(() =>
       this.suspendDeviceUseCase.execute(deviceId, payload?.reason ?? null),
@@ -113,7 +114,7 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   @Post("devices/:deviceId/reinstate")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async reinstateDevice(@Param("deviceId") deviceId: string) {
     const data = await this.runDeviceAction(() => this.reinstateDeviceUseCase.execute(deviceId));
     return { status: true, message: "Device reinstated", data };
@@ -137,7 +138,7 @@ export class InternalFleetController extends BaseFleetController {
    * tenant's own pages. Cross-tenant, so it carries the platform roles.
    */
   @Get("tenants/:tenantId/vehicles")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async tenantVehicles(@Param("tenantId") tenantId: string) {
     const vehicles = await this.vehicles.findAll({ tenantId });
     const rows = (vehicles as unknown as Array<Record<string, unknown>>)
@@ -160,7 +161,7 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   @Get("tenants/:tenantId/drivers")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async tenantDrivers(@Param("tenantId") tenantId: string) {
     const drivers = await this.drivers.findAll({ tenantId });
     const rows = (drivers as unknown as Array<Record<string, unknown>>)
@@ -181,7 +182,7 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   @Get("tenants/:tenantId/devices")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async tenantDevices(@Param("tenantId") tenantId: string) {
     const devices = await this.devices.findAll({ tenantId });
     const rows = devices.slice(0, DRAWER_ROW_LIMIT).map((device) => ({
@@ -208,7 +209,7 @@ export class InternalFleetController extends BaseFleetController {
    * not evidence that the hardware is talking to us.
    */
   @Get("tenants/:tenantId/connectivity")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async tenantConnectivity(@Param("tenantId") tenantId: string) {
     const devices = await this.devices.findAll({ tenantId });
 
@@ -242,7 +243,7 @@ export class InternalFleetController extends BaseFleetController {
    * offline when it never was, and support would act on it.
    */
   @Get("tenants/:tenantId/context/:resource/:recordId")
-  @Roles(Role.SUPER_ADMIN, Role.SYSTEM_ADMIN, Role.PLATFORM_ADMIN)
+  @UseGuards(PlatformActorGuard)
   async contextSnapshot(
     @Param("tenantId") tenantId: string,
     @Param("resource") resource: string,

@@ -422,6 +422,14 @@ describe("InviteUserUseCase", () => {
       uc.execute({ email: "x@y.com", role: Role.ENTERPRISE_ADMIN, accessToken }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it("rejects inviting a platform admin", async () => {
+    const accessToken = makeAdmin(tokenService);
+
+    await expect(
+      uc.execute({ email: "x@y.com", role: Role.PLATFORM_ADMIN, accessToken }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
 });
 
 describe("ValidateInviteUseCase", () => {
@@ -552,6 +560,19 @@ describe("RegisterInvitedUseCase", () => {
     await expect(
       uc.execute({ inviteToken: "admin-invite", email: "sneaky@co.com", password: "Pass1234!" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects a pending tenant invite naming platform admin", async () => {
+    await inviteRepo.save({
+      id: "inv-4", email: "staff@co.com", role: Role.PLATFORM_ADMIN,
+      tenantId: "t-1", token: "platform-invite", invitedBy: "admin-1",
+      status: "pending", expiresAt: new Date(Date.now() + 86400000), createdAt: new Date(),
+    });
+
+    await expect(
+      uc.execute({ inviteToken: "platform-invite", fullName: "Staff", password: "Pass1234!" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(await userRepo.findByEmail("staff@co.com")).toBeNull();
   });
 });
 
@@ -761,6 +782,17 @@ describe("ChangeRoleUseCase", () => {
     await expect(
       uc.execute({ targetUserId: "ghost", newRole: Role.FLEET_ADMIN, accessToken }),
     ).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+
+  it("rejects promoting a tenant user to any system role", async () => {
+    const accessToken = makeAdmin(tokenService, "tenant-1");
+
+    for (const newRole of [Role.PLATFORM_ADMIN, Role.SYSTEM_ADMIN, Role.SUPER_ADMIN]) {
+      await expect(
+        uc.execute({ targetUserId: "target-1", newRole, accessToken }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    }
+    expect(userRepo.getById("target-1")?.role).toBe(Role.DISPATCHER);
   });
 });
 

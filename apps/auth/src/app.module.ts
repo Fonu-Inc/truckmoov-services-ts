@@ -354,6 +354,7 @@ import { InMemorySimActivationBatchRepository } from './in-memory-sim-activation
 import { InMemorySystemFeatureFlagRepository } from './in-memory-system-feature-flag.repository';
 import { InMemorySystemSettingsRepository } from './in-memory-system-settings.repository';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
+import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
@@ -1331,6 +1332,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateSubscriptionPlanPriceUseCase,
     GetSystemActivityLogUseCase,
     ListSystemAdminInvitesUseCase,
+    ListMisplacedSystemAccountsUseCase,
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
     GetSystemDeviceDetailUseCase,

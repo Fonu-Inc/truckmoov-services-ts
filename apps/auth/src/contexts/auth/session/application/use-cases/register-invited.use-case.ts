@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
 import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { Role } from "@shared/rbac";
+import { holdsMisplacedSystemRole } from "@shared/identity";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
 import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { InviteNotFoundError } from "../../domain/errors/invite-not-found.error";
@@ -44,6 +45,11 @@ export class RegisterInvitedUseCase {
 
     if (invite.role === Role.ENTERPRISE_ADMIN) {
       throw new ForbiddenError("Cannot register as Enterprise Admin via invitation");
+    }
+    // Re-checked here, not only when the invite was issued: invites created
+    // before tenants lost the ability to grant system roles are still pending.
+    if (holdsMisplacedSystemRole({ role: invite.role, tenantId: invite.tenantId })) {
+      throw new ForbiddenError("This invitation cannot be accepted");
     }
 
     const existing = await this.userRepo.findByEmail(invite.email);

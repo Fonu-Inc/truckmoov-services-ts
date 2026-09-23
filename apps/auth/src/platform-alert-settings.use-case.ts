@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Role } from '@shared/rbac';
+import { isPlatformActor } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -32,19 +32,6 @@ export class AlertHasNoRecipientError extends Error {
     super('An enabled alert needs at least one recipient, or it goes nowhere');
   }
 }
-
-/**
- * Platform staff alerting.
- *
- * Held by PLATFORM_ADMIN, the internal system role. This is platform-wide
- * operational configuration, not a tenant's own settings, so no stakeholder
- * role reaches it.
- */
-const ALERT_CONFIG_ROLES = new Set<string>([
-  Role.PLATFORM_ADMIN,
-  Role.SUPER_ADMIN,
-  Role.SYSTEM_ADMIN,
-]);
 
 export type UpdateAlertSettingCommand = {
   accessToken: string;
@@ -127,7 +114,7 @@ export class PlatformAlertSettingsUseCase {
 
   private async requirePlatformAdmin(accessToken: string) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
-    if (!ALERT_CONFIG_ROLES.has(actor.role)) {
+    if (!isPlatformActor(actor)) {
       throw new ForbiddenError('You are not permitted to configure platform alerts');
     }
     return actor;

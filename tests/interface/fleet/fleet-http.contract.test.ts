@@ -421,6 +421,12 @@ describe("Fleet HTTP contract", () => {
 
     // Suspension is a platform action and crosses tenants, so it is reached
     // with an internal role rather than the tenant's own.
+    const misplaced = await request(app.getHttpServer())
+      .post(`/fleet/internal/devices/${createDevice.body.id}/suspend`)
+      .set("Authorization", authToken("PLATFORM_ADMIN", "default"))
+      .send({ reason: "Unpaid invoice" });
+    expect(misplaced.status).toBe(404);
+
     const suspend = await request(app.getHttpServer())
       .post(`/fleet/internal/devices/${createDevice.body.id}/suspend`)
       .set("Authorization", authToken("PLATFORM_ADMIN", "system"))

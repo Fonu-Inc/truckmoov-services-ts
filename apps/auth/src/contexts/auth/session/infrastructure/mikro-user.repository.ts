@@ -60,6 +60,15 @@ export class MikroUserRepository implements UserRepository {
     return records.map((record) => normalizeStoredUser(toStoredUser(record)));
   }
 
+  async findByRoles(roles: readonly string[]): Promise<StoredUser[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(AuthUserRecord, { roleId: { $in: roles.map(mapRoleNameToId) } }, {
+      orderBy: { email: "asc" },
+    });
+    return records.map((record) => normalizeStoredUser(toStoredUser(record)));
+  }
+
   async findAllByTenantFiltered(
     tenantId: string,
     filters: { search?: string; role?: string; accountStatus?: string },

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { holdsMisplacedSystemRole } from "@shared/identity";
 import { EmailNotVerifiedError } from "../../domain/errors/email-not-verified.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidRefreshTokenError } from "../../domain/errors/invalid-refresh-token.error";
@@ -55,6 +56,12 @@ export class RefreshUseCase {
     if (storedUser.emailVerificationToken) {
       await this.sessionStore.deleteByRefreshToken(refreshToken);
       throw new EmailNotVerifiedError();
+    }
+    // Login already refuses these accounts; without this a session opened
+    // before that change would keep renewing into platform-level tokens.
+    if (holdsMisplacedSystemRole(storedUser)) {
+      await this.sessionStore.deleteByRefreshToken(refreshToken);
+      throw new ForbiddenError("This session can no longer be renewed");
     }
 
     // Rotate on every use: the old refresh token is invalidated and a new

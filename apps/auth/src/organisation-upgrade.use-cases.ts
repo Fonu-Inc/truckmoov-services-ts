@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Role } from '@shared/rbac';
+import { isPlatformActor } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -24,12 +25,6 @@ import {
   SUBSCRIPTION_PLAN_REPOSITORY,
   type SubscriptionPlanRepository,
 } from './subscription-plan.repository';
-
-const SYSTEM_REVIEWER_ROLES = new Set<string>([
-  Role.PLATFORM_ADMIN,
-  Role.SUPER_ADMIN,
-  Role.SYSTEM_ADMIN,
-]);
 
 export class FleetSizeUnknownError extends Error {
   constructor() {
@@ -269,7 +264,7 @@ export class ReviewOrganisationUpgradeUseCase {
 
   private async requireReviewer(accessToken: string) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
-    if (!SYSTEM_REVIEWER_ROLES.has(actor.role)) {
+    if (!isPlatformActor(actor)) {
       throw new ForbiddenError('You are not permitted to review upgrade requests');
     }
     return actor;
