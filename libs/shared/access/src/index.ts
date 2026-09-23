@@ -17,3 +17,14 @@ export {
   type RequestLike,
 } from "./portals";
 export { VerifiedCallerAudience } from "./verified-caller-audience";
+export {
+  PERMISSION_CATALOG,
+  isPermission,
+  permissionsOf,
+  portalOfPermission,
+  type PermissionEntry,
+  type PermissionKey,
+  type PermissionPortal,
+} from "./catalog";
+export { PREDEFINED_ROLES, predefinedRole, type PredefinedRole } from "./predefined-roles";
+export { ACCESS_CHANGED_SUBJECT, AccessClient, type RemoteAccess } from "./access-client";

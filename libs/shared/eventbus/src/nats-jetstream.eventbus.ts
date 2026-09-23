@@ -117,6 +117,28 @@ export class NatsJetStreamEventBus implements EventBus {
     return async () => sub.stop();
   }
 
+  async subscribeEveryInstance(
+    subject: string,
+    handler: (envelope: EventEnvelope) => Promise<void>,
+  ): Promise<() => Promise<void>> {
+    await this.getJetStream();
+    if (!this.connection) {
+      this.logger.warn("Skipping subscribe because NATS is not reachable", { subject });
+      return async () => Promise.resolve();
+    }
+    const sub = this.connection.subscribe(subject);
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          await handler(this.jsonCodec.decode(msg.data));
+        } catch (err) {
+          this.logger.warn("event_handler_failed", { subject, error: (err as Error).message });
+        }
+      }
+    })();
+    return async () => sub.unsubscribe();
+  }
+
   async isReady(): Promise<boolean> {
     try {
       const js = await this.getJetStream();

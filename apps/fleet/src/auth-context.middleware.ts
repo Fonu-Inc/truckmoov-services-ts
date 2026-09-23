@@ -11,6 +11,7 @@ import {
   createServiceTokenVerifier,
 } from "@shared/identity";
 import { Role, normalizeRole } from "@shared/rbac";
+import { AccessClient, type PermissionKey } from "@shared/access";
 
 export type FleetAuthUser = {
   userId: string;
@@ -20,6 +21,8 @@ export type FleetAuthUser = {
   portal: Portal;
   /** The calling service, when the request is a service call. */
   service?: string;
+  /** What the user may do right now, from auth; absent when auth could not be asked. */
+  permissions?: PermissionKey[];
 };
 
 /**
@@ -50,7 +53,10 @@ export class AuthContextMiddleware implements NestMiddleware {
   private readonly verifier: UserTokenVerifier;
   private readonly services: ServiceTokenVerifier;
 
-  constructor(@Inject(AppConfigService) config: AppConfigService) {
+  constructor(
+    @Inject(AppConfigService) config: AppConfigService,
+    @Inject(AccessClient) private readonly access: AccessClient,
+  ) {
     this.verifier = new UserTokenVerifier(config.identity.publicKeys, config.identity.legacySecret);
     this.services = createServiceTokenVerifier(config, "fleet");
   }
@@ -63,7 +69,7 @@ export class AuthContextMiddleware implements NestMiddleware {
   // responding, since Express has no matching error-handling middleware
   // registered to catch it.
   async use(req: MutableFleetRequest, res: MiddlewareResponse, next: MiddlewareNext): Promise<void> {
-    const user = (await this.serviceCaller(req.headers)) ?? this.userFromToken(req.headers.authorization);
+    const user = (await this.serviceCaller(req.headers)) ?? (await this.currentUser(req.headers.authorization));
     if (!user) {
       res.status(401).json({ error: "missing or invalid authorization" });
       return;
@@ -74,6 +80,20 @@ export class AuthContextMiddleware implements NestMiddleware {
     req.headers["x-tenant-id"] = user.tenantId;
 
     next();
+  }
+
+  /**
+   * The token proves who the user is; auth says whether they still may act.
+   * A suspended or deleted account is refused here on its next request. When
+   * auth cannot be asked, the verified token stands, rather than refusing
+   * everyone while auth is down.
+   */
+  private async currentUser(authorization: string | string[] | undefined): Promise<FleetAuthUser | null> {
+    const user = this.userFromToken(authorization);
+    if (!user) return null;
+    const access = await this.access.get(user.userId);
+    if (access === null || access?.active === false) return null;
+    return access ? { ...user, permissions: access.permissions } : user;
   }
 
   private userFromToken(authorization: string | string[] | undefined): FleetAuthUser | null {

@@ -1,0 +1,65 @@
+import axios from "axios";
+import type { EventBus } from "@shared/eventbus";
+import type { ServiceCaller } from "@shared/identity";
+import type { PermissionKey } from "./catalog";
+
+export const ACCESS_CHANGED_SUBJECT = "tm.system.access.changed";
+
+export type RemoteAccess = {
+  userId: string;
+  tenantId: string;
+  portal: "admin" | "tenant";
+  active: boolean;
+  permissions: PermissionKey[];
+};
+
+const CACHE_TTL_MS = 30_000;
+
+/**
+ * Asks auth what a user may do right now, so a suspension or a role change
+ * applies on the user's next request instead of when their token expires.
+ * Cached briefly, and dropped the moment auth says the user changed.
+ */
+export class AccessClient {
+  private readonly cache = new Map<string, { access: RemoteAccess | null; at: number }>();
+
+  constructor(
+    private readonly authUrl: string,
+    private readonly caller: ServiceCaller,
+  ) {}
+
+  /** Keeps the cache honest across every running instance. */
+  async listen(bus: EventBus): Promise<void> {
+    await bus.subscribeEveryInstance?.(ACCESS_CHANGED_SUBJECT, async (event) => {
+      const userId = (event.data as { userId?: unknown }).userId;
+      if (typeof userId === "string") this.cache.delete(userId);
+    });
+  }
+
+  /**
+   * The user's access, null when auth knows no such user, or undefined when
+   * auth could not be asked — which is not the same as suspended.
+   */
+  async get(userId: string): Promise<RemoteAccess | null | undefined> {
+    const cached = this.cache.get(userId);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.access;
+    const headers = this.caller.headers("auth");
+    if (!headers) return cached?.access;
+    try {
+      const response = await axios.get<{ data?: RemoteAccess }>(
+        `${this.authUrl}/auth/internal/access/${encodeURIComponent(userId)}`,
+        { headers, timeout: 2000, validateStatus: () => true },
+      );
+      if (response.status === 404) return this.remember(userId, null);
+      if (response.status !== 200 || !response.data?.data) return cached?.access;
+      return this.remember(userId, response.data.data);
+    } catch {
+      return cached?.access;
+    }
+  }
+
+  private remember(userId: string, access: RemoteAccess | null): RemoteAccess | null {
+    this.cache.set(userId, { access, at: Date.now() });
+    return access;
+  }
+}

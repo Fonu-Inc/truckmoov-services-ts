@@ -18,6 +18,15 @@ export interface EventBus {
     handler: (envelope: EventEnvelope) => Promise<void>,
     consumer?: string,
   ): Promise<() => Promise<void>>;
+  /**
+   * Delivers every message to every running instance, not one of them, and
+   * keeps nothing for an instance that was down: for dropping in-memory
+   * caches, not for work that must happen once.
+   */
+  subscribeEveryInstance?(
+    subject: string,
+    handler: (envelope: EventEnvelope) => Promise<void>,
+  ): Promise<() => Promise<void>>;
   isReady(): Promise<boolean>;
 }
 

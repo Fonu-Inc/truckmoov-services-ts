@@ -356,6 +356,9 @@ import { InMemorySystemSettingsRepository } from './in-memory-system-settings.re
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
 import { InternalCallerService } from './internal-caller.service';
+import { AccessChangeNotifier, AccessResolver } from './access-resolver';
+import { AccessNotifyingUserRepository } from './access-notifying-user.repository';
+import { CapabilitiesController, InternalAccessController } from './access.controller';
 import { accessProviders } from '@shared/access';
 import { AccessRefusedListener, AuthCallerAudience, AuthRefusalReporter } from './access-refusals';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
@@ -650,6 +653,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
   ],
   controllers: [
     AuthController,
+    InternalAccessController,
+    CapabilitiesController,
     OnboardingApplicationsController,
     InstallationController,
     SystemOnboardingApplicationsController,
@@ -772,14 +777,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // User repository
     InMemoryUserRepository,
     MikroUserRepository,
+    AccessResolver,
+    AccessChangeNotifier,
     {
       provide: USER_REPOSITORY,
-      inject: [InMemoryUserRepository, MikroUserRepository, AppConfigService],
+      inject: [InMemoryUserRepository, MikroUserRepository, AppConfigService, AccessChangeNotifier],
       useFactory: (
         inMemory: InMemoryUserRepository,
         mikro: MikroUserRepository,
         config: AppConfigService,
-      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+        access: AccessChangeNotifier,
+      ) => new AccessNotifyingUserRepository(config.persistence.backend === 'in-memory' ? inMemory : mikro, access),
     },
 
     // Identity provider

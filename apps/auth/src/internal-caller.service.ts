@@ -34,6 +34,12 @@ export class InternalCallerService {
     this.services = createServiceTokenVerifier(config, 'auth');
   }
 
+  /** The calling service when it is one of allowed; no older token stands in for it. */
+  async serviceFor(headers: IncomingHeaders, allowed: readonly string[]): Promise<string | null> {
+    const service = await this.services.verify(single(headers[SERVICE_TOKEN_HEADER]));
+    return service && allowed.includes(service) ? service : null;
+  }
+
   /** The tenant the call is made for, or null when the caller is not one of allowed. */
   async tenantFor(headers: IncomingHeaders, allowed: readonly string[]): Promise<string | null> {
     const service = await this.services.verify(single(headers[SERVICE_TOKEN_HEADER]));

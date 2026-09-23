@@ -12,6 +12,8 @@ function signToken(payload: Record<string, unknown>, secret = "replace-me") {
   return `${encodedPayload}.${signature}`;
 }
 
+const unreachableAuth = { get: async () => undefined } as never;
+
 function makeRes() {
   const json = vi.fn();
   const status = vi.fn().mockReturnValue({ json });
@@ -23,7 +25,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
       identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
-    } as unknown as AppConfigService);
+    } as unknown as AppConfigService, unreachableAuth);
 
     const req: any = {
       headers: {
@@ -62,7 +64,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
       identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
-    } as unknown as AppConfigService);
+    } as unknown as AppConfigService, unreachableAuth);
 
     const req: any = { headers: {} };
     const res = makeRes();
@@ -79,7 +81,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
       identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
-    } as unknown as AppConfigService);
+    } as unknown as AppConfigService, unreachableAuth);
 
     const req: any = { headers: { authorization: "Bearer not-a-valid-token" } };
     const res = makeRes();
@@ -95,7 +97,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
       identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
-    } as unknown as AppConfigService);
+    } as unknown as AppConfigService, unreachableAuth);
 
     const token = signToken(
       {
@@ -121,7 +123,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
       identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
-    } as unknown as AppConfigService);
+    } as unknown as AppConfigService, unreachableAuth);
 
     const token = signToken({
       sub: "user-1",
@@ -145,7 +147,7 @@ describe("AuthContextMiddleware", () => {
     const middleware = () =>
       new AuthContextMiddleware({
         identity: { signingKey: "", publicKeys: "", legacySecret: "", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: DEV },
-      } as unknown as AppConfigService);
+      } as unknown as AppConfigService, unreachableAuth);
     const call = (caller: string, tenantId?: string) =>
       new ServiceCaller({ self: caller, tokenDir: "/nonexistent", devSecret: DEV, legacySecret: "" }).headers("fleet", { tenantId })!;
 
@@ -173,6 +175,35 @@ describe("AuthContextMiddleware", () => {
       await middleware().use({ headers: call("tracking", "tenant-a") } as any, res as never, vi.fn());
 
       expect(res.status).toHaveBeenCalledWith(401);
+    });
+  });
+
+  describe("the account as it is now", () => {
+    const config = {
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
+    } as unknown as AppConfigService;
+    const token = () =>
+      `Bearer ${signToken({ sub: "user-1", email: "a@b.com", role: "DISPATCHER", tenantId: "t1", exp: Math.floor(Date.now() / 1000) + 3600 })}`;
+    const run = async (access: unknown) => {
+      const req: any = { headers: { authorization: token() } };
+      const res = makeRes();
+      await new AuthContextMiddleware(config, { get: async () => access } as never).use(req, res as never, vi.fn());
+      return { req, res };
+    };
+
+    it("refuses a suspended account although its token is still valid", async () => {
+      const { res } = await run({ active: false, permissions: [] });
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("refuses a deleted account", async () => {
+      const { res } = await run(null);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("carries the user's current permissions", async () => {
+      const { req } = await run({ active: true, permissions: ["tenant.dispatch.read"] });
+      expect(req.user.permissions).toEqual(["tenant.dispatch.read"]);
     });
   });
 });

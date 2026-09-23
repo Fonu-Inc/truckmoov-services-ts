@@ -1,7 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
 import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
 import { ConfigModule, AppConfigService } from "@shared/config";
-import { EventBusModule } from "@shared/eventbus";
+import { EVENT_BUS, EventBusModule, type EventBus } from "@shared/eventbus";
 import { MetricsModule } from "@shared/metrics";
 import { ReadinessController } from "./readiness.controller";
 import { GeofenceModule } from "@shared/geofence";
@@ -305,7 +305,8 @@ import { InMemoryAuditLogRepository } from "./in-memory-audit-log.repository";
 import { MikroAuditLogRepository } from "./mikro-audit-log.repository";
 import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
-import { accessProviders } from "@shared/access";
+import { AccessClient, accessProviders } from "@shared/access";
+import { createServiceCaller } from "@shared/identity";
 import { FleetCallerAudience, FleetRefusalReporter } from "./access-refusals";
 
 @Module({
@@ -543,6 +544,15 @@ import { FleetCallerAudience, FleetRefusalReporter } from "./access-refusals";
     // It is a no-op when the request carries no authenticated tenant, which
     // leaves the readiness probe and the external webhooks untouched.
     ...accessProviders({ callers: FleetCallerAudience, reporter: FleetRefusalReporter }),
+    {
+      provide: AccessClient,
+      inject: [AppConfigService, EVENT_BUS],
+      useFactory: (config: AppConfigService, bus: EventBus) => {
+        const client = new AccessClient(config.auth.serviceUrl, createServiceCaller(config, "fleet"));
+        void client.listen(bus);
+        return client;
+      },
+    },
     { provide: APP_GUARD, useClass: TenantActiveGuard },
     InMemoryAuditLogRepository,
     MikroAuditLogRepository,
