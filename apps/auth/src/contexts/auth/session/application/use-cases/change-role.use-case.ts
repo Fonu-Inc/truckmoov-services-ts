@@ -6,8 +6,8 @@ import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-sto
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 
 export type ChangeRoleCommand = {
   targetUserId: string;

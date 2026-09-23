@@ -8,8 +8,8 @@ import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { Role } from "@shared/rbac";
 import { resolveActorUser } from "./support/resolve-actor-user";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 
 export type CreateSystemAdminCommand = {
   accessToken: string;

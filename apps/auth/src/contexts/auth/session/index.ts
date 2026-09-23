@@ -27,7 +27,7 @@ export { AUTH_HEALTH_CHECK } from "./domain/ports/health-check.port";
 
 // Infrastructure
 export { DbIdentityProvider } from "./infrastructure/db-identity.provider";
-export { DevTokenService } from "./infrastructure/dev-token.service";
+export { UserTokenService } from "./infrastructure/user-token.service";
 export { InMemorySessionStore } from "./infrastructure/in-memory-session.store";
 export { InMemoryUserRepository } from "./infrastructure/in-memory-user.repository";
 export { MikroSessionStore } from "./infrastructure/mikro-session.store";

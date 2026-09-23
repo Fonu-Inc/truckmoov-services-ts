@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import type { AlertSeverity, PlatformAlertType } from './platform-alert-settings.repository';
-
-export const SYSTEM_TENANT = 'system';
 
 export type RaisedAlert = {
   alertType: PlatformAlertType;
@@ -29,12 +28,12 @@ export class PlatformAlertPublisher {
 
   async raise(alert: RaisedAlert): Promise<void> {
     try {
-      await this.bus.publish(`tm.${SYSTEM_TENANT}.alert.raised`, {
+      await this.bus.publish(`tm.${SYSTEM_TENANT_ID}.alert.raised`, {
         id: randomUUID(),
         type: 'alert.raised',
         version: 1,
         occurred_at: new Date().toISOString(),
-        tenant_id: SYSTEM_TENANT,
+        tenant_id: SYSTEM_TENANT_ID,
         data: {
           alert_type: alert.alertType,
           severity: alert.severity,

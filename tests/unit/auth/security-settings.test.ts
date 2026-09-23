@@ -22,7 +22,14 @@ function tokens() {
 
 function userRepo() {
   return {
-    findById: async () => ({ id: 'user-1', accountStatus: 'enabled', emailVerificationToken: null }),
+    findById: async () => ({
+      id: 'user-1',
+      email: 'user@co.com',
+      role: 'FLEET_ADMIN',
+      tenantId: 'tenant-1',
+      accountStatus: 'enabled',
+      emailVerificationToken: null,
+    }),
   };
 }
 

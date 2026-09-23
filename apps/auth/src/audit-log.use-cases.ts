@@ -9,12 +9,12 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
 import { TENANT_NAME_READER, type TenantNameReader } from './tenant-name-reader.port';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
 /**
  * The platform's own audit rows are filed under a tenant id that is not a
  * tenant. Left bare it reads as an unnamed customer in the dropdown.
  */
-const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_TENANT_LABEL = 'System / Platform';
 
 /** Chains are verified per tenant, so a whole-platform check is many checks. */

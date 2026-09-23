@@ -1,3 +1,5 @@
+import { SYSTEM_TENANT_ID } from '@shared/identity';
+
 /**
  * The tenant a subject belongs to, or null when it names no tenant.
  *
@@ -5,7 +7,6 @@
  * real tenant: platform-wide events use "system" (see the compliance reminder
  * sweep), and those must never be delivered to a tenant's room.
  */
-export const SYSTEM_TENANT = 'system';
 
 export function tenantOfSubject(subject: string): string | null {
   const parts = subject.split('.');
@@ -28,7 +29,7 @@ export function mayDeliver(subject: string, tenantId: string): boolean {
   const subjectTenant = tenantOfSubject(subject);
   if (!subjectTenant) return false;
   // A system event is platform-wide and belongs to no tenant's mailbox.
-  if (subjectTenant === SYSTEM_TENANT) return false;
+  if (subjectTenant === SYSTEM_TENANT_ID) return false;
   return subjectTenant === tenantId;
 }
 

@@ -5,8 +5,8 @@ import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-servi
 import { USER_REPOSITORY, type StoredUser, type UserRepository } from "../../domain/ports/user-repository.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { resolveActorUser } from "./support/resolve-actor-user";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 
 type SystemAdminView = {
   userId: string;

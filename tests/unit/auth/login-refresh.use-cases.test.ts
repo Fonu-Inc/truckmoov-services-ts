@@ -39,7 +39,7 @@ class FakeTokenService {
   }
 }
 
-type SeededUser = { id: string; accountStatus: "enabled" | "disabled"; role: string; tenantId: string };
+type SeededUser = { id: string; email: string; accountStatus: "enabled" | "disabled"; role: string; tenantId: string };
 
 class FakeUserRepository {
   private readonly users = new Map<string, SeededUser>();
@@ -50,11 +50,16 @@ class FakeUserRepository {
     role = "admin",
     tenantId = "tenant-1",
   ) {
-    this.users.set(id, { id, accountStatus, role, tenantId });
+    this.users.set(id, { id, email: `${id}@co.com`, accountStatus, role, tenantId });
   }
 
   async findById(id: string) {
     return this.users.get(id) ?? null;
+  }
+
+  changeRole(id: string, role: string) {
+    const user = this.users.get(id);
+    if (user) this.users.set(id, { ...user, role });
   }
 }
 
@@ -217,5 +222,27 @@ describe("each login admits only its own people", () => {
 
     await expect(refresh.execute("old-session")).rejects.toBeInstanceOf(ForbiddenError);
     expect(await sessionStore.getByRefreshToken("old-session")).toBeNull();
+  });
+
+  it("refresh issues the account as it is now, not as it was at login", async () => {
+    const sessionStore = new FakeSessionStore();
+    const issued: string[] = [];
+    const tokenService = new (class extends FakeTokenService {
+      issueAccessToken(user?: AuthUser) {
+        issued.push(user?.role ?? "");
+        return "access-token";
+      }
+    })();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1", "enabled", "DISPATCHER", "tenant-1");
+    const login = new LoginUseCase(new FakeIdentityProvider("DISPATCHER", "tenant-1"), tokenService, sessionStore);
+    const { refreshToken } = await login.execute({ email: "d@co.com", password: "StrongPass123!" });
+
+    userRepo.changeRole("user-1", "OPERATIONS_MANAGER");
+    const refresh = new RefreshUseCase(sessionStore, tokenService, userRepo as never, noSessionTimeout());
+    const renewed = await refresh.execute(refreshToken);
+
+    expect(issued.at(-1)).toBe("OPERATIONS_MANAGER");
+    expect((await sessionStore.getByRefreshToken(renewed.refreshToken))?.role).toBe("OPERATIONS_MANAGER");
   });
 });

@@ -17,8 +17,8 @@ import {
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_MUTATOR_ROLES = new Set<string>([
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,

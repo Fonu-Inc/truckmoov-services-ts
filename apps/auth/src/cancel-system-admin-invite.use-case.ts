@@ -9,7 +9,8 @@ import {
 import type { InviteRepository } from './contexts/auth/session/domain/ports/invite-repository.port';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { ensureSystemActor, SYSTEM_TENANT_ID } from './system-authz';
+import { ensureSystemActor } from './system-authz';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
 const SUPER_ADMIN_ONLY = new Set<string>([Role.SUPER_ADMIN]);
 

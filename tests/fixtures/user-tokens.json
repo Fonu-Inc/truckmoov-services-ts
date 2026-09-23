@@ -1,0 +1,103 @@
+{
+  "publicKeys": "fixture:2OMz-rIcpeBCoUpU5Q976GNlpDBLnu7F8C1ETaDMwf4",
+  "legacySecret": "fixture-legacy-secret",
+  "cases": [
+    {
+      "name": "platform staff sign in to the admin portal",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtc3RhZmYiLCJlbWFpbCI6InN0YWZmQHRydWNrbW9vdi5jb20iLCJyb2xlIjoiUExBVEZPUk1fQURNSU4iLCJ0ZW5hbnRJZCI6InN5c3RlbSIsImV4cCI6NDEwMjM1ODQwMCwicG9ydGFsIjoiYWRtaW4iLCJpYXQiOjQxMDIzNTQ4MDB9.yIdxFwvQxGAKGWppJLxwMOvxgqAaFiE3Efptkdw9BvkWZRUnDxl3nOOE8AohpHntLRKjpcbn2nLEOkQvo8ikAA",
+      "expect": {
+        "sub": "u-staff",
+        "email": "staff@truckmoov.com",
+        "role": "PLATFORM_ADMIN",
+        "tenantId": "system",
+        "portal": "admin",
+        "legacy": false
+      }
+    },
+    {
+      "name": "a customer signs in to the tenant portal",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJGTEVFVF9BRE1JTiIsInRlbmFudElkIjoidGVuYW50LWEiLCJleHAiOjQxMDIzNTg0MDAsInBvcnRhbCI6InRlbmFudCIsImlhdCI6NDEwMjM1NDgwMH0.ccX7Y-o2GdAqZnEqNcDoweDPIgBS-rAgk27vN1j-05vEO-Diqk08fpWPsENl1-OY3V-pbV6b3ssOqfnIJsPXCg",
+      "expect": {
+        "sub": "u-fleet",
+        "email": "ops@arne.com",
+        "role": "FLEET_ADMIN",
+        "tenantId": "tenant-a",
+        "portal": "tenant",
+        "legacy": false
+      }
+    },
+    {
+      "name": "a system role inside a tenant stays in the tenant portal",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtbWlzcGxhY2VkIiwiZW1haWwiOiJ4QGFybmUuY29tIiwicm9sZSI6IlBMQVRGT1JNX0FETUlOIiwidGVuYW50SWQiOiJ0ZW5hbnQtYSIsImV4cCI6NDEwMjM1ODQwMCwicG9ydGFsIjoidGVuYW50IiwiaWF0Ijo0MTAyMzU0ODAwfQ.Ibf5qGUBMniAmUT2xTT3uHFQjIM6WXsjTwSFdBUpA5O-u8w2377m3bRci-ggaA2v9J3Xzt83nkRHtoaduPCFCg",
+      "expect": {
+        "sub": "u-misplaced",
+        "email": "x@arne.com",
+        "role": "PLATFORM_ADMIN",
+        "tenantId": "tenant-a",
+        "portal": "tenant",
+        "legacy": false
+      }
+    },
+    {
+      "name": "an older shared-secret token infers its portal",
+      "token": "eyJzdWIiOiJ1LWZsZWV0IiwiZW1haWwiOiJvcHNAYXJuZS5jb20iLCJyb2xlIjoiRkxFRVRfQURNSU4iLCJ0ZW5hbnRJZCI6InRlbmFudC1hIiwiZXhwIjo0MTAyMzU4NDAwfQ.jtnJ4Xa9n3qkJds5ifvmtRRkSgWltE-I9z_QyObwJFU",
+      "expect": {
+        "sub": "u-fleet",
+        "email": "ops@arne.com",
+        "role": "FLEET_ADMIN",
+        "tenantId": "tenant-a",
+        "portal": "tenant",
+        "legacy": true
+      },
+      "legacy": true
+    },
+    {
+      "name": "an older shared-secret staff token infers the admin portal",
+      "token": "eyJzdWIiOiJ1LXN0YWZmIiwiZW1haWwiOiJzdGFmZkB0cnVja21vb3YuY29tIiwicm9sZSI6IlBMQVRGT1JNX0FETUlOIiwidGVuYW50SWQiOiJzeXN0ZW0iLCJleHAiOjQxMDIzNTg0MDB9.7d-VAoKO-MmK0V7K2a_KN9a9yHA0J5f4-YD12H3eL40",
+      "expect": {
+        "sub": "u-staff",
+        "email": "staff@truckmoov.com",
+        "role": "PLATFORM_ADMIN",
+        "tenantId": "system",
+        "portal": "admin",
+        "legacy": true
+      },
+      "legacy": true
+    },
+    {
+      "name": "an expired token",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJGTEVFVF9BRE1JTiIsInRlbmFudElkIjoidGVuYW50LWEiLCJleHAiOjE1Nzc4NDA0MDAsInBvcnRhbCI6InRlbmFudCIsImlhdCI6MTU3NzgzNjgwMH0.xpeM-orVGtsVaKEYKacQ8agqNm_xOYgp_c6dhbIPD-XuFy_RPIO7U2lQNgmCSoBFuyOn02hKK3bbLNKkxsOaBw",
+      "expect": null
+    },
+    {
+      "name": "a payload changed after signing",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJTVVBFUl9BRE1JTiIsInRlbmFudElkIjoic3lzdGVtIiwiZXhwIjo0MTAyMzU4NDAwLCJwb3J0YWwiOiJhZG1pbiIsImlhdCI6NDEwMjM1NDgwMH0.ccX7Y-o2GdAqZnEqNcDoweDPIgBS-rAgk27vN1j-05vEO-Diqk08fpWPsENl1-OY3V-pbV6b3ssOqfnIJsPXCg",
+      "expect": null
+    },
+    {
+      "name": "a token signed with another key",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6ImZpeHR1cmUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJGTEVFVF9BRE1JTiIsInRlbmFudElkIjoidGVuYW50LWEiLCJleHAiOjQxMDIzNTg0MDAsInBvcnRhbCI6InRlbmFudCIsImlhdCI6NDEwMjM1NDgwMH0.qcFx5Y_FJ_W-xU8KZN2mhagphpshapbZ9XyJK4zcDfCQoJARFxp87t0RUFuVbvqCTTfxBPO9iUdXG0LGv5ocAw",
+      "expect": null
+    },
+    {
+      "name": "a token naming an unknown key",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6Im5vcGUifQ.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJGTEVFVF9BRE1JTiIsInRlbmFudElkIjoidGVuYW50LWEiLCJleHAiOjQxMDIzNTg0MDAsInBvcnRhbCI6InRlbmFudCIsImlhdCI6NDEwMjM1NDgwMH0.ccX7Y-o2GdAqZnEqNcDoweDPIgBS-rAgk27vN1j-05vEO-Diqk08fpWPsENl1-OY3V-pbV6b3ssOqfnIJsPXCg",
+      "expect": null
+    },
+    {
+      "name": "an unsigned token",
+      "token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIiwia2lkIjoiZml4dHVyZSJ9.eyJpc3MiOiJ0cnVja21vb3YtYXV0aCIsInN1YiI6InUtZmxlZXQiLCJlbWFpbCI6Im9wc0Bhcm5lLmNvbSIsInJvbGUiOiJGTEVFVF9BRE1JTiIsInRlbmFudElkIjoidGVuYW50LWEiLCJleHAiOjQxMDIzNTg0MDAsInBvcnRhbCI6InRlbmFudCIsImlhdCI6NDEwMjM1NDgwMH0.",
+      "expect": null
+    },
+    {
+      "name": "a shared-secret token with the wrong secret",
+      "token": "eyJzdWIiOiJ1IiwiZW1haWwiOiJlIiwicm9sZSI6IlNVUEVSX0FETUlOIiwidGVuYW50SWQiOiJzeXN0ZW0iLCJleHAiOjQxMDI0NDQ4MDB9.HLL2rn10fyBFfNKF6DH-GUtVfbbXJrJASWtgS3DJJqQ",
+      "expect": null
+    },
+    {
+      "name": "garbage",
+      "token": "not-a-token",
+      "expect": null
+    }
+  ]
+}

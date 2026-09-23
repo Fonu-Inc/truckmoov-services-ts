@@ -392,6 +392,21 @@ export class AppConfigService {
     };
   }
 
+  /**
+   * User tokens. Auth alone holds the signing key; every service holds the
+   * public keys. While LEGACY_TOKENS_ACCEPTED is on, the older shared-secret
+   * tokens are accepted too, so tokens issued before the switch keep working
+   * until they expire.
+   */
+  get identity() {
+    const legacyAccepted = this.config.get<string>("LEGACY_TOKENS_ACCEPTED", "true") !== "false";
+    return {
+      signingKey: this.config.get<string>("USER_TOKEN_SIGNING_KEY", ""),
+      publicKeys: this.config.get<string>("USER_TOKEN_PUBLIC_KEYS", ""),
+      legacySecret: legacyAccepted ? this.config.get<string>("JWT_SECRET", "replace-me") : "",
+    };
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),

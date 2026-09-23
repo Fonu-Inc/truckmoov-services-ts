@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
-import { SYSTEM_TENANT_ID } from './system-authz';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import type { SystemSettings } from './system-settings.repository';
 
 export const SYSTEM_SETTINGS_CHANGED_SUBJECT = 'tm.system.settings.changed';

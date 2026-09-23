@@ -3,8 +3,8 @@ import { ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-export const SYSTEM_TENANT_ID = 'system';
 export const SYSTEM_VIEWER_ROLES = new Set<string>([
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,

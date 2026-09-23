@@ -37,8 +37,8 @@ import {
   type SubscriptionPlanRepository,
 } from './subscription-plan.repository';
 import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_MUTATOR_ROLES = new Set<string>([
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,

@@ -6,8 +6,8 @@ import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-re
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 import { resolveActorUser } from "./support/resolve-actor-user";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 
 export type DeleteSystemAdminCommand = {
   accessToken: string;

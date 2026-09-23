@@ -5,9 +5,9 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import {
   ensureSystemActor,
   SYSTEM_MUTATOR_ROLES,
-  SYSTEM_TENANT_ID,
   SYSTEM_VIEWER_ROLES,
 } from './system-authz';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 
 export class AssigneeNotSupportStaffError extends Error {

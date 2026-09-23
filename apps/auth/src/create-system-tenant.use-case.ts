@@ -36,8 +36,8 @@ import {
   type TenantOrganizationType,
 } from './tenant-onboarding.repository';
 import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-const SYSTEM_TENANT_ID = 'system';
 const SYSTEM_CREATOR_ROLES = new Set<string>([
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,

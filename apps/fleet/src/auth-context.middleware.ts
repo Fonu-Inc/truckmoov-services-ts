@@ -1,21 +1,14 @@
 import { Inject, Injectable, type NestMiddleware } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
+import { UserTokenVerifier, type Portal } from "@shared/identity";
 import { normalizeRole } from "@shared/rbac";
-import { createHmac, timingSafeEqual } from "node:crypto";
-
-type AccessTokenPayload = {
-  sub: string;
-  email: string;
-  role: string;
-  tenantId: string;
-  exp: number;
-};
 
 export type FleetAuthUser = {
   userId: string;
   email: string;
   role: string;
   tenantId: string;
+  portal: Portal;
 };
 
 type MutableFleetRequest = {
@@ -31,10 +24,11 @@ type MiddlewareNext = (error?: unknown) => void;
 
 @Injectable()
 export class AuthContextMiddleware implements NestMiddleware {
-  constructor(
-    @Inject(AppConfigService)
-    private readonly config: AppConfigService,
-  ) {}
+  private readonly verifier: UserTokenVerifier;
+
+  constructor(@Inject(AppConfigService) config: AppConfigService) {
+    this.verifier = new UserTokenVerifier(config.identity.publicKeys, config.identity.legacySecret);
+  }
 
   // Deliberately writes the 401 response directly (res.status().json()) and
   // returns without calling next(), rather than throwing. NestMiddleware in
@@ -50,7 +44,7 @@ export class AuthContextMiddleware implements NestMiddleware {
       return;
     }
 
-    const payload = this.verify(token);
+    const payload = this.verifier.verify(token);
     if (!payload) {
       res.status(401).json({ error: "missing or invalid authorization" });
       return;
@@ -62,6 +56,7 @@ export class AuthContextMiddleware implements NestMiddleware {
       email: payload.email,
       role,
       tenantId: payload.tenantId,
+      portal: payload.portal,
     };
 
     req.headers["x-user-role"] = role;
@@ -84,58 +79,5 @@ export class AuthContextMiddleware implements NestMiddleware {
     }
 
     return token.trim() || null;
-  }
-
-  private verify(token: string): AccessTokenPayload | null {
-    const [encodedPayload, signature] = token.split(".");
-    if (!encodedPayload || !signature) {
-      return null;
-    }
-
-    const expectedSignature = this.sign(encodedPayload);
-    if (!this.safeEquals(signature, expectedSignature)) {
-      return null;
-    }
-
-    let payload: AccessTokenPayload;
-    try {
-      payload = JSON.parse(
-        Buffer.from(encodedPayload, "base64url").toString("utf8"),
-      ) as AccessTokenPayload;
-    } catch {
-      return null;
-    }
-
-    if (
-      typeof payload.sub !== "string"
-      || typeof payload.email !== "string"
-      || typeof payload.role !== "string"
-      || typeof payload.tenantId !== "string"
-      || typeof payload.exp !== "number"
-    ) {
-      return null;
-    }
-
-    if (payload.exp <= Math.floor(Date.now() / 1000)) {
-      return null;
-    }
-
-    return payload;
-  }
-
-  private sign(value: string): string {
-    return createHmac("sha256", this.config.auth.jwtSecret)
-      .update(value)
-      .digest("base64url");
-  }
-
-  private safeEquals(left: string, right: string): boolean {
-    const leftBuffer = Buffer.from(left, "utf8");
-    const rightBuffer = Buffer.from(right, "utf8");
-    if (leftBuffer.length !== rightBuffer.length) {
-      return false;
-    }
-
-    return timingSafeEqual(leftBuffer, rightBuffer);
   }
 }

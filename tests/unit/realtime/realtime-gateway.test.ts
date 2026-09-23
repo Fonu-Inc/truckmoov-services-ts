@@ -9,6 +9,7 @@ const ORIGIN = 'https://dev.truckmoov.com';
 function config(maxConnections = 2000, origins = [ORIGIN]) {
   return {
     auth: { jwtSecret: SECRET },
+    identity: { signingKey: "", publicKeys: "", legacySecret: SECRET },
     realtime: { maxConnections, allowedOrigins: origins, port: 3006, drainSeconds: 10 },
   } as never;
 }

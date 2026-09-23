@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { holdsMisplacedSystemRole } from "@shared/identity";
+import { AuthUser } from "../../domain/entities/auth-user.entity";
 import { EmailNotVerifiedError } from "../../domain/errors/email-not-verified.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { InvalidRefreshTokenError } from "../../domain/errors/invalid-refresh-token.error";
@@ -64,15 +65,24 @@ export class RefreshUseCase {
       throw new ForbiddenError("This session can no longer be renewed");
     }
 
+    // The account as it is now, not as it was at login: a role or tenant
+    // change reaches the next token instead of waiting for a fresh sign-in.
+    const current = AuthUser.create({
+      id: storedUser.id,
+      email: storedUser.email,
+      role: storedUser.role,
+      tenantId: storedUser.tenantId,
+    });
+
     // Rotate on every use: the old refresh token is invalidated and a new
     // one issued, so a leaked/replayed token has a single-use window
     // instead of being valid indefinitely.
     await this.sessionStore.deleteByRefreshToken(refreshToken);
-    const newRefreshToken = this.tokenService.issueRefreshToken(user);
-    await this.sessionStore.save(newRefreshToken, user);
+    const newRefreshToken = this.tokenService.issueRefreshToken(current);
+    await this.sessionStore.save(newRefreshToken, current);
 
     return {
-      accessToken: this.tokenService.issueAccessToken(user),
+      accessToken: this.tokenService.issueAccessToken(current),
       refreshToken: newRefreshToken,
       expiresIn: 3600,
     };

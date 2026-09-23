@@ -24,7 +24,7 @@ import {
   ListSystemAdminsUseCase,
   ListOrganizationUsersUseCase,
   DbIdentityProvider,
-  DevTokenService,
+  UserTokenService,
   ForgotPasswordUseCase,
   ResendVerificationUseCase,
   GetMeUseCase,
@@ -787,10 +787,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
 
     // Token service
-    DevTokenService,
+    UserTokenService,
     {
       provide: TOKEN_SERVICE,
-      useExisting: DevTokenService,
+      useExisting: UserTokenService,
     },
     UuidIdGenerator,
     {

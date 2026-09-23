@@ -8,8 +8,8 @@ import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-sto
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { resolveActorUser } from "./support/resolve-actor-user";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 
 export type ChangeSystemPasswordCommand = {
   accessToken: string;

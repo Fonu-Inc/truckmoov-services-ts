@@ -21,6 +21,7 @@ import {
 } from "./system-settings.repository";
 import { TENANT_NAME_READER, type TenantNameReader } from "./tenant-name-reader.port";
 import { currentRequestContext } from "./request-context";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
 export type RecordActivityCommand = {
   tenantId: string;
@@ -55,7 +56,6 @@ const SYSTEM_VIEWER_ROLES = new Set<string>([
   Role.SUPER_ADMIN,
   Role.SYSTEM_ADMIN,
 ]);
-const SYSTEM_TENANT_ID = "system";
 
 /**
  * Actions written whatever the audit-logging setting says.

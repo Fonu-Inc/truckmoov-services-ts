@@ -15,8 +15,8 @@ import {
   TENANT_TERMINATION_REPOSITORY,
   type TenantTerminationRepository,
 } from './tenant-termination.repository';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-const SYSTEM_TENANT_ID = 'system';
 
 export class TenantAlreadyTerminatedError extends Error {
   constructor() {

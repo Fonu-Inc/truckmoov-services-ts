@@ -21,6 +21,7 @@ describe("AuthContextMiddleware", () => {
   it("extracts tenant and role from bearer tokens without trusting client tenant input", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me" },
     } as AppConfigService);
 
     const req: any = {
@@ -48,6 +49,7 @@ describe("AuthContextMiddleware", () => {
       email: "fleet@example.com",
       role: "DISPATCHER",
       tenantId: "tenant-from-token",
+      portal: "tenant",
     });
     expect(req.headers["x-user-role"]).toBe("DISPATCHER");
     expect(req.headers["x-tenant-id"]).toBe("tenant-from-token");
@@ -58,6 +60,7 @@ describe("AuthContextMiddleware", () => {
   it("rejects requests with no Authorization header", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me" },
     } as AppConfigService);
 
     const req: any = { headers: {} };
@@ -74,6 +77,7 @@ describe("AuthContextMiddleware", () => {
   it("rejects requests with a malformed Authorization header", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me" },
     } as AppConfigService);
 
     const req: any = { headers: { authorization: "Bearer not-a-valid-token" } };
@@ -89,6 +93,7 @@ describe("AuthContextMiddleware", () => {
   it("rejects requests with an invalid signature", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me" },
     } as AppConfigService);
 
     const token = signToken(
@@ -114,6 +119,7 @@ describe("AuthContextMiddleware", () => {
   it("rejects requests with an expired token", () => {
     const middleware = new AuthContextMiddleware({
       auth: { jwtSecret: "replace-me" },
+      identity: { signingKey: "", publicKeys: "", legacySecret: "replace-me" },
     } as AppConfigService);
 
     const token = signToken({

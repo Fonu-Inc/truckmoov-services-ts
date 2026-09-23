@@ -14,8 +14,8 @@ import {
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
 } from "./tenant-onboarding.repository";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
 
-const SYSTEM_TENANT_ID = "system";
 const SYSTEM_VIEWER_ROLES = new Set<string>([Role.SUPER_ADMIN, Role.SYSTEM_ADMIN]);
 const UNAVAILABLE_METRICS = [
   "totalSimCards",

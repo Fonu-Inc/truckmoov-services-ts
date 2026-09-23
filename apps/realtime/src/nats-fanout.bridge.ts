@@ -8,9 +8,10 @@ import {
 import { connect, type NatsConnection, type Subscription } from 'nats';
 import { AppConfigService } from '@shared/config';
 import { natsLogin } from '@shared/eventbus';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { PositionCoalescer, readPosition } from './position-coalescer';
 import { RealtimeGateway } from './realtime.gateway';
-import { tenantOfSubject, SYSTEM_TENANT } from './tenant-subject';
+import { tenantOfSubject } from './tenant-subject';
 
 /**
  * Subjects this gateway forwards to browsers. Narrow on purpose: an event is
@@ -116,7 +117,7 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     const tenantId = tenantOfSubject(subject);
     // No tenant in the subject, or a platform-wide event: it belongs to no
     // tenant's room, so it is dropped rather than broadcast.
-    if (!tenantId || tenantId === SYSTEM_TENANT) return;
+    if (!tenantId || tenantId === SYSTEM_TENANT_ID) return;
 
     const event = subject.split('.').slice(2).join('.');
     const data = envelope as { data?: unknown } | null;
