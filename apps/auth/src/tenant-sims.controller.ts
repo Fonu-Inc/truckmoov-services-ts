@@ -70,10 +70,11 @@ import { SuspendTenantSimUseCase } from './suspend-tenant-sim.use-case';
 import { UnassignDeviceFromSimUseCase } from './unassign-device-from-sim.use-case';
 import { UpdateTenantSimUseCase } from './update-tenant-sim.use-case';
 import { UploadDeviceMappingCsvUseCase } from './upload-device-mapping-csv.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('SIMs')
 @Portals('tenant')
+@OnResource('tenant.sims')
 @Controller('sims')
 export class TenantSimsController extends BaseAuthController {
   constructor(

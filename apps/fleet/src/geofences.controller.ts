@@ -29,10 +29,11 @@ import { SetGeofenceVehiclesDto, CreateGeofenceZoneDto, UpdateGeofenceZoneDto } 
 import { GeofenceZonesUseCase, GeofenceZoneNotFoundError } from "./geofence-zones.use-case";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Geofences")
 @Portals("tenant")
+@OnResource("tenant.geofences")
 @Controller("geofences")
 @TenantScoped()
 @UseGuards(RolesGuard)

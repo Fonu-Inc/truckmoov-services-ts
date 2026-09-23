@@ -34,10 +34,11 @@ import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { UpdateAiGovernanceDto } from './dto/ai-governance.dto';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System AI')
 @Portals('admin')
+@OnResource('admin.ai')
 @Controller('system/ai')
 export class SystemAiController extends BaseAuthController {
   constructor(

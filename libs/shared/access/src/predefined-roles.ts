@@ -51,13 +51,16 @@ export const PREDEFINED_ROLES: Readonly<Record<Role, PredefinedRole>> = {
   [Role.DISPATCHER]: {
     portal: "tenant",
     permissions: [
-      ...read("vehicles", "drivers", "devices", "tracking", "geofences", "alerts", "dispatch", "documents", "waybills", "messaging", "profile_dispatch"),
-      ...manage("dispatch", "tracking", "alerts", "waybills", "messaging", "profile_dispatch"),
+      ...read(
+        "vehicles", "drivers", "devices", "tracking", "geofences", "alerts", "dispatch", "documents",
+        "waybills", "messaging", "profile_dispatch", "reports", "bundles", "fuel",
+      ),
+      ...manage("dispatch", "tracking", "alerts", "waybills", "messaging", "profile_dispatch", "documents", "fuel"),
     ],
   },
   [Role.FINANCE_VIEWER]: {
     portal: "tenant",
-    permissions: read("invoicing", "financials", "reports", "fuel", "wallet", "bundles", "vehicles", "dispatch"),
+    permissions: read("invoicing", "financials", "reports", "fuel", "wallet", "bundles", "vehicles", "dispatch", "devices", "waybills"),
   },
 };
 

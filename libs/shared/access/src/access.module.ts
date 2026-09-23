@@ -2,6 +2,7 @@ import type { Provider, Type } from "@nestjs/common";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { AppConfigService } from "@shared/config";
 import { HideForbiddenInterceptor } from "./hide-forbidden.interceptor";
+import { PERMISSION_ENFORCEMENT, PERMISSION_SOURCE, PermissionGuard, type PermissionSource } from "./permission.guard";
 import { PortalGuard } from "./portal.guard";
 import {
   CALLER_AUDIENCE,
@@ -14,6 +15,7 @@ import {
 export type AccessOptions = {
   callers: Type<CallerAudienceResolver>;
   reporter: Type<RefusalReporter>;
+  permissions: Type<PermissionSource>;
 };
 
 /**
@@ -29,8 +31,16 @@ export function accessProviders(options: AccessOptions): Provider[] {
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => config.portalEnforced,
     },
+    { provide: PERMISSION_SOURCE, useClass: options.permissions },
+    {
+      provide: PERMISSION_ENFORCEMENT,
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => config.permissionsEnforced,
+    },
     PortalGuard,
+    PermissionGuard,
     { provide: APP_GUARD, useExisting: PortalGuard },
+    { provide: APP_GUARD, useExisting: PermissionGuard },
     { provide: APP_INTERCEPTOR, useClass: HideForbiddenInterceptor },
   ];
 }

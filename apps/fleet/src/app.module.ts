@@ -307,7 +307,7 @@ import { AuditEventListener } from "./audit-event.listener";
 import { AuthContextMiddleware } from "./auth-context.middleware";
 import { AccessClient, accessProviders } from "@shared/access";
 import { createServiceCaller } from "@shared/identity";
-import { FleetCallerAudience, FleetRefusalReporter } from "./access-refusals";
+import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./access-refusals";
 
 @Module({
   imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule, MailerModule],
@@ -543,7 +543,7 @@ import { FleetCallerAudience, FleetRefusalReporter } from "./access-refusals";
     // route, so this cannot depend on a new controller remembering a decorator.
     // It is a no-op when the request carries no authenticated tenant, which
     // leaves the readiness probe and the external webhooks untouched.
-    ...accessProviders({ callers: FleetCallerAudience, reporter: FleetRefusalReporter }),
+    ...accessProviders({ callers: FleetCallerAudience, reporter: FleetRefusalReporter, permissions: FleetPermissions }),
     {
       provide: AccessClient,
       inject: [AppConfigService, EVENT_BUS],

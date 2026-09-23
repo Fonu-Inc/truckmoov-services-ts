@@ -51,10 +51,11 @@ import { CreateMaintenanceRecordDto, UpdateMaintenanceRecordDto } from "./dto/ma
 import { MaintenanceProfilesUseCase, MaintenanceProfileNotFoundError } from "./maintenance-profiles.use-case";
 import { MaintenanceRecordsUseCase, MaintenanceRecordNotFoundError } from "./maintenance-records.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Maintenance")
 @Portals("tenant")
+@OnResource("tenant.maintenance")
 @Controller("maintenance")
 @TenantScoped()
 @UseGuards(RolesGuard)

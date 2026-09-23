@@ -69,7 +69,7 @@ import {
 } from "./contexts/fleet/vehicles/domain/ports/vehicle-quota-reader.port";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { ListDevicesUseCase, ListVehicleTripsUseCase } from "./contexts/fleet/devices";
-import { Portals } from "@shared/access";
+import { Portals, OnResource, Requires } from "@shared/access";
 import {
   BulkImportVehiclesUseCase,
   SetVehicleStatusUseCase,
@@ -109,6 +109,7 @@ import { VehicleHealthService } from "./vehicle-health.service";
 
 @ApiTags("Vehicles")
 @Portals("tenant")
+@OnResource("tenant.vehicles")
 @Controller("vehicles")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -615,6 +616,7 @@ export class VehiclesController extends BaseFleetController {
 
   /** Assign a driver to a vehicle (US-C03) */
 
+  @Requires("tenant.dispatch.manage")
   @Patch(":id/assignment")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()
@@ -649,6 +651,7 @@ export class VehiclesController extends BaseFleetController {
 
   /** Remove current driver assignment from a vehicle */
 
+  @Requires("tenant.dispatch.manage")
   @Delete(":id/assignment")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()

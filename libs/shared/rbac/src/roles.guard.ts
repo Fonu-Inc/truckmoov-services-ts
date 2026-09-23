@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { AppConfigService } from "@shared/config";
 import { normalizeRole } from "./role";
 import { ROLES_KEY } from "./roles.decorator";
 
@@ -16,9 +17,16 @@ export class RolesGuard implements CanActivate {
     // Explicit token keeps guard wiring stable even with transpilers that drop metadata.
     @Inject(Reflector)
     private readonly reflector: Reflector,
+    @Inject(AppConfigService)
+    private readonly config: AppConfigService,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // Once permissions are enforced they decide, and role checks stand down.
+    // Until then this keeps today's protection in place during the log-only
+    // period, when the permission rule refuses nothing.
+    if (this.config.permissionsEnforced) return true;
+
     const requiredRoles =
       this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
         context.getHandler(),

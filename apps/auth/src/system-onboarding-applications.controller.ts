@@ -49,11 +49,12 @@ import {
   ReviewOnboardingApplicationDocumentUseCase,
   SetupLinkNotResendableError,
 } from '@auth/onboarding';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System Onboarding Applications')
 @ApiBearerAuth()
 @Portals('admin')
+@OnResource('admin.onboarding_review')
 @Controller('system/onboarding/applications')
 export class SystemOnboardingApplicationsController extends BaseAuthController {
   constructor(

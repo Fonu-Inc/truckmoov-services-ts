@@ -38,7 +38,7 @@ import {
   TargetPlanNotFoundError,
   TargetPlanRequiredError,
 } from './organisation-upgrade.use-cases';
-import { Portals } from '@shared/access';
+import { Portals, OnResource, Requires } from '@shared/access';
 
 /**
  * An owner-operator's way out of the vehicle cap.
@@ -49,6 +49,7 @@ import { Portals } from '@shared/access';
  */
 @ApiTags('Organisation Upgrades')
 @Portals('admin')
+@OnResource('admin.upgrade_review')
 @Controller('organisation-upgrades')
 export class OrganisationUpgradesController extends BaseAuthController {
   constructor(
@@ -62,6 +63,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
   }
 
   @Portals('tenant')
+  @Requires('tenant.upgrades.manage')
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ask to be promoted to fleet provider' })

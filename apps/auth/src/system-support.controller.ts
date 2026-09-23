@@ -78,10 +78,11 @@ import {
 } from './decide-system-device-setup-request.use-cases';
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { InvalidTicketStatusError, UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System Support')
 @Portals('admin')
+@OnResource('admin.support')
 @Controller('system/support')
 export class SystemSupportController extends BaseAuthController {
   constructor(

@@ -44,10 +44,11 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('Mailbox')
 @Portals('tenant')
+@OnResource('tenant.mailbox')
 @Controller('mailbox')
 export class MailboxController extends BaseAuthController {
   constructor(

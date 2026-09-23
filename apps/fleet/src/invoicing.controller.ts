@@ -33,7 +33,7 @@ import {
   SendInvoiceDto,
 } from "./dto/waybill.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 const READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
@@ -58,6 +58,7 @@ function toKobo(naira: number | null | undefined): number | null {
 
 @ApiTags("Invoicing")
 @Portals("tenant")
+@OnResource("tenant.invoicing")
 @Controller("invoicing")
 @TenantScoped()
 @UseGuards(RolesGuard)

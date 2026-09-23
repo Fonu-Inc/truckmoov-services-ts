@@ -18,10 +18,11 @@ import { AuditEntityType, AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { AuditEntryListResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Audit")
 @Portals("tenant")
+@OnResource("tenant.activity")
 @Controller("audit")
 @TenantScoped()
 @UseGuards(RolesGuard)

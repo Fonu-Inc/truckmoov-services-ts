@@ -42,10 +42,11 @@ import {
   MessageResponse,
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Compliance")
 @Portals("tenant")
+@OnResource("tenant.documents")
 @Controller("compliance")
 @TenantScoped()
 @UseGuards(RolesGuard)

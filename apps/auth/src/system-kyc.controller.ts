@@ -27,10 +27,11 @@ import {
   ListKycReviewQueueUseCase,
   RejectKycDocumentUseCase,
 } from './review-kyc-document.use-cases';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System KYC')
 @Portals('admin')
+@OnResource('admin.onboarding_review')
 @Controller('system/kyc')
 export class SystemKycController extends BaseAuthController {
   constructor(

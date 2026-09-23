@@ -29,10 +29,11 @@ import {
 import { Alert as FleetAlert, AlertStatus } from "./contexts/fleet/alerts/domain/alert.entity";
 import { AlertStatsResponse, AlertResponse, AlertListResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Alerts")
 @Portals("tenant")
+@OnResource("tenant.alerts")
 @Controller("alerts")
 @TenantScoped()
 @UseGuards(RolesGuard)

@@ -31,10 +31,11 @@ import { TRACKER_TYPE_OPTIONS } from "./contexts/fleet/device-setup-requests/dom
 import { UpdateDeviceSetupRequestStatusDto, CreateDeviceSetupRequestDto, DeviceSetupRequestListQueryDto } from "./dto/device-setup-request.dto";
 import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource, Requires } from "@shared/access";
 
 @ApiTags("Device Setup Requests")
 @Portals("tenant")
+@OnResource("tenant.devices")
 @Controller("device-setup-requests")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -50,6 +51,8 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     super(auditLog, bus);
   }
 
+  // Asking Fonu for devices changes none the tenant already has.
+  @Requires("tenant.devices.read")
   @Post()
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({

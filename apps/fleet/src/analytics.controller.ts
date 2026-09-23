@@ -31,10 +31,11 @@ import {
 } from "./dto/fleet.schema";
 import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Analytics")
 @Portals("tenant")
+@OnResource("tenant.reports")
 @Controller("analytics")
 @TenantScoped()
 @UseGuards(RolesGuard)

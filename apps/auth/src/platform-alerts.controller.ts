@@ -31,7 +31,7 @@ import {
   UnknownAlertChannelError,
   UnknownAlertTypeError,
 } from './platform-alert-settings.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 /**
  * One store for platform staff alerting, read and written from one place.
@@ -42,6 +42,7 @@ import { Portals } from '@shared/access';
  */
 @ApiTags('Platform Alerts')
 @Portals('admin')
+@OnResource('admin.alerts')
 @Controller('system/alert-settings')
 export class PlatformAlertsController extends BaseAuthController {
   constructor(

@@ -54,8 +54,9 @@ describe("Portal enforcement over HTTP", () => {
     expect(res.status).toBe(401);
   });
 
+  // The readiness probe waits on stores this test has none of, so it is slow.
   it("keeps public routes open", async () => {
     const res = await request(app.getHttpServer()).get("/fleet/health/ready");
     expect(res.status).not.toBe(404);
-  });
+  }, 20_000);
 });

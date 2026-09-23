@@ -38,10 +38,11 @@ import { DispatcherPreferencesResponse, NotificationPreferencesResponse, Profile
 import { UpdateDispatcherPreferencesDto } from './dto/update-dispatcher-preferences.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { Portals } from '@shared/access';
+import { Portals, Requires, SignedIn } from '@shared/access';
 
 @ApiTags('Profile')
 @Portals('tenant')
+@SignedIn()
 @Controller('profile')
 export class ProfileController extends BaseAuthController {
   constructor(
@@ -219,6 +220,7 @@ export class ProfileController extends BaseAuthController {
 
   /** Gets dispatcher working-hours and timezone preferences */
 
+  @Requires('tenant.profile_dispatch.read')
   @Get('preferences/dispatch')
   @ApiBearerAuth()
   @ApiOperation({
@@ -250,6 +252,7 @@ export class ProfileController extends BaseAuthController {
 
   /** Updates dispatcher working-hours and timezone preferences */
 
+  @Requires('tenant.profile_dispatch.manage')
   @Patch('preferences/dispatch')
   @ApiBearerAuth()
   @ApiOperation({

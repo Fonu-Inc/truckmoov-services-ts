@@ -32,7 +32,7 @@ export type Refusal = {
   path: string;
   ip: string;
   caller: Caller;
-  reason: "undeclared_route" | "audience_not_served" | "forbidden";
+  reason: "undeclared_route" | "audience_not_served" | "forbidden" | "undeclared_permission" | "missing_permission";
 };
 
 /** Who is calling, as far as the request proves. */

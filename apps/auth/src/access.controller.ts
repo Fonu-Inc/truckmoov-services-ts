@@ -1,6 +1,6 @@
 import { Controller, Get, Headers, Inject, NotFoundException, Param, UnauthorizedException } from '@nestjs/common';
 import { ApiExcludeController, ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Portals } from '@shared/access';
+import { Portals, SignedIn } from '@shared/access';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -34,6 +34,7 @@ export class InternalAccessController {
 /** What the signed-in user can do, and nothing about what exists beyond that. */
 @ApiTags('Auth')
 @Portals('tenant', 'admin')
+@SignedIn()
 @Controller('capabilities')
 export class CapabilitiesController {
   constructor(

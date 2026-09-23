@@ -53,10 +53,11 @@ import { ResendInviteDto } from './dto/resend-invite.dto';
 import { UpdateOrganizationSettingsDto } from './dto/update-organization-settings.dto';
 import { UpdateOrganizationUserStatusDto } from './dto/update-organization-user-status.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
-import { Portals } from '@shared/access';
+import { Portals, OnResource, SignedIn } from '@shared/access';
 
 @ApiTags('Organization')
 @Portals('tenant')
+@OnResource('tenant.organization')
 @Controller('organization')
 export class OrganizationController extends BaseAuthController {
   constructor(
@@ -301,6 +302,7 @@ export class OrganizationController extends BaseAuthController {
 
   /** Gets organization-level settings for the caller's tenant (read-only for authenticated tenant users). */
 
+  @SignedIn()
   @Get('settings')
   @ApiBearerAuth()
   @ApiOperation({

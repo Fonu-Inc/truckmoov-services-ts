@@ -28,3 +28,5 @@ export {
 } from "./catalog";
 export { PREDEFINED_ROLES, predefinedRole, type PredefinedRole } from "./predefined-roles";
 export { ACCESS_CHANGED_SUBJECT, AccessClient, type RemoteAccess } from "./access-client";
+export { PERMISSION_ENFORCEMENT, PERMISSION_SOURCE, PermissionGuard, type PermissionSource } from "./permission.guard";
+export { OnResource, REQUIREMENT_KEY, Requires, SignedIn, neededPermissions, type Requirement } from "./requirements";

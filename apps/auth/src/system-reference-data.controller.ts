@@ -21,10 +21,11 @@ import { UserNotFoundError, ForbiddenError } from './contexts/auth/session';
 import { SystemDeviceCatalogReferenceDataResponse, SystemTenantOnboardingReferenceDataResponse } from './dto/auth.schema';
 import { GetSystemDeviceCatalogReferenceDataUseCase } from './get-system-device-catalog-reference-data.use-case';
 import { GetSystemTenantOnboardingReferenceDataUseCase } from './get-system-tenant-onboarding-reference-data.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System Reference Data')
 @Portals('admin')
+@OnResource('admin.settings')
 @Controller('system/reference-data')
 export class SystemReferenceDataController extends BaseAuthController {
   constructor(

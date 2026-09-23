@@ -33,7 +33,7 @@ import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositor
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -47,6 +47,7 @@ const DRAWER_ROW_LIMIT = 25;
 
 @ApiExcludeController()
 @Portals("service")
+@OnResource("tenant.vehicles")
 @SkipTenantScope()
 @Controller("internal")
 @UseGuards(RolesGuard)

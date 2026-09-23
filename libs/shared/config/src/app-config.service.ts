@@ -419,6 +419,14 @@ export class AppConfigService {
     return this.config.get<string>("PORTAL_ENFORCEMENT", "log") === "enforce";
   }
 
+  /**
+   * Refuse users who lack a route's permission. Off, they are only logged,
+   * so the role mapping can be checked against real traffic first.
+   */
+  get permissionsEnforced(): boolean {
+    return this.config.get<string>("PERMISSION_ENFORCEMENT", "log") === "enforce";
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),

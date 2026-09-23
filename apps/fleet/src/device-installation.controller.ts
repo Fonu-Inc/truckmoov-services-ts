@@ -19,7 +19,7 @@ import {
   RecordVerificationFailureDto,
 } from "./dto/device-installation.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 /** Reading the queue is an operations view; acting on it changes a device. */
 const INSTALLER_READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
@@ -51,6 +51,7 @@ const INSTALLER_WRITE_ROLES = [
  */
 @ApiTags("Device Installation")
 @Portals("tenant")
+@OnResource("tenant.devices")
 @Controller("device-installation")
 @TenantScoped()
 @UseGuards(RolesGuard)

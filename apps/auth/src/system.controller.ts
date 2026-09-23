@@ -75,7 +75,7 @@ import { GetSystemDashboardUseCase } from './get-system-dashboard.use-case';
 import { GetSystemHealthUseCase } from './get-system-health.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
 import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-plans.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource, Requires, SignedIn } from '@shared/access';
 import {
   UpdateSubscriptionPlanPriceUseCase,
   SubscriptionPlanNotFoundError,
@@ -100,6 +100,7 @@ import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 
 @ApiTags('System')
 @Portals('admin')
+@OnResource('admin.settings')
 @Controller('system')
 export class SystemController extends BaseAuthController {
   constructor(
@@ -178,6 +179,7 @@ export class SystemController extends BaseAuthController {
   }
   /** Exchange a refresh token for a new token pair */
 
+  @SignedIn()
   @Patch('change-password')
   @ApiBearerAuth()
   @ApiOperation({
@@ -309,6 +311,7 @@ export class SystemController extends BaseAuthController {
 
   /** Decode the bearer token and return the authenticated user's claims */
 
+  @Requires('admin.staff.manage')
   @Post('admins')
   @ApiBearerAuth()
   @ApiOperation({
@@ -361,6 +364,7 @@ export class SystemController extends BaseAuthController {
 
   /** System admin or super admin creates a tenant onboarding record and bootstrap invite */
 
+  @Requires('admin.staff.read')
   @Get('admins')
   @ApiBearerAuth()
   @ApiOperation({
@@ -391,6 +395,7 @@ export class SystemController extends BaseAuthController {
 
   /** Super admin suspends or reactivates a system admin account */
 
+  @Requires('admin.staff.manage')
   @Patch('admins/:userId/status')
   @ApiBearerAuth()
   @ApiOperation({
@@ -448,6 +453,7 @@ export class SystemController extends BaseAuthController {
 
   /** Super admin permanently deletes a system admin account */
 
+  @Requires('admin.staff.manage')
   @Delete('admins/:userId')
   @ApiBearerAuth()
   @ApiOperation({
@@ -495,6 +501,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.staff.read')
   @Get('admin-invites')
   @ApiBearerAuth()
   @ApiOperation({
@@ -525,6 +532,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.governance.read')
   @Get('misplaced-system-accounts')
   @ApiBearerAuth()
   @ApiOperation({
@@ -553,6 +561,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.staff.manage')
   @Post('admin-invites')
   @ApiBearerAuth()
   @ApiOperation({
@@ -604,6 +613,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.staff.manage')
   @Post('admin-invites/:inviteId/resend')
   @ApiBearerAuth()
   @ApiOperation({
@@ -653,6 +663,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.staff.manage')
   @Delete('admin-invites/:inviteId')
   @ApiBearerAuth()
   @ApiOperation({
@@ -703,6 +714,7 @@ export class SystemController extends BaseAuthController {
 
   /** Resend a pending invite to a user who has not accepted yet */
 
+  @Requires('admin.audit.read')
   @Get('activity-log')
   @ApiBearerAuth()
   @ApiOperation({
@@ -752,6 +764,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.dashboard.read')
   @Get('dashboard')
   @ApiBearerAuth()
   @ApiOperation({
@@ -780,6 +793,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.plans.read')
   @Get('subscription-plans')
   @ApiBearerAuth()
   @ApiOperation({
@@ -810,6 +824,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.plans.manage')
   @Patch('subscription-plans/:id')
   @ApiBearerAuth()
   @ApiOperation({
@@ -845,6 +860,7 @@ export class SystemController extends BaseAuthController {
     }
   }
 
+  @Requires('admin.plans.manage')
   @Patch('subscription-plans/:id/entitlements')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a subscription plan entitlements policy' })

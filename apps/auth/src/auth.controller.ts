@@ -68,7 +68,7 @@ import {
   InvalidCredentialsError,
   EmailNotVerifiedError,
 } from './contexts/auth/session';
-import { Portals } from '@shared/access';
+import { Portals, Requires, SignedIn } from '@shared/access';
 import {
   MessageResponse,
   ActivityLogResponse,
@@ -105,6 +105,7 @@ import type { AuthFailureReason } from './auth-event.repository';
 
 @ApiTags('Auth')
 @Portals('tenant')
+@SignedIn()
 @Controller()
 export class AuthController extends BaseAuthController {
   constructor(
@@ -341,6 +342,7 @@ export class AuthController extends BaseAuthController {
 
   /** Enterprise admin invites a user via email */
 
+  @Requires('tenant.organization.manage')
   @Post('invite')
   @ApiCreatedResponse({ type: InviteActionResponse })
   async inviteUser(
@@ -595,6 +597,7 @@ export class AuthController extends BaseAuthController {
 
   /** Change a user's role (enterprise admin only) */
 
+  @Requires('tenant.organization.manage')
   @Post('change-role')
   @ApiOkResponse({ type: ChangeRoleResponse })
   async changeRole(
@@ -675,6 +678,7 @@ export class AuthController extends BaseAuthController {
    * chain: a partial check cannot tell a removed entry from one never written.
    */
 
+  @Requires('tenant.activity.read')
   @Get('activity-log/verify')
   @ApiBearerAuth()
   @ApiOperation({
@@ -705,6 +709,7 @@ export class AuthController extends BaseAuthController {
     }
   }
 
+  @Requires('tenant.activity.read')
   @Get('activity-log')
   @ApiBearerAuth()
   @ApiOperation({

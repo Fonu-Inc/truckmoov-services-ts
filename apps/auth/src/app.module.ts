@@ -360,7 +360,7 @@ import { AccessChangeNotifier, AccessResolver } from './access-resolver';
 import { AccessNotifyingUserRepository } from './access-notifying-user.repository';
 import { CapabilitiesController, InternalAccessController } from './access.controller';
 import { accessProviders } from '@shared/access';
-import { AccessRefusedListener, AuthCallerAudience, AuthRefusalReporter } from './access-refusals';
+import { AccessRefusedListener, AuthCallerAudience, AuthPermissions, AuthRefusalReporter } from './access-refusals';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
@@ -1347,7 +1347,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalCallerService,
     AuthRefusalReporter,
     AccessRefusedListener,
-    ...accessProviders({ callers: AuthCallerAudience, reporter: AuthRefusalReporter }),
+    ...accessProviders({ callers: AuthCallerAudience, reporter: AuthRefusalReporter, permissions: AuthPermissions }),
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
     GetSystemDeviceDetailUseCase,

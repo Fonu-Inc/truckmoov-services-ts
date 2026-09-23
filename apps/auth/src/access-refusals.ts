@@ -1,8 +1,19 @@
 import { Inject, Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
-import { VerifiedCallerAudience, type Refusal, type RefusalReporter } from '@shared/access';
+import {
+  VerifiedCallerAudience,
+  type PermissionKey,
+  type PermissionSource,
+  type Refusal,
+  type RefusalReporter,
+  type RequestLike,
+} from '@shared/access';
 import { AppConfigService } from '@shared/config';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
+import { AccessResolver } from './access-resolver';
+import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
+import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 
 /** Refusals from the other services, for the same per-IP record. */
 export const ACCESS_REFUSED_SUBJECT = 'tm.system.access.refused';
@@ -56,5 +67,23 @@ export class AccessRefusedListener implements OnApplicationBootstrap, OnApplicat
 
   async onApplicationShutdown() {
     await this.unsub?.();
+  }
+}
+
+/** The signed-in user's permissions as they are now. */
+@Injectable()
+export class AuthPermissions implements PermissionSource {
+  constructor(
+    @Inject(AccessResolver) private readonly resolver: AccessResolver,
+    @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+    @Inject(TOKEN_SERVICE) private readonly tokens: TokenService,
+  ) {}
+
+  async permissionsOf(req: RequestLike): Promise<readonly PermissionKey[] | null> {
+    const header = req.headers.authorization;
+    const [scheme, token] = (Array.isArray(header) ? header[0] : header ?? '').split(' ');
+    const user = scheme?.toLowerCase() === 'bearer' && token ? this.tokens.resolveAccessToken(token) : null;
+    const access = user ? await this.resolver.resolve(this.users, user.id) : null;
+    return access?.active ? access.permissions : null;
   }
 }

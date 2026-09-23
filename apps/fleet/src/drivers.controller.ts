@@ -77,7 +77,7 @@ import {
   DRIVER_QUOTA_READER,
   type DriverQuotaReader,
 } from "./contexts/fleet/drivers/domain/ports/driver-quota-reader.port";
-import { Portals } from "@shared/access";
+import { Portals, OnResource, Requires } from "@shared/access";
 import {
   DISPATCH_JOBS_READER,
   type DispatchJobsReader,
@@ -113,6 +113,7 @@ import { TenantScoped } from "./tenant-scoped.decorator";
 
 @ApiTags("Drivers")
 @Portals("tenant")
+@OnResource("tenant.drivers")
 @Controller("drivers")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -478,6 +479,7 @@ export class DriversController extends BaseFleetController {
     return { status: true, message: "success", data };
   }
 
+  @Requires("tenant.messaging.manage")
   @Post(":id/consent/:channel/request")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
@@ -542,6 +544,7 @@ export class DriversController extends BaseFleetController {
     return { status: true, message: "Consent recorded", data };
   }
 
+  @Requires("tenant.messaging.manage")
   @Post(":id/messages/:channel")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
@@ -928,6 +931,7 @@ export class DriversController extends BaseFleetController {
 
   /** Manage WhatsApp/SMS/voice contact channels used for dispatch communication */
 
+  @Requires("tenant.messaging.manage")
   @Patch(":id/contact-channels")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @RequireIdempotency()

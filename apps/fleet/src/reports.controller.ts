@@ -22,10 +22,11 @@ import {
 } from "./contexts/fleet/reports";
 import { DeliveryMetricsResponse, DashboardResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Reports")
 @Portals("tenant")
+@OnResource("tenant.reports")
 @Controller("reports")
 @TenantScoped()
 @UseGuards(RolesGuard)

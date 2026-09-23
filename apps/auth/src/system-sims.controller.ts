@@ -67,10 +67,11 @@ import { RejectSystemSimRequestUseCase } from './reject-system-sim-request.use-c
 import { SimBatchNotFoundError, RetrySystemSimBatchUseCase, SimBatchNotRetryableError } from './retry-system-sim-batch.use-case';
 import { SuspendSystemSimUseCase } from './suspend-system-sim.use-case';
 import { UpdateSystemSimUseCase } from './update-system-sim.use-case';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System SIMs')
 @Portals('admin')
+@OnResource('admin.sims')
 @Controller('system/sims')
 export class SystemSimsController extends BaseAuthController {
   constructor(

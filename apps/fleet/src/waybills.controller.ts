@@ -49,7 +49,7 @@ import {
   DRIVER_REPOSITORY,
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
-import { Portals } from "@shared/access";
+import { Portals, OnResource } from "@shared/access";
 
 /** Reading revenue is a finance view; capturing a waybill is operations. */
 const WAYBILL_READ_ROLES = [
@@ -77,6 +77,7 @@ const WAYBILL_WRITE_ROLES = [
  */
 @ApiTags("Waybills")
 @Portals("tenant")
+@OnResource("tenant.waybills")
 @Controller("waybills")
 @TenantScoped()
 @UseGuards(RolesGuard)

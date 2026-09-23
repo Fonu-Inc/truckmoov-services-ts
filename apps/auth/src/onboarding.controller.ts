@@ -78,7 +78,7 @@ import {
   KYC_DOCUMENT_TYPE_ENUM,
   SubmitDeviceProvisioningRequestDto,
 } from './dto/onboarding.dto';
-import { Portals } from '@shared/access';
+import { Portals, OnResource, Requires, SignedIn } from '@shared/access';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
 import { PaymentGatewayRegistry } from './contexts/payments';
 import { StorageQuotaService } from './storage-quota.service';
@@ -103,6 +103,7 @@ import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-ca
 
 @ApiTags('Onboarding')
 @Portals('tenant')
+@OnResource('tenant.onboarding')
 @Controller('onboarding')
 export class OnboardingController extends BaseAuthController {
   constructor(
@@ -272,6 +273,7 @@ export class OnboardingController extends BaseAuthController {
     return { received: true };
   }
 
+  @Requires('tenant.upgrades.manage')
   @Post('enterprise/enquiry')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit enterprise plan enquiry', description: 'Creates a support ticket of category enterprise_enquiry for the sales team.' })
@@ -292,6 +294,7 @@ export class OnboardingController extends BaseAuthController {
     }
   }
 
+  @SignedIn()
   @Get('subscription/caps')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get device & SIM caps for active plan', description: 'Returns maxDevices, maxSims, maxUsers from the tenant\'s active subscription plan.' })
@@ -309,6 +312,7 @@ export class OnboardingController extends BaseAuthController {
     }
   }
 
+  @SignedIn()
   @Get('status')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get onboarding status', description: 'Returns the onboarding completion status and active subscription info for the calling tenant.' })

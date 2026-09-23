@@ -41,10 +41,11 @@ import {
 } from "./dto/fleet.schema";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { Portals } from "@shared/access";
+import { Portals, OnResource, Requires } from "@shared/access";
 
 @ApiTags("Financials")
 @Portals("tenant")
+@OnResource("tenant.financials")
 @Controller("financials")
 @TenantScoped()
 @UseGuards(RolesGuard)
@@ -57,6 +58,8 @@ export class FinancialsController extends BaseFleetController {
     super(auditLog, bus);
   }
 
+  // Computes a figure from existing records; changes nothing.
+  @Requires("tenant.financials.read")
   @Post("profitability")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Compute per-vehicle profitability" })

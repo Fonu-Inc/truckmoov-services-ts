@@ -3,11 +3,11 @@ import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { RolesGuard } from "@shared/rbac";
 
-function makeGuard(requiredRoles: string[]): RolesGuard {
+function makeGuard(requiredRoles: string[], permissionsEnforced = false): RolesGuard {
   const reflector = {
     getAllAndOverride: vi.fn().mockReturnValue(requiredRoles),
   } as unknown as Reflector;
-  return new RolesGuard(reflector);
+  return new RolesGuard(reflector, { permissionsEnforced } as never);
 }
 
 function makeCtx(role?: string, spoofedHeaderRole?: string) {
@@ -65,5 +65,9 @@ describe("RolesGuard", () => {
     expect(() =>
       makeGuard(["admin"]).canActivate(makeCtx("DISPATCHER", "SUPER_ADMIN")),
     ).toThrow(ForbiddenException);
+  });
+
+  it("stands down once permissions are enforced", () => {
+    expect(makeGuard(["ENTERPRISE_ADMIN"], true).canActivate(makeCtx("DISPATCHER"))).toBe(true);
   });
 });

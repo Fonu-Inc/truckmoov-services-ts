@@ -7,11 +7,12 @@ import { BaseFleetController, type FleetRequestContext } from "./base.controller
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { OverviewUseCase } from "./contexts/fleet/reports/application/overview.use-case";
 import { resolveOverviewScope } from "./contexts/fleet/reports/domain/overview-scope";
-import { Portals } from "@shared/access";
+import { Portals, SignedIn } from "@shared/access";
 
 @ApiTags("Overview")
 @ApiBearerAuth()
 @Portals("tenant")
+@SignedIn()
 @Controller("overview")
 @TenantScoped()
 @UseGuards(RolesGuard)

@@ -29,7 +29,7 @@ import {
 } from './platform-wallet.use-cases';
 import { WALLET_STATUSES, type WalletStatus } from './wallet-credit';
 import { WALLET_LEDGER_CATEGORIES } from './wallet-ledger.repository';
-import { Portals } from '@shared/access';
+import { Portals, OnResource } from '@shared/access';
 
 /** The interface works in naira; storage is kobo like every amount. */
 function toKobo(naira: number): number {
@@ -38,6 +38,7 @@ function toKobo(naira: number): number {
 
 @ApiTags('Platform Wallets')
 @Portals('admin')
+@OnResource('admin.billing')
 @Controller('system/wallets')
 export class PlatformWalletsController extends BaseAuthController {
   constructor(
