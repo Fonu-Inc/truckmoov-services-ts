@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ACCESS_CHANGED_SUBJECT, predefinedRole, type PermissionKey } from '@shared/access';
+import { ACCESS_CHANGED_SUBJECT, portalOfPermission, predefinedRole, type PermissionKey } from '@shared/access';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { SYSTEM_TENANT_ID, portalFor, type Portal } from '@shared/identity';
 import type { StoredUser, UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { TENANT_ROLE_REPOSITORY, type TenantRoleRepository } from './tenant-role.repository';
 
 export type ResolvedAccess = {
   userId: string;
@@ -21,12 +22,30 @@ const CACHE_TTL_MS = 30_000;
 export class AccessResolver {
   private readonly cache = new Map<string, { access: ResolvedAccess | null; at: number }>();
 
+  constructor(@Inject(TENANT_ROLE_REPOSITORY) private readonly roles: TenantRoleRepository) {}
+
   async resolve(userRepository: Pick<UserRepository, 'findById'>, userId: string): Promise<ResolvedAccess | null> {
     const cached = this.cache.get(userId);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.access;
-    const access = toAccess(await userRepository.findById(userId));
+    const user = await userRepository.findById(userId);
+    const access = user ? toAccess(user, await this.permissionsOf(user)) : null;
     this.cache.set(userId, { access, at: Date.now() });
     return access;
+  }
+
+  /**
+   * A custom role replaces the predefined role's permissions. Either way a
+   * role only counts inside the portal it belongs to: a system role held
+   * inside a tenant is worth nothing.
+   */
+  private async permissionsOf(user: StoredUser): Promise<PermissionKey[]> {
+    const portal = portalFor(user);
+    if (user.customRoleId) {
+      const custom = await this.roles.findById(user.tenantId, user.customRoleId);
+      return (custom?.permissions ?? []).filter((p) => portalOfPermission(p) === portal);
+    }
+    const bundle = predefinedRole(user.role);
+    return bundle && bundle.portal === portal ? [...bundle.permissions] : [];
   }
 
   forget(userId: string): void {
@@ -34,17 +53,11 @@ export class AccessResolver {
   }
 }
 
-function toAccess(user: StoredUser | null): ResolvedAccess | null {
-  if (!user) return null;
-  const bundle = predefinedRole(user.role);
-  const portal = portalFor(user);
-  // A role that does not belong to the user's portal carries nothing: a
-  // system role held inside a tenant is worth no permissions at all.
-  const permissions = bundle && bundle.portal === portal ? [...bundle.permissions] : [];
+function toAccess(user: StoredUser, permissions: PermissionKey[]): ResolvedAccess {
   return {
     userId: user.id,
     tenantId: user.tenantId,
-    portal,
+    portal: portalFor(user),
     active: (user.accountStatus ?? 'enabled') === 'enabled',
     permissions,
   };

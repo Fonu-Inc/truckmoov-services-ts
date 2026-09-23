@@ -31,6 +31,8 @@ export type StoredUser = {
   role: string;
   tenantId: string;
   accountStatus?: "enabled" | "disabled";
+  /** A role the tenant built; when set it replaces the predefined role's permissions. */
+  customRoleId?: string | null;
   emailVerificationToken?: string | null;
   profile?: UserProfile;
   notificationPreferences?: NotificationPreferences;
@@ -110,6 +112,7 @@ export interface UserRepository {
   findByVerificationToken(token: string): Promise<StoredUser | null>;
   save(user: StoredUser): Promise<void>;
   updateRole(userId: string, role: string): Promise<void>;
+  updateCustomRole(userId: string, customRoleId: string | null): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
   updateProfile(userId: string, profile: UserProfile): Promise<void>;
   updateAccountStatus(

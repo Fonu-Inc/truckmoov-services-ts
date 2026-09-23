@@ -7,6 +7,7 @@ import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-re
 import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
+import { GRANT_CHECK, type GrantCheck } from "../../domain/ports/grant-check.port";
 import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 
 export type InviteUserCommand = {
@@ -28,6 +29,8 @@ export class InviteUserUseCase {
     private readonly idGenerator: IdGenerator,
     @Inject(USER_REPOSITORY)
     private readonly userRepo: UserRepository,
+    @Inject(GRANT_CHECK)
+    private readonly grants: GrantCheck,
   ) {}
 
   async execute(command: InviteUserCommand) {
@@ -42,6 +45,11 @@ export class InviteUserUseCase {
     const targetRole = command.role as Role;
     if (!(INVITABLE_ROLES as readonly string[]).includes(targetRole)) {
       throw new ForbiddenError("Cannot invite users with this role");
+    }
+
+    // No granting what you don't have.
+    if (!(await this.grants.mayGrantRole(caller.id, targetRole))) {
+      throw new ForbiddenError("Cannot grant a role broader than your own");
     }
 
     const email = command.email.trim();

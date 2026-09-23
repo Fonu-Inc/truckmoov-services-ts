@@ -122,6 +122,7 @@ export class MikroUserRepository implements UserRepository {
         roleId: row.role_id,
         tenantId: row.tenant_id,
         accountStatus: row.account_status,
+        customRoleId: row.custom_role_id ?? null,
         emailVerificationToken: row.email_verification_token ?? null,
         profile: row.profile,
         notificationPreferences: row.notification_preferences,
@@ -175,6 +176,11 @@ export class MikroUserRepository implements UserRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.nativeUpdate(AuthUserRecord, { id: userId }, { profile });
+  }
+
+  async updateCustomRole(userId: string, customRoleId: string | null): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.fork().nativeUpdate(AuthUserRecord, { id: userId }, { customRoleId });
   }
 
   async updateAccountStatus(

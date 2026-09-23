@@ -126,6 +126,7 @@ export class AuthUserRecord {
   roleId!: number;
   tenantId!: string;
   accountStatus!: string;
+  customRoleId?: string | null;
   emailVerificationToken?: string | null;
   profile?: {
     fullName: string | null;
@@ -160,6 +161,7 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     roleId: { type: 'number' },
     tenantId: { type: 'string', length: 64, default: 'default' },
     accountStatus: { type: 'string', length: 20, default: 'enabled' },
+    customRoleId: { fieldName: 'custom_role_id', type: 'string', length: 64, nullable: true },
     emailVerificationToken: { type: 'string', length: 128, nullable: true },
     profile: { type: 'json', nullable: true },
     notificationPreferences: { type: 'json', nullable: true },
@@ -584,6 +586,35 @@ export const PlatformAlertSettingRecordSchema =
       updatedBy: { fieldName: 'updated_by', type: 'string', length: 128, nullable: true },
     },
   });
+
+
+/* ── Tenant Roles ───────────────────────────────────── */
+
+export class TenantRoleRecord {
+  id!: string;
+  tenantId!: string;
+  name!: string;
+  description!: string | null;
+  permissions!: unknown[];
+  createdBy!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TenantRoleRecordSchema = new EntitySchema<TenantRoleRecord>({
+  class: TenantRoleRecord,
+  tableName: 'tenant_roles',
+  properties: {
+    id: { type: 'string', length: 64, primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64 },
+    name: { type: 'string', length: 80 },
+    description: { type: 'string', length: 240, nullable: true },
+    permissions: { type: 'json', defaultRaw: "'[]'" },
+    createdBy: { fieldName: 'created_by', type: 'string', length: 64 },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
 
 
 /* ── Communication Rates ────────────────────────────── */
@@ -2074,6 +2105,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       TenantUsageAllowanceRecordSchema,
       CommunicationRateRecordSchema,
       PlatformAlertSettingRecordSchema,
+      TenantRoleRecordSchema,
       MailThreadRecordSchema,
       MailMessageRecordSchema,
       MailSyncStateRecordSchema,

@@ -383,6 +383,7 @@ describe("InviteUserUseCase", () => {
       new FakeIdGenerator() as any,
       // no existing account for the invited address
       { findByEmail: async () => null } as any,
+      { mayGrantRole: async () => true } as any,
     );
   });
 
@@ -720,7 +721,7 @@ describe("ChangeRoleUseCase", () => {
     tokenService = new FakeTokenService();
     userRepo = new FakeUserRepository();
     sessionStore = new FakeSessionStore();
-    uc = new ChangeRoleUseCase(userRepo, tokenService, sessionStore);
+    uc = new ChangeRoleUseCase(userRepo, tokenService, sessionStore, { mayGrantRole: async () => true } as any);
 
     await userRepo.save({
       id: "target-1", email: "target@co.com", passwordHash: "hash",

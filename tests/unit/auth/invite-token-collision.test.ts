@@ -104,6 +104,7 @@ describe('InviteUserUseCase duplicate-account guard', () => {
       { sendTenantInviteEmail: vi.fn(async () => {}) } as never,
       { generate: () => INVITE_TOKEN } as never,
       { findByEmail: vi.fn(async () => existingUser) } as never,
+      { mayGrantRole: async () => true } as any,
     );
   }
 

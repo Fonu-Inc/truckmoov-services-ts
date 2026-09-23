@@ -359,6 +359,13 @@ import { InternalCallerService } from './internal-caller.service';
 import { AccessChangeNotifier, AccessResolver } from './access-resolver';
 import { AccessNotifyingUserRepository } from './access-notifying-user.repository';
 import { CapabilitiesController, InternalAccessController } from './access.controller';
+import { TENANT_ROLE_REPOSITORY } from './tenant-role.repository';
+import { InMemoryTenantRoleRepository } from './in-memory-tenant-role.repository';
+import { MikroTenantRoleRepository } from './mikro-tenant-role.repository';
+import { TenantRolesUseCases } from './tenant-roles.use-cases';
+import { TenantRolesController } from './tenant-roles.controller';
+import { AccessGrantCheck } from './access-grant-check';
+import { GRANT_CHECK } from './contexts/auth/session/domain/ports/grant-check.port';
 import { accessProviders } from '@shared/access';
 import { AccessRefusedListener, AuthCallerAudience, AuthPermissions, AuthRefusalReporter } from './access-refusals';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
@@ -655,6 +662,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AuthController,
     InternalAccessController,
     CapabilitiesController,
+    TenantRolesController,
     OnboardingApplicationsController,
     InstallationController,
     SystemOnboardingApplicationsController,
@@ -777,8 +785,18 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // User repository
     InMemoryUserRepository,
     MikroUserRepository,
+    InMemoryTenantRoleRepository,
+    MikroTenantRoleRepository,
+    {
+      provide: TENANT_ROLE_REPOSITORY,
+      inject: [InMemoryTenantRoleRepository, MikroTenantRoleRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryTenantRoleRepository, mikro: MikroTenantRoleRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
     AccessResolver,
     AccessChangeNotifier,
+    TenantRolesUseCases,
+    { provide: GRANT_CHECK, useClass: AccessGrantCheck },
     {
       provide: USER_REPOSITORY,
       inject: [InMemoryUserRepository, MikroUserRepository, AppConfigService, AccessChangeNotifier],

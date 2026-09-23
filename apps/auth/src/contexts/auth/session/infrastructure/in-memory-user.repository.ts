@@ -86,6 +86,10 @@ export class InMemoryUserRepository implements UserRepository {
     this.updateByUserId(userId, (user) => ({ ...user, profile }));
   }
 
+  async updateCustomRole(userId: string, customRoleId: string | null): Promise<void> {
+    this.updateByUserId(userId, (user) => ({ ...user, customRoleId }));
+  }
+
   async updateAccountStatus(
     userId: string,
     accountStatus: "enabled" | "disabled",

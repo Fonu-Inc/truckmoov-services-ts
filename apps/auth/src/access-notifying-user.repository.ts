@@ -59,6 +59,10 @@ export class AccessNotifyingUserRepository implements UserRepository {
     await this.inner.updateRole(userId, role);
     this.notifier.changed(userId);
   }
+  async updateCustomRole(userId: string, customRoleId: string | null) {
+    await this.inner.updateCustomRole(userId, customRoleId);
+    this.notifier.changed(userId);
+  }
   async updateAccountStatus(userId: string, accountStatus: 'enabled' | 'disabled') {
     await this.inner.updateAccountStatus(userId, accountStatus);
     this.notifier.changed(userId);

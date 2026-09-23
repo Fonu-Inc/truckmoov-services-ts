@@ -4,6 +4,7 @@ import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-re
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
+import { GRANT_CHECK, type GrantCheck } from "../../domain/ports/grant-check.port";
 import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
@@ -24,6 +25,8 @@ export class ChangeRoleUseCase {
     private readonly tokenService: TokenService,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    @Inject(GRANT_CHECK)
+    private readonly grants: GrantCheck,
   ) {}
 
   async execute(command: ChangeRoleCommand) {
@@ -53,6 +56,11 @@ export class ChangeRoleUseCase {
     const newRole = command.newRole as Role;
     if (!isTenantRole(newRole)) {
       throw new ForbiddenError("Cannot assign this role through tenant organization endpoints");
+    }
+
+    // No granting what you don't have.
+    if (!(await this.grants.mayGrantRole(caller.id, newRole))) {
+      throw new ForbiddenError("Cannot grant a role broader than your own");
     }
 
     await this.userRepo.updateRole(command.targetUserId, newRole);
