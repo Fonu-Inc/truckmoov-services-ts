@@ -35,8 +35,7 @@ import { RateNotConfiguredError } from './communication-rate.service';
 import { BaseAuthController } from './base.controller';
 import { ActivityLogService } from './activity-log.service';
 import { BodyOrDataPipe } from './body-or-data.pipe';
-import { TOKEN_SERVICE } from './contexts/auth/session';
-import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import { InternalCallerService, type IncomingHeaders } from './internal-caller.service';
 import { ChargeUsageDto } from './dto/charge-usage.dto';
 import { RecordStorageDto } from './dto/record-storage.dto';
 import { ReconcileStorageDto } from './dto/reconcile-storage.dto';
@@ -52,7 +51,7 @@ export class InternalUsageController extends BaseAuthController {
   constructor(
     protected readonly activityLogService: ActivityLogService,
     @Inject(ChargeUsageUseCase) private readonly chargeUsage: ChargeUsageUseCase,
-    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(InternalCallerService) private readonly callers: InternalCallerService,
     @Inject(EntitlementService) private readonly entitlements: EntitlementService,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboarding: TenantOnboardingRepository,
@@ -72,14 +71,11 @@ export class InternalUsageController extends BaseAuthController {
    * about what a plan allows.
    */
   @Get('entitlements')
-  async entitlementsForTenant(@Headers('authorization') authorization?: string) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+  async entitlementsForTenant(@Headers() headers: IncomingHeaders) {
+    const tenantId = await this.callers.tenantFor(headers, ['fleet', 'dispatch']);
+    if (!tenantId) throw new UnauthorizedException('Invalid service token');
 
-    const actor = this.tokenService.resolveAccessToken(accessToken);
-    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
-
-    const onboarding = await this.onboarding.findByTenantId(actor.tenantId);
+    const onboarding = await this.onboarding.findByTenantId(tenantId);
     const planCode = onboarding?.subscription?.planCode;
     // No plan means no entitlements to enforce. Returning null rather than an
     // error lets the caller allow the action: refusing every create because a
@@ -109,13 +105,10 @@ export class InternalUsageController extends BaseAuthController {
   @Post('storage')
   async recordStorage(
     @Body(BodyOrDataPipe) payload: RecordStorageDto,
-    @Headers('authorization') authorization?: string,
+    @Headers() headers: IncomingHeaders,
   ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-
-    const actor = this.tokenService.resolveAccessToken(accessToken);
-    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+    const tenantId = await this.callers.tenantFor(headers, ['fleet']);
+    if (!tenantId) throw new UnauthorizedException('Invalid service token');
     if (!STORAGE_SOURCES.includes(payload.source as StorageSource)) {
       throw new BadRequestException(`${payload.source} is not a storage source`);
     }
@@ -125,7 +118,7 @@ export class InternalUsageController extends BaseAuthController {
     // always permitted.
     if (payload.deltaBytes > 0) {
       try {
-        await this.storage.assertRoomFor(actor.tenantId, payload.deltaBytes);
+        await this.storage.assertRoomFor(tenantId, payload.deltaBytes);
       } catch (error) {
         if (error instanceof StorageQuotaExceededError) {
           throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
@@ -134,8 +127,8 @@ export class InternalUsageController extends BaseAuthController {
       }
     }
 
-    await this.storage.record(actor.tenantId, payload.source as StorageSource, payload.deltaBytes);
-    return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
+    await this.storage.record(tenantId, payload.source as StorageSource, payload.deltaBytes);
+    return { status: true, message: 'success', data: await this.storage.report(tenantId) };
   }
 
   /**
@@ -148,23 +141,20 @@ export class InternalUsageController extends BaseAuthController {
   @Post('storage/reconcile')
   async reconcileStorage(
     @Body(BodyOrDataPipe) payload: ReconcileStorageDto,
-    @Headers('authorization') authorization?: string,
+    @Headers() headers: IncomingHeaders,
   ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-
-    const actor = this.tokenService.resolveAccessToken(accessToken);
-    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+    const tenantId = await this.callers.tenantFor(headers, ['fleet']);
+    if (!tenantId) throw new UnauthorizedException('Invalid service token');
     if (!STORAGE_SOURCES.includes(payload.source as StorageSource)) {
       throw new BadRequestException(`${payload.source} is not a storage source`);
     }
 
     await this.storage.reconcile(
-      actor.tenantId,
+      tenantId,
       payload.source as StorageSource,
       payload.bytesUsed,
     );
-    return { status: true, message: 'success', data: await this.storage.report(actor.tenantId) };
+    return { status: true, message: 'success', data: await this.storage.report(tenantId) };
   }
 
   /**
@@ -177,11 +167,9 @@ export class InternalUsageController extends BaseAuthController {
   @Get('alert-settings/:alertType')
   async alertSettings(
     @Param('alertType') alertType: string,
-    @Headers('authorization') authorization?: string,
+    @Headers() headers: IncomingHeaders,
   ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    if (!this.tokenService.resolveAccessToken(accessToken)) {
+    if (!(await this.callers.tenantFor(headers, ['notification']))) {
       throw new UnauthorizedException('Invalid service token');
     }
 
@@ -194,20 +182,15 @@ export class InternalUsageController extends BaseAuthController {
   @Post('charge')
   async charge(
     @Body(BodyOrDataPipe) payload: ChargeUsageDto,
-    @Headers('authorization') authorization?: string,
+    @Headers() headers: IncomingHeaders,
   ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-
-    // The tenant comes from the signed claim, never from the body. A caller
-    // cannot charge a tenant it does not hold a token for. Deliberately does
-    // not look the subject up as a user: the caller is a service, not a person.
-    const actor = this.tokenService.resolveAccessToken(accessToken);
-    if (!actor?.tenantId) throw new UnauthorizedException('Invalid service token');
+    // The tenant comes from the verified call, never from the body.
+    const tenantId = await this.callers.tenantFor(headers, ['notification']);
+    if (!tenantId) throw new UnauthorizedException('Invalid service token');
 
     try {
       const result = await this.chargeUsage.execute({
-        tenantId: actor.tenantId,
+        tenantId: tenantId,
         channel: payload.channel as CommunicationChannel,
         quantity: payload.quantity,
         reason: payload.reason,

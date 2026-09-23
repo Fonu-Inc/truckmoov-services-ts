@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
+import { type ServiceCaller, createServiceCaller } from "@shared/identity";
 
 export type QuotaResource =
   | "vehicles"
@@ -42,7 +42,11 @@ export class EntitlementReaderService {
   private readonly logger = new Logger(EntitlementReaderService.name);
   private readonly cache = new Map<string, CachedEntitlements>();
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, "fleet");
+  }
 
   async forTenant(tenantId: string): Promise<TenantEntitlements | null> {
     const cached = this.cache.get(tenantId);
@@ -77,14 +81,14 @@ export class EntitlementReaderService {
     // Minted here rather than threaded from the request: a quota check runs
     // deep inside a use case, and passing a bearer token down through domain
     // commands to reach it would put a credential in the domain layer.
-    const accessToken = this.mintServiceToken(tenantId);
-    if (!accessToken) return undefined;
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    if (!headers) return undefined;
 
     try {
       const response = await axios.get<{ data?: TenantEntitlements | null }>(
-        `${this.config.auth.serviceUrl}/auth/internal/entitlements`,
+        `${this.config.auth.serviceUrl}/auth/internal/usage/entitlements`,
         {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers,
           timeout: 2000,
           validateStatus: () => true,
         },
@@ -98,27 +102,5 @@ export class EntitlementReaderService {
       );
       return undefined;
     }
-  }
-
-  /**
-   * A short-lived token naming this tenant, signed with the shared secret.
-   *
-   * Same scheme the notification service uses to reach auth. It only has to
-   * survive one request, so it expires in five minutes.
-   */
-  private mintServiceToken(tenantId: string): string | null {
-    const secret = this.config.auth.jwtSecret;
-    if (!secret || !tenantId) return null;
-
-    const payload = JSON.stringify({
-      sub: "fleet-service",
-      email: "fleet-service@truckmoov.local",
-      role: "FLEET_ADMIN",
-      tenantId,
-      exp: Math.floor(Date.now() / 1000) + 5 * 60,
-    });
-    const encoded = Buffer.from(payload).toString("base64url");
-    const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
-    return `${encoded}.${signature}`;
   }
 }

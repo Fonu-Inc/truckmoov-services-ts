@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { SYSTEM_TENANT_ID, type ServiceCaller, createServiceCaller } from '@shared/identity';
 import { MailerService } from '@shared/mailer';
 import {
   ONBOARDING_VERIFICATION_CODE_SUBJECT,
@@ -14,7 +15,7 @@ import {
 
 // The applicant has no tenant and no wallet, so onboarding messages are sent
 // as the platform and charged to it, never to the organisation applying.
-const PLATFORM_TENANT_ID = 'system';
+const PLATFORM_TENANT_ID = SYSTEM_TENANT_ID;
 
 @Injectable()
 export class MailerOnboardingVerificationNotifier
@@ -24,10 +25,14 @@ export class MailerOnboardingVerificationNotifier
     MailerOnboardingVerificationNotifier.name,
   );
 
+  private readonly caller: ServiceCaller;
+
   constructor(
     @Inject(MailerService) private readonly mailer: MailerService,
     @Inject(AppConfigService) private readonly config: AppConfigService,
-  ) {}
+  ) {
+    this.caller = createServiceCaller(config, 'auth');
+  }
 
   async sendEmailCode(input: VerificationCodeMessage): Promise<void> {
     try {
@@ -56,10 +61,18 @@ export class MailerOnboardingVerificationNotifier
     const url = `${this.config.auth.notificationServiceUrl.replace(/\/+$/, '')}/notify/messages/send`;
     const expiryMinutes = VERIFICATION_CODE_TTL_MS / 60_000;
 
+    // Notification only sends for an identified caller; this used to go out
+    // with no credentials and was refused every time.
+    const identity = this.caller.headers('notification', {
+      tenantId: PLATFORM_TENANT_ID,
+      legacyRole: 'DISPATCHER',
+    });
+
     try {
+      if (!identity) throw new Error('auth cannot identify itself to notification');
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...identity },
         body: JSON.stringify({
           tenantId: PLATFORM_TENANT_ID,
           channel: 'sms',

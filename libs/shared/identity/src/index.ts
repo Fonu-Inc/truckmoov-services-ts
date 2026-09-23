@@ -13,3 +13,16 @@ export {
   type UserTokenClaims,
   type UserTokenSubject,
 } from "./user-token";
+export {
+  ACTING_FOR_TENANT_HEADER,
+  ACTING_FOR_USER_HEADER,
+  SERVICE_TOKEN_HEADER,
+  ServiceCaller,
+  ServiceTokenVerifier,
+  createServiceCaller,
+  createServiceTokenVerifier,
+  type ActingFor,
+  type IdentitySettings,
+  type ClusterKeySource,
+  type ServiceIdentityConfig,
+} from "./service-token";

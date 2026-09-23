@@ -404,6 +404,10 @@ export class AppConfigService {
       signingKey: this.config.get<string>("USER_TOKEN_SIGNING_KEY", ""),
       publicKeys: this.config.get<string>("USER_TOKEN_PUBLIC_KEYS", ""),
       legacySecret: legacyAccepted ? this.config.get<string>("JWT_SECRET", "replace-me") : "",
+      // One Kubernetes service account token per service this one calls. The
+      // dev secret stands in for them outside the cluster only.
+      serviceTokenDir: this.config.get<string>("SERVICE_TOKEN_DIR", "/var/run/secrets/truckmoov/service-tokens"),
+      serviceAuthDevSecret: this.config.get<string>("SERVICE_AUTH_DEV_SECRET", ""),
     };
   }
 

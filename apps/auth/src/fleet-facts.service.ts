@@ -1,7 +1,7 @@
-import { createHmac } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { AppConfigService } from '@shared/config';
+import { type ServiceCaller, createServiceCaller } from '@shared/identity';
 
 /**
  * Facts auth needs from fleet to make a decision.
@@ -44,7 +44,11 @@ function isSafePathId(value: string): boolean {
 export class FleetFactsService {
   private readonly logger = new Logger(FleetFactsService.name);
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, 'auth');
+  }
 
   /**
    * Active vehicles a tenant holds right now.
@@ -54,14 +58,14 @@ export class FleetFactsService {
    * on a count of zero would approve one that has no justification.
    */
   async activeVehicleCount(tenantId: string): Promise<number | null> {
-    const token = this.mintServiceToken(tenantId);
-    if (!token) return null;
+    const headers = this.caller.headers('fleet', { tenantId, legacyRole: 'FLEET_ADMIN' });
+    if (!headers) return null;
 
     try {
       const response = await axios.get<{ data?: { activeVehicles?: number } }>(
         `${this.config.auth.fleetServiceUrl}/fleet/internal/vehicle-count`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           timeout: 3000,
           validateStatus: () => true,
         },
@@ -95,8 +99,8 @@ export class FleetFactsService {
       return { ok: false, status: 404, message: 'Device not found' };
     }
 
-    const token = this.mintPlatformToken();
-    if (!token) {
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
       return { ok: false, status: 503, message: 'Device service is not configured' };
     }
 
@@ -105,7 +109,7 @@ export class FleetFactsService {
         `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/${encodeURIComponent(deviceId)}/${encodeURIComponent(action)}`,
         action === 'suspend' ? { reason: reason ?? null } : {},
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           timeout: 5000,
           validateStatus: () => true,
         },
@@ -143,8 +147,8 @@ export class FleetFactsService {
   ): Promise<{ total: number; items: Array<Record<string, unknown>> } | null> {
     if (!isSafePathId(tenantId)) return null;
 
-    const token = this.mintPlatformToken();
-    if (!token) return null;
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
 
     try {
       const response = await axios.get<{
@@ -152,7 +156,7 @@ export class FleetFactsService {
       }>(
         `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/${encodeURIComponent(resource)}`,
         {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: 4000,
         validateStatus: () => true,
       });
@@ -183,8 +187,8 @@ export class FleetFactsService {
   } | null> {
     if (!isSafePathId(tenantId)) return null;
 
-    const token = this.mintPlatformToken();
-    if (!token) return null;
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
 
     try {
       const response = await axios.get<{
@@ -196,7 +200,7 @@ export class FleetFactsService {
       }>(
         `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/connectivity`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           timeout: 8000,
           validateStatus: () => true,
         },
@@ -233,14 +237,14 @@ export class FleetFactsService {
     // issued, and the caller treats a null as "no context", which is correct.
     if (!isSafePathId(tenantId) || !isSafePathId(recordId)) return null;
 
-    const token = this.mintPlatformToken();
-    if (!token) return null;
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
 
     try {
       const response = await axios.get<{ data?: Record<string, unknown> }>(
         `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/context/${encodeURIComponent(resource)}/${encodeURIComponent(recordId)}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           timeout: 4000,
           validateStatus: () => true,
         },
@@ -254,32 +258,5 @@ export class FleetFactsService {
       );
       return null;
     }
-  }
-
-  private mintServiceToken(tenantId: string): string | null {
-    return this.mintToken('FLEET_ADMIN', tenantId);
-  }
-
-  /**
-   * A platform-role token. The device suspension route is cross-tenant, so it
-   * carries the platform role rather than a tenant's own.
-   */
-  private mintPlatformToken(): string | null {
-    return this.mintToken('PLATFORM_ADMIN', 'system');
-  }
-
-  private mintToken(role: string, tenantId: string): string | null {
-    const secret = this.config.auth.jwtSecret;
-    if (!secret || !tenantId) return null;
-
-    const payload = JSON.stringify({
-      sub: 'auth-service',
-      email: 'auth-service@truckmoov.local',
-      role,
-      tenantId,
-      exp: Math.floor(Date.now() / 1000) + 5 * 60,
-    });
-    const encoded = Buffer.from(payload).toString('base64url');
-    return `${encoded}.${createHmac('sha256', secret).update(encoded).digest('base64url')}`;
   }
 }

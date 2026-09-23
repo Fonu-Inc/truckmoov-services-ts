@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
+import { type ServiceCaller, createServiceCaller } from "@shared/identity";
 import { isDeviceProtocol } from "@shared/devices";
 import type {
   DeviceCatalogModel,
@@ -31,7 +31,11 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
   private readonly logger = new Logger(HttpDeviceCatalogAdapter.name);
   private cache: { models: DeviceCatalogModel[]; expiresAt: number } | null = null;
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, "fleet");
+  }
 
   async findModel(manufacturer: string, model: string): Promise<DeviceCatalogModel | null> {
     const wantedManufacturer = manufacturer.trim().toLowerCase();
@@ -67,14 +71,14 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
   }
 
   private async fetchAll(): Promise<DeviceCatalogModel[] | null> {
-    const token = this.mintServiceToken();
-    if (!token) return null;
+    const headers = this.caller.headers("auth", { tenantId: this.config.fleet.defaultTenant, legacyRole: "FLEET_ADMIN" });
+    if (!headers) return null;
 
     try {
       const response = await axios.get<{ data?: { models?: CatalogModelResponse[] } }>(
         `${this.config.auth.serviceUrl}/auth/internal/device-catalog/models`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers,
           timeout: 3000,
           validateStatus: () => true,
         },
@@ -109,20 +113,5 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
       wiringNotes: entry.wiringNotes ?? null,
       diagramUrls: entry.diagramUrls ?? [],
     };
-  }
-
-  private mintServiceToken(): string | null {
-    const secret = this.config.auth.jwtSecret;
-    if (!secret) return null;
-
-    const payload = JSON.stringify({
-      sub: "fleet-service",
-      email: "fleet-service@truckmoov.local",
-      role: "FLEET_ADMIN",
-      tenantId: this.config.fleet.defaultTenant,
-      exp: Math.floor(Date.now() / 1000) + 5 * 60,
-    });
-    const encoded = Buffer.from(payload).toString("base64url");
-    return `${encoded}.${createHmac("sha256", secret).update(encoded).digest("base64url")}`;
   }
 }

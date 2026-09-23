@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { createHmac } from "crypto";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
+import { type ServiceCaller, createServiceCaller } from "@shared/identity";
 import type {
   DispatchActiveJobsMap,
   DispatchJob,
@@ -12,7 +12,6 @@ import type {
 import { EMPTY_ACTIVE_JOBS_MAP } from "../domain/ports/dispatch-jobs-reader.port";
 
 const REQUEST_TIMEOUT_MS = 10_000;
-const TOKEN_TTL_SECONDS = 300;
 
 type DispatchJobEnvelope = {
   status?: boolean;
@@ -82,11 +81,15 @@ type DispatchActiveJobsMapEnvelope = {
 export class HttpDispatchJobsReader implements DispatchJobsReader {
   private readonly logger = new Logger(HttpDispatchJobsReader.name);
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, "fleet");
+  }
 
   async listJobs(tenantId: string, filters?: DispatchJobFilters): Promise<DispatchJob[]> {
-    const token = this.buildServiceToken(tenantId);
-    if (!token) {
+    const headers = this.caller.headers("dispatch", { tenantId, legacyRole: "DISPATCHER" });
+    if (!headers) {
       this.logger.warn("dispatch read skipped: missing JWT secret or tenant");
       return [];
     }
@@ -94,7 +97,7 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
     try {
       const res = await axios.get<DispatchJobEnvelope>(`${this.baseUrl()}/dispatch/jobs`, {
         params: filters?.status ? { status: filters.status } : undefined,
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: REQUEST_TIMEOUT_MS,
         validateStatus: () => true,
       });
@@ -112,15 +115,15 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
   }
 
   async listActiveJobsMap(tenantId: string): Promise<DispatchActiveJobsMap> {
-    const token = this.buildServiceToken(tenantId);
-    if (!token) {
+    const headers = this.caller.headers("dispatch", { tenantId, legacyRole: "DISPATCHER" });
+    if (!headers) {
       this.logger.warn("dispatch map read skipped: missing JWT secret or tenant");
       return EMPTY_ACTIVE_JOBS_MAP;
     }
 
     try {
       const res = await axios.get<DispatchActiveJobsMapEnvelope>(`${this.baseUrl()}/dispatch/jobs/map`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: REQUEST_TIMEOUT_MS,
         validateStatus: () => true,
       });
@@ -196,22 +199,5 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
 
   private baseUrl(): string {
     return this.config.dispatch.serviceUrl.replace(/\/+$/, "");
-  }
-
-  private buildServiceToken(tenantId: string): string | null {
-    const secret = this.config.auth.jwtSecret;
-    const tid = tenantId?.trim();
-    if (!secret || !tid) return null;
-
-    const payload = {
-      sub: "fleet-service",
-      email: "fleet-service@truckmoov.local",
-      role: "DISPATCHER",
-      tenantId: tid,
-      exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-    };
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const signature = createHmac("sha256", secret).update(encodedPayload).digest("base64url");
-    return `${encodedPayload}.${signature}`;
   }
 }

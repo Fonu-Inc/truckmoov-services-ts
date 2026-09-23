@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
+import { type ServiceCaller, createServiceCaller } from "@shared/identity";
 
 export class StorageQuotaExceededError extends Error {}
 
@@ -17,7 +17,11 @@ export class StorageQuotaExceededError extends Error {}
 export class StorageReporterService {
   private readonly logger = new Logger(StorageReporterService.name);
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, "fleet");
+  }
 
   /**
    * Records an upload, and refuses it if the tenant has no room.
@@ -51,14 +55,14 @@ export class StorageReporterService {
    * knows about.
    */
   async reconcile(tenantId: string, bytesUsed: number): Promise<void> {
-    const token = this.mintServiceToken(tenantId);
-    if (!token) return;
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    if (!headers) return;
 
     const response = await axios.post(
-      `${this.config.auth.serviceUrl}/auth/internal/storage/reconcile`,
+      `${this.config.auth.serviceUrl}/auth/internal/usage/storage/reconcile`,
       { source: "fleet_documents", bytesUsed },
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: 5000,
         validateStatus: () => true,
       },
@@ -70,14 +74,14 @@ export class StorageReporterService {
   }
 
   private async report(tenantId: string, deltaBytes: number, reference: string): Promise<void> {
-    const token = this.mintServiceToken(tenantId);
-    if (!token) return;
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    if (!headers) return;
 
     const response = await axios.post(
-      `${this.config.auth.serviceUrl}/auth/internal/storage`,
+      `${this.config.auth.serviceUrl}/auth/internal/usage/storage`,
       { source: "fleet_documents", deltaBytes, reference },
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: 3000,
         validateStatus: () => true,
       },
@@ -97,20 +101,5 @@ export class StorageReporterService {
       // in auth stopping every document upload in the platform.
       this.logger.warn(`storage_report_failed:${tenantId}:status=${response.status}`);
     }
-  }
-
-  private mintServiceToken(tenantId: string): string | null {
-    const secret = this.config.auth.jwtSecret;
-    if (!secret || !tenantId) return null;
-
-    const payload = JSON.stringify({
-      sub: "fleet-service",
-      email: "fleet-service@truckmoov.local",
-      role: "FLEET_ADMIN",
-      tenantId,
-      exp: Math.floor(Date.now() / 1000) + 5 * 60,
-    });
-    const encoded = Buffer.from(payload).toString("base64url");
-    return `${encoded}.${createHmac("sha256", secret).update(encoded).digest("base64url")}`;
   }
 }

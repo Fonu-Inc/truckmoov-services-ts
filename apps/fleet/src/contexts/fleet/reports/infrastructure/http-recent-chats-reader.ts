@@ -1,11 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { createHmac } from "node:crypto";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
+import { type ServiceCaller, createServiceCaller } from "@shared/identity";
 import type { RecentChat, RecentChatsReader } from "../domain/ports/recent-chats-reader.port";
 
 const REQUEST_TIMEOUT_MS = 5_000;
-const TOKEN_TTL_SECONDS = 300;
 
 type ConversationApi = {
   id?: string;
@@ -25,11 +24,15 @@ type ConversationEnvelope = {
 export class HttpRecentChatsReader implements RecentChatsReader {
   private readonly logger = new Logger(HttpRecentChatsReader.name);
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  private readonly caller: ServiceCaller;
+
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.caller = createServiceCaller(config, "fleet");
+  }
 
   async listRecentChats(tenantId: string, limit: number): Promise<RecentChat[]> {
-    const token = this.buildServiceToken(tenantId);
-    if (!token) {
+    const headers = this.caller.headers("notification", { tenantId, legacyRole: "DISPATCHER" });
+    if (!headers) {
       this.logger.warn("chat read skipped: missing JWT secret or tenant");
       return [];
     }
@@ -37,7 +40,7 @@ export class HttpRecentChatsReader implements RecentChatsReader {
     try {
       const baseUrl = this.config.overview.notificationServiceUrl.replace(/\/+$/, "");
       const res = await axios.get<ConversationEnvelope>(`${baseUrl}/notify/whatsapp/conversations`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         timeout: REQUEST_TIMEOUT_MS,
         validateStatus: () => true,
       });
@@ -68,22 +71,5 @@ export class HttpRecentChatsReader implements RecentChatsReader {
       lastMessageAt: conversation.last_message_at ?? "",
       unreadCount: conversation.unread_count ?? 0,
     };
-  }
-
-  private buildServiceToken(tenantId: string): string | null {
-    const secret = this.config.auth.jwtSecret;
-    const tid = tenantId?.trim();
-    if (!secret || !tid) return null;
-
-    const payload = {
-      sub: "fleet-service",
-      email: "fleet-service@truckmoov.local",
-      role: "DISPATCHER",
-      tenantId: tid,
-      exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-    };
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const signature = createHmac("sha256", secret).update(encodedPayload).digest("base64url");
-    return `${encodedPayload}.${signature}`;
   }
 }

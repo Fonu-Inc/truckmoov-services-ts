@@ -1,3 +1,4 @@
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@shared/mailer';
 import {
@@ -13,7 +14,7 @@ import type {
   OnboardingAdminNotifier,
 } from '@auth/onboarding/domain/ports/onboarding-admin-notifier.port';
 
-const PLATFORM_TENANT_ID = 'system';
+const PLATFORM_TENANT_ID = SYSTEM_TENANT_ID;
 
 @Injectable()
 export class MailerOnboardingAdminNotifier implements OnboardingAdminNotifier {

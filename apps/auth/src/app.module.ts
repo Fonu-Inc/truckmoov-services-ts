@@ -355,6 +355,7 @@ import { InMemorySystemFeatureFlagRepository } from './in-memory-system-feature-
 import { InMemorySystemSettingsRepository } from './in-memory-system-settings.repository';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
+import { InternalCallerService } from './internal-caller.service';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
@@ -1333,6 +1334,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetSystemActivityLogUseCase,
     ListSystemAdminInvitesUseCase,
     ListMisplacedSystemAccountsUseCase,
+    InternalCallerService,
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
     GetSystemDeviceDetailUseCase,

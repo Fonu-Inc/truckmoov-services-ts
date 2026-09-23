@@ -11,6 +11,7 @@ function buildReader() {
   const config = {
     dispatch: { serviceUrl: "http://dispatch:3005" },
     auth: { jwtSecret: SECRET },
+    identity: { legacySecret: SECRET, serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
   };
   return new HttpDispatchJobsReader(config as any);
 }
@@ -27,12 +28,12 @@ function verifyGoToken(token: string) {
 describe("HttpDispatchJobsReader", () => {
   beforeEach(() => vi.mocked(axios.get).mockReset());
 
-  it("signs a Go-verifiable 2-part service token", async () => {
+  it("sends a Go-verifiable legacy token while the compatibility window is open", async () => {
     vi.mocked(axios.get).mockResolvedValue({ status: 200, data: { status: true, data: [] } });
     await buildReader().listJobs("tenant-9");
 
     const [, opts] = vi.mocked(axios.get).mock.calls[0];
-    const auth = (opts as any).headers.Authorization as string;
+    const auth = (opts as any).headers.authorization as string;
     expect(auth.startsWith("Bearer ")).toBe(true);
 
     const payload = verifyGoToken(auth.slice("Bearer ".length));

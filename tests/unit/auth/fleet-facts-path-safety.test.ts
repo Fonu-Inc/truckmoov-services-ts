@@ -22,6 +22,7 @@ const TRAVERSAL_IDS = [
 function service() {
   return new FleetFactsService({
     auth: { jwtSecret: 'secret', fleetServiceUrl: 'http://fleet:3002' },
+    identity: { legacySecret: 'secret', serviceTokenDir: '/nonexistent', serviceAuthDevSecret: '' },
   } as never);
 }
 

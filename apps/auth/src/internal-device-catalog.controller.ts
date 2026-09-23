@@ -9,8 +9,7 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import { BaseAuthController } from './base.controller';
 import { ActivityLogService } from './activity-log.service';
-import { TOKEN_SERVICE } from './contexts/auth/session';
-import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
+import { InternalCallerService, type IncomingHeaders } from './internal-caller.service';
 import {
   DEVICE_MODEL_CATALOG_REPOSITORY,
   type DeviceModelCatalogRepository,
@@ -34,7 +33,7 @@ import { toSystemDeviceModelResponse } from './system-device-model.presenter';
 export class InternalDeviceCatalogController extends BaseAuthController {
   constructor(
     protected readonly activityLogService: ActivityLogService,
-    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(InternalCallerService) private readonly callers: InternalCallerService,
     @Inject(DEVICE_MODEL_CATALOG_REPOSITORY)
     private readonly catalog: DeviceModelCatalogRepository,
   ) {
@@ -43,11 +42,13 @@ export class InternalDeviceCatalogController extends BaseAuthController {
 
   @Get('models')
   async models(
-    @Headers('authorization') authorization?: string,
+    @Headers() headers: IncomingHeaders,
     @Query('manufacturer') manufacturer?: string,
     @Query('model') model?: string,
   ) {
-    this.assertServiceCaller(authorization);
+    if (!(await this.callers.tenantFor(headers, ['fleet']))) {
+      throw new UnauthorizedException('Invalid service token');
+    }
 
     if (manufacturer?.trim() && model?.trim()) {
       const found = await this.catalog.findByManufacturerAndModel(
@@ -67,13 +68,5 @@ export class InternalDeviceCatalogController extends BaseAuthController {
       message: 'success',
       data: { models: models.map(toSystemDeviceModelResponse) },
     };
-  }
-
-  private assertServiceCaller(authorization?: string): void {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-
-    const actor = this.tokenService.resolveAccessToken(accessToken);
-    if (!actor) throw new UnauthorizedException('Invalid service token');
   }
 }
