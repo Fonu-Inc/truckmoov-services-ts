@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { holdsMisplacedSystemRole } from "@shared/identity";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
 import { EmailNotVerifiedError } from "../../domain/errors/email-not-verified.error";
@@ -24,6 +24,8 @@ import {
 
 @Injectable()
 export class RefreshUseCase {
+  private readonly logger = new Logger(RefreshUseCase.name);
+
   constructor(
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
@@ -38,6 +40,13 @@ export class RefreshUseCase {
   async execute(refreshToken: string) {
     const user = await this.sessionStore.getByRefreshToken(refreshToken);
     if (!user) {
+      // A spent token only comes back if someone kept a copy: either the
+      // holder or a thief is now replaying it. There is no telling which, so
+      // the whole session ends and both have to sign in again.
+      if (await this.sessionStore.isSpent(refreshToken)) {
+        await this.sessionStore.revokeFamily(refreshToken);
+        this.logger.warn('refresh_token_reused: session revoked');
+      }
       throw new InvalidRefreshTokenError();
     }
 
@@ -77,9 +86,8 @@ export class RefreshUseCase {
     // Rotate on every use: the old refresh token is invalidated and a new
     // one issued, so a leaked/replayed token has a single-use window
     // instead of being valid indefinitely.
-    await this.sessionStore.deleteByRefreshToken(refreshToken);
     const newRefreshToken = this.tokenService.issueRefreshToken(current);
-    await this.sessionStore.save(newRefreshToken, current);
+    await this.sessionStore.rotate(refreshToken, newRefreshToken, current);
 
     return {
       accessToken: this.tokenService.issueAccessToken(current),

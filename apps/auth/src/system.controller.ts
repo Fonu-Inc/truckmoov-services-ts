@@ -90,6 +90,9 @@ import {
 } from './update-plan-entitlements.use-case';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
+import { AdminTwoFactorLogin, InvalidChallengeError } from './admin-two-factor-login.use-case';
+import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
+import { AdminTwoFactorDto } from './dto/two-factor.dto';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
@@ -105,6 +108,7 @@ import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 export class SystemController extends BaseAuthController {
   constructor(
     @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,
+    @Inject(AdminTwoFactorLogin) private readonly adminLogin: AdminTwoFactorLogin,
     @Inject(ChangeSystemPasswordUseCase) private readonly changeSystemPasswordUseCase: ChangeSystemPasswordUseCase,
     @Inject(CreateSystemAdminUseCase) private readonly createSystemAdminUseCase: CreateSystemAdminUseCase,
     @Inject(CreateSystemAdminInviteUseCase) private readonly createSystemAdminInviteUseCase: CreateSystemAdminInviteUseCase,
@@ -154,10 +158,43 @@ export class SystemController extends BaseAuthController {
   @ApiOkResponse({ type: AuthResponse })
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
-  ): Promise<AuthResponse> {
-    const result = await this.runAuthUseCase(() =>
-      this.loginUseCase.executeForAudience(payload, 'system'),
-    );
+  ): Promise<AuthResponse | Record<string, unknown>> {
+    const started = await this.runAuthUseCase(() => this.adminLogin.start(payload));
+    if (started.kind === 'code') {
+      return { twoFactorRequired: true, step: 'code', challengeToken: started.challengeToken };
+    }
+    if (started.kind === 'enrolment') {
+      return {
+        twoFactorRequired: true,
+        step: 'enrolment',
+        challengeToken: started.challengeToken,
+        enrolment: { secret: started.secret, otpauthUri: started.otpauthUri },
+      };
+    }
+    return this.signedIn(started.session);
+  }
+
+  @Portals('public')
+  @Post('login/two-factor')
+  @UseGuards(LoginRateLimitGuard)
+  @ApiOperation({
+    summary: 'Complete admin sign-in with a code',
+    description:
+      'Takes the challenge from the password step and a code from the authenticator, or a recovery code. On first enrolment it also returns the recovery codes, shown once.',
+  })
+  @ApiOkResponse({ type: AuthResponse })
+  async systemLoginTwoFactor(@Body(BodyOrDataPipe) payload: AdminTwoFactorDto) {
+    try {
+      return await this.signedIn(await this.adminLogin.complete(payload.challengeToken, payload.code));
+    } catch (error) {
+      if (error instanceof InvalidChallengeError || error instanceof InvalidTwoFactorCodeError) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  private async signedIn<T extends { user: { id: string; tenantId: string; role: string; email: string } }>(result: T) {
     await this.tryRecordActivity({
       tenantId: result.user.tenantId,
       service: 'auth',

@@ -54,6 +54,8 @@ export class AuthSessionRecord {
   roleId!: number;
   tenantId!: string;
   updatedAt!: Date;
+  familyId?: string | null;
+  spentAt?: Date | null;
 }
 
 export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
@@ -70,6 +72,8 @@ export const AuthSessionRecordSchema = new EntitySchema<AuthSessionRecord>({
       onUpdate: () => new Date(),
       defaultRaw: 'now()',
     },
+    familyId: { fieldName: 'family_id', type: 'string', length: 64, nullable: true },
+    spentAt: { fieldName: 'spent_at', type: 'datetime', nullable: true },
   },
 });
 

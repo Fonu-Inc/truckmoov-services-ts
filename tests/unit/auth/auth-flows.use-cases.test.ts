@@ -89,6 +89,27 @@ class FakeAuthNotifier {
 }
 
 class FakeSessionStore {
+  private readonly spent = new Set<string>();
+  private readonly families = new Map<string, string>();
+
+  async rotate(oldToken: string, newToken: string, user: AuthUser) {
+    const family = this.families.get(oldToken) ?? oldToken;
+    this.spent.add(oldToken);
+    await this.deleteByRefreshToken(oldToken);
+    await this.save(newToken, user);
+    this.families.set(newToken, family);
+    this.families.set(oldToken, family);
+  }
+
+  async isSpent(token: string) {
+    return this.spent.has(token);
+  }
+
+  async revokeFamily(token: string) {
+    const family = this.families.get(token);
+    for (const [t, f] of this.families) if (f === family) await this.deleteByRefreshToken(t);
+  }
+
   private readonly data = new Map<string, {
     user: AuthUser;
     updatedAt: Date;

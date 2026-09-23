@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { AuthUser } from "../domain/entities/auth-user.entity";
 import type {
@@ -10,17 +11,36 @@ export class InMemorySessionStore implements SessionStore {
   private readonly refreshToUser = new Map<string, {
     user: AuthUser;
     updatedAt: Date;
+    familyId: string;
+    spent: boolean;
   }>();
 
   async save(refreshToken: string, user: AuthUser): Promise<void> {
-    this.refreshToUser.set(refreshToken, {
-      user,
-      updatedAt: new Date(),
-    });
+    this.refreshToUser.set(refreshToken, { user, updatedAt: new Date(), familyId: randomUUID(), spent: false });
   }
 
   async getByRefreshToken(refreshToken: string): Promise<AuthUser | null> {
-    return this.refreshToUser.get(refreshToken)?.user ?? null;
+    const session = this.refreshToUser.get(refreshToken);
+    return session && !session.spent ? session.user : null;
+  }
+
+  async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<void> {
+    const old = this.refreshToUser.get(oldToken);
+    const familyId = old?.familyId ?? randomUUID();
+    if (old) this.refreshToUser.set(oldToken, { ...old, spent: true });
+    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId, spent: false });
+  }
+
+  async isSpent(refreshToken: string): Promise<boolean> {
+    return this.refreshToUser.get(refreshToken)?.spent === true;
+  }
+
+  async revokeFamily(refreshToken: string): Promise<void> {
+    const familyId = this.refreshToUser.get(refreshToken)?.familyId;
+    if (!familyId) return;
+    for (const [token, session] of this.refreshToUser.entries()) {
+      if (session.familyId === familyId) this.refreshToUser.delete(token);
+    }
   }
 
   async lastActiveAt(refreshToken: string): Promise<Date | null> {
@@ -41,7 +61,7 @@ export class InMemorySessionStore implements SessionStore {
     const summary = new Map<string, UserSessionActivity>();
 
     for (const session of this.refreshToUser.values()) {
-      if (!userIds.includes(session.user.id)) {
+      if (session.spent || !userIds.includes(session.user.id)) {
         continue;
       }
 

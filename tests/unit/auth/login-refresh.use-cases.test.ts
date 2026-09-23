@@ -64,6 +64,27 @@ class FakeUserRepository {
 }
 
 class FakeSessionStore {
+  private readonly spent = new Set<string>();
+  private readonly families = new Map<string, string>();
+
+  async rotate(oldToken: string, newToken: string, user: AuthUser) {
+    const family = this.families.get(oldToken) ?? oldToken;
+    this.spent.add(oldToken);
+    await this.deleteByRefreshToken(oldToken);
+    await this.save(newToken, user);
+    this.families.set(newToken, family);
+    this.families.set(oldToken, family);
+  }
+
+  async isSpent(token: string) {
+    return this.spent.has(token);
+  }
+
+  async revokeFamily(token: string) {
+    const family = this.families.get(token);
+    for (const [t, f] of this.families) if (f === family) await this.deleteByRefreshToken(t);
+  }
+
   private readonly data = new Map<string, {
     user: AuthUser;
     updatedAt: Date;
@@ -154,14 +175,14 @@ describe("Auth use-cases", () => {
     expect(refreshResult.refreshToken).not.toBe(oldRefreshToken);
     expect(refreshResult.accessToken).toBe("access-token");
 
+    // New token works.
+    const secondRefresh = await refreshUseCase.execute(refreshResult.refreshToken);
+    expect(secondRefresh.refreshToken).not.toBe(refreshResult.refreshToken);
+
     // Old token is now invalid — a replay attempt fails.
     await expect(() => refreshUseCase.execute(oldRefreshToken)).rejects.toBeInstanceOf(
       InvalidRefreshTokenError,
     );
-
-    // New token works.
-    const secondRefresh = await refreshUseCase.execute(refreshResult.refreshToken);
-    expect(secondRefresh.refreshToken).not.toBe(refreshResult.refreshToken);
   });
 
   it("refresh rejects and clears the session for a disabled account", async () => {
@@ -244,5 +265,22 @@ describe("each login admits only its own people", () => {
 
     expect(issued.at(-1)).toBe("OPERATIONS_MANAGER");
     expect((await sessionStore.getByRefreshToken(renewed.refreshToken))?.role).toBe("OPERATIONS_MANAGER");
+  });
+
+  it("ends the whole session when a spent refresh token comes back", async () => {
+    const sessionStore = new FakeSessionStore();
+    const tokenService = new FakeTokenService();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1");
+    const login = new LoginUseCase(new FakeIdentityProvider(), tokenService, sessionStore);
+    const first = (await login.execute({ email: "a@co.com", password: "StrongPass123!" })).refreshToken;
+    const refresh = new RefreshUseCase(sessionStore, tokenService, userRepo as never, noSessionTimeout());
+    const second = (await refresh.execute(first)).refreshToken;
+
+    // Someone replays the first token after the holder moved on.
+    await expect(refresh.execute(first)).rejects.toBeInstanceOf(InvalidRefreshTokenError);
+
+    // The token the holder is using now is dead too.
+    await expect(refresh.execute(second)).rejects.toBeInstanceOf(InvalidRefreshTokenError);
   });
 });

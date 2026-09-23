@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { AppConfigService } from "@shared/config";
 import { UserTokenSigner, UserTokenVerifier } from "@shared/identity";
 import type { TokenService } from "../domain/ports/token-service.port";
@@ -26,7 +26,7 @@ export class UserTokenService implements TokenService {
   }
 
   issueRefreshToken(_user: AuthUser): string {
-    return `dev-refresh-${randomUUID()}`;
+    return randomBytes(32).toString("base64url");
   }
 
   resolveAccessToken(token: string): AuthUser | null {

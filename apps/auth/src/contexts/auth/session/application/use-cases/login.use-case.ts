@@ -46,14 +46,17 @@ export class LoginUseCase {
   }
 
   async executeForAudience(command: LoginCommand, audience: LoginAudience) {
+    return this.issueSession(await this.verifyForAudience(command, audience));
+  }
+
+  /** Checks the password and the portal without opening a session yet. */
+  async verifyForAudience(command: LoginCommand, audience: LoginAudience): Promise<AuthUser> {
     const user = await this.identityProvider.verifyCredentials(
       command.email,
       command.password,
     );
-
     this.assertAudience(user, audience);
-
-    return this.issueSession(user);
+    return user;
   }
 
   /**
@@ -75,7 +78,7 @@ export class LoginUseCase {
     }
   }
 
-  private async issueSession(user: AuthUser) {
+  async issueSession(user: AuthUser) {
     const accessToken = this.tokenService.issueAccessToken(user);
     const refreshToken = this.tokenService.issueRefreshToken(user);
 

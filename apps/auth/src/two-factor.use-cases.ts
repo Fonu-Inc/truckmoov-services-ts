@@ -192,7 +192,7 @@ export class GetTwoFactorStatusUseCase {
  * Groups of five, so a person reading one aloud or typing it from paper does
  * not lose their place.
  */
-function mintRecoveryCode(): string {
+export function mintRecoveryCode(): string {
   const raw = randomBytes(8).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   return `${raw.slice(0, 5)}-${raw.slice(5, 10)}`;
 }

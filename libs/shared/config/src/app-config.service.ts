@@ -427,6 +427,14 @@ export class AppConfigService {
     return this.config.get<string>("PERMISSION_ENFORCEMENT", "log") === "enforce";
   }
 
+  /**
+   * Admin sign-in needs a second factor. Off until the admin portal has the
+   * code step, since switching it on without one locks every admin out.
+   */
+  get adminTwoFactorRequired(): boolean {
+    return this.config.get<string>("ADMIN_TWO_FACTOR", "optional") === "required";
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),

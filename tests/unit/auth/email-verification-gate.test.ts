@@ -67,6 +67,9 @@ describe('refresh refuses an unverified address', () => {
         getByRefreshToken: vi.fn(async () => ({ id: 'user-1', toPrimitives: () => ({}) })),
         deleteByRefreshToken,
         save: vi.fn(async () => {}),
+        rotate: vi.fn(async () => {}),
+        isSpent: vi.fn(async () => false),
+        revokeFamily: vi.fn(async () => {}),
       } as never,
       {
         issueAccessToken: () => 'access',
