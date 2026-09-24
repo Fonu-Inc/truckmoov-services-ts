@@ -38,10 +38,26 @@ type Row = {
   kyc_status: string | null;
 };
 
+/**
+ * A name the tenant sent wins; otherwise the one the tenants list shows, from
+ * onboarding then branding. Fleet has no tenant names, so it stores none.
+ */
+const ORGANISATION_NAME = `coalesce(
+  nullif(trim(r.organisation_name), ''),
+  (select nullif(trim(o.company->>'companyName'), '')
+     from system_tenant_onboardings o
+    where o.tenant_id = r.tenant_id
+    order by o.created_at desc
+    limit 1),
+  (select nullif(trim(s.branding->>'organizationName'), '')
+     from auth_organization_settings s
+    where s.tenant_id = r.tenant_id)
+)`;
+
 const SELECT_COLUMNS = `
   r.id,
   r.tenant_id,
-  r.organisation_name,
+  ${ORGANISATION_NAME} as organisation_name,
   r.requesting_email,
   r.manufacturer,
   r.model,
@@ -107,7 +123,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     if (filters?.search?.trim()) {
       const term = `%${filters.search.trim().toLowerCase()}%`;
       conditions.push(
-        `(lower(coalesce(r.organisation_name, '')) like ?
+        `(lower(coalesce(${ORGANISATION_NAME}, '')) like ?
           or lower(coalesce(r.requesting_email, '')) like ?
           or lower(r.manufacturer) like ?
           or lower(coalesce(r.model, '')) like ?

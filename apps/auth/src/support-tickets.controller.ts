@@ -153,7 +153,7 @@ export class SupportTicketsController extends BaseAuthController {
   @ApiOperation({
     summary: 'Preview the context a ticket would attach',
     description:
-      'What the wizard shows under "Context auto-attached". Read from the record itself, so the preview is the same snapshot the ticket will carry.',
+      'What the wizard shows under "Context auto-attached". Read from the record itself, so the preview is the same snapshot the ticket will carry. A device may be named by its id or IMEI, a vehicle by its id or registration (no spaces); the snapshot carries the resolved deviceId or vehicleId.',
   })
   @ApiOkResponse({ description: 'The record snapshot, or null when it cannot be read' })
   async context(

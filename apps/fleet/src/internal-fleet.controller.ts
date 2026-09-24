@@ -63,6 +63,8 @@ const MAX_DEVICE_IDS = 100;
 @OnResource("tenant.vehicles")
 @SkipTenantScope()
 @Controller("internal")
+// Cross-tenant: callers are services and platform actors, gated by portal and role.
+@SkipTenantScope()
 @UseGuards(RolesGuard)
 export class InternalFleetController extends BaseFleetController {
   constructor(
@@ -332,35 +334,42 @@ export class InternalFleetController extends BaseFleetController {
     resource: string,
     recordId: string,
   ): Promise<Record<string, unknown> | null> {
-    if (resource === "device") {
-      const device = await this.devices.findById(recordId, tenantId);
-      if (!device) return null;
-      return {
-        imei: device.imei,
-        manufacturer: device.manufacturer,
-        model: device.model,
-        status: device.status,
-        lifecycleStatus: device.lifecycleStatus,
-        // Derived from the last fix rather than stored: a device is offline
-        // because nothing has arrived, which no column records on its own.
-        healthStatus: deviceHealth(device.lastSeen),
-        lastSeen: device.lastSeen,
-      };
-    }
-
-    if (resource === "vehicle") {
-      const vehicle = await this.vehicles.findById(recordId, tenantId);
-      if (!vehicle) return null;
-      const primitives = vehicle as unknown as Record<string, unknown>;
-      return {
-        registrationNumber: primitives["registrationNumber"] ?? null,
-        make: primitives["make"] ?? null,
-        model: primitives["model"] ?? null,
-        status: primitives["status"] ?? null,
-      };
-    }
-
+    if (resource === "device") return this.deviceSnapshot(tenantId, recordId);
+    if (resource === "vehicle") return this.vehicleSnapshot(tenantId, recordId);
     return null;
+  }
+
+  /** The wizard may know a device only by its IMEI, so either identifies it. */
+  private async deviceSnapshot(tenantId: string, recordId: string): Promise<Record<string, unknown> | null> {
+    const device = (await this.devices.findById(recordId, tenantId)) ?? (await this.devices.findByImei(recordId, tenantId));
+    if (!device) return null;
+    return {
+      deviceId: device.id,
+      imei: device.imei,
+      manufacturer: device.manufacturer,
+      model: device.model,
+      status: device.status,
+      lifecycleStatus: device.lifecycleStatus,
+      // Derived from the last fix rather than stored: a device is offline
+      // because nothing has arrived, which no column records on its own.
+      healthStatus: deviceHealth(device.lastSeen),
+      lastSeen: device.lastSeen,
+    };
+  }
+
+  /** Likewise a vehicle by its registration. */
+  private async vehicleSnapshot(tenantId: string, recordId: string): Promise<Record<string, unknown> | null> {
+    const vehicle = (await this.vehicles.findById(recordId, tenantId))
+      ?? (await this.vehicles.findByPlateNumber(recordId, tenantId));
+    if (!vehicle) return null;
+    const primitives = vehicle as unknown as Record<string, unknown>;
+    return {
+      vehicleId: vehicle.id,
+      registrationNumber: primitives["registrationNumber"] ?? null,
+      make: primitives["make"] ?? null,
+      model: primitives["model"] ?? null,
+      status: primitives["status"] ?? null,
+    };
   }
 }
 

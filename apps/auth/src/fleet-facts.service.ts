@@ -31,8 +31,12 @@ const SAFE_PATH_ID = /^[A-Za-z0-9_-]{1,64}$/;
  */
 const ROUTE_FALLBACK = /^Cannot (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /i;
 
+function isRouteFallback(raw: string | undefined): boolean {
+  return !raw || ROUTE_FALLBACK.test(raw) || raw.includes('/fleet/internal');
+}
+
 function safeDownstreamMessage(raw: string | undefined, fallback: string): string {
-  if (!raw || ROUTE_FALLBACK.test(raw) || raw.includes('/fleet/internal')) return fallback;
+  if (!raw || isRouteFallback(raw)) return fallback;
   return raw;
 }
 
@@ -116,14 +120,7 @@ export class FleetFactsService {
       );
 
       if (response.status < 200 || response.status >= 300) {
-        return {
-          ok: false,
-          status: response.status,
-          message: safeDownstreamMessage(
-            response.data?.message,
-            'The device service refused the change',
-          ),
-        };
+        return this.suspensionRefusal(deviceId, action, response.status, response.data?.message);
       }
       return { ok: true, device: response.data?.data ?? {} };
     } catch (error) {
@@ -132,6 +129,23 @@ export class FleetFactsService {
       );
       return { ok: false, status: 503, message: 'The device service could not be reached' };
     }
+  }
+
+  /**
+   * A 404 naming no device is fleet missing the route, or refusing the caller
+   * as one: the device service is at fault, not the device.
+   */
+  private suspensionRefusal(
+    deviceId: string,
+    action: 'suspend' | 'reinstate',
+    status: number,
+    raw: string | undefined,
+  ): { ok: false; status: number; message: string } {
+    if (status === 404 && isRouteFallback(raw)) {
+      this.logger.warn(`fleet_device_${action}_route_missing:${deviceId}`);
+      return { ok: false, status: 503, message: 'The device service could not complete the change' };
+    }
+    return { ok: false, status, message: safeDownstreamMessage(raw, 'The device service refused the change') };
   }
 
   /**

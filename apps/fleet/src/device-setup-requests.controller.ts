@@ -67,6 +67,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     const result = await this.runFleetUseCase(() =>
       this.createDeviceSetupRequestUseCase.execute({
         ...payload,
+        ...requester(payload, req),
         tenantId: this.tenantIdFromRequest(req),
       }),
     ) as unknown as DeviceSetupRequestResponse;
@@ -157,4 +158,13 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     });
     return result;
   }
+}
+
+/** The signed-in person asking; a service acting for a tenant is nobody's email. */
+function requester(payload: CreateDeviceSetupRequestDto, req: FleetRequestContext) {
+  const person = req.user?.service ? undefined : req.user;
+  return {
+    requestedByUserId: person?.userId ?? null,
+    requestingEmail: payload.requestingEmail?.trim() || person?.email || null,
+  };
 }

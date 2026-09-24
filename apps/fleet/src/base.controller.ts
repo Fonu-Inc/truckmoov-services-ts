@@ -1,6 +1,8 @@
 import { BadRequestException, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
+import { clientIpFrom, type IncomingLike } from "@shared/http";
 import { Role } from "@shared/rbac";
 import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
@@ -11,12 +13,17 @@ import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 
 export type FleetRequestContext = {
-  user?: { tenantId?: string; userId?: string; role?: string; email?: string };
+  user?: { tenantId?: string; userId?: string; role?: string; email?: string; service?: string };
   ip?: string;
+  headers?: IncomingLike["headers"];
+  socket?: IncomingLike["socket"];
 };
 
 export abstract class BaseFleetController {
   protected readonly logger = new Logger(this.constructor.name);
+
+  // Property-injected so no subclass constructor has to pass it along.
+  @Inject(AppConfigService) protected readonly appConfig?: AppConfigService;
 
   constructor(
     protected readonly auditLog: AuditLogService,
@@ -76,7 +83,8 @@ export abstract class BaseFleetController {
       const actorId = req.user?.userId ?? "system";
       const actorRole = req.user?.role ?? "system";
       const occurredAt = activity.occurredAt ?? new Date().toISOString();
-      const metadata = { ...(activity.metadata ?? {}) };
+      const ipAddress = this.clientIp(req);
+      const metadata = { ...(activity.metadata ?? {}), ...(ipAddress ? { ipAddress } : {}) };
 
       await this.auditLog.record({
         tenantId,
@@ -109,6 +117,12 @@ export abstract class BaseFleetController {
         `fleet_activity_log_failed:${activity.action}:${(error as Error).message}`,
       );
     }
+  }
+
+  private clientIp(req: FleetRequestContext): string | null {
+    if (!this.appConfig || !req.headers) return null;
+    const { trustedProxies, clientIpHeader } = this.appConfig.audit;
+    return clientIpFrom({ headers: req.headers, socket: req.socket }, { trustedProxies, header: clientIpHeader });
   }
 
   protected parseOptionalBoolean(

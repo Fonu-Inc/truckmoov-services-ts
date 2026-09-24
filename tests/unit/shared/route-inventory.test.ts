@@ -46,8 +46,10 @@ function permissionProblems(module: unknown): string[] {
     for (const name of Object.getOwnPropertyNames(controller.prototype)) {
       const handler = controller.prototype[name];
       if (typeof handler !== "function" || Reflect.getMetadata(METHOD_METADATA, handler) === undefined) continue;
-      const audiences = meta<string[]>(PORTALS_KEY, handler, controller) ?? [];
-      const isPublic = audiences.includes("public") || meta<boolean>(PUBLIC_ROUTE_KEY, handler, controller) === true;
+      const declared = meta<string[]>(PORTALS_KEY, handler, controller);
+      const audiences = declared ?? [];
+      // Declared portals win over @Public(), as in PortalGuard.
+      const isPublic = audiences.includes("public") || (!declared && meta<boolean>(PUBLIC_ROUTE_KEY, handler, controller) === true);
       if (isPublic || audiences.every((a) => a === "service")) continue;
       const where = `${controller.name}.${name}`;
       const requirement = meta<Requirement>(REQUIREMENT_KEY, handler, controller);
