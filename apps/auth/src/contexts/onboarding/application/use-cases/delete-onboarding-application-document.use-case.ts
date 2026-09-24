@@ -6,6 +6,7 @@ import {
 } from '@auth/onboarding/domain/identity-claim.repository';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
+  SYSTEM_GENERATED_DOCUMENT_TYPES,
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
@@ -47,6 +48,9 @@ export class DeleteOnboardingApplicationDocumentUseCase {
 
     const document = await this.applications.findDocumentById(input.documentId);
     if (!document || document.applicationId !== application.id) {
+      throw new ApplicationNotFoundError();
+    }
+    if (SYSTEM_GENERATED_DOCUMENT_TYPES.includes(document.documentType)) {
       throw new ApplicationNotFoundError();
     }
 

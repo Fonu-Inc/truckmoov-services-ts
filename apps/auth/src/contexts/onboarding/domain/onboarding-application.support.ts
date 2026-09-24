@@ -4,6 +4,7 @@ import {
   REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE,
   type OnboardingApplicantType,
   type OnboardingDocumentType,
+  type OnboardingVerificationChannel,
   type StoredOnboardingApplication,
   type StoredOnboardingApplicationDocument,
   type StoredOnboardingApplicationVehicle,
@@ -106,6 +107,35 @@ export function assertApplicationEditable(
   }
 }
 
+/**
+ * The billing email is set and verified on the Payment step, after approval,
+ * so it stays open until the stage moves past payment.
+ */
+export function isBillingEmailChangeable(
+  application: StoredOnboardingApplication,
+): boolean {
+  return isApplicationEditable(application) || application.stage === 'payment';
+}
+
+export function assertBillingEmailChangeable(
+  application: StoredOnboardingApplication,
+): void {
+  if (!isBillingEmailChangeable(application)) {
+    throw new ApplicationNotEditableError(application.status);
+  }
+}
+
+export function assertVerificationChannelOpen(
+  application: StoredOnboardingApplication,
+  channel: OnboardingVerificationChannel,
+): void {
+  if (channel === 'billing_email') {
+    assertBillingEmailChangeable(application);
+    return;
+  }
+  assertApplicationEditable(application);
+}
+
 export function requiredDocumentTypes(
   applicantType: OnboardingApplicantType,
 ): readonly OnboardingDocumentType[] {
@@ -189,6 +219,7 @@ export function toApplicationView(
     reference: application.reference,
     applicantType: application.applicantType,
     status: application.status,
+    stage: application.stage,
     organization: {
       organizationName: application.organizationName,
       businessEmail: application.businessEmail,

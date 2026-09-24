@@ -80,6 +80,8 @@ export class GetApplicationOrderUseCase {
       message: 'success',
       data: {
         order: summary,
+        stage: application.stage,
+        payable: application.stage === 'payment' && payment?.status !== 'paid',
         billingEmail: application.billingEmail,
         billingEmailVerified: application.billingEmailVerifiedAt !== null,
         payment: payment

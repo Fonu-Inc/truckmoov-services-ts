@@ -219,6 +219,7 @@ export class GetOnboardingApplicationStatusUseCase {
       data: {
         reference: application.reference,
         applicationStatus: application.status,
+        stage: application.stage,
         decisionReason: application.decisionReason,
         submittedAt: application.submittedAt?.toISOString() ?? null,
         // Mirrors the timeline on the submitted screen.

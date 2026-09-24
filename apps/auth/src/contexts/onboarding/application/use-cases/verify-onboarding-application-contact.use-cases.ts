@@ -7,7 +7,7 @@ import {
   type StoredOnboardingApplication,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
-  assertApplicationEditable,
+  assertVerificationChannelOpen,
   generateVerificationCode,
   hashApplicationToken,
   verificationCodeMatches,
@@ -26,7 +26,7 @@ import {
 } from '@auth/onboarding/domain/ports/onboarding-verification-notifier.port';
 
 export class VerificationResendTooSoonError extends Error {
-  constructor(secondsRemaining: number) {
+  constructor(readonly secondsRemaining: number) {
     super(`Wait ${secondsRemaining} seconds before requesting another code`);
     this.name = 'VerificationResendTooSoonError';
   }
@@ -67,7 +67,7 @@ export class SendOnboardingVerificationCodeUseCase {
       input.applicationId,
       input.applicationToken,
     );
-    assertApplicationEditable(application);
+    assertVerificationChannelOpen(application, input.channel);
     await this.assertSendAllowed(application.id, input.channel);
 
     const destination = destinationFor(application, input.channel);
@@ -113,6 +113,7 @@ export class SendOnboardingVerificationCodeUseCase {
         channel: input.channel,
         destination: maskDestination(destination, input.channel),
         expiresInSeconds: VERIFICATION_CODE_TTL_MS / 1000,
+        resendAfterSeconds: VERIFICATION_RESEND_COOLDOWN_MS / 1000,
       },
     };
   }
@@ -164,7 +165,7 @@ export class ConfirmOnboardingVerificationCodeUseCase {
       input.applicationId,
       input.applicationToken,
     );
-    assertApplicationEditable(application);
+    assertVerificationChannelOpen(application, input.channel);
 
     const code = validateVerificationCode(input.code);
     const stored = await this.applications.findActiveVerificationCode(

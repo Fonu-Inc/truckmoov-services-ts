@@ -3,6 +3,7 @@ import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
+import { assertBillingEmailChangeable } from '@auth/onboarding/domain/onboarding-application.support';
 import { validateBusinessEmail } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
@@ -24,6 +25,7 @@ export class SetBillingEmailUseCase {
       input.applicationId,
       input.applicationToken,
     );
+    assertBillingEmailChangeable(application);
 
     const billingEmail = validateBusinessEmail(input.billingEmail);
     const unchanged = billingEmail === application.billingEmail;

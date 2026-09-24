@@ -143,7 +143,11 @@ describe('Onboarding applications HTTP contract', () => {
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('auth');
     app.useGlobalPipes(
-      new ValidationPipe({ transform: true, whitelist: true }),
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
     );
 
     // Codes never leave the transports in readable form anywhere else: they are
@@ -468,6 +472,8 @@ describe('Onboarding applications HTTP contract', () => {
       .post(`/auth/onboarding/applications/${id}/verify/email/send`)
       .set('x-application-token', token);
     expect(second.status).toBe(429);
+    expect(second.body.retryAfterSeconds).toBeGreaterThan(0);
+    expect(first.body.data.resendAfterSeconds).toBe(60);
   });
 
   it('clears email verification when the email is changed', async () => {

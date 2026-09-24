@@ -21,6 +21,14 @@ export const ONBOARDING_DOCUMENT_TYPES = [
 export type OnboardingDocumentType =
   (typeof ONBOARDING_DOCUMENT_TYPES)[number];
 
+export const SYSTEM_GENERATED_DOCUMENT_TYPES: readonly OnboardingDocumentType[] =
+  ['signed_indemnity_form'];
+
+export const UPLOADABLE_DOCUMENT_TYPES: readonly OnboardingDocumentType[] =
+  ONBOARDING_DOCUMENT_TYPES.filter(
+    (type) => !SYSTEM_GENERATED_DOCUMENT_TYPES.includes(type),
+  );
+
 // The two applicant types submit different paperwork. One map keyed by type is
 // what stops the submit gate drifting from the upload screen.
 export const REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE: Record<

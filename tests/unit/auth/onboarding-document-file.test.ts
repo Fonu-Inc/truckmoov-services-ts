@@ -94,6 +94,12 @@ describe("Document type", () => {
     expect(validateDocumentType("proof_of_ownership")).toBe("proof_of_ownership");
   });
 
+  it("rejects the signed indemnity form, which is generated rather than uploaded", () => {
+    expect(() => validateDocumentType("signed_indemnity_form")).toThrow(
+      InvalidDocumentFileError,
+    );
+  });
+
   it("rejects retired and unknown document types", () => {
     for (const input of ["form_c02_c07", "agreement_form", "letter_of_authorization", "other", "", null]) {
       expect(() => validateDocumentType(input)).toThrow(InvalidDocumentFileError);

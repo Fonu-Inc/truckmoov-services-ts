@@ -14,6 +14,7 @@ import {
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
+  type OnboardingApplicantType,
   type OnboardingDocumentType,
   type StoredOnboardingApplicationDocument,
 } from '@auth/onboarding/domain/onboarding-application.repository';
@@ -21,6 +22,7 @@ import {
   applicationDocumentKey,
   assertApplicationEditable,
   isPerVehicleDocument,
+  requiredDocumentTypes,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import { enforceIdentityClaims } from './support/enforce-identity-claims';
@@ -66,6 +68,7 @@ export class UploadOnboardingApplicationDocumentUseCase {
     assertApplicationEditable(application);
 
     const documentType = validateDocumentType(input.documentType);
+    assertRequiredForApplicant(documentType, application.applicantType);
     const vehicleId = await this.resolveVehicle(
       application.id,
       documentType,
@@ -214,4 +217,15 @@ export class UploadOnboardingApplicationDocumentUseCase {
       );
     }
   }
+}
+
+function assertRequiredForApplicant(
+  documentType: OnboardingDocumentType,
+  applicantType: OnboardingApplicantType,
+): void {
+  if (requiredDocumentTypes(applicantType).includes(documentType)) return;
+  throw new OnboardingValidationError(
+    'document_type',
+    `${documentType} is not required for ${applicantType}`,
+  );
 }

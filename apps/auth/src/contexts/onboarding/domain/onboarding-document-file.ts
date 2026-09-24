@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
 import {
-  ONBOARDING_DOCUMENT_TYPES,
+  UPLOADABLE_DOCUMENT_TYPES,
   type OnboardingDocumentType,
 } from './onboarding-application.repository';
 import { MAX_DOCUMENT_BYTES } from './onboarding-application.support';
@@ -41,7 +41,7 @@ const MIME_TYPES: Record<SniffedFormat, string> = {
 
 export function validateDocumentType(value: unknown): OnboardingDocumentType {
   const candidate = String(value ?? '').trim();
-  if (!(ONBOARDING_DOCUMENT_TYPES as readonly string[]).includes(candidate)) {
+  if (!(UPLOADABLE_DOCUMENT_TYPES as readonly string[]).includes(candidate)) {
     throw new InvalidDocumentFileError('Invalid or missing document_type');
   }
   return candidate as OnboardingDocumentType;
