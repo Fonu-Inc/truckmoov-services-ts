@@ -73,9 +73,21 @@ export const SUPPORT_TICKET_CHANNELS = [
 ] as const;
 export type SupportTicketChannel = (typeof SUPPORT_TICKET_CHANNELS)[number];
 
+export const SUPPORT_TICKET_REPORTER_TYPES = ['tenant_user', 'installer'] as const;
+export type SupportTicketReporterType = (typeof SUPPORT_TICKET_REPORTER_TYPES)[number];
+
 export type StoredSupportTicket = {
   id: string;
+  ticketNumber: number;
+  /** 'system' for an installer's ticket; the job's customer is relatedTenantId. */
   tenantId: string;
+  reporterType: SupportTicketReporterType;
+  /** The installer id for an installer's ticket. */
+  reporterId: string | null;
+  relatedTenantId: string | null;
+  relatedOrderId: string | null;
+  issueCode: string | null;
+  callbackPhone: string | null;
   category: string;
   subject: string;
   description: string;
@@ -104,7 +116,35 @@ export type SupportTicketFilters = {
   category?: string;
   priority?: string;
   search?: string;
+  reporterType?: SupportTicketReporterType;
 };
+
+export type TicketReporter = { type: SupportTicketReporterType; id: string };
+export type TicketPageRequest = { page: number; limit: number };
+
+/** The fields a tenant-raised ticket carries for the reporter columns. */
+export const TENANT_USER_REPORTER = {
+  reporterType: 'tenant_user',
+  reporterId: null,
+  relatedTenantId: null,
+  relatedOrderId: null,
+  issueCode: null,
+  callbackPhone: null,
+} as const;
+
+export function ticketDisplayId(ticketNumber: number): string {
+  return `#tkt-${ticketNumber}`;
+}
+
+/** The ticket number a search names, from "#tkt-1000", "tkt-1000" or "1000". */
+export function searchedTicketNumber(search: string): number | null {
+  const digits = search.trim().replace(/^#?tkt-/i, '');
+  return /^\d{1,15}$/.test(digits) ? Number(digits) : null;
+}
+
+export function withDisplayId<T extends { ticketNumber: number }>(ticket: T): T & { displayId: string } {
+  return { ...ticket, displayId: ticketDisplayId(ticket.ticketNumber) };
+}
 
 export interface SupportTicketRepository {
   findAll(filters?: SupportTicketFilters): Promise<StoredSupportTicket[]>;
@@ -117,6 +157,15 @@ export interface SupportTicketRepository {
   countByCategory(): Promise<Record<string, number>>;
   countResolvedToday(): Promise<number>;
   countByTenant(): Promise<Array<{ tenantId: string; count: number }>>;
+  nextTicketNumber(): Promise<number>;
+  findForReporter(
+    reporter: TicketReporter,
+    filters: SupportTicketFilters,
+    page: TicketPageRequest,
+  ): Promise<{ items: StoredSupportTicket[]; total: number }>;
+  countByStatusForReporter(reporter: TicketReporter): Promise<Record<string, number>>;
+  /** Tickets about these installation orders, newest first; only `contextType` ones when given. */
+  findByRelatedOrders(orderIds: string[], contextType?: string): Promise<StoredSupportTicket[]>;
 }
 
 export const SUPPORT_TICKET_REPOSITORY = Symbol('SUPPORT_TICKET_REPOSITORY');

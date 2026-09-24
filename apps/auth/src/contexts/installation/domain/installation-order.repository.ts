@@ -25,11 +25,18 @@ export type StoredInstallationOrder = {
   assignedAt: Date | null;
   acceptedAt: Date | null;
   startedAt: Date | null;
+  issueReportedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+/** What the admin may change on a job. */
+export type InstallationOrderDetails = Pick<
+  StoredInstallationOrder,
+  'scheduledDate' | 'timeSlot' | 'addressLine' | 'city' | 'state' | 'siteContactName' | 'siteContactPhone'
+>;
 
 /**
  * Which vehicle each paid-for device is fitted to.
@@ -103,6 +110,8 @@ export interface InstallationOrderRepository {
    * so two concurrent moves cannot both apply. False when the other one won.
    */
   transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean>;
+  /** Writes the details, status and step stamps only while the order is still `from`. */
+  saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean>;
   saveInstallerNotes(
     orderId: string,
     notes: string | null,

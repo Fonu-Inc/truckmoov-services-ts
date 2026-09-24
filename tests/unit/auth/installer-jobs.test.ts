@@ -37,6 +37,7 @@ import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboar
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
 import { InMemoryUserRepository } from "../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-user.repository";
 import { InMemorySimRepository } from "../../../apps/auth/src/in-memory-sim.repository";
+import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
 import { AccessResolver } from "../../../apps/auth/src/access-resolver";
 import { InMemoryTenantRoleRepository } from "../../../apps/auth/src/in-memory-tenant-role.repository";
 import { InMemoryPermissionRemovalRepository } from "../../../apps/auth/src/in-memory-permission-removal.repository";
@@ -97,6 +98,7 @@ function order(id: string, overrides: Partial<StoredInstallationOrder> = {}): St
     assignedAt: null,
     acceptedAt: null,
     startedAt: null,
+    issueReportedAt: null,
     completedAt: null,
     cancelledAt: null,
     createdAt: NOW,
@@ -162,7 +164,8 @@ async function harness() {
     ),
   };
   const tokens = { resolveAccessToken: (token: string) => ({ id: token, email: `${token}@co.com`, role: "INSTALLER", tenantId: "system" }) };
-  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, sims);
+  const tickets = new InMemorySupportTicketRepository();
+  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, sims, tickets);
 
   async function job(id: string, name: string, overrides: Partial<StoredInstallationOrder>, fleetDeviceId: string | null = null) {
     await applications.save(application(id, name));
@@ -177,7 +180,7 @@ async function harness() {
     ]);
   }
 
-  return { installers, orders, applications, reader, sims, fleet, lookup, jobs, job };
+  return { installers, orders, applications, reader, sims, fleet, lookup, jobs, job, tickets };
 }
 
 describe("installation job statuses", () => {
@@ -573,7 +576,7 @@ describe("admins binding a unit's device", () => {
     admin = new ManageInstallationOrdersUseCases(
       h.orders, h.reader, h.installers, h.lookup,
       { resolveAccessToken: (t: string) => (["platform", "gov"].includes(t) ? { id: t, email: `${t}@co.com`, role: t === "platform" ? "PLATFORM_ADMIN" : "GOVERNANCE_OFFICER" } : null) } as never,
-      users, access, activity as never,
+      users, access, activity as never, h.tickets,
     );
     await h.installers.save(installer("ada"));
     await h.job("1", "Lagos Express Logistics", { installerId: "ada", status: "assigned" });

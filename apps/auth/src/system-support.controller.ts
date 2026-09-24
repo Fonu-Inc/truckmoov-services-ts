@@ -79,6 +79,15 @@ import {
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { InvalidTicketStatusError, UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
 import { Portals, OnResource } from '@shared/access';
+import { SUPPORT_TICKET_REPORTER_TYPES, type SupportTicketReporterType } from './support-ticket.repository';
+
+function reporterTypeFilter(value?: string): SupportTicketReporterType | undefined {
+  if (!value) return undefined;
+  if (!(SUPPORT_TICKET_REPORTER_TYPES as readonly string[]).includes(value)) {
+    throw new BadRequestException(`reporterType must be one of: ${SUPPORT_TICKET_REPORTER_TYPES.join(', ')}`);
+  }
+  return value as SupportTicketReporterType;
+}
 
 @ApiTags('System Support')
 @Portals('admin')
@@ -420,18 +429,21 @@ export class SystemSupportController extends BaseAuthController {
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'category', required: false, enum: TICKET_CATEGORIES })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'reporterType', required: false, enum: SUPPORT_TICKET_REPORTER_TYPES, description: 'installer is the installation desk' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Not a system actor' })
   async listSystemSupportTickets(
     @Query('status') status?: string,
     @Query('category') category?: string,
     @Query('search') search?: string,
+    @Query('reporterType') reporterType?: string,
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    const reporter = reporterTypeFilter(reporterType);
     try {
-      return await this.listSystemSupportTicketsUseCase.execute(accessToken, { status, category, search });
+      return await this.listSystemSupportTicketsUseCase.execute(accessToken, { status, category, search, reporterType: reporter });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

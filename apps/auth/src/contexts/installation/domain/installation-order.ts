@@ -63,6 +63,18 @@ export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
 /** Where Start Installation may begin. Resuming after an issue report is the admin's call, not a start. */
 export const START_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled', 'overdue'];
 
+/** Where an installer may report an issue; the job waits in issue_reported for the admin. */
+export const ISSUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
+  'assigned',
+  'accepted',
+  'scheduled',
+  'overdue',
+  'in_progress',
+];
+
+/** Where the admin may no longer change the date, slot, address or site contact. */
+export const DETAILS_LOCKED_STATUSES: readonly InstallationOrderStatus[] = ['in_progress', 'completed', 'cancelled'];
+
 export const MAX_INSTALLER_NOTES_LENGTH = 2000;
 
 export const OPEN_JOB_STATUSES: readonly InstallationOrderStatus[] = INSTALLATION_ORDER_STATUSES.filter(
@@ -81,9 +93,12 @@ type Transitionable = {
   preExceptionStatus: InstallationOrderStatus | null;
 };
 
-export function canTransition(order: Transitionable, next: InstallationOrderStatus): boolean {
-  if (INSTALLATION_ORDER_TRANSITIONS[order.status].includes(next)) return true;
+function isResuming(order: Transitionable, next: InstallationOrderStatus): boolean {
   return order.status === 'issue_reported' && order.preExceptionStatus === next;
+}
+
+export function canTransition(order: Transitionable, next: InstallationOrderStatus): boolean {
+  return INSTALLATION_ORDER_TRANSITIONS[order.status].includes(next) || isResuming(order, next);
 }
 
 export function assertTransition(order: Transitionable, next: InstallationOrderStatus): void {
@@ -96,6 +111,7 @@ type Stamped = Transitionable & {
   assignedAt: Date | null;
   acceptedAt: Date | null;
   startedAt: Date | null;
+  issueReportedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
   updatedAt: Date;
@@ -105,18 +121,19 @@ const STAMPS: Partial<Record<InstallationOrderStatus, keyof Stamped>> = {
   assigned: 'assignedAt',
   accepted: 'acceptedAt',
   in_progress: 'startedAt',
+  issue_reported: 'issueReportedAt',
   completed: 'completedAt',
   cancelled: 'cancelledAt',
 };
 
-/** The order in its next status, with the moment it got there recorded. */
+/** The order in its next status, with the moment it got there recorded. Resuming keeps the original stamp. */
 export function transitionOrder<T extends Stamped>(
   order: T,
   next: InstallationOrderStatus,
   now: Date,
 ): T {
   assertTransition(order, next);
-  const stamp = STAMPS[next];
+  const stamp = isResuming(order, next) ? undefined : STAMPS[next];
   return {
     ...order,
     ...(stamp ? { [stamp]: now } : {}),

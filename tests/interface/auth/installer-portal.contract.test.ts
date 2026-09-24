@@ -124,6 +124,58 @@ describe('Installer portal over HTTP (auth)', () => {
     expect(staff.body.data).toMatchObject({ items: [], total: 0 });
   });
 
+  it('raises and reads its own support ticket, which the installation desk sees', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const staff = { Authorization: `Bearer ${staffToken}` };
+    const raised = await http().post('/auth/installer/support/tickets').set(auth).send({
+      category: 'configuration_setup',
+      issueCode: 'commands_rejected',
+      priority: 'medium',
+      description: 'Commands time out',
+      callbackPhone: '+234 803 221 4478',
+    });
+    const refused = await http().post('/auth/installer/support/tickets').set(auth).send({
+      category: 'configuration_setup', priority: 'medium', description: 'x', callbackPhone: '08032214478',
+    });
+    const list = await http().get('/auth/installer/support/tickets?search=commands').set(auth);
+    const missing = await http().get('/auth/installer/support/tickets/nope').set(auth);
+    const options = await http().get('/auth/installer/options').set(auth);
+    const desk = await http().get('/auth/system/support/tickets?reporterType=installer').set(staff);
+    const badFilter = await http().get('/auth/system/support/tickets?reporterType=robot').set(staff);
+
+    expect(raised.status).toBe(201);
+    expect(raised.body.data).toMatchObject({ title: 'Configuration & Setup — Configuration commands are rejected by the device', status: 'open' });
+    expect(raised.body.data.displayId).toMatch(/^#tkt-\d+$/);
+    expect(refused.status).toBe(400);
+    expect(list.body.data).toMatchObject({ counts: { total: 1, open: 1 }, total: 1 });
+    expect(missing.status).toBe(404);
+    expect(options.body.data.supportCategories).toHaveLength(6);
+    expect(options.body.data.jobIssueTypes).toHaveLength(6);
+    expect(options.body.data.fieldTips).toHaveLength(4);
+    expect(desk.status).toBe(200);
+    expect(desk.body.data.tickets).toEqual([
+      expect.objectContaining({ id: raised.body.data.id, reporterType: 'installer', reporterName: 'Tunde Installer' }),
+    ]);
+    expect(badFilter.status).toBe(400);
+  });
+
+  it('answers issue reports and admin exception work on a missing job with 404', async () => {
+    const issue = await http()
+      .post('/auth/installer/jobs/nope/issues')
+      .set('Authorization', `Bearer ${installerToken}`)
+      .field('issueType', 'job_scheduling')
+      .field('description', 'Customer away');
+    const staff = { Authorization: `Bearer ${staffToken}` };
+    const resolve = await http().post('/auth/system/installation-orders/nope/resolve-issue').set(staff).send({ outcome: 'resume' });
+    const badOutcome = await http().post('/auth/system/installation-orders/nope/resolve-issue').set(staff).send({ outcome: 'ignore' });
+    const edit = await http().patch('/auth/system/installation-orders/nope').set(staff).send({ city: 'Yaba' });
+
+    expect(issue.status).toBe(404);
+    expect(resolve.status).toBe(404);
+    expect(badOutcome.status).toBe(400);
+    expect(edit.status).toBe(404);
+  });
+
   it('cannot sign in once suspended', async () => {
     const suspended = await http().post(`/auth/system/installers/${installerId}/suspend`).set('Authorization', `Bearer ${staffToken}`);
     const login = await http().post('/auth/installer/login').send({ email, password });

@@ -32,11 +32,14 @@ import {
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
 import { lagosDayBounds, lagosToday, nextCalendarDay } from '@shared/devices';
+import { INSTALLATION_JOB_CONTEXT } from '@auth/installation/domain/installer-support';
 import { SIM_REPOSITORY, type SimRepository } from '../../../../sim.repository';
+import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../../../support-ticket.repository';
 import { currentInstaller, installerJob } from './support/current-installer';
 import { installerOptions } from './support/job-execution.views';
 import { MAX_PAGE_SIZE, pageOf } from './support/paging';
 import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
+import { installerSupportOptions, toJobIssueView } from './support/installer-ticket.views';
 
 export type JobScope = 'active' | 'history';
 
@@ -94,6 +97,7 @@ export class InstallerJobsUseCases {
     @Inject(ONBOARDING_APPLICATION_REPOSITORY) private readonly applications: OnboardingApplicationRepository,
     @Inject(JOB_DEVICE_LOOKUP) private readonly devices: JobDeviceLookup,
     @Inject(SIM_REPOSITORY) private readonly sims: SimRepository,
+    @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
   ) {}
 
   async dashboard(accessToken: string, now: Date = new Date()) {
@@ -152,12 +156,13 @@ export class InstallerJobsUseCases {
       accessToken,
       jobId,
     );
-    const [application, assignments, vehicles, ticks, evidence] = await Promise.all([
+    const [application, assignments, vehicles, ticks, evidence, issues] = await Promise.all([
       this.applications.findById(order.applicationId),
       this.orders.findAssignments(order.id),
       this.applications.findVehiclesByApplicationId(order.applicationId),
       this.orders.findTicks(order.id),
       this.orders.findEvidence(order.id),
+      this.tickets.findByRelatedOrders([order.id], INSTALLATION_JOB_CONTEXT),
     ]);
     const deviceIds = assignments.flatMap((a) => (a.fleetDeviceId ? [a.fleetDeviceId] : []));
     const [devices, sims] = await Promise.all([
@@ -165,7 +170,7 @@ export class InstallerJobsUseCases {
       this.sims.findByDeviceIds(deviceIds),
     ]);
 
-    return toJobDetail({
+    const detail = toJobDetail({
       order,
       application,
       assignments,
@@ -176,11 +181,12 @@ export class InstallerJobsUseCases {
       ticks,
       evidence,
     });
+    return { ...detail, issues: issues.map(toJobIssueView) };
   }
 
   async options(accessToken: string) {
     await this.installer(accessToken);
-    return installerOptions();
+    return { ...installerOptions(), ...installerSupportOptions() };
   }
 
   private installer(accessToken: string): Promise<StoredInstaller> {

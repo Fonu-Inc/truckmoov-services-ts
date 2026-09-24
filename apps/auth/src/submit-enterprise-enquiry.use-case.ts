@@ -10,6 +10,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import {
   SUPPORT_TICKET_REPOSITORY,
+  TENANT_USER_REPORTER,
   type SupportTicketRepository,
 } from './support-ticket.repository';
 
@@ -44,7 +45,9 @@ export class SubmitEnterpriseEnquiryUseCase {
     const now = new Date();
     const ticket = {
       id: randomUUID(),
+      ticketNumber: await this.ticketRepository.nextTicketNumber(),
       tenantId: actor.tenantId,
+      ...TENANT_USER_REPORTER,
       category: 'enterprise_enquiry',
       subject: `Enterprise plan enquiry from ${payload.companyName}`,
       description: [

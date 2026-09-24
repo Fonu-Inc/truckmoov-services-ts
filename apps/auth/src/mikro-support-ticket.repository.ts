@@ -1,19 +1,30 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { ObjectQuery } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import {
   getAuthOrm,
   SupportTicketRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type {
-  StoredSupportTicket,
-  SupportTicketFilters,
-  SupportTicketRepository,
+import {
+  searchedTicketNumber,
+  type StoredSupportTicket,
+  type SupportTicketFilters,
+  type SupportTicketRepository,
+  type TicketPageRequest,
+  type TicketReporter,
 } from './support-ticket.repository';
 
 function toStored(r: SupportTicketRecord): StoredSupportTicket {
   return {
     id: r.id,
+    ticketNumber: Number(r.ticketNumber),
     tenantId: r.tenantId,
+    reporterType: r.reporterType as StoredSupportTicket['reporterType'],
+    reporterId: r.reporterId ?? null,
+    relatedTenantId: r.relatedTenantId ?? null,
+    relatedOrderId: r.relatedOrderId ?? null,
+    issueCode: r.issueCode ?? null,
+    callbackPhone: r.callbackPhone ?? null,
     category: r.category,
     subject: r.subject,
     description: r.description,
@@ -38,32 +49,40 @@ function toStored(r: SupportTicketRecord): StoredSupportTicket {
   };
 }
 
+function likePattern(search: string): string {
+  return `%${search.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+function fieldFilters(filters: SupportTicketFilters): ObjectQuery<SupportTicketRecord> {
+  const where: Record<string, unknown> = {};
+  if (filters.status) where.status = filters.status;
+  if (filters.category) where.category = filters.category;
+  if (filters.priority) where.priority = filters.priority;
+  if (filters.reporterType) where.reporterType = filters.reporterType;
+  return where;
+}
+
+function adminSearch(search: string): ObjectQuery<SupportTicketRecord> {
+  const q = likePattern(search);
+  return {
+    $or: [{ subject: { $ilike: q } }, { description: { $ilike: q } }, { id: { $ilike: q } }, { tenantId: { $ilike: q } }],
+  };
+}
+
+function reporterSearch(search: string): ObjectQuery<SupportTicketRecord> {
+  const q = likePattern(search);
+  const number = searchedTicketNumber(search);
+  const byText: ObjectQuery<SupportTicketRecord>[] = [{ subject: { $ilike: q } }, { description: { $ilike: q } }];
+  return { $or: number === null ? byText : [...byText, { ticketNumber: number }] };
+}
+
 @Injectable()
 export class MikroSupportTicketRepository implements SupportTicketRepository {
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
-  async findAll(filters?: SupportTicketFilters): Promise<StoredSupportTicket[]> {
-    const orm = await getAuthOrm(this.config.db);
-    const em = orm.em.fork();
-
-    if (filters?.search) {
-      const q = `%${filters.search}%`;
-      const conditions: string[] = ['(subject ilike ? or description ilike ? or id ilike ? or tenant_id ilike ?)'];
-      const params: unknown[] = [q, q, q, q];
-      if (filters.status) { conditions.push('status = ?'); params.push(filters.status); }
-      if (filters.category) { conditions.push('category = ?'); params.push(filters.category); }
-      if (filters.priority) { conditions.push('priority = ?'); params.push(filters.priority); }
-      const rows = await orm.em.getConnection().execute<SupportTicketRecord[]>(
-        `select * from support_tickets where ${conditions.join(' and ')} order by created_at desc`,
-        params,
-      );
-      return rows.map((r) => toStored(r as unknown as SupportTicketRecord));
-    }
-
-    const where: Record<string, unknown> = {};
-    if (filters?.status) where.status = filters.status;
-    if (filters?.category) where.category = filters.category;
-    if (filters?.priority) where.priority = filters.priority;
+  async findAll(filters: SupportTicketFilters = {}): Promise<StoredSupportTicket[]> {
+    const em = await this.em();
+    const where = filters.search?.trim() ? { ...fieldFilters(filters), ...adminSearch(filters.search) } : fieldFilters(filters);
     const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc' } });
     return records.map(toStored);
   }
@@ -140,8 +159,62 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
   async countByTenant(): Promise<Array<{ tenantId: string; count: number }>> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ tenant_id: string; count: string }>>(
-      'select tenant_id, count(*)::int as count from support_tickets group by tenant_id order by count desc limit 8',
+      `select tenant_id, count(*)::int as count from support_tickets where reporter_type = 'tenant_user'
+       group by tenant_id order by count desc limit 8`,
     );
     return rows.map((r) => ({ tenantId: r.tenant_id, count: Number(r.count) }));
+  }
+
+  async nextTicketNumber(): Promise<number> {
+    const em = await this.em();
+    const [row] = await em
+      .getConnection()
+      .execute<Array<{ value: string }>>(`select nextval('support_ticket_number_seq') as value`);
+    return Number(row.value);
+  }
+
+  async findForReporter(
+    reporter: TicketReporter,
+    filters: SupportTicketFilters,
+    page: TicketPageRequest,
+  ): Promise<{ items: StoredSupportTicket[]; total: number }> {
+    const em = await this.em();
+    const where: ObjectQuery<SupportTicketRecord> = {
+      ...fieldFilters(filters),
+      reporterType: reporter.type,
+      reporterId: reporter.id,
+      ...(filters.search?.trim() ? reporterSearch(filters.search) : {}),
+    };
+    const [records, total] = await em.findAndCount(SupportTicketRecord, where, {
+      orderBy: { createdAt: 'desc', id: 'asc' },
+      limit: page.limit,
+      offset: (page.page - 1) * page.limit,
+    });
+    return { items: records.map(toStored), total };
+  }
+
+  async countByStatusForReporter(reporter: TicketReporter): Promise<Record<string, number>> {
+    const em = await this.em();
+    const rows = await em.getConnection().execute<Array<{ status: string; count: number }>>(
+      'select status, count(*)::int as count from support_tickets where reporter_type = ? and reporter_id = ? group by status',
+      [reporter.type, reporter.id],
+    );
+    return Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]));
+  }
+
+  async findByRelatedOrders(orderIds: string[], contextType?: string): Promise<StoredSupportTicket[]> {
+    if (orderIds.length === 0) return [];
+    const em = await this.em();
+    const where: ObjectQuery<SupportTicketRecord> = {
+      relatedOrderId: { $in: orderIds },
+      ...(contextType ? { contextType } : {}),
+    };
+    const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc', id: 'asc' } });
+    return records.map(toStored);
+  }
+
+  private async em() {
+    const orm = await getAuthOrm(this.config.db);
+    return orm.em.fork();
   }
 }

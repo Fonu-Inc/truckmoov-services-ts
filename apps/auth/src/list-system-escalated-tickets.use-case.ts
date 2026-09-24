@@ -3,7 +3,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import { SUPPORT_TICKET_REPOSITORY, withDisplayId, type SupportTicketRepository } from './support-ticket.repository';
 
 const ESCALATION_PARTIES = ['fleetpro_internal', 'fonu_connectivity', 'vendor_installer'] as const;
 
@@ -36,7 +36,7 @@ export class ListSystemEscalatedTicketsUseCase {
       party,
       count: partyTickets.length,
       tickets: partyTickets.map((t) => ({
-        ...t,
+        ...withDisplayId(t),
         escalatedAt: t.escalatedAt?.toISOString() ?? null,
         resolvedAt: t.resolvedAt?.toISOString() ?? null,
         closedAt: t.closedAt?.toISOString() ?? null,

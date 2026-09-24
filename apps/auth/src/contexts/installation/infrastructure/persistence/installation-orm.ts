@@ -74,6 +74,7 @@ export class InstallationOrderRecord {
   assignedAt!: Date | null;
   acceptedAt!: Date | null;
   startedAt!: Date | null;
+  issueReportedAt!: Date | null;
   completedAt!: Date | null;
   cancelledAt!: Date | null;
   createdAt!: Date;
@@ -104,6 +105,7 @@ export const InstallationOrderRecordSchema =
       assignedAt: { fieldName: 'assigned_at', type: 'datetime', nullable: true },
       acceptedAt: { fieldName: 'accepted_at', type: 'datetime', nullable: true },
       startedAt: { fieldName: 'started_at', type: 'datetime', nullable: true },
+      issueReportedAt: { fieldName: 'issue_reported_at', type: 'datetime', nullable: true },
       completedAt: { fieldName: 'completed_at', type: 'datetime', nullable: true },
       cancelledAt: { fieldName: 'cancelled_at', type: 'datetime', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },

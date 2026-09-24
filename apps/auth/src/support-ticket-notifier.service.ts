@@ -14,6 +14,10 @@ export class SupportTicketNotifierService {
 
   constructor(@Inject(EVENT_BUS) private readonly bus: EventBus) {}
 
+  async notifyRaised(tenantId: string, ticketId: string, data: Record<string, unknown> = {}): Promise<void> {
+    await this.publish(tenantId, 'support_ticket.raised', { ...data, ticket_id: ticketId });
+  }
+
   async notifyReplied(tenantId: string, ticketId: string): Promise<void> {
     await this.publish(tenantId, 'support_ticket.replied', { ticket_id: ticketId });
   }

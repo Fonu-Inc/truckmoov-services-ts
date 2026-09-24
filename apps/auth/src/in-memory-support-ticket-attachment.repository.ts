@@ -15,4 +15,9 @@ export class InMemorySupportTicketAttachmentRepository implements SupportTicketA
   async save(attachment: StoredSupportTicketAttachment): Promise<void> {
     this.store.push(attachment);
   }
+
+  async remove(id: string): Promise<void> {
+    const index = this.store.findIndex((a) => a.id === id);
+    if (index >= 0) this.store.splice(index, 1);
+  }
 }

@@ -2,7 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { UniqueConstraintViolationException, raw, type FilterQuery } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AppConfigService } from '@shared/config';
-import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
+import {
+  getAuthOrm,
+  SupportTicketAttachmentRecord,
+  SupportTicketRecord,
+} from '@auth/session/infrastructure/persistence/auth-orm';
 import {
   ACTIVE_JOB_STATUSES,
   buildOrderNumber,
@@ -32,6 +36,7 @@ import type {
   UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
 import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
+import type { JobIssueRecord, JobIssueRecorder } from '@auth/installation/domain/ports/job-issue-recorder.port';
 import { OnboardingApplicationRecord } from '@auth/onboarding/infrastructure/persistence/onboarding-orm';
 import {
   InstallationChecklistTickRecord,
@@ -103,6 +108,7 @@ function toStoredOrder(r: InstallationOrderRecord): StoredInstallationOrder {
     assignedAt: r.assignedAt ?? null,
     acceptedAt: r.acceptedAt ?? null,
     startedAt: r.startedAt ?? null,
+    issueReportedAt: r.issueReportedAt ?? null,
     completedAt: r.completedAt ?? null,
     cancelledAt: r.cancelledAt ?? null,
     createdAt: r.createdAt,
@@ -154,8 +160,13 @@ function toStoredEvidence(r: InstallationEvidenceRecord): StoredInstallationEvid
 
 /** Only what a status move changes, so a move never overwrites notes written alongside it. */
 function transitionFields(order: StoredInstallationOrder) {
-  const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt } = order;
-  return { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt };
+  const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, issueReportedAt, completedAt, cancelledAt, updatedAt } = order;
+  return { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, issueReportedAt, completedAt, cancelledAt, updatedAt };
+}
+
+function detailFields(order: StoredInstallationOrder) {
+  const { scheduledDate, timeSlot, addressLine, city, state, siteContactName, siteContactPhone } = order;
+  return { scheduledDate, timeSlot, addressLine, city, state, siteContactName, siteContactPhone };
 }
 
 abstract class MikroBase {
@@ -304,6 +315,16 @@ export class MikroInstallationOrderRepository
   async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
     const em = await this.em();
     const changed = await em.nativeUpdate(InstallationOrderRecord, { id: order.id, status: from }, transitionFields(order));
+    return changed > 0;
+  }
+
+  async saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+    const em = await this.em();
+    const changed = await em.nativeUpdate(
+      InstallationOrderRecord,
+      { id: order.id, status: from },
+      { ...detailFields(order), ...transitionFields(order) },
+    );
     return changed > 0;
   }
 
@@ -489,5 +510,25 @@ export class MikroInstallationCompletion extends MikroBase implements Installati
       [order.applicationId],
     );
     return applications.length > 0;
+  }
+}
+
+@Injectable()
+export class MikroJobIssueRecorder extends MikroBase implements JobIssueRecorder {
+  async record(issue: JobIssueRecord): Promise<boolean> {
+    const em = await this.em();
+    return em.transactional(async (tx) => {
+      const moved = await tx.nativeUpdate(
+        InstallationOrderRecord,
+        { id: issue.order.id, status: issue.from },
+        transitionFields(issue.order),
+      );
+      if (moved === 0) return false;
+      await tx.insert(SupportTicketRecord, issue.ticket as unknown as SupportTicketRecord);
+      if (issue.attachment) {
+        await tx.insert(SupportTicketAttachmentRecord, issue.attachment as unknown as SupportTicketAttachmentRecord);
+      }
+      return true;
+    });
   }
 }

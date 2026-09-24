@@ -34,7 +34,14 @@ import {
   type JobDevice,
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
+import { INSTALLATION_JOB_CONTEXT } from '@auth/installation/domain/installer-support';
 import { AccessResolver } from '../../../../access-resolver';
+import {
+  SUPPORT_TICKET_REPOSITORY,
+  ticketDisplayId,
+  type StoredSupportTicket,
+  type SupportTicketRepository,
+} from '../../../../support-ticket.repository';
 import { ActivityLogService } from '../../../../activity-log.service';
 import { pageOf } from './support/paging';
 import { devicesForJobs, toJobListItem } from './support/installation-job.views';
@@ -52,6 +59,10 @@ function installerSummary(installer: StoredInstaller | undefined) {
   return installer ? { id: installer.id, code: installer.code, fullName: installer.fullName } : null;
 }
 
+function issueSummary(ticket: StoredSupportTicket | undefined) {
+  return ticket ? { id: ticket.id, displayId: ticketDisplayId(ticket.ticketNumber) } : null;
+}
+
 /** Platform admin's view of every installation job, and binding a fleet device to each unit. */
 @Injectable()
 export class ManageInstallationOrdersUseCases {
@@ -64,6 +75,7 @@ export class ManageInstallationOrdersUseCases {
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(AccessResolver) private readonly access: AccessResolver,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
+    @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
   ) {}
 
   async list(accessToken: string, query: ListInstallationOrdersQuery) {
@@ -78,9 +90,10 @@ export class ManageInstallationOrdersUseCases {
       },
       { page, limit },
     );
-    const [devices, installers] = await Promise.all([
+    const [devices, installers, issues] = await Promise.all([
       devicesForJobs(this.devices, found.items.map((row) => ({ tenantId: row.order.tenantId, deviceId: row.firstFleetDeviceId }))),
       this.installersFor(found.items.map((row) => row.order)),
+      this.latestIssues(found.items.map((row) => row.order)),
     ]);
 
     return {
@@ -88,6 +101,7 @@ export class ManageInstallationOrdersUseCases {
         ...toJobListItem(row, devices),
         tenantId: row.order.tenantId,
         installer: installerSummary(installers.get(row.order.installerId ?? '')),
+        issueTicket: issueSummary(issues.get(row.order.id)),
       })),
       page,
       limit,
@@ -117,6 +131,16 @@ export class ManageInstallationOrdersUseCases {
     const ids = [...new Set(orders.flatMap((order) => (order.installerId ? [order.installerId] : [])))];
     const found = await Promise.all(ids.map((id) => this.installers.findById(id)));
     return new Map(found.flatMap((installer) => (installer ? [[installer.id, installer] as const] : [])));
+  }
+
+  /** The newest issue report on each job waiting in issue_reported, in one query. */
+  private async latestIssues(orders: StoredInstallationOrder[]): Promise<Map<string, StoredSupportTicket>> {
+    const ids = orders.filter((order) => order.status === 'issue_reported').map((order) => order.id);
+    const latest = new Map<string, StoredSupportTicket>();
+    for (const ticket of await this.tickets.findByRelatedOrders(ids, INSTALLATION_JOB_CONTEXT)) {
+      if (ticket.relatedOrderId && !latest.has(ticket.relatedOrderId)) latest.set(ticket.relatedOrderId, ticket);
+    }
+    return latest;
   }
 
   private async openOrder(orderId: string): Promise<StoredInstallationOrder> {

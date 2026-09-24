@@ -7,6 +7,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import {
   SUPPORT_TICKET_STATUSES,
   SUPPORT_TICKET_REPOSITORY,
+  withDisplayId,
   type SupportTicketFilters,
   type SupportTicketRepository,
 } from './support-ticket.repository';
@@ -38,7 +39,7 @@ export class ListMySupportTicketsUseCase {
     return {
       status: true,
       message: 'success',
-      data: { tickets, countsByStatus: byStatus, total: tickets.length },
+      data: { tickets: tickets.map(withDisplayId), countsByStatus: byStatus, total: tickets.length },
     };
   }
 }

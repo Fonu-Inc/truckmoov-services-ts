@@ -29,6 +29,9 @@ import {
   type UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
 import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
+import type { JobIssueRecord, JobIssueRecorder } from '@auth/installation/domain/ports/job-issue-recorder.port';
+import { InMemorySupportTicketRepository } from '../../../../in-memory-support-ticket.repository';
+import { InMemorySupportTicketAttachmentRepository } from '../../../../in-memory-support-ticket-attachment.repository';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
@@ -146,10 +149,17 @@ export class InMemoryInstallationOrderRepository
   async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
     const current = this.orders.get(order.id);
     if (current?.status !== from) return false;
-    const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt } = order;
+    const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, issueReportedAt, completedAt, cancelledAt, updatedAt } = order;
     this.orders.set(order.id, {
-      ...current, status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt,
+      ...current, status, preExceptionStatus, assignedAt, acceptedAt, startedAt, issueReportedAt, completedAt, cancelledAt, updatedAt,
     });
+    return true;
+  }
+
+  async saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+    const current = this.orders.get(order.id);
+    if (current?.status !== from) return false;
+    this.orders.set(order.id, { ...order, installerNotes: current.installerNotes });
     return true;
   }
 
@@ -320,5 +330,34 @@ export class InMemoryInstallationCompletion implements InstallationCompletion {
     await this.orders.transition(completed, from);
     await this.applications.save({ ...application, stage: 'connectivity_verification', updatedAt: completed.updatedAt });
     return true;
+  }
+}
+
+/** A failed write undoes the others, as the transaction would. */
+@Injectable()
+export class InMemoryJobIssueRecorder implements JobIssueRecorder {
+  constructor(
+    @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
+    @Inject(InMemorySupportTicketRepository) private readonly tickets: InMemorySupportTicketRepository,
+    @Inject(InMemorySupportTicketAttachmentRepository) private readonly attachments: InMemorySupportTicketAttachmentRepository,
+  ) {}
+
+  async record(issue: JobIssueRecord): Promise<boolean> {
+    const before = await this.orders.findById(issue.order.id);
+    if (!before || !(await this.orders.transition(issue.order, issue.from))) return false;
+    try {
+      await this.tickets.save(issue.ticket);
+      if (issue.attachment) await this.attachments.save(issue.attachment);
+      return true;
+    } catch (error) {
+      await this.rollBack(issue, before);
+      throw error;
+    }
+  }
+
+  private async rollBack(issue: JobIssueRecord, before: StoredInstallationOrder): Promise<void> {
+    await this.tickets.remove(issue.ticket.id);
+    if (issue.attachment) await this.attachments.remove(issue.attachment.id);
+    await this.orders.save(before);
   }
 }

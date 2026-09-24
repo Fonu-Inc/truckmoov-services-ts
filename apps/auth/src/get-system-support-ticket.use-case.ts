@@ -3,7 +3,8 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import { SUPPORT_TICKET_REPOSITORY, withDisplayId, type SupportTicketRepository } from './support-ticket.repository';
+import { InstallerTicketContextService } from './contexts/installation/application/services/installer-ticket-context.service';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class GetSystemSupportTicketUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
+    @Inject(InstallerTicketContextService) private readonly installerTickets: InstallerTicketContextService,
   ) {}
 
   async execute(accessToken: string, ticketId: string) {
@@ -23,13 +25,18 @@ export class GetSystemSupportTicketUseCase {
     const ticket = await this.ticketRepo.findById(ticketId);
     if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
 
-    const messages = await this.messageRepo.findByTicketId(ticketId);
+    const [messages, facts] = await Promise.all([
+      this.messageRepo.findByTicketId(ticketId),
+      this.installerTickets.describe([ticket]),
+    ]);
 
     return {
       status: true,
       message: 'Support ticket retrieved',
       data: {
-        ...ticket,
+        ...withDisplayId(ticket),
+        reporterName: facts.get(ticket.id)?.reporterName ?? null,
+        relatedJob: facts.get(ticket.id)?.relatedJob ?? null,
         escalatedAt: ticket.escalatedAt?.toISOString() ?? null,
         resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
         closedAt: ticket.closedAt?.toISOString() ?? null,

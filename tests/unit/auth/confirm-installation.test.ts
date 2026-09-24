@@ -116,6 +116,7 @@ describe("Confirming an installation", () => {
       assignedAt: NOW,
       acceptedAt: NOW,
       startedAt: NOW,
+      issueReportedAt: null,
       completedAt: status === "completed" ? NOW : null,
       cancelledAt: null,
       createdAt: NOW,

@@ -131,6 +131,7 @@ export class ScheduleInstallationUseCase {
       assignedAt: null,
       acceptedAt: null,
       startedAt: null,
+      issueReportedAt: null,
       completedAt: null,
       cancelledAt: null,
       createdAt: now,
@@ -203,7 +204,7 @@ export class ScheduleInstallationUseCase {
   }
 }
 
-function validateTimeSlot(value: unknown): InstallationTimeSlot {
+export function validateTimeSlot(value: unknown): InstallationTimeSlot {
   const candidate = String(value ?? '').trim().toLowerCase();
   if (!(INSTALLATION_TIME_SLOTS as readonly string[]).includes(candidate)) {
     throw new OnboardingValidationError(

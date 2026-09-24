@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GetSupportOptionsUseCase } from '../../../apps/auth/src/my-support.use-cases';
 import { dashboardTicket } from '../../../apps/auth/src/get-system-support-dashboard.use-case';
-import type { StoredSupportTicket } from '../../../apps/auth/src/support-ticket.repository';
+import { TENANT_USER_REPORTER, type StoredSupportTicket } from '../../../apps/auth/src/support-ticket.repository';
 
 const actor = { id: 'user-1', tenantId: 'tenant-1', role: 'ENTERPRISE_ADMIN' };
 
@@ -39,7 +39,9 @@ describe('Dashboard ticket rows', () => {
   function ticket(overrides: Partial<StoredSupportTicket> = {}): StoredSupportTicket {
     return {
       id: 'tkt-1',
+      ticketNumber: 1000,
       tenantId: 'tenant-1',
+      ...TENANT_USER_REPORTER,
       category: 'device_tracking',
       subject: 'GPS tracker offline',
       description: 'Stopped reporting',

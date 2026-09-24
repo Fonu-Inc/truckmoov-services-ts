@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor } from './system-authz';
 import {
   SUPPORT_TICKET_REPOSITORY,
+  ticketDisplayId,
   type StoredSupportTicket,
   type SupportTicketRepository,
 } from './support-ticket.repository';
@@ -91,6 +92,8 @@ export class GetSystemSupportDashboardUseCase {
 export function dashboardTicket(ticket: StoredSupportTicket) {
   return {
     id: ticket.id,
+    ticketNumber: ticket.ticketNumber,
+    displayId: ticketDisplayId(ticket.ticketNumber),
     subject: ticket.subject,
     tenantId: ticket.tenantId,
     category: ticket.category,

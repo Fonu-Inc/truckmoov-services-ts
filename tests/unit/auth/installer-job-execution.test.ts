@@ -24,6 +24,7 @@ import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboar
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
 import { InvalidStageTransitionError } from "@auth/onboarding/domain/onboarding-stage";
 import { InMemorySimRepository } from "../../../apps/auth/src/in-memory-sim.repository";
+import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
 import { Migration20260924040000 } from "../../../apps/auth/src/migrations/Migration20260924040000";
 
 const NOW = new Date("2026-09-24T10:00:00Z");
@@ -45,7 +46,7 @@ function order(overrides: Partial<StoredInstallationOrder> = {}): StoredInstalla
     id: "job-1", orderNumber: "FL-1000", applicationId: "app-1", tenantId: TENANT, scheduledDate: new Date("2026-09-25T00:00:00Z"),
     timeSlot: "morning", addressLine: "14 Kudirat Abiola Way", city: "Ikeja", state: "Lagos", siteContactName: "Ada",
     siteContactPhone: "+2347014452219", notes: null, installerNotes: null, installerId: "ada", status: "assigned",
-    preExceptionStatus: null, assignedAt: NOW, acceptedAt: null, startedAt: null, completedAt: null, cancelledAt: null,
+    preExceptionStatus: null, assignedAt: NOW, acceptedAt: null, startedAt: null, issueReportedAt: null, completedAt: null, cancelledAt: null,
     createdAt: NOW, updatedAt: NOW, ...overrides,
   };
 }
@@ -99,7 +100,7 @@ async function harness() {
   const actions = new InstallerJobActionsUseCases(tokens as never, installers, orders, applications, lookup, fleet, completion);
   const records = new InstallerJobRecordsUseCases(tokens as never, installers, orders, lookup, storage, scanner, config as never);
   const reader = new InMemoryInstallationJobReader(orders, applications, installers);
-  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, new InMemorySimRepository());
+  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, new InMemorySimRepository(), new InMemorySupportTicketRepository());
 
   await installers.save(installer("ada"));
   await installers.save(installer("bola"));

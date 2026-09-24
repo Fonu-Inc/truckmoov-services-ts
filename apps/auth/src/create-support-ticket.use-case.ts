@@ -12,6 +12,8 @@ import {
   SUPPORT_TICKET_CONTEXT_TYPES,
   SUPPORT_TICKET_PRIORITIES,
   SUPPORT_TICKET_REPOSITORY,
+  TENANT_USER_REPORTER,
+  withDisplayId,
   type StoredSupportTicket,
   type SupportTicketRepository,
 } from './support-ticket.repository';
@@ -96,7 +98,9 @@ export class CreateSupportTicketUseCase {
     const now = new Date();
     const ticket: StoredSupportTicket = {
       id: this.idGenerator.generate(),
+      ticketNumber: await this.ticketRepo.nextTicketNumber(),
       tenantId: actor.tenantId!,
+      ...TENANT_USER_REPORTER,
       category: command.category,
       subject,
       description,
@@ -121,7 +125,7 @@ export class CreateSupportTicketUseCase {
     };
     await this.ticketRepo.save(ticket);
 
-    return { ticket };
+    return { ticket: withDisplayId(ticket) };
   }
   /**
    * The record's state at the moment the ticket was raised.

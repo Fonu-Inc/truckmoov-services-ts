@@ -186,7 +186,7 @@ describe("Abandoned application sweep", () => {
       id: "order-1", orderNumber: "FL-1000", applicationId: "fitted", tenantId: "tenant-1", scheduledDate: stale,
       timeSlot: "morning", addressLine: "x", city: "Abuja", state: "FCT", siteContactName: "Jane", siteContactPhone: "+234",
       notes: null, installerNotes: null, installerId: null, status: "unassigned", preExceptionStatus: null, assignedAt: null,
-      acceptedAt: null, startedAt: null, completedAt: null, cancelledAt: null, createdAt: stale, updatedAt: stale,
+      acceptedAt: null, startedAt: null, issueReportedAt: null, completedAt: null, cancelledAt: null, createdAt: stale, updatedAt: stale,
     });
     await installationOrders.saveTick({ orderId: "order-1", itemKey: "install_device", checkedAt: stale, checkedBy: "ada" });
     const fileKey = "tenant-1/installations/order-1/evidence/device_installation/ev-1-unit.png";

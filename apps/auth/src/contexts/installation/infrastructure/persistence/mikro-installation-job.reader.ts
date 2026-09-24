@@ -96,6 +96,7 @@ function toOrder(row: Row): StoredInstallationOrder {
     assignedAt: date(row.assigned_at),
     acceptedAt: date(row.accepted_at),
     startedAt: date(row.started_at),
+    issueReportedAt: date(row.issue_reported_at),
     completedAt: date(row.completed_at),
     cancelledAt: date(row.cancelled_at),
     createdAt: new Date(row.created_at as string),

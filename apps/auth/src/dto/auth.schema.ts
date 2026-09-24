@@ -1803,9 +1803,19 @@ export class SimBatchRetryResponse extends StandardApiResponse<SimBatchRetryData
 
 /* ── System Support Ticket Schemas ──────────────────────────────────────── */
 
+export class SupportTicketRelatedJobSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ example: 'FL-1000' }) jobNumber!: string;
+}
+
 export class SystemSupportTicketSchema {
   @ApiProperty() id!: string;
+  @ApiProperty({ example: 1000 }) ticketNumber!: number;
+  @ApiProperty({ example: '#tkt-1000' }) displayId!: string;
   @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: ['tenant_user', 'installer'] }) reporterType!: string;
+  @ApiProperty({ nullable: true, type: String, description: 'Installer tickets only' }) reporterName!: string | null;
+  @ApiProperty({ nullable: true, type: SupportTicketRelatedJobSchema }) relatedJob!: SupportTicketRelatedJobSchema | null;
   @ApiProperty() subject!: string;
   @ApiProperty() category!: string;
   @ApiProperty() status!: string;
@@ -1840,7 +1850,12 @@ export class SystemSupportMessageSchema {
 
 export class SystemSupportTicketDetailDataSchema {
   @ApiProperty() id!: string;
+  @ApiProperty({ example: 1000 }) ticketNumber!: number;
+  @ApiProperty({ example: '#tkt-1000' }) displayId!: string;
   @ApiProperty() tenantId!: string;
+  @ApiProperty({ enum: ['tenant_user', 'installer'] }) reporterType!: string;
+  @ApiProperty({ nullable: true, type: String, description: 'Installer tickets only' }) reporterName!: string | null;
+  @ApiProperty({ nullable: true, type: SupportTicketRelatedJobSchema }) relatedJob!: SupportTicketRelatedJobSchema | null;
   @ApiProperty() subject!: string;
   @ApiProperty() category!: string;
   @ApiProperty() status!: string;

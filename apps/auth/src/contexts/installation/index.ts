@@ -81,6 +81,16 @@ export {
   INSTALLATION_COMPLETION,
   type InstallationCompletion,
 } from "./domain/ports/installation-completion.port";
+export { JOB_ISSUE_RECORDER, type JobIssueRecorder } from "./domain/ports/job-issue-recorder.port";
+export { INSTALLER_TICKET_FILES, type InstallerTicketFiles } from "./domain/ports/installer-ticket-files.port";
+export {
+  INSTALLATION_JOB_CONTEXT,
+  INSTALLER_FIELD_TIPS,
+  INSTALLER_PRIORITY_LABELS,
+  INSTALLER_SUPPORT_CATEGORIES,
+  INSTALLER_TICKET_STATUS_LABELS,
+  type InstallerSupportCategory,
+} from "./domain/installer-support";
 
 // Application
 export {
@@ -117,12 +127,17 @@ export { InstallerJobActionsUseCases } from "./application/use-cases/installer-j
 export { InstallerJobRecordsUseCases } from "./application/use-cases/installer-job-records.use-cases";
 export { InstallerDeviceScopeUseCase } from "./application/use-cases/installer-device-scope.use-case";
 export { ManageInstallationOrdersUseCases } from "./application/use-cases/manage-installation-orders.use-cases";
+export { AdminJobChangesUseCases } from "./application/use-cases/admin-job-changes.use-cases";
+export { InstallerSupportUseCases } from "./application/use-cases/installer-support.use-cases";
+export { ReportJobIssueUseCase } from "./application/use-cases/report-job-issue.use-case";
+export { InstallerTicketContextService } from "./application/services/installer-ticket-context.service";
 
 // Infrastructure
 export { InstallerAccountsAdapter } from "./infrastructure/accounts/installer-accounts.adapter";
 export { FleetJobDeviceLookup } from "./infrastructure/connectivity/fleet-job-device.lookup";
 export { ObjectStorageInstallerPhotos } from "./infrastructure/storage/object-storage-installer-photos";
 export { ObjectStorageInstallationEvidence } from "./infrastructure/storage/object-storage-installation-evidence";
+export { ObjectStorageInstallerTicketFiles } from "./infrastructure/storage/object-storage-installer-ticket-files";
 export { FleetInstallationAdapter } from "./infrastructure/connectivity/fleet-installation.adapter";
 export { InstallationSweepScheduler } from "./infrastructure/scheduling/installation-sweep.scheduler";
 export { InMemoryInstallationJobReader } from "./infrastructure/persistence/in-memory-installation-job.reader";
@@ -131,11 +146,13 @@ export {
   InMemoryInstallationCompletion,
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,
+  InMemoryJobIssueRecorder,
 } from "./infrastructure/persistence/in-memory-installation.repositories";
 export {
   MikroInstallationCompletion,
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
+  MikroJobIssueRecorder,
 } from "./infrastructure/persistence/mikro-installation.repositories";
 export {
   InstallationChecklistTickRecordSchema,

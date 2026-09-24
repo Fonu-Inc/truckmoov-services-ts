@@ -6,7 +6,7 @@ import {
   isSlaBreaching,
   resolvedWithinDays,
 } from '../../../apps/auth/src/support-dashboard-metrics';
-import type { StoredSupportTicket } from '../../../apps/auth/src/support-ticket.repository';
+import { TENANT_USER_REPORTER, type StoredSupportTicket } from '../../../apps/auth/src/support-ticket.repository';
 import type { StoredSupportMessage } from '../../../apps/auth/src/support-message.repository';
 
 const NOW = Date.parse('2026-09-07T12:00:00.000Z');
@@ -18,7 +18,9 @@ function hoursAgo(hours: number): Date {
 function ticket(overrides: Partial<StoredSupportTicket> = {}): StoredSupportTicket {
   return {
     id: 'tkt-1',
+    ticketNumber: 1000,
     tenantId: 'tenant-1',
+    ...TENANT_USER_REPORTER,
     category: 'device_tracking',
     subject: 'GPS tracker offline',
     description: 'Stopped reporting',

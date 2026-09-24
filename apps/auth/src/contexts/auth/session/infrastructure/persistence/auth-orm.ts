@@ -1603,7 +1603,14 @@ async function backfillLegacyRoleColumns(orm: MikroORM) {
 
 export class SupportTicketRecord {
   id!: string;
+  ticketNumber!: number;
   tenantId!: string;
+  reporterType!: string;
+  reporterId!: string | null;
+  relatedTenantId!: string | null;
+  relatedOrderId!: string | null;
+  issueCode!: string | null;
+  callbackPhone!: string | null;
   category!: string;
   subject!: string;
   description!: string;
@@ -1632,7 +1639,14 @@ export const SupportTicketRecordSchema = new EntitySchema<SupportTicketRecord>({
   tableName: 'support_tickets',
   properties: {
     id: { type: 'string', primary: true },
+    ticketNumber: { type: 'bigint', fieldName: 'ticket_number', unique: true },
     tenantId: { type: 'string', length: 64, fieldName: 'tenant_id' },
+    reporterType: { type: 'string', length: 16, default: 'tenant_user', fieldName: 'reporter_type' },
+    reporterId: { type: 'string', length: 64, nullable: true, fieldName: 'reporter_id' },
+    relatedTenantId: { type: 'string', length: 64, nullable: true, fieldName: 'related_tenant_id' },
+    relatedOrderId: { type: 'string', length: 64, nullable: true, fieldName: 'related_order_id' },
+    issueCode: { type: 'string', length: 64, nullable: true, fieldName: 'issue_code' },
+    callbackPhone: { type: 'string', length: 20, nullable: true, fieldName: 'callback_phone' },
     category: { type: 'string', length: 32, default: 'other' },
     subject: { type: 'string', length: 255 },
     description: { type: 'text' },

@@ -16,6 +16,8 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nes
 import { Portals, SignedIn } from '@shared/access';
 import { uploadLimits } from '@shared/http';
 import { EVIDENCE_CATEGORIES, MAX_EVIDENCE_BYTES } from './contexts/installation/domain/installation-evidence';
+import { INSTALLER_SUPPORT_CATEGORIES, MAX_TICKET_DESCRIPTION_LENGTH } from './contexts/installation/domain/installer-support';
+import { ReportJobIssueUseCase } from './contexts/installation/application/use-cases/report-job-issue.use-case';
 import { InstallerJobsUseCases } from './contexts/installation/application/use-cases/installer-jobs.use-cases';
 import { InstallerJobActionsUseCases } from './contexts/installation/application/use-cases/installer-job-actions.use-cases';
 import { InstallerJobRecordsUseCases } from './contexts/installation/application/use-cases/installer-job-records.use-cases';
@@ -34,6 +36,7 @@ export class InstallerJobWorkController {
     @Inject(InstallerJobsUseCases) private readonly jobs: InstallerJobsUseCases,
     @Inject(InstallerJobActionsUseCases) private readonly actions: InstallerJobActionsUseCases,
     @Inject(InstallerJobRecordsUseCases) private readonly records: InstallerJobRecordsUseCases,
+    @Inject(ReportJobIssueUseCase) private readonly issues: ReportJobIssueUseCase,
   ) {}
 
   @Post('accept')
@@ -102,6 +105,33 @@ export class InstallerJobWorkController {
   ) {
     const token = bearer(authorization);
     return ok(await mapped(() => this.records.evidenceLink(token, jobId, evidenceId)));
+  }
+
+  @Post('issues')
+  @ApiOperation({ summary: 'Report an issue: raises a ticket with the optional photo and moves the job to issue_reported' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['issueType', 'description'],
+      properties: {
+        issueType: { type: 'string', enum: Object.keys(INSTALLER_SUPPORT_CATEGORIES) },
+        description: { type: 'string', maxLength: MAX_TICKET_DESCRIPTION_LENGTH },
+        photo: { type: 'string', format: 'binary', description: 'JPG, PNG or WebP, up to 10 MB' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('photo', uploadLimits(MAX_EVIDENCE_BYTES)))
+  async reportIssue(
+    @Param('jobId') jobId: string,
+    @Body('issueType') issueType?: string,
+    @Body('description') description?: string,
+    @UploadedFile() photo?: UploadedDocumentFile,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.changed(authorization, jobId, async (token) => {
+      await this.issues.execute(token, jobId, { issueType, description, photo });
+    }, 'Issue reported');
   }
 
   @Post('complete')

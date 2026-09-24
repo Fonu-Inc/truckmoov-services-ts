@@ -23,6 +23,7 @@ import { InvalidInstallerPhotoError } from './contexts/installation/domain/insta
 import { InvalidEvidenceError } from './contexts/installation/domain/installation-evidence';
 import {
   INSTALLATION_ORDER_STATUSES,
+  InvalidInstallationDateError,
   InvalidInstallationTransitionError,
   type InstallationOrderStatus,
 } from './contexts/installation/domain/installation-order';
@@ -50,6 +51,7 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [OnboardingValidationError, BadRequestException],
   [InvalidInstallerPhotoError, BadRequestException],
   [InvalidEvidenceError, BadRequestException],
+  [InvalidInstallationDateError, BadRequestException],
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
   [InstallationJobClosedError, ConflictException],

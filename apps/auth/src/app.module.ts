@@ -140,8 +140,18 @@ import {
   FleetConnectivityVerification,
   GetInstallationStatusUseCase,
   ScheduleInstallationUseCase,
+  AdminJobChangesUseCases,
+  InstallerSupportUseCases,
+  InstallerTicketContextService,
+  ReportJobIssueUseCase,
+  JOB_ISSUE_RECORDER,
+  InMemoryJobIssueRecorder,
+  MikroJobIssueRecorder,
+  INSTALLER_TICKET_FILES,
+  ObjectStorageInstallerTicketFiles,
 } from '@auth/installation';
 import { InstallationController } from './installation.controller';
+import { InstallerSupportController } from './installer-support.controller';
 import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
@@ -706,6 +716,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerAuthController,
     InstallerPortalController,
     InstallerJobWorkController,
+    InstallerSupportController,
     InternalInstallersController,
     SystemInstallersController,
     SystemInstallationOrdersController,
@@ -1573,6 +1584,18 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     { provide: JOB_DEVICE_LOOKUP, useClass: FleetJobDeviceLookup },
     { provide: INSTALLER_PHOTO_STORAGE, useClass: ObjectStorageInstallerPhotos },
     { provide: INSTALLATION_EVIDENCE_STORAGE, useClass: ObjectStorageInstallationEvidence },
+    { provide: INSTALLER_TICKET_FILES, useClass: ObjectStorageInstallerTicketFiles },
+    InMemoryJobIssueRecorder,
+    MikroJobIssueRecorder,
+    {
+      provide: JOB_ISSUE_RECORDER,
+      inject: [InMemoryJobIssueRecorder, MikroJobIssueRecorder, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryJobIssueRecorder,
+        mikro: MikroJobIssueRecorder,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     { provide: INSTALLATION_FLEET, useClass: FleetInstallationAdapter },
     InstallerAssignmentService,
     IssueSetupLinkUseCase,
@@ -1587,6 +1610,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerJobActionsUseCases,
     InstallerJobRecordsUseCases,
     InstallerDeviceScopeUseCase,
+    InstallerSupportUseCases,
+    ReportJobIssueUseCase,
+    AdminJobChangesUseCases,
+    InstallerTicketContextService,
     { provide: INSTALLER_ACCOUNTS, useClass: InstallerAccountsAdapter },
     FleetConnectivityVerification,
     {
