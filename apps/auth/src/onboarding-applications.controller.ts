@@ -104,6 +104,7 @@ import {
   IndemnitySignatureResponse,
   M2mPlansResponse,
   OnboardingApplicationResponse,
+  OnboardingApplicationStatusResponse,
   ResumeApplicationResponse,
   SubmittedOnboardingApplicationResponse,
   VerificationCodeSentResponse,
@@ -915,7 +916,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the review timeline shown after submission, plus any decision reason.',
   })
-  @ApiOkResponse({ description: 'Status returned' })
+  @ApiOkResponse({
+    description: 'Status returned',
+    type: OnboardingApplicationStatusResponse,
+  })
   @ApiNotFoundResponse({ description: 'Application not found' })
   @ApplicationTokenHeader()
   async status(

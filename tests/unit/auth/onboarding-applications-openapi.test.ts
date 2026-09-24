@@ -6,8 +6,12 @@ import {
   CreatedOnboardingApplicationResponse,
   M2mPlansResponse,
   OnboardingApplicationResponse,
+  OnboardingApplicationStatusResponse,
+  OnboardingApplicationStatusSchema,
+  OnboardingApplicationViewSchema,
   SubmittedOnboardingApplicationResponse,
   VerificationCodeSentResponse,
+  VerificationResendTooSoonSchema,
 } from "../../../apps/auth/src/dto/onboarding-application-response.dto";
 
 type Handler = keyof OnboardingApplicationsController;
@@ -18,6 +22,11 @@ function handler(name: Handler) {
 
 function responses(name: Handler): Record<string, { type?: unknown }> {
   return Reflect.getMetadata(DECORATORS.API_RESPONSE, handler(name)) ?? {};
+}
+
+function property(schema: object, name: string): { required?: boolean } | undefined {
+  const prototype = (schema as { prototype: object }).prototype;
+  return Reflect.getMetadata(DECORATORS.API_MODEL_PROPERTIES, prototype, name);
 }
 
 function headers(name: Handler): Array<{ name: string; in: string; required?: boolean }> {
@@ -34,12 +43,25 @@ describe("Onboarding applications OpenAPI contract", () => {
     ["verifyEmail", "200", OnboardingApplicationResponse],
     ["sendEmailCode", "200", VerificationCodeSentResponse],
     ["submit", "200", SubmittedOnboardingApplicationResponse],
+    ["status", "200", OnboardingApplicationStatusResponse],
   ])("%s documents a %s response body", (name, status, type) => {
     expect(responses(name)[status]?.type).toBe(type);
   });
 
   it("documents the resend cooldown body", () => {
     expect(responses("sendEmailCode")["429"]?.type).toBeDefined();
+  });
+
+  it("marks retryAfterSeconds optional, since the hourly cap omits it", () => {
+    expect(property(VerificationResendTooSoonSchema, "retryAfterSeconds")?.required).toBe(false);
+    expect(property(VerificationResendTooSoonSchema, "message")).toBeDefined();
+  });
+
+  it.each<[string, object]>([
+    ["application view", OnboardingApplicationViewSchema],
+    ["status", OnboardingApplicationStatusSchema],
+  ])("%s schema documents the stage", (_, schema) => {
+    expect(property(schema, "stage")).toBeDefined();
   });
 
   it("declares the application token header on token routes only", () => {

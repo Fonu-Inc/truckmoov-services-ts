@@ -5,6 +5,7 @@ import { InMemoryM2mLicensePlanRepository } from "@auth/onboarding/infrastructur
 import { GetOnboardingApplicationUseCase } from "@auth/onboarding/application/use-cases/get-onboarding-application.use-case";
 import { GetApplicationOrderUseCase } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
 import { SetBillingEmailUseCase } from "@auth/onboarding/application/use-cases/set-billing-email.use-case";
+import { GetOnboardingApplicationStatusUseCase } from "@auth/onboarding/application/use-cases/submit-onboarding-application.use-case";
 import {
   ConfirmOnboardingVerificationCodeUseCase,
   SendOnboardingVerificationCodeUseCase,
@@ -72,6 +73,8 @@ describe("Payment step", () => {
   let setBillingEmail: SetBillingEmailUseCase;
   let order: GetApplicationOrderUseCase;
   let plans: InMemoryM2mLicensePlanRepository;
+  let getView: GetOnboardingApplicationUseCase;
+  let status: GetOnboardingApplicationStatusUseCase;
 
   beforeEach(() => {
     applications = new InMemoryOnboardingApplicationRepository();
@@ -81,6 +84,7 @@ describe("Payment step", () => {
     const getApplication = new GetOnboardingApplicationUseCase(applications);
     sendCode = new SendOnboardingVerificationCodeUseCase(
       applications,
+      payments,
       { generate: () => `id-${++ids}` },
       {
         sendEmailCode: async (message) => {
@@ -92,9 +96,22 @@ describe("Payment step", () => {
     );
     confirmCode = new ConfirmOnboardingVerificationCodeUseCase(
       applications,
+      payments,
       getApplication,
     );
-    setBillingEmail = new SetBillingEmailUseCase(applications, getApplication);
+    setBillingEmail = new SetBillingEmailUseCase(
+      applications,
+      payments,
+      getApplication,
+    );
+    getView = getApplication;
+    status = new GetOnboardingApplicationStatusUseCase(
+      applications,
+      getApplication,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     plans = new InMemoryM2mLicensePlanRepository();
     order = new GetApplicationOrderUseCase(
       applications,
@@ -130,6 +147,24 @@ describe("Payment step", () => {
   }
 
   const billing = { applicationId: "app-1", applicationToken: TOKEN };
+
+  async function recordPaidPayment() {
+    const now = new Date();
+    await payments.save({
+      id: "pay-1",
+      applicationId: "app-1",
+      reference: "FPA-APP-2026-AAAA-1",
+      provider: "paystack",
+      amountKobo: 100,
+      billingEmail: "accounts@arne.com",
+      planCode: "m2m_standard",
+      deviceCount: 2,
+      status: "paid",
+      paidAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   it("sends and verifies the billing email on an approved application at the payment stage", async () => {
     await seed();
@@ -213,5 +248,37 @@ describe("Payment step", () => {
 
     expect(result.data.stage).toBe("provisioning");
     expect(result.data.payable).toBe(false);
+  });
+  it("refuses billing email changes once the payment is paid, even before the stage advances", async () => {
+    await seed();
+    await recordPaidPayment();
+
+    await expect(
+      sendCode.execute({ ...billing, channel: "billing_email" }),
+    ).rejects.toBeInstanceOf(ApplicationNotEditableError);
+    await expect(
+      confirmCode.execute({ ...billing, channel: "billing_email", code: "123456" }),
+    ).rejects.toBeInstanceOf(ApplicationNotEditableError);
+    await expect(
+      setBillingEmail.execute({ ...billing, billingEmail: "finance@arne.com" }),
+    ).rejects.toBeInstanceOf(ApplicationNotEditableError);
+    const stored = await applications.findById("app-1");
+    expect(stored!.billingEmail).toBe("accounts@arne.com");
+  });
+
+  it("returns the stage on the application view", async () => {
+    await seed();
+
+    const result = await getView.execute("app-1", TOKEN);
+
+    expect(result.data.stage).toBe("payment");
+  });
+
+  it("returns the stage on the status response", async () => {
+    await seed({ stage: "installation_scheduling" });
+
+    const result = await status.execute("app-1", TOKEN);
+
+    expect(result.data.stage).toBe("installation_scheduling");
   });
 });

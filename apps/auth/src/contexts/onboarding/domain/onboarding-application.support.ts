@@ -10,6 +10,7 @@ import {
   type StoredOnboardingApplicationVehicle,
   type StoredOnboardingDeviceRequest,
 } from './onboarding-application.repository';
+import type { StoredOnboardingPayment } from './onboarding-payment.repository';
 
 export const APPLICATION_TOKEN_BYTES = 32;
 export const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
@@ -107,20 +108,26 @@ export function assertApplicationEditable(
   }
 }
 
+type LatestPayment = Pick<StoredOnboardingPayment, 'status'> | null;
+
 /**
  * The billing email is set and verified on the Payment step, after approval,
- * so it stays open until the stage moves past payment.
+ * so it stays open until the stage moves past payment. A paid payment closes
+ * it too: the stage advance is a separate write and can lag behind.
  */
 export function isBillingEmailChangeable(
   application: StoredOnboardingApplication,
+  latestPayment: LatestPayment,
 ): boolean {
+  if (latestPayment?.status === 'paid') return false;
   return isApplicationEditable(application) || application.stage === 'payment';
 }
 
 export function assertBillingEmailChangeable(
   application: StoredOnboardingApplication,
+  latestPayment: LatestPayment,
 ): void {
-  if (!isBillingEmailChangeable(application)) {
+  if (!isBillingEmailChangeable(application, latestPayment)) {
     throw new ApplicationNotEditableError(application.status);
   }
 }
@@ -128,9 +135,10 @@ export function assertBillingEmailChangeable(
 export function assertVerificationChannelOpen(
   application: StoredOnboardingApplication,
   channel: OnboardingVerificationChannel,
+  latestPayment: LatestPayment,
 ): void {
   if (channel === 'billing_email') {
-    assertBillingEmailChangeable(application);
+    assertBillingEmailChangeable(application, latestPayment);
     return;
   }
   assertApplicationEditable(application);

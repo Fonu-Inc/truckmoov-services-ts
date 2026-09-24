@@ -7,7 +7,10 @@ import {
   type StoredOnboardingApplication,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
-  assertVerificationChannelOpen,
+  ONBOARDING_PAYMENT_REPOSITORY,
+  type OnboardingPaymentRepository,
+} from '@auth/onboarding/domain/onboarding-payment.repository';
+import {
   generateVerificationCode,
   hashApplicationToken,
   verificationCodeMatches,
@@ -17,6 +20,7 @@ import {
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
+import { assertChannelOpen } from './support/assert-channel-open';
 import { loadApplicationView } from './support/load-application-view';
 import { validateVerificationCode } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
@@ -51,6 +55,8 @@ export class SendOnboardingVerificationCodeUseCase {
   constructor(
     @Inject(ONBOARDING_APPLICATION_REPOSITORY)
     private readonly applications: OnboardingApplicationRepository,
+    @Inject(ONBOARDING_PAYMENT_REPOSITORY)
+    private readonly payments: OnboardingPaymentRepository,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(ONBOARDING_VERIFICATION_NOTIFIER)
     private readonly notifier: OnboardingVerificationNotifier,
@@ -67,7 +73,7 @@ export class SendOnboardingVerificationCodeUseCase {
       input.applicationId,
       input.applicationToken,
     );
-    assertVerificationChannelOpen(application, input.channel);
+    await assertChannelOpen(this.payments, application, input.channel);
     await this.assertSendAllowed(application.id, input.channel);
 
     const destination = destinationFor(application, input.channel);
@@ -151,6 +157,8 @@ export class ConfirmOnboardingVerificationCodeUseCase {
   constructor(
     @Inject(ONBOARDING_APPLICATION_REPOSITORY)
     private readonly applications: OnboardingApplicationRepository,
+    @Inject(ONBOARDING_PAYMENT_REPOSITORY)
+    private readonly payments: OnboardingPaymentRepository,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
   ) {}
@@ -165,7 +173,7 @@ export class ConfirmOnboardingVerificationCodeUseCase {
       input.applicationId,
       input.applicationToken,
     );
-    assertVerificationChannelOpen(application, input.channel);
+    await assertChannelOpen(this.payments, application, input.channel);
 
     const code = validateVerificationCode(input.code);
     const stored = await this.applications.findActiveVerificationCode(

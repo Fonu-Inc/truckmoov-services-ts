@@ -151,6 +151,38 @@ export class SubmittedOnboardingApplicationResponse extends StandardApiResponse<
   data!: SubmittedOnboardingApplicationSchema;
 }
 
+export class OnboardingStatusTimelineStepSchema {
+  @ApiProperty({ example: 'application_review' }) key!: string;
+  @ApiProperty() label!: string;
+  @ApiProperty() complete!: boolean;
+  @ApiProperty({ required: false }) inProgress?: boolean;
+}
+
+export class OnboardingStatusDocumentSchema {
+  @ApiProperty({ enum: [...ONBOARDING_DOCUMENT_TYPES] }) documentType!: string;
+  @ApiProperty({ enum: [...ONBOARDING_DOCUMENT_STATUSES] }) status!: string;
+  @ApiProperty(NULLABLE_STRING) rejectionReason!: string | null;
+}
+
+export class OnboardingApplicationStatusSchema {
+  @ApiProperty({ example: 'APP-2026-1A2B3C4D' }) reference!: string;
+  @ApiProperty({ enum: [...ONBOARDING_APPLICATION_STATUSES] })
+  applicationStatus!: string;
+  @ApiProperty({ enum: [...ONBOARDING_STAGES] }) stage!: string;
+  @ApiProperty(NULLABLE_STRING) decisionReason!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  submittedAt!: string | null;
+  @ApiProperty({ type: [OnboardingStatusTimelineStepSchema] })
+  timeline!: OnboardingStatusTimelineStepSchema[];
+  @ApiProperty({ type: [OnboardingStatusDocumentSchema] })
+  documents!: OnboardingStatusDocumentSchema[];
+}
+
+export class OnboardingApplicationStatusResponse extends StandardApiResponse<OnboardingApplicationStatusSchema> {
+  @ApiProperty({ type: OnboardingApplicationStatusSchema })
+  data!: OnboardingApplicationStatusSchema;
+}
+
 export class M2mPlanSchema {
   @ApiProperty() code!: string;
   @ApiProperty() name!: string;
@@ -211,7 +243,12 @@ export class VerificationCodeSentResponse extends StandardApiResponse<Verificati
 
 export class VerificationResendTooSoonSchema {
   @ApiProperty() message!: string;
-  @ApiProperty({ example: 42 }) retryAfterSeconds!: number;
+  @ApiProperty({
+    example: 42,
+    required: false,
+    description: 'Present on the resend cooldown only, absent on the hourly cap.',
+  })
+  retryAfterSeconds?: number;
 }
 
 export class ResumeApplicationResponse extends StandardApiResponse<null> {
