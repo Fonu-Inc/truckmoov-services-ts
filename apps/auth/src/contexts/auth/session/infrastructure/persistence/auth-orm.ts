@@ -7,6 +7,7 @@ import {
   InstallationDeviceAssignmentRecordSchema,
   InstallationEvidenceRecordSchema,
   InstallationOrderRecordSchema,
+  InstallerNotificationRecordSchema,
   InstallerRecordSchema,
 } from '@auth/installation/infrastructure/persistence/installation-orm';
 import {
@@ -2204,6 +2205,7 @@ export async function getAuthOrm(cfg: DbConfig) {
       InstallationDeviceAssignmentRecordSchema,
       InstallationChecklistTickRecordSchema,
       InstallationEvidenceRecordSchema,
+      InstallerNotificationRecordSchema,
       IndemnityTemplateRecordSchema,
       IndemnitySignatureRecordSchema,
       M2mLicensePlanRecordSchema,

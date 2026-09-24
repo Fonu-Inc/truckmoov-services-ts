@@ -4,15 +4,16 @@ import {
   type InstallationOrderRepository,
   type StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
-import { OVERDUE_SOURCE_STATUSES } from '@auth/installation/domain/installation-order';
-import { lagosToday } from '@shared/devices';
+import { OVERDUE_SOURCE_STATUSES, REMINDER_STATUSES } from '@auth/installation/domain/installation-order';
+import { lagosToday, nextCalendarDay } from '@shared/devices';
 import { InstallerAssignmentService } from '../services/installer-assignment.service';
+import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
 
 const BATCH_SIZE = 100;
 
 /**
- * Gives waiting orders an installer, and marks jobs whose Lagos day has
- * passed as overdue. Every write is conditional on the status it read, so
+ * Gives waiting orders an installer, marks jobs whose Lagos day has passed as
+ * overdue, and reminds installers of tomorrow's jobs once. Every write is conditional on the status it read, so
  * several replicas sweeping at once cannot assign one order twice. The whole
  * queue is read page by page, so orders nobody can take never hide the rest.
  */
@@ -23,15 +24,26 @@ export class SweepInstallationOrdersUseCase {
   constructor(
     @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
     @Inject(InstallerAssignmentService) private readonly assignment: InstallerAssignmentService,
+    @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
   ) {}
 
-  async run(now: Date = new Date()): Promise<{ assigned: number; overdue: number }> {
+  async run(now: Date = new Date()): Promise<{ assigned: number; overdue: number; reminded: number }> {
     const assigned = await this.assignWaiting(now);
     const overdue = await this.orders.markOverdue(OVERDUE_SOURCE_STATUSES, lagosToday(now), now);
-    if (assigned > 0 || overdue > 0) {
-      this.logger.log(`installation_sweep:assigned=${assigned}:overdue=${overdue}`);
+    const reminded = await this.remind(now);
+    if (assigned > 0 || overdue > 0 || reminded > 0) {
+      this.logger.log(`installation_sweep:assigned=${assigned}:overdue=${overdue}:reminded=${reminded}`);
     }
-    return { assigned, overdue };
+    return { assigned, overdue, reminded };
+  }
+
+  /** The stamp is written before the notice, so replicas sweeping together remind once. */
+  private async remind(now: Date): Promise<number> {
+    const due = await this.orders.claimReminders(REMINDER_STATUSES, nextCalendarDay(lagosToday(now)), now);
+    for (const order of due) {
+      await this.notifier.notify({ type: 'job_reminder', order, stamp: (order.reminderSentAt ?? now).toISOString() }, now);
+    }
+    return due.length;
   }
 
   private async assignWaiting(now: Date): Promise<number> {
@@ -41,7 +53,12 @@ export class SweepInstallationOrdersUseCase {
     const assign = await this.assignment.assigner();
     let assigned = 0;
     while (page.length > 0) {
-      for (const order of page) if (await assign(order, now)) assigned += 1;
+      for (const order of page) {
+        const assignment = await assign(order, now);
+        if (!assignment) continue;
+        assigned += 1;
+        await this.notifier.notify(assignedNotice(assignment.order, now), now);
+      }
       page = page.length < BATCH_SIZE ? [] : await this.orders.findUnassigned(BATCH_SIZE, last(page));
     }
     return assigned;

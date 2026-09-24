@@ -29,6 +29,11 @@ export { NoopTraccarDeviceProvisioner } from "./infrastructure/traccar/noop-trac
 export { HttpTraccarTripsProvider } from "./infrastructure/traccar/http-traccar-trips.provider";
 export { NoopTraccarTripsProvider } from "./infrastructure/traccar/noop-traccar-trips.provider";
 export { EventBusDeviceIdentityEventPublisher } from "./infrastructure/eventbus-device-identity-event.publisher";
+export {
+  DEVICE_VERIFICATION_EVENT_PUBLISHER,
+  type DeviceVerificationEventPublisher,
+} from "./domain/ports/device-verification-event.publisher";
+export { EventBusDeviceVerificationEventPublisher } from "./infrastructure/eventbus-device-verification-event.publisher";
 export { CreateDeviceUseCase } from "./application/use-cases/create-device.use-case";
 export { ListDevicesUseCase } from "./application/use-cases/list-devices.use-case";
 export {

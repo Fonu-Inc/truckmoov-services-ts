@@ -21,6 +21,7 @@ import {
 } from './contexts/installation/domain/installation-job.errors';
 import { InvalidInstallerPhotoError } from './contexts/installation/domain/installer-photo';
 import { InvalidEvidenceError } from './contexts/installation/domain/installation-evidence';
+import { InstallerNotificationNotFoundError } from './contexts/installation/domain/installer-notification';
 import {
   INSTALLATION_ORDER_STATUSES,
   InvalidInstallationDateError,
@@ -54,6 +55,7 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [InvalidInstallationDateError, BadRequestException],
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
+  [InstallerNotificationNotFoundError, NotFoundException],
   [InstallationJobClosedError, ConflictException],
   [InstallationJobConflictError, ConflictException],
   [InvalidInstallationTransitionError, ConflictException],

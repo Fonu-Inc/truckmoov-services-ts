@@ -22,6 +22,8 @@ export type DeviceFilters = {
 
 export interface DeviceRepository {
   save(device: Device): Promise<void>;
+  /** Saves only while the stored device is still waiting, so one pod wins each verification outcome. */
+  saveIfWaitingForVerification(device: Device): Promise<boolean>;
   findAll(filters?: DeviceFilters): Promise<Device[]>;
   findById(id: string, tenantId: string): Promise<Device | null>;
   /** The named devices this tenant holds; ids held elsewhere are left out. */

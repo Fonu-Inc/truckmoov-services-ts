@@ -89,8 +89,10 @@ async function harness() {
   const recorder = new InMemoryJobIssueRecorder(orders, tickets, attachments);
 
   const support = new InstallerSupportUseCases(tokens as never, installers, orders, tickets, attachments, files, notifier as never, activity as never);
+  const alerts = { raise: vi.fn(async () => {}) };
   const report = new ReportJobIssueUseCase(
     tokens as never, installers, orders, tickets, recorder, files, scanner, notifier as never, activity as never, config as never,
+    alerts as never,
   );
   const reader = new InMemoryInstallationJobReader(orders, applications, installers);
   const lookup = { forTenant: vi.fn(async () => new Map()) };
@@ -99,14 +101,18 @@ async function harness() {
   const users = new InMemoryUserRepository();
   await users.save({ id: "platform", email: "p@co.com", passwordHash: "x", role: "PLATFORM_ADMIN", tenantId: "system" });
   const access = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
-  const changes = new AdminJobChangesUseCases(orders, tokens as never, users, access, activity as never);
+  const installerNotifier = { notify: vi.fn(async () => {}) };
+  const changes = new AdminJobChangesUseCases(orders, tokens as never, users, access, activity as never, installerNotifier as never);
   const admin = new ManageInstallationOrdersUseCases(orders, reader, installers, lookup, tokens as never, users, access, activity as never, tickets);
 
   await installers.save(installer("ada"));
   await installers.save(installer("bola"));
   await orders.save(order());
 
-  return { installers, orders, tickets, attachments, files, scanner, notifier, activity, recorder, support, report, jobs, changes, admin };
+  return {
+    installers, orders, tickets, attachments, files, scanner, notifier, activity, recorder, support, report, jobs, changes, admin, alerts,
+    installerNotifier,
+  };
 }
 
 type Harness = Awaited<ReturnType<typeof harness>>;
@@ -292,6 +298,26 @@ describe("reporting a job issue", () => {
       });
     }
     expect(h.activity.record).toHaveBeenCalledWith(expect.objectContaining({ action: "installer.installation.issue_reported" }));
+  });
+
+  it("tells platform staff through an installation_issues alert", async () => {
+    const issue = await h.report.execute("user-ada", "job-1", { issueType: "device_hardware", description: "Harness melted" }, NOW);
+
+    expect(h.alerts.raise).toHaveBeenCalledTimes(1);
+    expect(h.alerts.raise).toHaveBeenCalledWith({
+      alertType: "installation_issues",
+      severity: "high",
+      subject: "Installation issue reported on FL-1000",
+      body: expect.stringContaining('ada Installer (INS-ada) reported "Device & Hardware" on FL-1000 (#tkt-'),
+      context: expect.objectContaining({ orderId: "job-1", jobNumber: "FL-1000", orderTenantId: TENANT, installerId: "ada", ticketId: issue.ticketId }),
+    });
+  });
+
+  it("raises no alert when the report does not land", async () => {
+    vi.spyOn(h.tickets, "save").mockRejectedValueOnce(new Error("db down"));
+
+    await expect(h.report.execute("user-ada", "job-1", { issueType: "device_hardware", description: "x" }, NOW)).rejects.toThrow("db down");
+    expect(h.alerts.raise).not.toHaveBeenCalled();
   });
 
   it("refuses finished, cancelled or already reported jobs, and another installer's job", async () => {

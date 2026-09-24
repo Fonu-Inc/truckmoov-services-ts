@@ -17,41 +17,16 @@ export class MikroDeviceRepository implements DeviceRepository {
 
   async save(device: Device): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
-    const em = orm.em.fork();
+    await orm.em.fork().upsert(DeviceRecord, toRecord(device));
+  }
 
-    await em.upsert(DeviceRecord, {
-      id: device.id,
-      imei: device.imei,
-      name: device.name,
-      manufacturer: device.manufacturer,
-      model: device.model,
-      firmwareVersion: device.firmwareVersion,
-      tenantId: device.tenantId,
-      status: device.status,
-      lifecycleStatus: device.lifecycleStatus,
-      vehicleId: device.vehicleId,
-      signalStrength: device.signalStrength,
-      batteryLevel: device.batteryLevel,
-      lastSeen: device.lastSeen ? new Date(device.lastSeen) : null,
-      assignedAt: device.assignedAt ? new Date(device.assignedAt) : null,
-      protocol: device.protocol,
-      port: device.port,
-      reportedProtocol: device.reportedProtocol,
-      configuredAt: device.configuredAt ? new Date(device.configuredAt) : null,
-      verificationStatus: device.verificationStatus,
-      verificationDeadline: device.verificationDeadline
-        ? new Date(device.verificationDeadline)
-        : null,
-      verificationError: device.verificationError,
-      verifiedAt: device.verifiedAt ? new Date(device.verifiedAt) : null,
-      preSuspensionLifecycleStatus: device.preSuspensionLifecycleStatus,
-      suspendedAt: device.suspendedAt ? new Date(device.suspendedAt) : null,
-      suspensionReason: device.suspensionReason,
-      traccarDeviceId: device.traccarDeviceId,
-      provisionStatus: device.provisionStatus,
-      createdAt: new Date(device.createdAt),
-      updatedAt: new Date(device.updatedAt),
-    });
+  async saveIfWaitingForVerification(device: Device): Promise<boolean> {
+    const orm = await getFleetOrm(this.config.db);
+    const { id, tenantId, createdAt: _createdAt, ...changes } = toRecord(device);
+    const updated = await orm.em
+      .fork()
+      .nativeUpdate(DeviceRecord, { id, tenantId, verificationStatus: "waiting" }, changes);
+    return updated > 0;
   }
 
   async findAll(filters?: DeviceFilters): Promise<Device[]> {
@@ -204,4 +179,40 @@ export class MikroDeviceRepository implements DeviceRepository {
       updatedAt: record.updatedAt.toISOString(),
     });
   }
+}
+
+function toRecord(device: Device) {
+  return {
+    id: device.id,
+    imei: device.imei,
+    name: device.name,
+    manufacturer: device.manufacturer,
+    model: device.model,
+    firmwareVersion: device.firmwareVersion,
+    tenantId: device.tenantId,
+    status: device.status,
+    lifecycleStatus: device.lifecycleStatus,
+    vehicleId: device.vehicleId,
+    signalStrength: device.signalStrength,
+    batteryLevel: device.batteryLevel,
+    lastSeen: device.lastSeen ? new Date(device.lastSeen) : null,
+    assignedAt: device.assignedAt ? new Date(device.assignedAt) : null,
+    protocol: device.protocol,
+    port: device.port,
+    reportedProtocol: device.reportedProtocol,
+    configuredAt: device.configuredAt ? new Date(device.configuredAt) : null,
+    verificationStatus: device.verificationStatus,
+    verificationDeadline: device.verificationDeadline
+      ? new Date(device.verificationDeadline)
+      : null,
+    verificationError: device.verificationError,
+    verifiedAt: device.verifiedAt ? new Date(device.verifiedAt) : null,
+    preSuspensionLifecycleStatus: device.preSuspensionLifecycleStatus,
+    suspendedAt: device.suspendedAt ? new Date(device.suspendedAt) : null,
+    suspensionReason: device.suspensionReason,
+    traccarDeviceId: device.traccarDeviceId,
+    provisionStatus: device.provisionStatus,
+    createdAt: new Date(device.createdAt),
+    updatedAt: new Date(device.updatedAt),
+  };
 }

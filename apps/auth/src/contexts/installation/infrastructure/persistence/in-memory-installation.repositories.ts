@@ -134,6 +134,18 @@ export class InMemoryInstallationOrderRepository
     return 'assigned';
   }
 
+  async claimReminders(
+    statuses: readonly InstallationOrderStatus[],
+    day: Date,
+    now: Date,
+  ): Promise<StoredInstallationOrder[]> {
+    const due = this.all().filter(
+      (order) => statuses.includes(order.status) && order.scheduledDate.getTime() === day.getTime() && !order.reminderSentAt,
+    );
+    for (const order of due) await this.save({ ...order, reminderSentAt: now });
+    return due.map((order) => ({ ...order, reminderSentAt: now }));
+  }
+
   async markOverdue(
     from: readonly InstallationOrderStatus[],
     before: Date,
@@ -156,10 +168,15 @@ export class InMemoryInstallationOrderRepository
     return true;
   }
 
-  async saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+  async saveDetails(
+    order: StoredInstallationOrder,
+    from: InstallationOrderStatus,
+    options: { clearReminder?: boolean } = {},
+  ): Promise<boolean> {
     const current = this.orders.get(order.id);
     if (current?.status !== from) return false;
-    this.orders.set(order.id, { ...order, installerNotes: current.installerNotes });
+    const reminderSentAt = options.clearReminder ? null : current.reminderSentAt;
+    this.orders.set(order.id, { ...order, installerNotes: current.installerNotes, reminderSentAt });
     return true;
   }
 

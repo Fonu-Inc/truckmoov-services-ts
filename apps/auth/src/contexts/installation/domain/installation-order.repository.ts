@@ -28,6 +28,7 @@ export type StoredInstallationOrder = {
   issueReportedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
+  reminderSentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -102,6 +103,11 @@ export interface InstallationOrderRepository {
    * writers cannot both take the last place.
    */
   assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome>;
+  /**
+   * Stamps reminder_sent_at on orders in `statuses` booked for `day` that have
+   * no reminder yet, and returns them. Each order is claimed by one caller only.
+   */
+  claimReminders(statuses: readonly InstallationOrderStatus[], day: Date, now: Date): Promise<StoredInstallationOrder[]>;
   /** Moves orders in `from` dated before `before` to overdue; returns how many moved. */
   markOverdue(from: readonly InstallationOrderStatus[], before: Date, now: Date): Promise<number>;
   nextOrderNumber(): Promise<string>;
@@ -110,8 +116,11 @@ export interface InstallationOrderRepository {
    * so two concurrent moves cannot both apply. False when the other one won.
    */
   transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean>;
-  /** Writes the details, status and step stamps only while the order is still `from`. */
-  saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean>;
+  /**
+   * Writes the details, status and step stamps only while the order is still `from`.
+   * The reminder stamp is left to the sweep unless `clearReminder` (a reschedule).
+   */
+  saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus, options?: { clearReminder?: boolean }): Promise<boolean>;
   saveInstallerNotes(
     orderId: string,
     notes: string | null,

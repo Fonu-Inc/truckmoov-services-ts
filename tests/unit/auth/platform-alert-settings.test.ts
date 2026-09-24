@@ -31,12 +31,12 @@ function build(role = 'PLATFORM_ADMIN', tenantId = 'system') {
 
 describe('who may configure platform alerts', () => {
   it('admits a platform admin', async () => {
-    await expect(build('PLATFORM_ADMIN').useCase.list('token')).resolves.toHaveLength(4);
+    await expect(build('PLATFORM_ADMIN').useCase.list('token')).resolves.toHaveLength(5);
   });
 
   it('admits system roles', async () => {
-    await expect(build('SUPER_ADMIN').useCase.list('token')).resolves.toHaveLength(4);
-    await expect(build('SYSTEM_ADMIN').useCase.list('token')).resolves.toHaveLength(4);
+    await expect(build('SUPER_ADMIN').useCase.list('token')).resolves.toHaveLength(5);
+    await expect(build('SYSTEM_ADMIN').useCase.list('token')).resolves.toHaveLength(5);
   });
 
   // Platform-wide operational config, not a tenant's own settings.
@@ -53,12 +53,13 @@ describe('who may configure platform alerts', () => {
   });
 });
 
-describe('one store, four alert types', () => {
+describe('one store, five alert types', () => {
   it('returns a row per alert type on first load', async () => {
     const settings = await build().useCase.list('token');
 
     expect(settings.map((s) => s.alertType).sort()).toEqual([
       'billing_alerts',
+      'installation_issues',
       'new_tenant_signup',
       'security_alerts',
       'system_errors',

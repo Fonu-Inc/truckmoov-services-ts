@@ -62,7 +62,7 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice());
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { device_id: "dev-1", protocol: "teltonika" }));
@@ -76,7 +76,7 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice({ verificationStatus: "verified", reportedProtocol: "teltonika" }));
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { device_id: "dev-1" }));
@@ -89,7 +89,7 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice());
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { protocol: "teltonika" }));

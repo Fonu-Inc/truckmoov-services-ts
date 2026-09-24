@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { UniqueConstraintViolationException, raw, type FilterQuery } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AppConfigService } from '@shared/config';
+import { nextCalendarDay } from '@shared/devices';
 import {
   getAuthOrm,
   SupportTicketAttachmentRecord,
@@ -111,6 +112,7 @@ function toStoredOrder(r: InstallationOrderRecord): StoredInstallationOrder {
     issueReportedAt: r.issueReportedAt ?? null,
     completedAt: r.completedAt ?? null,
     cancelledAt: r.cancelledAt ?? null,
+    reminderSentAt: r.reminderSentAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -298,6 +300,24 @@ export class MikroInstallationOrderRepository
     });
   }
 
+  async claimReminders(
+    statuses: readonly InstallationOrderStatus[],
+    day: Date,
+    now: Date,
+  ): Promise<StoredInstallationOrder[]> {
+    if (statuses.length === 0) return [];
+    const em = await this.em();
+    const claimed = await em.getConnection().execute<Array<{ id: string }>>(
+      `update installation_orders set reminder_sent_at = ?
+        where status in (?) and scheduled_date >= ? and scheduled_date < ? and reminder_sent_at is null
+        returning id`,
+      [now, [...statuses], day, nextCalendarDay(day)],
+    );
+    if (claimed.length === 0) return [];
+    const records = await em.find(InstallationOrderRecord, { id: { $in: claimed.map((row) => row.id) } });
+    return records.map(toStoredOrder);
+  }
+
   async markOverdue(
     from: readonly InstallationOrderStatus[],
     before: Date,
@@ -318,12 +338,17 @@ export class MikroInstallationOrderRepository
     return changed > 0;
   }
 
-  async saveDetails(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+  async saveDetails(
+    order: StoredInstallationOrder,
+    from: InstallationOrderStatus,
+    options: { clearReminder?: boolean } = {},
+  ): Promise<boolean> {
     const em = await this.em();
+    const reminder = options.clearReminder ? { reminderSentAt: null } : {};
     const changed = await em.nativeUpdate(
       InstallationOrderRecord,
       { id: order.id, status: from },
-      { ...detailFields(order), ...transitionFields(order) },
+      { ...detailFields(order), ...transitionFields(order), ...reminder },
     );
     return changed > 0;
   }

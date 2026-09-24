@@ -264,7 +264,7 @@ describe("the installation sweep", () => {
 
   beforeEach(async () => {
     h = await harness();
-    sweep = new SweepInstallationOrdersUseCase(h.orders, new InstallerAssignmentService(h.installers, h.orders));
+    sweep = new SweepInstallationOrdersUseCase(h.orders, new InstallerAssignmentService(h.installers, h.orders), { notify: async () => {} } as never);
   });
 
   it("assigns waiting orders without overfilling anyone", async () => {
@@ -273,7 +273,7 @@ describe("the installation sweep", () => {
     await h.installers.save(installer("kano", { serviceAreas: ["Kano"] }));
     for (const id of ["o1", "o2", "o3"]) await h.orders.save(order(id, { scheduledDate: day("2026-09-30") }));
 
-    expect(await sweep.run(NOW)).toEqual({ assigned: 2, overdue: 0 });
+    expect(await sweep.run(NOW)).toEqual({ assigned: 2, overdue: 0, reminded: 0 });
     const assigned = await Promise.all(["o1", "o2", "o3"].map((id) => h.orders.findById(id)));
     expect(assigned.map((o) => o?.installerId)).toEqual(["ada", "bola", null]);
     expect(assigned[0]).toMatchObject({ status: "assigned", assignedAt: NOW });
@@ -312,7 +312,7 @@ describe("the installation sweep", () => {
     }
     await h.orders.save(order("lagos", { scheduledDate: day("2026-09-30") }));
 
-    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0 });
+    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0, reminded: 0 });
     expect((await h.orders.findById("lagos"))?.installerId).toBe("ada");
   });
 
@@ -323,8 +323,8 @@ describe("the installation sweep", () => {
     await h.orders.save(order("started", { status: "in_progress", installerId: "ada", scheduledDate: day("2026-09-20") }));
 
     expect(lagosDate(lateEvening)).toBe("2026-09-25");
-    expect(await sweep.run(new Date("2026-09-24T22:30:00Z"))).toEqual({ assigned: 0, overdue: 0 });
-    expect(await sweep.run(lateEvening)).toEqual({ assigned: 0, overdue: 1 });
+    expect(await sweep.run(new Date("2026-09-24T22:30:00Z"))).toEqual({ assigned: 0, overdue: 0, reminded: 1 });
+    expect(await sweep.run(lateEvening)).toEqual({ assigned: 0, overdue: 1, reminded: 0 });
     expect((await h.orders.findById("yesterday"))?.status).toBe("overdue");
     expect((await h.orders.findById("today"))?.status).toBe("scheduled");
     expect((await h.orders.findById("started"))?.status).toBe("in_progress");

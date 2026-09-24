@@ -34,6 +34,7 @@ import { ActivityLogService } from '../../../../activity-log.service';
 import { requireStaff, type Staff } from './support/platform-staff';
 import { JOB_CHANGED_MESSAGE, moveJob } from './support/job-transition';
 import { validateTimeSlot } from './schedule-installation.use-case';
+import { InstallerNotifier } from '../services/installer-notifier.service';
 
 export type IssueOutcome = 'resume' | 'cancel';
 export const ISSUE_OUTCOMES: readonly IssueOutcome[] = ['resume', 'cancel'];
@@ -93,13 +94,21 @@ function resolutionNote(value: unknown): string | null {
   return note || null;
 }
 
-/** An overdue job given a new date is booked again, now or when its reported issue is resumed. */
+function isReschedule(order: StoredInstallationOrder, changed: Partial<InstallationOrderDetails>): boolean {
+  return changed.scheduledDate !== undefined && changed.scheduledDate.getTime() !== order.scheduledDate.getTime();
+}
+
+/**
+ * An overdue job given a new date is booked again, now or when its reported
+ * issue is resumed. A new date is reminded of afresh.
+ */
 function afterDetailsChange(
   order: StoredInstallationOrder,
   changed: Partial<InstallationOrderDetails>,
   now: Date,
 ): StoredInstallationOrder {
-  const edited = { ...order, ...changed, updatedAt: now };
+  const reminderSentAt = isReschedule(order, changed) ? null : order.reminderSentAt;
+  const edited = { ...order, ...changed, reminderSentAt, updatedAt: now };
   if (!changed.scheduledDate) return edited;
   if (order.status === 'overdue') return transitionOrder(edited, 'scheduled', now);
   const pausedOverdue = order.status === 'issue_reported' && order.preExceptionStatus === 'overdue';
@@ -115,6 +124,7 @@ export class AdminJobChangesUseCases {
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(AccessResolver) private readonly access: AccessResolver,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
+    @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
   ) {}
 
   async resolveIssue(accessToken: string, orderId: string, requested: unknown, note?: unknown, now: Date = new Date()) {
@@ -133,6 +143,8 @@ export class AdminJobChangesUseCases {
       note: text,
       status: moved.status,
     });
+    const type = outcome === 'cancel' ? 'job_cancelled' : 'issue_resolved';
+    await this.notifier.notify({ type, order: moved, stamp: now.toISOString() }, now);
     return { id: moved.id, jobNumber: moved.orderNumber, status: moved.status };
   }
 
@@ -145,11 +157,13 @@ export class AdminJobChangesUseCases {
     }
     const changed = changedDetails(change, now);
     const updated = afterDetailsChange(order, changed, now);
-    if (!(await this.orders.saveDetails(updated, order.status))) throw new InstallationJobConflictError(JOB_CHANGED_MESSAGE);
+    const saved = await this.orders.saveDetails(updated, order.status, { clearReminder: isReschedule(order, changed) });
+    if (!saved) throw new InstallationJobConflictError(JOB_CHANGED_MESSAGE);
     await this.audit(staff, updated, 'system.installation.updated', `${order.orderNumber} details updated`, {
       fields: Object.keys(changed),
       status: updated.status,
     });
+    await this.notifier.notify({ type: 'job_updated', order: updated, stamp: now.toISOString() }, now);
     return { id: updated.id, jobNumber: updated.orderNumber, status: updated.status };
   }
 

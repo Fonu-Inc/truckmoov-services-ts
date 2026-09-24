@@ -82,6 +82,16 @@ export {
   type InstallationCompletion,
 } from "./domain/ports/installation-completion.port";
 export { JOB_ISSUE_RECORDER, type JobIssueRecorder } from "./domain/ports/job-issue-recorder.port";
+export {
+  INSTALLER_NOTIFICATION_TYPES,
+  InstallerNotificationNotFoundError,
+  type InstallerNotificationType,
+} from "./domain/installer-notification";
+export {
+  INSTALLER_NOTIFICATION_REPOSITORY,
+  type InstallerNotificationRepository,
+  type StoredInstallerNotification,
+} from "./domain/installer-notification.repository";
 export { INSTALLER_TICKET_FILES, type InstallerTicketFiles } from "./domain/ports/installer-ticket-files.port";
 export {
   INSTALLATION_JOB_CONTEXT,
@@ -131,6 +141,9 @@ export { AdminJobChangesUseCases } from "./application/use-cases/admin-job-chang
 export { InstallerSupportUseCases } from "./application/use-cases/installer-support.use-cases";
 export { ReportJobIssueUseCase } from "./application/use-cases/report-job-issue.use-case";
 export { InstallerTicketContextService } from "./application/services/installer-ticket-context.service";
+export { InstallerNotifier } from "./application/services/installer-notifier.service";
+export { InstallerNotificationsUseCases } from "./application/use-cases/installer-notifications.use-cases";
+export { NotifyDeviceVerificationUseCase } from "./application/use-cases/notify-device-verification.use-case";
 
 // Infrastructure
 export { InstallerAccountsAdapter } from "./infrastructure/accounts/installer-accounts.adapter";
@@ -140,6 +153,9 @@ export { ObjectStorageInstallationEvidence } from "./infrastructure/storage/obje
 export { ObjectStorageInstallerTicketFiles } from "./infrastructure/storage/object-storage-installer-ticket-files";
 export { FleetInstallationAdapter } from "./infrastructure/connectivity/fleet-installation.adapter";
 export { InstallationSweepScheduler } from "./infrastructure/scheduling/installation-sweep.scheduler";
+export { DeviceVerificationListener } from "./infrastructure/messaging/device-verification.listener";
+export { InMemoryInstallerNotificationRepository } from "./infrastructure/persistence/in-memory-installer-notification.repository";
+export { MikroInstallerNotificationRepository } from "./infrastructure/persistence/mikro-installer-notification.repository";
 export { InMemoryInstallationJobReader } from "./infrastructure/persistence/in-memory-installation-job.reader";
 export { MikroInstallationJobReader } from "./infrastructure/persistence/mikro-installation-job.reader";
 export {
@@ -159,5 +175,6 @@ export {
   InstallationDeviceAssignmentRecordSchema,
   InstallationEvidenceRecordSchema,
   InstallationOrderRecordSchema,
+  InstallerNotificationRecordSchema,
   InstallerRecordSchema,
 } from "./infrastructure/persistence/installation-orm";

@@ -149,6 +149,13 @@ import {
   MikroJobIssueRecorder,
   INSTALLER_TICKET_FILES,
   ObjectStorageInstallerTicketFiles,
+  INSTALLER_NOTIFICATION_REPOSITORY,
+  InMemoryInstallerNotificationRepository,
+  MikroInstallerNotificationRepository,
+  InstallerNotifier,
+  InstallerNotificationsUseCases,
+  NotifyDeviceVerificationUseCase,
+  DeviceVerificationListener,
 } from '@auth/installation';
 import { InstallationController } from './installation.controller';
 import { InstallerSupportController } from './installer-support.controller';
@@ -156,6 +163,7 @@ import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
 import { InstallerJobWorkController } from './installer-job-work.controller';
+import { InstallerNotificationsController } from './installer-notifications.controller';
 import { InternalInstallersController } from './internal-installers.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
@@ -716,6 +724,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerAuthController,
     InstallerPortalController,
     InstallerJobWorkController,
+    InstallerNotificationsController,
     InstallerSupportController,
     InternalInstallersController,
     SystemInstallersController,
@@ -1597,6 +1606,21 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     { provide: INSTALLATION_FLEET, useClass: FleetInstallationAdapter },
+    InMemoryInstallerNotificationRepository,
+    MikroInstallerNotificationRepository,
+    {
+      provide: INSTALLER_NOTIFICATION_REPOSITORY,
+      inject: [InMemoryInstallerNotificationRepository, MikroInstallerNotificationRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInstallerNotificationRepository,
+        mikro: MikroInstallerNotificationRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InstallerNotifier,
+    InstallerNotificationsUseCases,
+    NotifyDeviceVerificationUseCase,
+    DeviceVerificationListener,
     InstallerAssignmentService,
     IssueSetupLinkUseCase,
     ScheduleInstallationUseCase,

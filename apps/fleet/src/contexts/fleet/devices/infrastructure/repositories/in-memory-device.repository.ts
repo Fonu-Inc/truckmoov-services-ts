@@ -10,6 +10,13 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     this.data.set(device.id, device);
   }
 
+  async saveIfWaitingForVerification(device: Device): Promise<boolean> {
+    const stored = this.data.get(device.id);
+    if (stored?.tenantId !== device.tenantId || stored.verificationStatus !== "waiting") return false;
+    this.data.set(device.id, device);
+    return true;
+  }
+
   async findAll(filters?: DeviceFilters): Promise<Device[]> {
     const query = filters?.query?.trim().toLowerCase();
 

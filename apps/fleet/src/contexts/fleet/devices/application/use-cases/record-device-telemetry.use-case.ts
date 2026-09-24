@@ -4,6 +4,10 @@ import {
   DEVICE_REPOSITORY,
   type DeviceRepository,
 } from "../../domain/repositories/device.repository";
+import {
+  DEVICE_VERIFICATION_EVENT_PUBLISHER,
+  type DeviceVerificationEventPublisher,
+} from "../../domain/ports/device-verification-event.publisher";
 
 export type RecordDeviceTelemetryCommand = {
   tenantId: string;
@@ -26,19 +30,34 @@ export type RecordDeviceTelemetryCommand = {
 export class RecordDeviceTelemetryUseCase {
   private readonly logger = new Logger(RecordDeviceTelemetryUseCase.name);
 
-  constructor(@Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository) {}
+  constructor(
+    @Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository,
+    @Inject(DEVICE_VERIFICATION_EVENT_PUBLISHER) private readonly events: DeviceVerificationEventPublisher,
+  ) {}
 
   async execute(command: RecordDeviceTelemetryCommand): Promise<Device | null> {
     const device = await this.resolveDevice(command);
     if (!device) return null;
 
     if (device.verificationStatus === "waiting") {
-      const verified = device.recordFirstTelemetry(command.reportedAt, command.reportedProtocol);
-      await this.devices.save(verified);
-      this.logger.log(`device_verified:${device.tenantId}:${device.id}`);
-      return verified;
+      const verified = await this.verify(device, command);
+      if (verified) return verified;
+      const settled = await this.resolveDevice(command);
+      return settled ? this.touch(settled, command) : null;
     }
 
+    return this.touch(device, command);
+  }
+
+  private async verify(device: Device, command: RecordDeviceTelemetryCommand): Promise<Device | null> {
+    const verified = device.recordFirstTelemetry(command.reportedAt, command.reportedProtocol);
+    if (!(await this.devices.saveIfWaitingForVerification(verified))) return null;
+    this.logger.log(`device_verified:${device.tenantId}:${device.id}`);
+    await this.events.verified(verified, command.reportedAt);
+    return verified;
+  }
+
+  private async touch(device: Device, command: RecordDeviceTelemetryCommand): Promise<Device> {
     const touched = device.update({
       lastSeen: command.reportedAt,
       reportedProtocol: command.reportedProtocol,

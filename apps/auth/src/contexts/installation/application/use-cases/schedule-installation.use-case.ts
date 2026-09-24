@@ -33,6 +33,7 @@ import {
 } from '@auth/installation/domain/installation-order';
 import { IssueSetupLinkUseCase } from './issue-setup-link.use-case';
 import { InstallerAssignmentService } from '../services/installer-assignment.service';
+import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
 
 export class InstallationNotSchedulableError extends Error {
   constructor(message: string) {
@@ -57,6 +58,7 @@ export class ScheduleInstallationUseCase {
     @Inject(IssueSetupLinkUseCase)
     private readonly issueSetupLink: IssueSetupLinkUseCase,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
   ) {}
 
   async execute(input: {
@@ -134,6 +136,7 @@ export class ScheduleInstallationUseCase {
       issueReportedAt: null,
       completedAt: null,
       cancelledAt: null,
+      reminderSentAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -162,6 +165,7 @@ export class ScheduleInstallationUseCase {
     // The account comes into existence here, not at approval: there is nothing
     // for a customer to log in and do until an installation is booked.
     const setupLink = await this.issueSetupLink.execute(application);
+    if (assignment) await this.notifier.notify(assignedNotice(order, now));
 
     this.logger.log(
       `installation_scheduled:${order.orderNumber}:installer=${installer?.id ?? 'unassigned'}`,

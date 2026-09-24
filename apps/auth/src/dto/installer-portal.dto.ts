@@ -43,6 +43,33 @@ export class UpdateInstallerProfileDto {
   city?: string;
 }
 
+export class UpdateInstallerNotificationPreferencesDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  newJobAssigned?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  scheduleReminders?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  jobStatusUpdates?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  smsAlerts?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  emailAlerts?: boolean;
+}
+
 export class BindUnitDeviceDto {
   @ApiProperty({ description: 'The fleet device fitted as this unit' })
   @IsString()

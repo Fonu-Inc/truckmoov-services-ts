@@ -27,6 +27,7 @@ import {
   CreateDeviceUseCase,
   DeleteDeviceUseCase,
   DEVICE_IDENTITY_EVENT_PUBLISHER,
+  DEVICE_VERIFICATION_EVENT_PUBLISHER,
   DEVICE_QUOTA_READER,
   DEVICE_REPOSITORY,
   DeviceCatalogLookupUseCase,
@@ -35,6 +36,7 @@ import {
   DeviceFilterOptionsUseCase,
   DeviceInventorySummaryUseCase,
   EventBusDeviceIdentityEventPublisher,
+  EventBusDeviceVerificationEventPublisher,
   GetDeviceUseCase,
   HttpTraccarDeviceProvisioner,
   HttpTraccarTripsProvider,
@@ -741,6 +743,11 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     {
       provide: DEVICE_IDENTITY_EVENT_PUBLISHER,
       useExisting: EventBusDeviceIdentityEventPublisher,
+    },
+    EventBusDeviceVerificationEventPublisher,
+    {
+      provide: DEVICE_VERIFICATION_EVENT_PUBLISHER,
+      useExisting: EventBusDeviceVerificationEventPublisher,
     },
     HttpTraccarTripsProvider,
     NoopTraccarTripsProvider,

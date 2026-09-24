@@ -31,18 +31,20 @@ export class ExpireDeviceVerificationsUseCase {
       SWEEP_BATCH_SIZE,
     );
 
+    let expired = 0;
     for (const device of due) {
-      await this.recordFailure.execute({
+      const failed = await this.recordFailure.expire({
         device,
         reason: "timeout",
         detail: `no telemetry within the verification window (deadline ${device.verificationDeadline})`,
         at: now.toISOString(),
       });
+      if (failed) expired += 1;
     }
 
-    if (due.length > 0) {
-      this.logger.warn(`device_verification_expired:${due.length}`);
+    if (expired > 0) {
+      this.logger.warn(`device_verification_expired:${expired}`);
     }
-    return { expired: due.length };
+    return { expired };
   }
 }

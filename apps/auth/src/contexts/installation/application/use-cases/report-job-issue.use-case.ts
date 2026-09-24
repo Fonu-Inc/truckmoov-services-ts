@@ -13,6 +13,7 @@ import { MAX_EVIDENCE_BYTES, evidenceFileName } from '@auth/installation/domain/
 import {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
+  type StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
 import {
   INSTALLER_REPOSITORY,
@@ -28,11 +29,17 @@ import {
   JOB_ISSUE_RECORDER,
   type JobIssueRecorder,
 } from '@auth/installation/domain/ports/job-issue-recorder.port';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../../../support-ticket.repository';
+import {
+  SUPPORT_TICKET_REPOSITORY,
+  ticketDisplayId,
+  type StoredSupportTicket,
+  type SupportTicketRepository,
+} from '../../../../support-ticket.repository';
 import type { StoredSupportTicketAttachment } from '../../../../support-ticket-attachment.repository';
 import { TICKET_FILE_SCANNER, scanRefusal, type TicketFileScanner } from '../../../../ticket-file-scanner.port';
 import { ActivityLogService } from '../../../../activity-log.service';
 import { SupportTicketNotifierService } from '../../../../support-ticket-notifier.service';
+import { PlatformAlertPublisher, type RaisedAlert } from '../../../../platform-alert.publisher';
 import { installerJob } from './support/current-installer';
 import { JOB_CHANGED_MESSAGE } from './support/job-transition';
 import { announceInstallerTicket, installerTicket } from './support/installer-ticket';
@@ -48,6 +55,17 @@ function inspectIssuePhoto(file: UploadedDocumentFile): InspectedImage {
     { subject: 'Issue photo', maxBytes: MAX_EVIDENCE_BYTES, formats: ['jpeg', 'png', 'webp'] },
     (message) => new OnboardingValidationError('photo', message),
   );
+}
+
+function issueAlert(installer: StoredInstaller, order: StoredInstallationOrder, ticket: StoredSupportTicket): RaisedAlert {
+  const displayId = ticketDisplayId(ticket.ticketNumber);
+  return {
+    alertType: 'installation_issues',
+    severity: 'high',
+    subject: `Installation issue reported on ${order.orderNumber}`,
+    body: `${installer.fullName} (${installer.code}) reported "${ticket.subject}" on ${order.orderNumber} (${displayId}): ${ticket.description}`,
+    context: { orderId: order.id, jobNumber: order.orderNumber, orderTenantId: order.tenantId, installerId: installer.id, ticketId: ticket.id, displayId },
+  };
 }
 
 function installerTicketFileKey(installerId: string, ticketId: string, attachmentId: string): string {
@@ -71,6 +89,7 @@ export class ReportJobIssueUseCase {
     @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
     @Inject(AppConfigService) config: AppConfigService,
+    @Inject(PlatformAlertPublisher) private readonly alerts: PlatformAlertPublisher,
   ) {
     this.scanRequired = config.fleet.documentScanRequired;
   }
@@ -96,6 +115,7 @@ export class ReportJobIssueUseCase {
     const stored = photo ? await this.storePhoto(installer, ticket.id, photo, now) : null;
     const moved = transitionOrder(order, 'issue_reported', now);
     await this.recordOrUndo(() => this.recorder.record({ order: moved, from: order.status, ticket, attachment: stored?.attachment ?? null }), stored);
+    await this.alerts.raise(issueAlert(installer, order, ticket));
 
     await announceInstallerTicket({ activity: this.activity, notifier: this.notifier }, installer, ticket, 'installer.installation.issue_reported');
     return toJobIssueView(ticket);

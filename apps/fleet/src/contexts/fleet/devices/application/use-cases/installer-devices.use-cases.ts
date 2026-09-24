@@ -10,6 +10,7 @@ import {
 import type { InstallerScopeEntry } from "../../domain/ports/installer-device-scope.port";
 import { GetDeviceDiagnosticsUseCase } from "./get-device-diagnostics.use-case";
 import { summariseDevices } from "./get-installation-queue.use-case";
+import { VERIFICATION_FAILURE_MESSAGES } from "./record-verification-failure.use-case";
 import {
   GetVerificationMonitorUseCase,
   type VerificationMonitorRow,
@@ -24,13 +25,7 @@ const VERIFICATION_LABELS: Record<VerificationState, string> = {
   verified: "Verified",
 };
 
-const FAILURE_MESSAGES: Record<string, string> = {
-  timeout: "No telemetry arrived before the verification window closed",
-  wrong_port: "The device reported on the wrong port",
-  malformed_payload: "The device sent data nothing could read",
-  authentication_rejected: "The server rejected the device's connection",
-  unknown: "Verification failed for an unknown reason",
-};
+const FAILURE_MESSAGES: Record<string, string> = VERIFICATION_FAILURE_MESSAGES;
 
 type FailureLike = { reason: string; detail: string | null };
 

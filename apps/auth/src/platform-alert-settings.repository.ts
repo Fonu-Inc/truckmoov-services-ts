@@ -3,6 +3,7 @@ export const PLATFORM_ALERT_TYPES = [
   'system_errors',
   'billing_alerts',
   'security_alerts',
+  'installation_issues',
 ] as const;
 
 export type PlatformAlertType = (typeof PLATFORM_ALERT_TYPES)[number];

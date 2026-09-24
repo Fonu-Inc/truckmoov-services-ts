@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { EventBusDeviceVerificationEventPublisher } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/eventbus-device-verification-event.publisher";
 import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/entities/device.entity";
 import { InMemoryDeviceRepository } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/repositories/in-memory-device.repository";
 import { InMemoryDeviceVerificationFailureRepository } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/repositories/in-memory-device-verification-failure.repository";
@@ -92,20 +93,23 @@ function harness() {
   const failures = new InMemoryDeviceVerificationFailureRepository();
   const catalog = new FakeCatalog();
   const configure = new ConfigureDeviceUseCase(devices, catalog as never);
+  const events = { verified: vi.fn(async () => {}), failed: vi.fn(async () => {}) };
   const recordFailure = new RecordVerificationFailureUseCase(
     devices,
     failures,
     runtime as never,
+    events,
   );
 
   return {
     devices,
     failures,
+    events,
     configure,
     recordFailure,
     bulkConfigure: new BulkConfigureDevicesUseCase(configure),
     startVerification: new StartDeviceVerificationUseCase(devices, configFor()),
-    telemetry: new RecordDeviceTelemetryUseCase(devices),
+    telemetry: new RecordDeviceTelemetryUseCase(devices, events),
     expire: new ExpireDeviceVerificationsUseCase(devices, recordFailure),
     queue: new GetInstallationQueueUseCase(devices),
     monitor: new GetVerificationMonitorUseCase(devices, failures),
@@ -177,6 +181,20 @@ describe("Device installation", () => {
     expect(verified?.lifecycleStatus).toBe("verified_online");
     expect(verified?.verifiedAt).toBe(reportedAt);
     expect(verified?.lastSeen).toBe(reportedAt);
+    expect(kit.events.verified).toHaveBeenCalledWith(expect.objectContaining({ id: "dev-1", verificationStatus: "verified" }), reportedAt);
+  });
+
+  it("announces verification only on the first report", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+
+    await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:00:00.000Z" });
+    await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:01:00.000Z" });
+
+    expect(kit.events.verified).toHaveBeenCalledTimes(1);
+    expect(kit.events.failed).not.toHaveBeenCalled();
   });
 
   it("matches telemetry by imei when the device id is the imei", async () => {
@@ -213,6 +231,26 @@ describe("Device installation", () => {
 
     const logged = await kit.failures.findByDevice("dev-1", TENANT, 10);
     expect(logged[0]?.reason).toBe("timeout");
+    expect(kit.events.failed).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dev-1" }),
+      { code: "timeout", message: "No telemetry arrived before the verification window closed" },
+      wellPastDeadline.toISOString(),
+    );
+  });
+
+  it("announces a recorded failure with its reason", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    const device = await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+
+    await kit.recordFailure.execute({ device, reason: "wrong_port", at: "2026-08-25T10:00:00.000Z" });
+
+    expect(kit.events.failed).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "dev-1", verificationStatus: "failed" }),
+      { code: "wrong_port", message: "The device reported on the wrong port" },
+      "2026-08-25T10:00:00.000Z",
+    );
   });
 
   it("does not expire a window that is still open", async () => {
@@ -222,6 +260,38 @@ describe("Device installation", () => {
     await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
 
     expect((await kit.expire.execute(new Date())).expired).toBe(0);
+  });
+
+  it("announces an expiry once when two pods sweep the same device", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    const due = await kit.devices.findAwaitingVerificationPastDeadline(new Date(Date.now() + 60 * 60_000), 10);
+
+    const first = await kit.recordFailure.expire({ device: due[0]!, reason: "timeout" });
+    const second = await kit.recordFailure.expire({ device: due[0]!, reason: "timeout" });
+
+    expect(first?.verificationStatus).toBe("failed");
+    expect(second).toBeNull();
+    expect(kit.events.failed).toHaveBeenCalledTimes(1);
+    expect(await kit.failures.findByDevice("dev-1", TENANT, 10)).toHaveLength(1);
+  });
+
+  it("announces verification once when two pods read the same waiting device", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice());
+    await kit.configure.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    const waiting = await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    const findById = vi.spyOn(kit.devices, "findById").mockResolvedValueOnce(waiting).mockResolvedValueOnce(waiting);
+
+    await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:00:00.000Z" });
+    const second = await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:00:05.000Z" });
+
+    findById.mockRestore();
+    expect(kit.events.verified).toHaveBeenCalledTimes(1);
+    expect(second?.verificationStatus).toBe("verified");
+    expect(second?.lastSeen).toBe("2026-08-25T10:00:05.000Z");
   });
 
   it("keeps the raw payload of a device nothing can parse", async () => {
@@ -419,5 +489,36 @@ describe("Device installation", () => {
     await expect(() =>
       kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" }),
     ).rejects.toThrow("only a configured device can be verified");
+  });
+});
+
+describe("Device verification events", () => {
+  const device = makeDevice();
+
+  it("publishes verified and failed on the device's tenant subject", async () => {
+    const bus = { publish: vi.fn(async () => {}) };
+    const publisher = new EventBusDeviceVerificationEventPublisher(bus as never, { generateId: () => "evt-1" } as never);
+
+    await publisher.verified(device, "2026-08-25T10:00:00.000Z");
+    await publisher.failed(device, { code: "timeout", message: "No telemetry" }, "2026-08-25T11:00:00.000Z");
+
+    expect(bus.publish).toHaveBeenNthCalledWith(1, `tm.${TENANT}.device.verification.verified`, expect.objectContaining({
+      id: "evt-1",
+      type: "device.verification.verified",
+      tenant_id: TENANT,
+      occurred_at: "2026-08-25T10:00:00.000Z",
+      data: { device_id: "dev-1", imei: "359779090012345", manufacturer: "Teltonika", model: "FMB920", occurred_at: "2026-08-25T10:00:00.000Z" },
+    }));
+    expect(bus.publish).toHaveBeenNthCalledWith(2, `tm.${TENANT}.device.verification.failed`, expect.objectContaining({
+      type: "device.verification.failed",
+      data: expect.objectContaining({ reason_code: "timeout", reason_message: "No telemetry" }),
+    }));
+  });
+
+  it("never fails the caller when the bus is down", async () => {
+    const bus = { publish: vi.fn(async () => { throw new Error("nats down"); }) };
+    const publisher = new EventBusDeviceVerificationEventPublisher(bus as never, { generateId: () => "evt-1" } as never);
+
+    await expect(publisher.verified(device, "2026-08-25T10:00:00.000Z")).resolves.toBeUndefined();
   });
 });

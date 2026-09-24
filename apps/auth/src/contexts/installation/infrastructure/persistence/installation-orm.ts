@@ -77,6 +77,7 @@ export class InstallationOrderRecord {
   issueReportedAt!: Date | null;
   completedAt!: Date | null;
   cancelledAt!: Date | null;
+  reminderSentAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -108,6 +109,7 @@ export const InstallationOrderRecordSchema =
       issueReportedAt: { fieldName: 'issue_reported_at', type: 'datetime', nullable: true },
       completedAt: { fieldName: 'completed_at', type: 'datetime', nullable: true },
       cancelledAt: { fieldName: 'cancelled_at', type: 'datetime', nullable: true },
+      reminderSentAt: { fieldName: 'reminder_sent_at', type: 'datetime', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
@@ -181,5 +183,34 @@ export const InstallationEvidenceRecordSchema =
       mimeType: { fieldName: 'mime_type', type: 'string', length: 32 },
       uploadedBy: { fieldName: 'uploaded_by', type: 'string', length: 64 },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
+export class InstallerNotificationRecord {
+  id!: string;
+  installerId!: string;
+  type!: string;
+  title!: string;
+  body!: string;
+  orderId!: string | null;
+  dedupeKey!: string;
+  createdAt!: Date;
+  readAt!: Date | null;
+}
+
+export const InstallerNotificationRecordSchema =
+  new EntitySchema<InstallerNotificationRecord>({
+    class: InstallerNotificationRecord,
+    tableName: 'installer_notifications',
+    properties: {
+      id: { type: 'string', length: 64, primary: true },
+      installerId: { fieldName: 'installer_id', type: 'string', length: 64 },
+      type: { type: 'string', length: 40 },
+      title: { type: 'string', length: 120 },
+      body: { type: 'text' },
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, nullable: true },
+      dedupeKey: { fieldName: 'dedupe_key', type: 'string', length: 200, unique: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+      readAt: { fieldName: 'read_at', type: 'datetime', nullable: true },
     },
   });

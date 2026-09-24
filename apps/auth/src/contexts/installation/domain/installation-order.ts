@@ -60,6 +60,8 @@ export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
   'scheduled',
 ];
 
+export const REMINDER_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled'];
+
 /** Where Start Installation may begin. Resuming after an issue report is the admin's call, not a start. */
 export const START_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled', 'overdue'];
 

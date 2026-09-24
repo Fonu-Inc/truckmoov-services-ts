@@ -99,6 +99,7 @@ function toOrder(row: Row): StoredInstallationOrder {
     issueReportedAt: date(row.issue_reported_at),
     completedAt: date(row.completed_at),
     cancelledAt: date(row.cancelled_at),
+    reminderSentAt: date(row.reminder_sent_at),
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
