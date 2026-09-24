@@ -8,14 +8,16 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
-import { TENANT_NAME_READER, type TenantNameReader } from './tenant-name-reader.port';
+import {
+  SYSTEM_TENANT_LABEL,
+  TENANT_NAME_READER,
+  type TenantNameReader,
+} from './tenant-name-reader.port';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 
-/**
- * The platform's own audit rows are filed under a tenant id that is not a
- * tenant. Left bare it reads as an unnamed customer in the dropdown.
- */
-const SYSTEM_TENANT_LABEL = 'System / Platform';
+const DEFAULT_LIST_LIMIT = 100;
+const LIST_MAX = 500;
+const EXPORT_MAX = 5000;
 
 /** Chains are verified per tenant, so a whole-platform check is many checks. */
 const MAX_CHAINS_VERIFIED = 200;
@@ -47,23 +49,38 @@ export class ListAuditLogUseCase {
   ) {}
 
   async execute(accessToken: string, filters: AuditLogQuery) {
-    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
-      forbiddenMessage: 'You are not permitted to view the platform audit log',
-    });
+    await this.ensureViewer(accessToken);
 
-    const entries = await this.repository.queryAcrossTenants(filters);
+    // Counted with the same filters but no limit, so the screen can say how
+    // many rows the page is a slice of.
+    const [entries, total] = await Promise.all([
+      this.repository.queryAcrossTenants(withCappedLimit(filters, LIST_MAX)),
+      this.repository.countAcrossTenants(filters),
+    ]);
     return {
       status: true,
       message: 'success',
-      data: { total: entries.length, items: entries.map(toRow) },
+      data: { total, items: entries.map(toRow) },
     };
   }
 
-  /** Same rows, no envelope, for the export to format. */
+  /** Same rows, no envelope, for the export to format. Capped higher than the list. */
   async rows(accessToken: string, filters: AuditLogQuery): Promise<AuditLogRow[]> {
-    const result = await this.execute(accessToken, filters);
-    return result.data.items;
+    await this.ensureViewer(accessToken);
+
+    const entries = await this.repository.queryAcrossTenants(withCappedLimit(filters, EXPORT_MAX));
+    return entries.map(toRow);
   }
+
+  private async ensureViewer(accessToken: string): Promise<void> {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      forbiddenMessage: 'You are not permitted to view the platform audit log',
+    });
+  }
+}
+
+function withCappedLimit(filters: AuditLogQuery, max: number): AuditLogQuery {
+  return { ...filters, limit: Math.min(filters.limit ?? DEFAULT_LIST_LIMIT, max) };
 }
 
 @Injectable()

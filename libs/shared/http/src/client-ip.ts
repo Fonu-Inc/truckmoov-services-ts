@@ -11,8 +11,13 @@
  * because it will be believed.
  */
 
+import { BlockList, isIP } from "node:net";
+
 export type ClientIpOptions = {
-  /** Socket addresses whose forwarding headers may be believed. */
+  /**
+   * Socket addresses whose forwarding headers may be believed. An entry may be
+   * a CIDR range, because gateway pods change address on every reschedule.
+   */
   trustedProxies: string[];
   /** Header the gateway writes the real client address into. */
   header: string;
@@ -40,7 +45,28 @@ export function clientIpFrom(request: IncomingLike, options: ClientIpOptions): s
 }
 
 function isTrusted(peer: string, trustedProxies: string[]): boolean {
-  return trustedProxies.some((entry) => normalizeIp(entry) === peer);
+  return trustedProxies.some((entry) => matchesProxy(peer, entry));
+}
+
+function matchesProxy(peer: string, entry: string): boolean {
+  const proxy = normalizeIp(entry);
+  if (!proxy) return false;
+  return proxy.includes("/") ? inSubnet(peer, proxy) : proxy === peer;
+}
+
+function inSubnet(peer: string, cidr: string): boolean {
+  const [network = "", prefix = ""] = cidr.split("/");
+  const family = isIP(network);
+  if (family === 0 || isIP(peer) !== family || !/^\d+$/.test(prefix)) return false;
+
+  const type = family === 4 ? "ipv4" : "ipv6";
+  const subnet = new BlockList();
+  try {
+    subnet.addSubnet(network, Number(prefix), type);
+  } catch {
+    return false;
+  }
+  return subnet.check(peer, type);
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | null {

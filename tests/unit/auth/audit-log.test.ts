@@ -83,6 +83,19 @@ async function seed() {
   return repository;
 }
 
+async function seedMany(count: number) {
+  const repository = new InMemoryActivityLogRepository();
+  for (let index = 0; index < count; index++) {
+    await repository.save(
+      entry({
+        id: `log-${index}`,
+        occurredAt: new Date(Date.UTC(2026, 8, 7) + index * 1000).toISOString(),
+      }),
+    );
+  }
+  return repository;
+}
+
 function lister(repository: InMemoryActivityLogRepository) {
   return new ListAuditLogUseCase(actor() as never, users() as never, repository);
 }
@@ -153,6 +166,35 @@ describe('Cross-tenant audit log', () => {
       expect((await list.execute(TOKEN, { actor: term })).data.total).toBeGreaterThan(0);
     }
     expect((await list.execute(TOKEN, { actor: 'Tunde' })).data.items[0].id).toBe('log-2');
+  });
+
+  // The page is a slice; total is how many rows the filters match, so the
+  // screen can say "showing 1 of 3".
+  it('reports the full filtered count, not the page size', async () => {
+    const list = lister(await seed());
+
+    const page = await list.execute(TOKEN, { limit: 1 });
+    expect(page.data.items).toHaveLength(1);
+    expect(page.data.total).toBe(3);
+
+    const filtered = await list.execute(TOKEN, { tenantId: 'tenant-1', limit: 1 });
+    expect(filtered.data.total).toBe(2);
+  });
+
+  it('caps the list at 500 rows while counting them all', async () => {
+    const result = await lister(await seedMany(845)).execute(TOKEN, { limit: 5000 });
+
+    expect(result.data.items).toHaveLength(500);
+    expect(result.data.total).toBe(845);
+  });
+
+  // The export shares the list's filters but not its cap.
+  it('exports past the list cap, up to 5000 rows', async () => {
+    const list = lister(await seedMany(845));
+
+    expect(await list.rows(TOKEN, { limit: 5000 })).toHaveLength(845);
+    expect(await list.rows(TOKEN, { limit: 600 })).toHaveLength(600);
+    expect(await list.rows(TOKEN, { limit: 9000 })).toHaveLength(845);
   });
 
   it('searches across every displayed field', async () => {
@@ -253,6 +295,46 @@ describe('Establishing the caller address', () => {
 
   it('returns null when there is no socket to read', () => {
     expect(clientIpFrom({ headers: {}, socket: null }, options)).toBeNull();
+  });
+
+  // Gateway pods change address on every reschedule, so a proxy can be a range.
+  it('believes the header when the peer is inside a trusted CIDR range', () => {
+    const ip = clientIpFrom(
+      {
+        headers: { 'x-forwarded-for': '102.89.34.18' },
+        socket: { remoteAddress: '::ffff:10.42.0.199' },
+      },
+      { trustedProxies: ['10.42.0.0/16'], header: 'x-forwarded-for' },
+    );
+    expect(ip).toBe('102.89.34.18');
+  });
+
+  it('ignores the header when the peer is outside the trusted range', () => {
+    const ip = clientIpFrom(
+      {
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+        socket: { remoteAddress: '10.43.0.5' },
+      },
+      { trustedProxies: ['10.42.0.0/16'], header: 'x-forwarded-for' },
+    );
+    expect(ip).toBe('10.43.0.5');
+  });
+
+  it('matches an IPv6 range and skips a malformed one', () => {
+    const request = {
+      headers: { 'x-forwarded-for': '102.89.34.18' },
+      socket: { remoteAddress: 'fd00::7' },
+    };
+
+    expect(
+      clientIpFrom(request, { trustedProxies: ['fd00::/8'], header: 'x-forwarded-for' }),
+    ).toBe('102.89.34.18');
+    expect(
+      clientIpFrom(request, {
+        trustedProxies: ['fd00::/abc', '10.0.0.0/99'],
+        header: 'x-forwarded-for',
+      }),
+    ).toBe('fd00::7');
   });
 
   it('trusts nothing when no proxies are configured', () => {

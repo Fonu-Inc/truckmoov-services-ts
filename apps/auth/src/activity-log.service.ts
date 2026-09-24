@@ -19,7 +19,11 @@ import {
   SYSTEM_SETTINGS_REPOSITORY,
   type SystemSettingsRepository,
 } from "./system-settings.repository";
-import { TENANT_NAME_READER, type TenantNameReader } from "./tenant-name-reader.port";
+import {
+  SYSTEM_TENANT_LABEL,
+  TENANT_NAME_READER,
+  type TenantNameReader,
+} from "./tenant-name-reader.port";
 import { currentRequestContext } from "./request-context";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
 
@@ -72,10 +76,20 @@ const AUDIT_SETTING_TTL_MS = 10_000;
 /** A tenant is renamed about as often as it is created. */
 const TENANT_NAME_TTL_MS = 5 * 60_000;
 
+/** A person renames themselves more often than a tenant does. */
+const ACTOR_NAME_TTL_MS = 60_000;
+
+/** Written by jobs and listeners that act on no one's behalf. */
+const SYSTEM_ACTOR_ID = "system";
+
+type ActorSnapshot = { name: string | null; email: string | null };
+const NO_ACTOR: ActorSnapshot = { name: null, email: null };
+
 @Injectable()
 export class ActivityLogService {
   private auditSetting: { enabled: boolean; expiresAt: number } | null = null;
   private readonly tenantNames = new Map<string, { name: string | null; expiresAt: number }>();
+  private readonly actors = new Map<string, { snapshot: ActorSnapshot; expiresAt: number }>();
 
   constructor(
     @Inject(ACTIVITY_LOG_REPOSITORY)
@@ -117,10 +131,49 @@ export class ActivityLogService {
       recordedAt,
     };
 
-    if (await this.auditLoggingEnabled(command.action)) {
-      await this.repository.save(entry);
+    if (!(await this.auditLoggingEnabled(command.action))) return entry;
+
+    const named = await this.withNameSnapshots(entry);
+    await this.repository.save(named);
+    return named;
+  }
+
+  /**
+   * Captured at write time rather than joined later: an audit row has to name
+   * the actor and tenant as they were. Most writers (events from fleet and the
+   * Go services, direct auth writes) only know the ids, so the names are
+   * resolved here for every one of them.
+   */
+  private async withNameSnapshots(entry: ActivityLogEntry): Promise<ActivityLogEntry> {
+    const needsActor = !entry.actorName || !entry.actorEmail;
+    const [actor, tenantName] = await Promise.all([
+      needsActor ? this.actorSnapshotFor(entry.actorId) : NO_ACTOR,
+      entry.tenantName ?? this.tenantNameFor(entry.tenantId),
+    ]);
+
+    return {
+      ...entry,
+      actorName: entry.actorName ?? actor.name,
+      actorEmail: entry.actorEmail ?? actor.email,
+      tenantName,
+    };
+  }
+
+  private async actorSnapshotFor(actorId: string | null): Promise<ActorSnapshot> {
+    if (!actorId || actorId === SYSTEM_ACTOR_ID) return NO_ACTOR;
+
+    const cached = this.actors.get(actorId);
+    if (cached && cached.expiresAt > Date.now()) return cached.snapshot;
+
+    try {
+      const user = await this.userRepository.findById(actorId);
+      const snapshot = { name: user?.profile?.fullName ?? null, email: user?.email ?? null };
+      this.actors.set(actorId, { snapshot, expiresAt: Date.now() + ACTOR_NAME_TTL_MS });
+      return snapshot;
+    } catch {
+      // A missing name must not stop the entry being written.
+      return NO_ACTOR;
     }
-    return entry;
   }
 
   /**
@@ -157,12 +210,8 @@ export class ActivityLogService {
       tenantId: actor.tenantId,
       actorId: actor.id,
       actorRole: actor.role,
-      // Captured now rather than joined later. An audit row has to name the
-      // actor as they were, and a join returns the name they have today, or
-      // nothing once the account is deleted.
       actorName: command.actorName ?? actor.profile?.fullName ?? null,
       actorEmail: command.actorEmail ?? actor.email,
-      tenantName: command.tenantName ?? (await this.tenantNameFor(actor.tenantId)),
     });
   }
 
@@ -173,6 +222,8 @@ export class ActivityLogService {
    * renamed about as often as it is created.
    */
   private async tenantNameFor(tenantId: string): Promise<string | null> {
+    if (tenantId === SYSTEM_TENANT_ID) return SYSTEM_TENANT_LABEL;
+
     const cached = this.tenantNames.get(tenantId);
     if (cached && cached.expiresAt > Date.now()) return cached.name;
 

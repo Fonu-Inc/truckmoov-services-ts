@@ -66,6 +66,16 @@ export class InMemoryActivityLogRepository implements ActivityLogRepository {
   }
 
   async queryAcrossTenants(filters: AuditLogQuery): Promise<ActivityLogEntry[]> {
+    return this.matchAcrossTenants(filters)
+      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+      .slice(0, filters.limit ?? 100);
+  }
+
+  async countAcrossTenants(filters: AuditLogQuery): Promise<number> {
+    return this.matchAcrossTenants(filters).length;
+  }
+
+  private matchAcrossTenants(filters: AuditLogQuery): ActivityLogEntry[] {
     let results = this.all();
 
     if (filters.tenantId) results = results.filter((e) => e.tenantId === filters.tenantId);
@@ -102,9 +112,7 @@ export class InMemoryActivityLogRepository implements ActivityLogRepository {
       );
     }
 
-    return results
-      .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
-      .slice(0, filters.limit ?? 100);
+    return results;
   }
 
   async filterOptions(): Promise<AuditFilterOptions> {

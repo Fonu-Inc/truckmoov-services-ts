@@ -22,6 +22,8 @@ export interface ActivityLogRepository {
    * admin surface calls this; a tenant reads its own through `query`.
    */
   queryAcrossTenants(filters: AuditLogQuery): Promise<ActivityLogEntry[]>;
+  /** How many entries match the same filters, ignoring the limit. */
+  countAcrossTenants(filters: AuditLogQuery): Promise<number>;
   /** Distinct values behind the filter dropdowns. */
   filterOptions(): Promise<AuditFilterOptions>;
   /** Every tenant that has written an audit entry, for chain verification. */

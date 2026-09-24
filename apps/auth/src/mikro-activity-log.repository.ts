@@ -49,6 +49,9 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
           summary: entry.summary,
           actorId: entry.actorId,
           actorRole: entry.actorRole,
+          actorName: entry.actorName,
+          actorEmail: entry.actorEmail,
+          tenantName: entry.tenantName,
           metadata: entry.metadata,
           occurredAt: new Date(entry.occurredAt),
           recordedAt: new Date(entry.recordedAt),
@@ -110,59 +113,17 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
    */
   async queryAcrossTenants(filters: AuditLogQuery): Promise<ActivityLogEntry[]> {
     const em = await this.em();
-    const where: FilterQuery<ActivityLogRecord> = {};
-
-    if (filters.tenantId) where.tenantId = filters.tenantId;
-    if (filters.action) where.action = filters.action;
-    if (filters.entityType) where.entityType = filters.entityType;
-    if (filters.entityId) where.entityId = filters.entityId;
-    if (filters.service) where.service = filters.service;
-    if (filters.from || filters.to) {
-      where.occurredAt = {
-        ...(filters.from ? { $gte: filters.from } : {}),
-        ...(filters.to ? { $lte: filters.to } : {}),
-      };
-    }
-
-    // One box on the screen for id, name or email, because an operator
-    // chasing a person has whichever of the three they happen to hold.
-    if (filters.actor?.trim()) {
-      const term = `%${filters.actor.trim()}%`;
-      where.$and = [
-        {
-          $or: [
-            { actorId: { $ilike: term } },
-            { actorName: { $ilike: term } },
-            { actorEmail: { $ilike: term } },
-          ],
-        },
-      ];
-    }
-
-    if (filters.search?.trim()) {
-      const term = `%${filters.search.trim()}%`;
-      const searchClause = {
-        $or: [
-          { action: { $ilike: term } },
-          { entityType: { $ilike: term } },
-          { entityId: { $ilike: term } },
-          { summary: { $ilike: term } },
-          { actorName: { $ilike: term } },
-          { actorEmail: { $ilike: term } },
-          { tenantName: { $ilike: term } },
-          { tenantId: { $ilike: term } },
-          { service: { $ilike: term } },
-        ],
-      };
-      where.$and = [...((where.$and as unknown[]) ?? []), searchClause] as never;
-    }
-
-    const rows = await em.find(ActivityLogRecord, where, {
+    const rows = await em.find(ActivityLogRecord, buildAcrossTenantsWhere(filters), {
       orderBy: { occurredAt: "desc", recordedAt: "desc" },
-      limit: normalizeLimit(filters.limit),
+      limit: limitOrDefault(filters.limit),
     });
 
     return rows.map(toEntry);
+  }
+
+  async countAcrossTenants(filters: AuditLogQuery): Promise<number> {
+    const em = await this.em();
+    return em.count(ActivityLogRecord, buildAcrossTenantsWhere(filters));
   }
 
   async filterOptions(): Promise<AuditFilterOptions> {
@@ -259,10 +220,70 @@ export class MikroActivityLogRepository implements ActivityLogRepository {
 }
 
 function normalizeLimit(limit?: number) {
+  return Math.min(limitOrDefault(limit), 500);
+}
+
+function buildAcrossTenantsWhere(filters: AuditLogQuery): FilterQuery<ActivityLogRecord> {
+  const where: FilterQuery<ActivityLogRecord> = {};
+
+  if (filters.tenantId) where.tenantId = filters.tenantId;
+  if (filters.action) where.action = filters.action;
+  if (filters.entityType) where.entityType = filters.entityType;
+  if (filters.entityId) where.entityId = filters.entityId;
+  if (filters.service) where.service = filters.service;
+  if (filters.from || filters.to) {
+    where.occurredAt = {
+      ...(filters.from ? { $gte: filters.from } : {}),
+      ...(filters.to ? { $lte: filters.to } : {}),
+    };
+  }
+
+  const clauses = [actorClause(filters.actor), searchClause(filters.search)].filter(
+    (clause) => clause !== null,
+  );
+  if (clauses.length > 0) where.$and = clauses as never;
+
+  return where;
+}
+
+// One box on the screen for id, name or email, because an operator
+// chasing a person has whichever of the three they happen to hold.
+function actorClause(actor?: string) {
+  if (!actor?.trim()) return null;
+  const term = `%${actor.trim()}%`;
+  return {
+    $or: [
+      { actorId: { $ilike: term } },
+      { actorName: { $ilike: term } },
+      { actorEmail: { $ilike: term } },
+    ],
+  };
+}
+
+function searchClause(search?: string) {
+  if (!search?.trim()) return null;
+  const term = `%${search.trim()}%`;
+  return {
+    $or: [
+      { action: { $ilike: term } },
+      { entityType: { $ilike: term } },
+      { entityId: { $ilike: term } },
+      { summary: { $ilike: term } },
+      { actorName: { $ilike: term } },
+      { actorEmail: { $ilike: term } },
+      { tenantName: { $ilike: term } },
+      { tenantId: { $ilike: term } },
+      { service: { $ilike: term } },
+    ],
+  };
+}
+
+/** The caller owns the cap; the cross-tenant read takes the limit as given. */
+function limitOrDefault(limit?: number) {
   if (!Number.isFinite(limit) || !limit || limit <= 0) {
     return 100;
   }
-  return Math.min(limit, 500);
+  return limit;
 }
 
 function toEntry(row: ActivityLogRecord): ActivityLogEntry {
