@@ -9,8 +9,19 @@ import {
   computeDocumentStatus,
 } from "./compliance-document.repository";
 import { ComplianceReminderWindowService } from "./compliance-reminder-window.service";
+import { csvCell } from "./utils/csv";
 
 export class ComplianceDocumentNotFoundError extends Error {}
+
+export type ComplianceDocumentListFilters = ComplianceDocumentFilters & {
+  status?: ComplianceDocumentStatus;
+  issuedFrom?: string;
+  issuedTo?: string;
+  expiringFrom?: string;
+  expiringTo?: string;
+};
+
+const EXPORT_HEADERS = ["id", "vehicleId", "documentType", "documentName", "issueDate", "expiryDate", "status", "reminderDays"] as const;
 
 export type CreateComplianceDocumentInput = {
   documentType: string;
@@ -37,16 +48,7 @@ export class ComplianceDocumentsUseCase {
     return { ...doc, status: computeDocumentStatus(doc, this.reminderWindow.reminderDays) };
   }
 
-  async list(
-    tenantId: string,
-    filters?: ComplianceDocumentFilters & {
-      status?: ComplianceDocumentStatus;
-      issuedFrom?: string;
-      issuedTo?: string;
-      expiringFrom?: string;
-      expiringTo?: string;
-    },
-  ) {
+  async list(tenantId: string, filters?: ComplianceDocumentListFilters) {
     const docs = await this.repo.findAllByTenant(tenantId, filters);
     let withStatus = docs.map((d) => this.withStatus(d));
     if (filters?.status) withStatus = withStatus.filter((d) => d.status === filters.status);
@@ -165,17 +167,10 @@ export class ComplianceDocumentsUseCase {
     return this.update(tenantId, id, { fileUrl, fileSize });
   }
 
-  async export(tenantId: string, filters?: { vehicleIds?: string[] }): Promise<string> {
-    const docs = await this.repo.findAllByTenant(tenantId, filters);
-    const headers = ["id", "vehicleId", "documentType", "documentName", "issueDate", "expiryDate", "status", "reminderDays"];
-    const rows = [
-      headers.join(","),
-      ...docs.map((d) => {
-        const status = computeDocumentStatus(d, this.reminderWindow.reminderDays);
-        return headers.map((h) => JSON.stringify(h === "status" ? status : (d as Record<string, unknown>)[h] ?? "")).join(",");
-      }),
-    ];
-    return rows.join("\n");
+  async export(tenantId: string, filters?: ComplianceDocumentListFilters): Promise<string> {
+    const docs = await this.list(tenantId, filters);
+    const rows = docs.map((doc) => EXPORT_HEADERS.map((header) => csvCell(doc[header])).join(","));
+    return [EXPORT_HEADERS.join(","), ...rows].join("\n");
   }
 }
 

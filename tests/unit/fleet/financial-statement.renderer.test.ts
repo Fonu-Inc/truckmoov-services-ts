@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  renderCostBreakdownCsv,
+  renderVehiclePLCsv,
   renderStatementCsv,
   renderStatementPdf,
   renderStatementXlsx,
@@ -86,5 +88,21 @@ describe("financial statement renderers", () => {
     expect(csv.length).toBeGreaterThan(0);
     expect(csv).toContain("Total Profit,60000");
     expect(csv).toContain("Vehicle P&L");
+  });
+
+  it("builds the standalone exports from the statement sections", () => {
+    const statement = renderStatementCsv(sample());
+
+    expect(statement).toContain(renderVehiclePLCsv(sample().vehicles));
+    expect(statement).toContain(renderCostBreakdownCsv(sample().vehicles));
+  });
+
+  it("neutralises formula cells but keeps negative numbers numeric", () => {
+    const vehicles = sample().vehicles.map((v) => ({ ...v, plateNumber: "=SUM(A1)", profit: -500 }));
+
+    const [, row] = renderVehiclePLCsv(vehicles).split("\n");
+
+    expect(row).toContain("'=SUM(A1)");
+    expect(row).toContain(",-500,");
   });
 });

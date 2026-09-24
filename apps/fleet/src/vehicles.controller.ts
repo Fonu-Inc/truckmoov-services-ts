@@ -242,16 +242,17 @@ export class VehiclesController extends BaseFleetController {
       } as unknown as VehicleListResponse;
     }
 
-    return this.listVehiclesUseCase.execute({
+    const vehicles = await this.listVehiclesUseCase.execute({
       query: query.query,
       status: query.status,
       assigned: this.parseOptionalBoolean(query.assigned, "assigned"),
-      tenantId: this.tenantIdFromRequest(req),
+      tenantId,
       ownerOperatorId: this.ownerOperatorIdFromRequest(req),
       type: query.type,
       yearFrom: query.yearFrom ? parseInt(query.yearFrom, 10) : undefined,
       yearTo: query.yearTo ? parseInt(query.yearTo, 10) : undefined,
-    }) as unknown as Promise<VehicleListResponse>;
+    });
+    return { status: true, message: "success", tab, data: vehicles } as unknown as VehicleListResponse;
   }
 
   private async buildTabPayload(

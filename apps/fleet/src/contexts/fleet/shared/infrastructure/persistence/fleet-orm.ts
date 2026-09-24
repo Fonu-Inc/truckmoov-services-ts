@@ -775,7 +775,7 @@ export const MaintenanceRecordOrmSchema = new EntitySchema<MaintenanceRecordOrmR
     priority: { type: "string", length: 16, defaultRaw: "'medium'" },
     scheduledDate: { type: "string", length: 10, nullable: true },
     completedDate: { type: "string", length: 10, nullable: true },
-    cost: { type: "decimal", nullable: true, precision: 12, scale: 2 },
+    cost: { type: "decimal", runtimeType: "number", nullable: true, precision: 12, scale: 2 },
     currency: { type: "string", length: 8, defaultRaw: "'NGN'" },
     technician: { type: "string", length: 255, nullable: true },
     notes: { type: "text", nullable: true },
@@ -945,19 +945,19 @@ export const FleetFinancialConfigRecordSchema = new EntitySchema<FleetFinancialC
     id: { type: "string", primary: true },
     tenantId: { type: "string", length: 64 },
     vehicleId: { type: "string", length: 255 },
-    monthlyWagesNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    monthlyInsuranceNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    monthlyDepreciationNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    monthlyParkingNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    monthlyOtherNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    fuelEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    maintenanceEstimateNgnPerMonth: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    monthlyWagesNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    monthlyInsuranceNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    monthlyDepreciationNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    monthlyParkingNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    monthlyOtherNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    fuelEstimateNgnPerMonth: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    maintenanceEstimateNgnPerMonth: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
     driverWageAllocationMethod: { type: "string", length: 32, nullable: true },
-    monthlyDriverWageNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
-    assetPurchasePriceNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    monthlyDriverWageNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    assetPurchasePriceNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
     assetPurchaseDate: { type: "string", length: 10, nullable: true },
     assetUsefulLifeMonths: { type: "integer", nullable: true },
-    assetSalvageValueNgn: { type: "decimal", nullable: true, precision: 14, scale: 2 },
+    assetSalvageValueNgn: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
     depreciationMethod: { type: "string", length: 32, nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
@@ -988,6 +988,54 @@ export const FleetFuelBudgetRecordSchema = new EntitySchema<FleetFuelBudgetRecor
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
   indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
+});
+
+export class FleetFuelRecordRecord {
+  id!: string;
+  tenantId!: string;
+  vehicleId!: string;
+  driverId!: string | null;
+  vehicleType!: string | null;
+  fuelType!: string | null;
+  liters!: number;
+  pricePerLiter!: number;
+  totalCost!: number;
+  station!: string | null;
+  odometer!: number | null;
+  recordedAt!: Date;
+  recordedBy!: string;
+  deletedAt!: Date | null;
+  auditTrail!: Array<{ at: string; by: string; action: "create" | "edit" | "delete" }>;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const FleetFuelRecordRecordSchema = new EntitySchema<FleetFuelRecordRecord>({
+  class: FleetFuelRecordRecord,
+  tableName: "fleet_fuel_records",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    vehicleId: { type: "string", length: 255 },
+    driverId: { type: "string", length: 255, nullable: true },
+    vehicleType: { type: "string", length: 64, nullable: true },
+    fuelType: { type: "string", length: 16, nullable: true },
+    liters: { type: "decimal", runtimeType: "number", precision: 12, scale: 3 },
+    pricePerLiter: { type: "decimal", runtimeType: "number", precision: 14, scale: 2 },
+    totalCost: { type: "decimal", runtimeType: "number", precision: 14, scale: 2 },
+    station: { type: "string", length: 255, nullable: true },
+    odometer: { type: "decimal", runtimeType: "number", nullable: true, precision: 14, scale: 2 },
+    recordedAt: { type: "datetime" },
+    recordedBy: { type: "string", length: 255 },
+    deletedAt: { type: "datetime", nullable: true },
+    auditTrail: { type: "json", defaultRaw: "'[]'" },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [
+    { name: "fleet_fuel_records_tenant_recorded_index", properties: ["tenantId", "recordedAt"] },
+    { name: "fleet_fuel_records_tenant_vehicle_index", properties: ["tenantId", "vehicleId"] },
+  ],
 });
 
 export class ZoneOccupancyRecord {
@@ -1206,6 +1254,7 @@ export async function getFleetOrm(cfg: DbConfig) {
       DocumentAccessLogRecordSchema,
       FleetFinancialConfigRecordSchema,
       FleetFuelBudgetRecordSchema,
+      FleetFuelRecordRecordSchema,
       DeviceSetupRequestRecordSchema,
       ZoneOccupancyRecordSchema,
       ShareLinkRecordSchema,

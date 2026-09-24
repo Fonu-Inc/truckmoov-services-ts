@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { StandardApiResponse } from "@shared/openapi";
+import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
 
 export class VehicleGpsDeviceSchema {
   @ApiProperty()
@@ -271,6 +272,9 @@ export class VehicleResponse extends StandardApiResponse<VehicleSchema> {
 }
 
 export class VehicleListResponse extends StandardApiResponse<VehicleSchema[]> {
+  @ApiProperty({ enum: VEHICLE_TABS, description: "The tab this response is for; unknown tabs fall back to vehicles" })
+  tab!: VehicleTab;
+
   @ApiProperty({ type: VehicleSchema, isArray: true })
   data!: VehicleSchema[];
 }

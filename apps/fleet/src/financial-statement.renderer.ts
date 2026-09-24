@@ -1,5 +1,6 @@
 import { Workbook } from "exceljs";
 import { SimplePdf, type PdfCell } from "./utils/pdf";
+import { csvCell } from "./utils/csv";
 
 export type StatementCostBreakdown = {
   fuel: number;
@@ -91,9 +92,17 @@ function costRow(v: StatementVehicle): (string | number)[] {
   return [v.vehicleId, v.plateNumber, c.fuel, c.maintenance, c.wages, c.insurance, c.depreciation, c.other, v.totalCost];
 }
 
-function csvCell(value: string | number): string {
-  const s = String(value ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+function csvSection(headers: string[], rows: (string | number)[][]): string[] {
+  return [headers.join(","), ...rows.map((row) => row.map(csvCell).join(","))];
+}
+
+/** The standalone P&L and cost exports are these same sections, so they cannot drift from the statement. */
+export function renderVehiclePLCsv(vehicles: StatementVehicle[]): string {
+  return csvSection(PL_HEADERS, vehicles.map(plRow)).join("\n");
+}
+
+export function renderCostBreakdownCsv(vehicles: StatementVehicle[]): string {
+  return csvSection(COST_HEADERS, vehicles.map(costRow)).join("\n");
 }
 
 export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions = {}): string {
@@ -116,10 +125,10 @@ export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions
     );
   }
   if (o.includeVehiclePL) {
-    lines.push("", "Vehicle P&L", PL_HEADERS.join(","), ...s.vehicles.map((v) => plRow(v).map(csvCell).join(",")));
+    lines.push("", "Vehicle P&L", ...csvSection(PL_HEADERS, s.vehicles.map(plRow)));
   }
   if (o.includeCostBreakdown) {
-    lines.push("", "Cost Breakdown", COST_HEADERS.join(","), ...s.vehicles.map((v) => costRow(v).map(csvCell).join(",")));
+    lines.push("", "Cost Breakdown", ...csvSection(COST_HEADERS, s.vehicles.map(costRow)));
   }
   if (opts.notes) lines.push("", `Notes,${csvCell(opts.notes)}`);
   return lines.join("\n");

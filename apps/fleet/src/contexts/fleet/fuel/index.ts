@@ -15,3 +15,4 @@ export type { MetricsPeriod, ConsumptionBucket, FuelTypeBreakdown, VehicleEffici
 export { FuelBudgetUseCase } from "./application/fuel-budget.use-case";
 export type { BudgetPeriodType, FuelBudgetView, BudgetVsActualRow } from "./application/fuel-budget.use-case";
 export { InMemoryFuelRecordRepository } from "./infrastructure/in-memory-fuel-record.repository";
+export { MikroFuelRecordRepository } from "./infrastructure/mikro-fuel-record.repository";

@@ -17,12 +17,14 @@ export type CsvRowError = { line: number; message: string };
 // A value is whatever a person typed. A spreadsheet reads a leading =, +, -, @
 // or control character as a formula, so it is neutralised with an apostrophe on
 // the way out and stripped again on the way in, which keeps an export
-// importable without changing the stored value.
+// importable without changing the stored value. A number is never typed text,
+// so a negative amount stays a number.
 const FORMULA_LEAD = /^[=+\-@\t\r]/;
 
 export function escapeCsvValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const raw = String(value);
+  if (typeof value === "number") return String(value);
+  const raw = value;
   const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

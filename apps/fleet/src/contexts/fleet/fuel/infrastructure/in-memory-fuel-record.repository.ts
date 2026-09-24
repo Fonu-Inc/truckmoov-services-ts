@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { FuelRecord } from "../domain/entities/fuel-record.entity";
 import type { FuelRecordFilters, FuelRecordRepository } from "../domain/repositories/fuel-record.repository";
+import { inclusiveEnd } from "../../../../utils/date-window";
 
 @Injectable()
 export class InMemoryFuelRecordRepository implements FuelRecordRepository {
@@ -28,7 +29,8 @@ export class InMemoryFuelRecordRepository implements FuelRecordRepository {
       records = records.filter((r) => r.station?.toLowerCase().includes(q));
     }
     if (filters?.from) records = records.filter((r) => r.recordedAt >= filters.from!);
-    if (filters?.to) records = records.filter((r) => r.recordedAt <= filters.to!);
+    const to = inclusiveEnd(filters?.to);
+    if (to) records = records.filter((r) => r.recordedAt <= to);
 
     return records.sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
   }

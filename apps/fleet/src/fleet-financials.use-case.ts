@@ -6,7 +6,11 @@ import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "./contexts/fl
 import { MAINTENANCE_RECORD_REPOSITORY, type MaintenanceRecordRepository } from "./maintenance-record.repository";
 import { getFleetOrm, FleetFinancialConfigRecord } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import { AppConfigService } from "@shared/config";
+import { monthlyDepreciation, monthlyWages } from "./financial-costs";
+import { inclusiveEnd } from "./utils/date-window";
 import {
+  renderCostBreakdownCsv,
+  renderVehiclePLCsv,
   renderStatementCsv,
   renderStatementPdf,
   renderStatementXlsx,
@@ -24,7 +28,10 @@ export type RenderedStatement = {
 
 type ProfitTier = "excellent" | "good" | "marginal" | "loss_making";
 
-function profitTier(margin: number): ProfitTier {
+// With no revenue the margin reads 0, so the sign of the profit decides first:
+// a vehicle that only costs money is loss-making, not marginal.
+export function profitTier(profit: number, margin: number): ProfitTier {
+  if (profit < 0) return "loss_making";
   if (margin >= 30) return "excellent";
   if (margin >= 10) return "good";
   if (margin >= 0) return "marginal";
@@ -109,7 +116,9 @@ export class FleetFinancialsUseCase {
   }
 
   async computeProfitability(tenantId: string, periodMonths = 1, filters: ProfitabilityFilters = {}) {
-    const { from, to } = filters;
+    const from = filters.from;
+    const to = inclusiveEnd(filters.to);
+    const now = new Date();
     const [vehicles, jobs, fuelRecords, maintRecords, configs] = await Promise.all([
       this.vehicleRepo.findAll({ tenantId }),
       this.dispatchJobs.listJobs(tenantId),
@@ -132,22 +141,22 @@ export class FleetFinancialsUseCase {
 
       const cfg = configByVehicle.get(v.id);
       const fuelCost =
-        vehicleFuelRecords.length > 0 ? actualFuelCost : periodMonths * Number(cfg?.fuelEstimateNgnPerMonth ?? 0);
+        vehicleFuelRecords.length > 0 ? actualFuelCost : periodMonths * (cfg?.fuelEstimateNgnPerMonth ?? 0);
       const maintCost =
         vehicleMaintRecords.length > 0
           ? actualMaintCost
-          : periodMonths * Number(cfg?.maintenanceEstimateNgnPerMonth ?? 0);
+          : periodMonths * (cfg?.maintenanceEstimateNgnPerMonth ?? 0);
 
-      const wages = periodMonths * Number(cfg?.monthlyWagesNgn ?? 0);
-      const insurance = periodMonths * Number(cfg?.monthlyInsuranceNgn ?? 0);
-      const depreciation = periodMonths * Number(cfg?.monthlyDepreciationNgn ?? 0);
-      const parking = periodMonths * Number(cfg?.monthlyParkingNgn ?? 0);
-      const other = periodMonths * Number(cfg?.monthlyOtherNgn ?? 0);
+      const wages = periodMonths * monthlyWages(cfg);
+      const insurance = periodMonths * (cfg?.monthlyInsuranceNgn ?? 0);
+      const depreciation = periodMonths * monthlyDepreciation(cfg, now);
+      const parking = periodMonths * (cfg?.monthlyParkingNgn ?? 0);
+      const other = periodMonths * (cfg?.monthlyOtherNgn ?? 0);
       const fixedCosts = wages + insurance + depreciation + parking + other;
       const totalCost = fuelCost + maintCost + fixedCosts;
       const profit = revenue - totalCost;
       const marginPercent = revenue > 0 ? (profit / revenue) * 100 : 0;
-      const tier = profitTier(marginPercent);
+      const tier = profitTier(profit, marginPercent);
       const sortedOdo = vehicleFuelRecords
         .filter((f) => f.odometer !== null && f.odometer !== undefined)
         .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
@@ -268,22 +277,10 @@ export class FleetFinancialsUseCase {
   }
 
   async exportVehiclePL(tenantId: string): Promise<string> {
-    const pl = await this.computeProfitability(tenantId);
-    const headers = ["vehicleId", "plateNumber", "revenue", "fuelCost", "maintenanceCost", "fixedCosts", "totalCost", "profit", "marginPercent", "tier", "jobCount"];
-    return [
-      headers.join(","),
-      ...pl.map((v) => headers.map((h) => JSON.stringify((v as Record<string, unknown>)[h] ?? "")).join(",")),
-    ].join("\n");
+    return renderVehiclePLCsv(await this.computeProfitability(tenantId));
   }
 
   async exportCostBreakdown(tenantId: string): Promise<string> {
-    const pl = await this.computeProfitability(tenantId);
-    const headers = ["vehicleId", "plateNumber", "fuelCost", "maintenanceCost", "wages", "insurance", "depreciation", "totalCost"];
-    const getField = (v: (typeof pl)[number], h: string): unknown =>
-      h in v.costBreakdown ? (v.costBreakdown as Record<string, unknown>)[h] : (v as unknown as Record<string, unknown>)[h];
-    return [
-      headers.join(","),
-      ...pl.map((v) => headers.map((h) => JSON.stringify(getField(v, h) ?? "")).join(",")),
-    ].join("\n");
+    return renderCostBreakdownCsv(await this.computeProfitability(tenantId));
   }
 }

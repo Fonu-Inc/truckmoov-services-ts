@@ -277,6 +277,7 @@ import {
   FuelThresholdService,
   InMemoryFuelRecordRepository,
   ListFuelRecordsUseCase,
+  MikroFuelRecordRepository,
   RecordFuelUseCase,
   UpdateFuelRecordUseCase,
 } from "./contexts/fleet/fuel";
@@ -839,7 +840,16 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     IdempotencyGuard,
     RedisClientProvider,
     InMemoryFuelRecordRepository,
-    { provide: FUEL_RECORD_REPOSITORY, useExisting: InMemoryFuelRecordRepository },
+    MikroFuelRecordRepository,
+    {
+      provide: FUEL_RECORD_REPOSITORY,
+      inject: [InMemoryFuelRecordRepository, MikroFuelRecordRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryFuelRecordRepository,
+        mikro: MikroFuelRecordRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
     FuelThresholdService,
     RecordFuelUseCase,
     ListFuelRecordsUseCase,

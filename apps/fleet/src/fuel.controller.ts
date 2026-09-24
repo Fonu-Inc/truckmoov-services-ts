@@ -43,8 +43,8 @@ import {
   DeleteFuelRecordUseCase,
   UpdateFuelRecordUseCase,
   RecordFuelUseCase,
+  type FuelRecordProps,
 } from "./contexts/fleet/fuel";
-import { ExportUseCase } from "./contexts/fleet/reports";
 import {
   FuelThresholdResponse,
   FuelBudgetVsActualResponse,
@@ -71,6 +71,9 @@ import {
 } from "./dto/fuel.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
+import { toCsv } from "./utils/csv";
+
+type FuelListRow = FuelRecordView & FuelRecordProps;
 
 @ApiTags("Fuel")
 @Portals("tenant")
@@ -82,7 +85,6 @@ export class FuelController extends BaseFleetController {
   constructor(
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
-    @Inject(ExportUseCase) private readonly exportUseCase: ExportUseCase,
     @Inject(RecordFuelUseCase) private readonly recordFuelUseCase: RecordFuelUseCase,
     @Inject(ListFuelRecordsUseCase) private readonly listFuelRecordsUseCase: ListFuelRecordsUseCase,
     @Inject(UpdateFuelRecordUseCase) private readonly updateFuelRecordUseCase: UpdateFuelRecordUseCase,
@@ -117,19 +119,20 @@ export class FuelController extends BaseFleetController {
     @Query() query: FuelListQueryDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordListResponse> {
+    const data = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query);
+    return { status: true, message: "success", data } as unknown as FuelRecordListResponse;
+  }
+
+  private async filteredFuelRecords(tenantId: string, query: FuelListQueryDto) {
     const records = await this.listFuelRecordsUseCase.execute({
-      tenantId: this.tenantIdFromRequest(req),
+      tenantId,
       vehicleId: query.vehicleId,
       driverId: query.driverId,
       station: query.station,
       from: query.from,
       to: query.to,
     });
-    return {
-      status: true,
-      message: "success",
-      data: applyFuelFilters(records as unknown as FuelRecordView[], query),
-    } as unknown as FuelRecordListResponse;
+    return applyFuelFilters(records as unknown as FuelListRow[], query);
   }
 
   @Get("summary")
@@ -239,7 +242,12 @@ export class FuelController extends BaseFleetController {
           registration.toLowerCase(),
       );
       if (!match) {
-        throw new BadRequestException(`No vehicle is registered as ${registration}`);
+        throw new BadRequestException({
+          statusCode: 400,
+          error: "Bad Request",
+          message: `No vehicle is registered as ${registration}`,
+          field: "vehicleRegistration",
+        });
       }
       vehicleId = String(match["id"]);
     }
@@ -325,13 +333,27 @@ export class FuelController extends BaseFleetController {
   @Get("export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
-  @ApiOperation({ summary: "Export fuel transactions to CSV — N07" })
+  @ApiOperation({
+    summary: "Export fuel transactions to CSV — N07",
+    description: "Takes the same filters as /fuel/transactions and exports exactly the rows that list shows.",
+  })
+  @ApiQuery({ name: "query", required: false, type: String })
+  @ApiQuery({ name: "fuelType", required: false, enum: ["diesel", "petrol", "ev", "hybrid"] })
+  @ApiQuery({ name: "litresFrom", required: false, type: Number })
+  @ApiQuery({ name: "litresTo", required: false, type: Number })
+  @ApiQuery({ name: "totalFrom", required: false, type: Number })
+  @ApiQuery({ name: "totalTo", required: false, type: Number })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ description: "CSV file", schema: { type: "string", format: "binary" } })
   async exportFuel(
+    @Query() query: FuelListQueryDto,
     @Req() req: FleetRequestContext,
     @Res() res: any,
   ): Promise<void> {
-    const csv = await this.exportUseCase.toCsv("fuel", this.tenantIdFromRequest(req));
+    const records = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query);
+    const csv = toCsv(records.map((record) => ({ ...record, auditTrail: JSON.stringify(record.auditTrail) })));
     res.setHeader("Content-Disposition", `attachment; filename="fuel.csv"`);
     res.send(csv);
   }

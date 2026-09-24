@@ -25,7 +25,11 @@ import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { ComplianceReminderSweepService } from "./compliance-reminder-sweep.service";
-import { ComplianceDocumentsUseCase, ComplianceDocumentNotFoundError } from "./compliance-documents.use-case";
+import {
+  ComplianceDocumentsUseCase,
+  ComplianceDocumentNotFoundError,
+  type ComplianceDocumentListFilters,
+} from "./compliance-documents.use-case";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import {
   SetComplianceReminderDto,
@@ -90,30 +94,10 @@ export class ComplianceController extends BaseFleetController {
   @ApiQuery({ name: "expiringFrom", required: false, type: String })
   @ApiQuery({ name: "expiringTo", required: false, type: String })
   @ApiOkResponse({ description: "Compliance documents array", type: ComplianceDocumentListResponse })
-  async listComplianceDocuments(
-    @Query("vehicleId") vehicleId: string,
-    @Query("documentType") documentType: string,
-    @Query("status") status: string,
-    @Query("search") search: string,
-    @Query("issuedFrom") issuedFrom: string,
-    @Query("issuedTo") issuedTo: string,
-    @Query("expiringFrom") expiringFrom: string,
-    @Query("expiringTo") expiringTo: string,
-    @Req() req: FleetRequestContext,
-  ) {
+  async listComplianceDocuments(@Query() query: ComplianceDocumentQuery, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
-    const data = await this.complianceDocumentsUseCase.list(tenantId, {
-      vehicleId: vehicleIds ? undefined : vehicleId,
-      vehicleIds,
-      documentType,
-      status: status as any,
-      search,
-      issuedFrom,
-      issuedTo,
-      expiringFrom,
-      expiringTo,
-    });
+    const data = await this.complianceDocumentsUseCase.list(tenantId, documentFilters(query, vehicleIds));
     return { status: true, message: "success", data };
   }
 
@@ -162,12 +146,27 @@ export class ComplianceController extends BaseFleetController {
 
   @Get("documents/export")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
-  @ApiOperation({ summary: "Export compliance documents as CSV" })
+  @ApiOperation({
+    summary: "Export compliance documents as CSV",
+    description: "Takes the same filters as the documents list and exports exactly the rows it shows.",
+  })
+  @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "documentType", required: false, type: String })
+  @ApiQuery({ name: "status", required: false, enum: ["valid", "expiring", "expired"] })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "issuedFrom", required: false, type: String })
+  @ApiQuery({ name: "issuedTo", required: false, type: String })
+  @ApiQuery({ name: "expiringFrom", required: false, type: String })
+  @ApiQuery({ name: "expiringTo", required: false, type: String })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
-  async exportComplianceDocuments(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+  async exportComplianceDocuments(
+    @Query() query: ComplianceDocumentQuery,
+    @Req() req: FleetRequestContext,
+    @Res({ passthrough: false }) res: any,
+  ) {
     const tenantId = this.tenantIdFromRequest(req);
     const vehicleIds = await this.ownerOperatorVehicleIds(tenantId, req);
-    const csv = await this.complianceDocumentsUseCase.export(tenantId, { vehicleIds });
+    const csv = await this.complianceDocumentsUseCase.export(tenantId, documentFilters(query, vehicleIds));
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=compliance-documents.csv");
     res.send(csv);
@@ -260,4 +259,27 @@ export class ComplianceController extends BaseFleetController {
   }
 
   /* ── Fleet Financials ──────────────────────────────────────────────────── */
+}
+
+type ComplianceDocumentQuery = Partial<
+  Record<
+    "vehicleId" | "documentType" | "status" | "search" | "issuedFrom" | "issuedTo" | "expiringFrom" | "expiringTo",
+    string
+  >
+>;
+
+// An owner-operator's scope comes from their identity, so a vehicleId they
+// pass is ignored rather than trusted.
+function documentFilters(query: ComplianceDocumentQuery, vehicleIds: string[] | undefined): ComplianceDocumentListFilters {
+  return {
+    vehicleId: vehicleIds ? undefined : query.vehicleId,
+    vehicleIds,
+    documentType: query.documentType,
+    status: query.status as ComplianceDocumentListFilters["status"],
+    search: query.search,
+    issuedFrom: query.issuedFrom,
+    issuedTo: query.issuedTo,
+    expiringFrom: query.expiringFrom,
+    expiringTo: query.expiringTo,
+  };
 }
