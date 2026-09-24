@@ -33,3 +33,10 @@ export class FleetUnavailableError extends Error {
     this.name = 'FleetUnavailableError';
   }
 }
+
+export class InstallationJobConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InstallationJobConflictError';
+  }
+}

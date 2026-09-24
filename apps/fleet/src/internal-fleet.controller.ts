@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   Inject,
@@ -39,6 +40,9 @@ import {
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
+import { BeginJobVerificationDto, InstalledUnitDto } from "./dto/device-installation.dto";
+import { InstallationHandoverUseCases } from "./contexts/fleet/devices/application/use-cases/installation-handover.use-cases";
+import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
 import { Portals, OnResource } from "@shared/access";
 import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
 
@@ -70,6 +74,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(SuspendDeviceUseCase) private readonly suspendDeviceUseCase: SuspendDeviceUseCase,
     @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
     @Inject(DEVICE_CATALOG_PORT) private readonly catalog: DeviceCatalogPort,
+    @Inject(InstallationHandoverUseCases) private readonly handover: InstallationHandoverUseCases,
   ) {
     super(auditLog, bus);
   }
@@ -139,10 +144,29 @@ export class InternalFleetController extends BaseFleetController {
     try {
       return await action();
     } catch (error) {
-      if (error instanceof DeviceNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof DeviceNotFoundError || error instanceof VehicleNotFoundError) {
+        throw new NotFoundException(error.message);
+      }
       if (error instanceof FleetRuleError) throw new BadRequestException(error.message);
+      if (error instanceof VehicleQuotaExceededError) throw new ConflictException(error.message);
       throw error;
     }
+  }
+
+  /** An installer started a job. Devices already waiting or verified are left alone. */
+  @Post("tenants/:tenantId/devices/verification")
+  @UseGuards(PlatformActorGuard)
+  async beginJobVerification(@Param("tenantId") tenantId: string, @Body() payload: BeginJobVerificationDto) {
+    const items = await this.handover.beginVerification(tenantId, payload.deviceIds);
+    return { status: true, message: "success", data: { items } };
+  }
+
+  /** An installer completed a job: the unit's vehicle joins the fleet once per registration, with its device. */
+  @Post("tenants/:tenantId/installed-units")
+  @UseGuards(PlatformActorGuard)
+  async installedUnit(@Param("tenantId") tenantId: string, @Body() payload: InstalledUnitDto) {
+    const data = await this.runDeviceAction(() => this.handover.handOver(tenantId, payload));
+    return { status: true, message: "Unit handed over", data };
   }
 
   /**
@@ -223,7 +247,7 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   private async devicesByIds(tenantId: string, ids: string) {
-    const wanted = ids.split(",").map((id) => id.trim()).filter(Boolean).slice(0, MAX_DEVICE_IDS);
+    const wanted = idList(ids);
     const [devices, deviceType] = await Promise.all([this.devices.findByIds(tenantId, wanted), this.deviceTypes()]);
     const items = devices.map((device) => ({
       id: device.id,
@@ -234,6 +258,7 @@ export class InternalFleetController extends BaseFleetController {
       status: device.lifecycleStatus,
       statusLabel: DEVICE_LIFECYCLE_LABELS[device.lifecycleStatus],
       deviceType: deviceType(device),
+      verificationStatus: device.verificationStatus,
     }));
     return { status: true, message: "success", data: { total: items.length, items } };
   }
@@ -247,7 +272,7 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   /**
-   * Whether every device a tenant holds is reporting.
+   * Whether a tenant's devices are reporting; with `deviceIds`, only those.
    *
    * Read from the devices themselves rather than accepted from the caller:
    * this closes the onboarding, and a customer who says the fitting worked is
@@ -255,8 +280,10 @@ export class InternalFleetController extends BaseFleetController {
    */
   @Get("tenants/:tenantId/connectivity")
   @UseGuards(PlatformActorGuard)
-  async tenantConnectivity(@Param("tenantId") tenantId: string) {
-    const devices = await this.devices.findAll({ tenantId });
+  async tenantConnectivity(@Param("tenantId") tenantId: string, @Query("deviceIds") deviceIds?: string) {
+    const devices = deviceIds === undefined
+      ? await this.devices.findAll({ tenantId })
+      : await this.devices.findByIds(tenantId, idList(deviceIds));
 
     const items = devices.map((device) => ({
       deviceId: device.id,
@@ -335,6 +362,10 @@ export class InternalFleetController extends BaseFleetController {
 
     return null;
   }
+}
+
+function idList(ids: string): string[] {
+  return ids.split(",").map((id) => id.trim()).filter(Boolean).slice(0, MAX_DEVICE_IDS);
 }
 
 /** Offline once nothing has arrived for longer than a missed ping allows. */

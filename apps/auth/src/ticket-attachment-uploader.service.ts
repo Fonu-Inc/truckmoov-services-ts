@@ -17,7 +17,7 @@ import {
   SUPPORT_TICKET_ATTACHMENT_REPOSITORY,
   type SupportTicketAttachmentRepository,
 } from './support-ticket-attachment.repository';
-import { TICKET_FILE_SCANNER, type TicketFileScanner } from './ticket-file-scanner.port';
+import { TICKET_FILE_SCANNER, scanRefusal, type TicketFileScanner } from './ticket-file-scanner.port';
 
 export type TicketAttachmentUpload = {
   filename: string;
@@ -88,15 +88,8 @@ export class TicketAttachmentUploaderService {
     }
 
     const verdict = await this.scanner.scan(file.filename, contentType, file.buffer);
-    if (verdict.scanned && !verdict.clean) {
-      throw new TicketAttachmentRejectedByScannerError(verdict.reason ?? 'flagged by scanner');
-    }
-    // No scanner configured is not the same as clean. With scanning required,
-    // a file nobody examined must be refused rather than quietly accepted —
-    // that is the whole point of the flag.
-    if (!verdict.scanned && this.scanRequired) {
-      throw new TicketAttachmentRejectedByScannerError(verdict.reason ?? 'scanning is required but unavailable');
-    }
+    const refusal = scanRefusal(verdict, this.scanRequired);
+    if (refusal) throw new TicketAttachmentRejectedByScannerError(refusal);
 
     // Reserved before the bytes are written, so a refused upload leaves
     // nothing in the bucket to clean up.

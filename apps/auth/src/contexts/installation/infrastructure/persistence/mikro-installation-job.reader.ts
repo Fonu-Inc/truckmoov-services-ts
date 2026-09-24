@@ -89,6 +89,7 @@ function toOrder(row: Row): StoredInstallationOrder {
     siteContactName: String(row.site_contact_name),
     siteContactPhone: String(row.site_contact_phone),
     notes: (row.notes as string | null) ?? null,
+    installerNotes: (row.installer_notes as string | null) ?? null,
     installerId: (row.installer_id as string | null) ?? null,
     status: row.status as StoredInstallationOrder['status'],
     preExceptionStatus: (row.pre_exception_status ?? null) as StoredInstallationOrder['preExceptionStatus'],

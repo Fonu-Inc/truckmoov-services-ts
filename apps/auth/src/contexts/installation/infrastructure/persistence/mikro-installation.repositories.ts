@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { UniqueConstraintViolationException, raw, type FilterQuery } from '@mikro-orm/core';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
@@ -24,12 +25,18 @@ import type {
   AssignmentOutcome,
   InstallationOrderRepository,
   InstallerJobCount,
+  StoredChecklistTick,
   StoredDeviceAssignment,
+  StoredInstallationEvidence,
   StoredInstallationOrder,
   UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
+import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
+import { OnboardingApplicationRecord } from '@auth/onboarding/infrastructure/persistence/onboarding-orm';
 import {
+  InstallationChecklistTickRecord,
   InstallationDeviceAssignmentRecord,
+  InstallationEvidenceRecord,
   InstallationOrderRecord,
   InstallerRecord,
 } from './installation-orm';
@@ -89,6 +96,7 @@ function toStoredOrder(r: InstallationOrderRecord): StoredInstallationOrder {
     siteContactName: r.siteContactName,
     siteContactPhone: r.siteContactPhone,
     notes: r.notes ?? null,
+    installerNotes: r.installerNotes ?? null,
     installerId: r.installerId ?? null,
     status: r.status as StoredInstallationOrder['status'],
     preExceptionStatus: (r.preExceptionStatus ?? null) as StoredInstallationOrder['preExceptionStatus'],
@@ -124,6 +132,30 @@ function toStoredAssignment(r: InstallationDeviceAssignmentRecord): StoredDevice
     fleetDeviceId: r.fleetDeviceId ?? null,
     createdAt: r.createdAt,
   };
+}
+
+function toStoredTick(r: InstallationChecklistTickRecord): StoredChecklistTick {
+  return { orderId: r.orderId, itemKey: r.itemKey, checkedAt: r.checkedAt, checkedBy: r.checkedBy };
+}
+
+function toStoredEvidence(r: InstallationEvidenceRecord): StoredInstallationEvidence {
+  return {
+    id: r.id,
+    orderId: r.orderId,
+    category: r.category as StoredInstallationEvidence['category'],
+    fileKey: r.fileKey,
+    fileHash: r.fileHash,
+    fileSize: Number(r.fileSize),
+    mimeType: r.mimeType,
+    uploadedBy: r.uploadedBy,
+    createdAt: r.createdAt,
+  };
+}
+
+/** Only what a status move changes, so a move never overwrites notes written alongside it. */
+function transitionFields(order: StoredInstallationOrder) {
+  const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt } = order;
+  return { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt };
 }
 
 abstract class MikroBase {
@@ -269,6 +301,60 @@ export class MikroInstallationOrderRepository
     );
   }
 
+  async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+    const em = await this.em();
+    const changed = await em.nativeUpdate(InstallationOrderRecord, { id: order.id, status: from }, transitionFields(order));
+    return changed > 0;
+  }
+
+  async saveInstallerNotes(
+    orderId: string,
+    notes: string | null,
+    statuses: readonly InstallationOrderStatus[],
+    now: Date,
+  ): Promise<boolean> {
+    const em = await this.em();
+    const changed = await em.nativeUpdate(
+      InstallationOrderRecord,
+      { id: orderId, status: { $in: [...statuses] } },
+      { installerNotes: notes, updatedAt: now },
+    );
+    return changed > 0;
+  }
+
+  async findTicks(orderId: string): Promise<StoredChecklistTick[]> {
+    const em = await this.em();
+    const records = await em.find(InstallationChecklistTickRecord, { orderId }, { orderBy: { checkedAt: 'asc' } });
+    return records.map(toStoredTick);
+  }
+
+  async saveTick(tick: StoredChecklistTick): Promise<void> {
+    const em = await this.em();
+    await em.getConnection().execute(
+      `insert into installation_checklist_ticks (order_id, item_key, checked_at, checked_by)
+       values (?, ?, ?, ?)
+       on conflict (order_id, item_key) do update set checked_at = excluded.checked_at, checked_by = excluded.checked_by`,
+      [tick.orderId, tick.itemKey, tick.checkedAt, tick.checkedBy],
+    );
+  }
+
+  async deleteTick(orderId: string, itemKey: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(InstallationChecklistTickRecord, { orderId, itemKey });
+  }
+
+  async saveEvidence(evidence: StoredInstallationEvidence): Promise<void> {
+    const em = await this.em();
+    em.persist(Object.assign(new InstallationEvidenceRecord(), evidence));
+    await em.flush();
+  }
+
+  async findEvidence(orderId: string): Promise<StoredInstallationEvidence[]> {
+    const em = await this.em();
+    const records = await em.find(InstallationEvidenceRecord, { orderId }, { orderBy: { createdAt: 'asc', id: 'asc' } });
+    return records.map(toStoredEvidence);
+  }
+
   async nextOrderNumber(): Promise<string> {
     const em = await this.em();
     const [row] = await em
@@ -342,6 +428,8 @@ export class MikroInstallationOrderRepository
     const order = await em.findOne(InstallationOrderRecord, { applicationId });
     if (!order) return;
 
+    await em.nativeDelete(InstallationChecklistTickRecord, { orderId: order.id });
+    await em.nativeDelete(InstallationEvidenceRecord, { orderId: order.id });
     await em.nativeDelete(InstallationDeviceAssignmentRecord, {
       orderId: order.id,
     });
@@ -365,5 +453,41 @@ export class MikroInstallationOrderRepository
       status: row.status as InstallerJobCount['status'],
       count: Number(row.count),
     }));
+  }
+}
+
+@Injectable()
+export class MikroInstallationCompletion extends MikroBase implements InstallationCompletion {
+  async complete(
+    completed: StoredInstallationOrder,
+    from: InstallationOrderStatus,
+    handOver: () => Promise<void>,
+  ): Promise<boolean> {
+    const em = await this.em();
+    return em.transactional(async (tx) => {
+      if (!(await this.hold(tx, completed, from))) return false;
+      await handOver();
+      await tx.nativeUpdate(InstallationOrderRecord, { id: completed.id }, transitionFields(completed));
+      await tx.nativeUpdate(
+        OnboardingApplicationRecord,
+        { id: completed.applicationId },
+        { stage: 'connectivity_verification', updatedAt: completed.updatedAt },
+      );
+      return true;
+    });
+  }
+
+  /** skip locked: a second completion of the same order is refused at once rather than queued. */
+  private async hold(tx: EntityManager, order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+    const orders = await tx.execute(
+      `select id from installation_orders where id = ? and status = ? for update skip locked`,
+      [order.id, from],
+    );
+    if (orders.length === 0) return false;
+    const applications = await tx.execute(
+      `select id from onboarding_applications where id = ? and stage = 'installation' for update`,
+      [order.applicationId],
+    );
+    return applications.length > 0;
   }
 }

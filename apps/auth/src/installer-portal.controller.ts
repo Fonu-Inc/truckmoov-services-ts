@@ -53,6 +53,12 @@ export class InstallerPortalController {
     return ok(await mapped(() => this.jobs.dashboard(bearer(authorization))));
   }
 
+  @Get('options')
+  @ApiOperation({ summary: 'Checklist definition, evidence categories and time slot labels' })
+  async options(@Headers('authorization') authorization?: string) {
+    return ok(await mapped(() => this.jobs.options(bearer(authorization))));
+  }
+
   @Get('jobs')
   @ApiOperation({ summary: 'Active jobs, or past ones with scope=history, with counts by status' })
   @ApiQuery({ name: 'scope', required: false, enum: SCOPES })
@@ -85,7 +91,7 @@ export class InstallerPortalController {
   }
 
   @Get('jobs/:jobId')
-  @ApiOperation({ summary: 'Customer and site, and each unit with its vehicle, device and SIM' })
+  @ApiOperation({ summary: 'Customer and site, each unit, the checklist, evidence, notes, completion summary and allowed actions' })
   async detail(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.jobs.detail(bearer(authorization), jobId)));
   }

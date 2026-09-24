@@ -3,7 +3,9 @@ import { MikroORM } from '@mikro-orm/postgresql';
 import { ROLE_SEED_ROWS, roleFromId, roleToId } from '@shared/rbac';
 import { runMigrationsExclusively } from "@shared/db";
 import {
+  InstallationChecklistTickRecordSchema,
   InstallationDeviceAssignmentRecordSchema,
+  InstallationEvidenceRecordSchema,
   InstallationOrderRecordSchema,
   InstallerRecordSchema,
 } from '@auth/installation/infrastructure/persistence/installation-orm';
@@ -2186,6 +2188,8 @@ export async function getAuthOrm(cfg: DbConfig) {
       InstallerRecordSchema,
       InstallationOrderRecordSchema,
       InstallationDeviceAssignmentRecordSchema,
+      InstallationChecklistTickRecordSchema,
+      InstallationEvidenceRecordSchema,
       IndemnityTemplateRecordSchema,
       IndemnitySignatureRecordSchema,
       M2mLicensePlanRecordSchema,

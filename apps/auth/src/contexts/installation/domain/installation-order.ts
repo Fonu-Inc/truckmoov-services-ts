@@ -60,6 +60,15 @@ export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
   'scheduled',
 ];
 
+/** Where Start Installation may begin. Resuming after an issue report is the admin's call, not a start. */
+export const START_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled', 'overdue'];
+
+export const MAX_INSTALLER_NOTES_LENGTH = 2000;
+
+export const OPEN_JOB_STATUSES: readonly InstallationOrderStatus[] = INSTALLATION_ORDER_STATUSES.filter(
+  (status) => !TERMINAL_JOB_STATUSES.includes(status),
+);
+
 export class InvalidInstallationTransitionError extends Error {
   constructor(from: InstallationOrderStatus, to: InstallationOrderStatus) {
     super(`An installation cannot move from ${from} to ${to}`);

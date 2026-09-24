@@ -215,4 +215,30 @@ describe("devices by id for auth's job details", () => {
 
     expect(result.data.items.map((item) => [item.id, item.deviceType])).toEqual([["known", "GPS Tracker"], ["unknown", null]]);
   });
+
+  it("carries each device's verification status", async () => {
+    const devices = new InMemoryDeviceRepository();
+    await devices.save(device("known", "tenant-a", { verificationStatus: "verified", verifiedAt: NOW.toISOString() }));
+    const controller = new InternalFleetController({} as never, {} as never, {} as never, {} as never, devices, {} as never, {} as never, catalog);
+
+    const result = (await controller.tenantDevices("tenant-a", "known")) as { data: { items: Array<{ verificationStatus: string | null }> } };
+
+    expect(result.data.items[0].verificationStatus).toBe("verified");
+  });
+});
+
+describe("connectivity for a job's devices", () => {
+  it("checks only the named devices when deviceIds is given", async () => {
+    const devices = new InMemoryDeviceRepository();
+    for (const id of ["job-1", "job-2", "other"]) await devices.save(device(id, "tenant-a"));
+    await devices.save(device("elsewhere", "tenant-b"));
+    const controller = new InternalFleetController({} as never, {} as never, {} as never, {} as never, devices, {} as never, {} as never, catalog);
+
+    const scoped = await controller.tenantConnectivity("tenant-a", "job-1,job-2,elsewhere");
+    const all = await controller.tenantConnectivity("tenant-a");
+
+    expect(scoped.data.items.map((item) => item.deviceId).sort()).toEqual(["job-1", "job-2"]);
+    expect(scoped.data.total).toBe(2);
+    expect(all.data.total).toBe(3);
+  });
 });

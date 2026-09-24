@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   ACTIVE_JOB_STATUSES,
   buildOrderNumber,
@@ -17,14 +17,22 @@ import type {
   InstallerRepository,
   StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
-import type {
-  AssignmentOutcome,
-  InstallationOrderRepository,
-  InstallerJobCount,
-  StoredDeviceAssignment,
-  StoredInstallationOrder,
-  UnassignedCursor,
+import {
+  INSTALLATION_ORDER_REPOSITORY,
+  type AssignmentOutcome,
+  type InstallationOrderRepository,
+  type InstallerJobCount,
+  type StoredChecklistTick,
+  type StoredDeviceAssignment,
+  type StoredInstallationEvidence,
+  type StoredInstallationOrder,
+  type UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
+import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
+import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from '@auth/onboarding/domain/onboarding-application.repository';
 
 function queueOrder(a: UnassignedCursor, b: UnassignedCursor): number {
   return (
@@ -98,6 +106,8 @@ export class InMemoryInstallationOrderRepository
 {
   private readonly orders = new Map<string, StoredInstallationOrder>();
   private readonly assignments = new Map<string, StoredDeviceAssignment[]>();
+  private readonly ticks = new Map<string, StoredChecklistTick>();
+  private readonly evidence = new Map<string, StoredInstallationEvidence>();
   private sequence = 999;
 
   async save(order: StoredInstallationOrder): Promise<void> {
@@ -131,6 +141,52 @@ export class InMemoryInstallationOrderRepository
     );
     for (const order of due) await this.save({ ...order, status: 'overdue', updatedAt: now });
     return due.length;
+  }
+
+  async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {
+    const current = this.orders.get(order.id);
+    if (current?.status !== from) return false;
+    const { status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt } = order;
+    this.orders.set(order.id, {
+      ...current, status, preExceptionStatus, assignedAt, acceptedAt, startedAt, completedAt, cancelledAt, updatedAt,
+    });
+    return true;
+  }
+
+  async saveInstallerNotes(
+    orderId: string,
+    notes: string | null,
+    statuses: readonly InstallationOrderStatus[],
+    now: Date,
+  ): Promise<boolean> {
+    const current = this.orders.get(orderId);
+    if (!current || !statuses.includes(current.status)) return false;
+    this.orders.set(orderId, { ...current, installerNotes: notes, updatedAt: now });
+    return true;
+  }
+
+  async findTicks(orderId: string): Promise<StoredChecklistTick[]> {
+    return [...this.ticks.values()]
+      .filter((tick) => tick.orderId === orderId)
+      .sort((a, b) => a.checkedAt.getTime() - b.checkedAt.getTime());
+  }
+
+  async saveTick(tick: StoredChecklistTick): Promise<void> {
+    this.ticks.set(`${tick.orderId}:${tick.itemKey}`, { ...tick });
+  }
+
+  async deleteTick(orderId: string, itemKey: string): Promise<void> {
+    this.ticks.delete(`${orderId}:${itemKey}`);
+  }
+
+  async saveEvidence(evidence: StoredInstallationEvidence): Promise<void> {
+    this.evidence.set(evidence.id, { ...evidence });
+  }
+
+  async findEvidence(orderId: string): Promise<StoredInstallationEvidence[]> {
+    return [...this.evidence.values()]
+      .filter((item) => item.orderId === orderId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   async nextOrderNumber(): Promise<string> {
@@ -209,6 +265,8 @@ export class InMemoryInstallationOrderRepository
   async deleteForApplication(applicationId: string): Promise<void> {
     const order = await this.findByApplicationId(applicationId);
     if (!order) return;
+    for (const [key, tick] of this.ticks) if (tick.orderId === order.id) this.ticks.delete(key);
+    for (const [id, item] of this.evidence) if (item.orderId === order.id) this.evidence.delete(id);
     this.assignments.delete(order.id);
     this.orders.delete(order.id);
   }
@@ -222,5 +280,45 @@ export class InMemoryInstallationOrderRepository
       counts.set(key, { ...row, count: row.count + 1 });
     }
     return [...counts.values()];
+  }
+}
+
+@Injectable()
+export class InMemoryInstallationCompletion implements InstallationCompletion {
+  private readonly held = new Set<string>();
+
+  constructor(
+    @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY) private readonly applications: OnboardingApplicationRepository,
+  ) {}
+
+  async complete(
+    completed: StoredInstallationOrder,
+    from: InstallationOrderStatus,
+    handOver: () => Promise<void>,
+  ): Promise<boolean> {
+    if (this.held.has(completed.id)) return false;
+    this.held.add(completed.id);
+    try {
+      return await this.completeHeld(completed, from, handOver);
+    } finally {
+      this.held.delete(completed.id);
+    }
+  }
+
+  private async completeHeld(
+    completed: StoredInstallationOrder,
+    from: InstallationOrderStatus,
+    handOver: () => Promise<void>,
+  ): Promise<boolean> {
+    const [order, application] = await Promise.all([
+      this.orders.findById(completed.id),
+      this.applications.findById(completed.applicationId),
+    ]);
+    if (order?.status !== from || application?.stage !== 'installation') return false;
+    await handOver();
+    await this.orders.transition(completed, from);
+    await this.applications.save({ ...application, stage: 'connectivity_verification', updatedAt: completed.updatedAt });
+    return true;
   }
 }

@@ -145,6 +145,7 @@ export class AbandonedApplicationSweepService
 
     const keys = documents.map((document) => document.fileKey);
     if (signature) keys.push(signature.fileKey);
+    keys.push(...(await this.evidenceKeys(application.id)));
 
     // Files first, rows second. A row without its file is still a record that
     // says what was there; a file whose row is gone is an orphan nobody can
@@ -172,5 +173,12 @@ export class AbandonedApplicationSweepService
     await this.installationOrders.deleteForApplication(application.id);
     await this.applications.deleteApplication(application.id);
     return true;
+  }
+
+  private async evidenceKeys(applicationId: string): Promise<string[]> {
+    const order = await this.installationOrders.findByApplicationId(applicationId);
+    if (!order) return [];
+    const evidence = await this.installationOrders.findEvidence(order.id);
+    return evidence.map((item) => item.fileKey);
   }
 }

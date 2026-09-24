@@ -26,3 +26,10 @@ export class UnscannedTicketFileScanner implements TicketFileScanner {
     return { scanned: false, clean: false, reason: 'no scanner configured' };
   }
 }
+
+/** Why an upload is refused, or null when it may be kept. A file nobody examined is refused when scanning is required. */
+export function scanRefusal(verdict: TicketFileScanVerdict, scanRequired: boolean): string | null {
+  if (verdict.scanned && !verdict.clean) return verdict.reason ?? 'flagged by scanner';
+  if (!verdict.scanned && scanRequired) return verdict.reason ?? 'scanning is required but unavailable';
+  return null;
+}

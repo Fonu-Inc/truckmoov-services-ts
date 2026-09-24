@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConfirmInstallationUseCase,
   InMemoryInstallationOrderRepository,
@@ -9,6 +9,7 @@ import {
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 import type { OnboardingStage } from "@auth/onboarding/domain/onboarding-stage";
+import type { StoredInstallationOrder } from "@auth/installation/domain/installation-order.repository";
 
 const TENANT_ID = "tenant-1";
 const NOW = new Date("2026-09-22T10:00:00Z");
@@ -69,12 +70,13 @@ describe("Confirming an installation", () => {
   let applications: InMemoryOnboardingApplicationRepository;
   let orders: InMemoryInstallationOrderRepository;
   let answer: TenantConnectivity | null;
+  let connectivity: { forDevices: ReturnType<typeof vi.fn> };
 
   function useCase() {
     return new ConfirmInstallationUseCase(
       applications,
       orders,
-      { forTenant: async () => answer },
+      connectivity,
       { resolveAccessToken: () => ({ id: "user-1", tenantId: TENANT_ID }) } as never,
       {
         findById: async () => ({
@@ -88,11 +90,15 @@ describe("Confirming an installation", () => {
     );
   }
 
-  async function givenOrder(stage: OnboardingStage) {
+  async function givenOrder(
+    stage: OnboardingStage,
+    status: StoredInstallationOrder["status"] = "completed",
+    deviceIds: Array<string | null> = ["dev-1"],
+  ) {
     await applications.save(application(stage));
     await orders.save({
       id: "order-1",
-      orderNumber: "FP-INST-107439",
+      orderNumber: "FL-1000",
       applicationId: "app-1",
       tenantId: TENANT_ID,
       scheduledDate: NOW,
@@ -103,27 +109,40 @@ describe("Confirming an installation", () => {
       siteContactName: "Jane Doe",
       siteContactPhone: "+2348000000000",
       notes: null,
+      installerNotes: null,
       installerId: "installer-abuja-1",
-      status: "assigned",
+      status,
       preExceptionStatus: null,
       assignedAt: NOW,
-      acceptedAt: null,
-      startedAt: null,
-      completedAt: null,
+      acceptedAt: NOW,
+      startedAt: NOW,
+      completedAt: status === "completed" ? NOW : null,
       cancelledAt: null,
       createdAt: NOW,
       updatedAt: NOW,
     });
+    await orders.replaceAssignments(
+      "order-1",
+      deviceIds.map((fleetDeviceId, index) => ({
+        id: `unit-${index + 1}`,
+        orderId: "order-1",
+        deviceIndex: index + 1,
+        vehicleId: `v${index + 1}`,
+        fleetDeviceId,
+        createdAt: NOW,
+      })),
+    );
   }
 
   beforeEach(() => {
     applications = new InMemoryOnboardingApplicationRepository();
     orders = new InMemoryInstallationOrderRepository();
     answer = { total: 1, reporting: 1, devices: [device(true)] };
+    connectivity = { forDevices: vi.fn(async () => answer) };
   });
 
-  it("closes the onboarding when every device is reporting", async () => {
-    await givenOrder("installation");
+  it("closes the onboarding when every job device is reporting", async () => {
+    await givenOrder("connectivity_verification");
 
     const result = await useCase().execute("token");
 
@@ -132,8 +151,16 @@ describe("Confirming an installation", () => {
     expect((await applications.findById("app-1"))?.stage).toBe("fleet_ready");
   });
 
-  it("names the device that is silent instead of closing", async () => {
-    await givenOrder("installation");
+  it("checks only the job's own devices in the order's tenant", async () => {
+    await givenOrder("connectivity_verification", "completed", ["dev-1", null, "dev-3"]);
+
+    await useCase().execute("token");
+
+    expect(connectivity.forDevices).toHaveBeenCalledWith(TENANT_ID, ["dev-1", "dev-3"]);
+  });
+
+  it("names the device that is silent and counts every device checked", async () => {
+    await givenOrder("connectivity_verification", "completed", ["dev-1", "dev-2"]);
     answer = {
       total: 2,
       reporting: 1,
@@ -142,16 +169,25 @@ describe("Confirming an installation", () => {
 
     const result = await useCase().execute("token");
 
-    expect(result.data.stage).toBe("connectivity_verification");
+    expect(result.data).toMatchObject({ stage: "connectivity_verification", devicesChecked: 2, devicesReporting: 1 });
     expect(result.data.failures).toHaveLength(1);
     expect(result.data.failures[0].deviceId).toBe("dev-2");
-    expect((await applications.findById("app-1"))?.stage).toBe(
-      "connectivity_verification",
-    );
+    expect((await applications.findById("app-1"))?.stage).toBe("connectivity_verification");
+  });
+
+  it("counts a job device fleet no longer finds as not reporting", async () => {
+    await givenOrder("connectivity_verification", "completed", ["dev-1", "dev-2"]);
+    answer = { total: 1, reporting: 1, devices: [device(true, "dev-1")] };
+
+    const result = await useCase().execute("token");
+
+    expect(result.data).toMatchObject({ stage: "connectivity_verification", devicesChecked: 2, devicesReporting: 1 });
+    expect(result.data.failures).toEqual([expect.objectContaining({ deviceId: "dev-2", reason: "Device not found on this account" })]);
+    expect((await applications.findById("app-1"))?.stage).toBe("connectivity_verification");
   });
 
   it("does not close when the check could not be made at all", async () => {
-    await givenOrder("installation");
+    await givenOrder("connectivity_verification");
     answer = null;
 
     const result = await useCase().execute("token");
@@ -161,34 +197,24 @@ describe("Confirming an installation", () => {
     expect(result.message).toContain("could not be checked");
   });
 
-  it("does not close when no devices are registered", async () => {
-    await givenOrder("installation");
-    answer = { total: 0, reporting: 0, devices: [] };
+  it("does not close when the job has no devices", async () => {
+    await givenOrder("connectivity_verification", "completed", [null]);
 
     const result = await useCase().execute("token");
 
-    expect(result.data.stage).toBe("connectivity_verification");
+    expect(result.data).toMatchObject({ stage: "connectivity_verification", devicesChecked: 0 });
+    expect(connectivity.forDevices).not.toHaveBeenCalled();
   });
 
-  it("can be retried after a failed check", async () => {
-    await givenOrder("connectivity_verification");
+  it("no longer completes the order", async () => {
+    await givenOrder("installation", "in_progress");
 
-    const result = await useCase().execute("token");
-
-    expect(result.data.stage).toBe("fleet_ready");
+    await expect(useCase().execute("token")).rejects.toThrow("has not completed");
+    expect((await orders.findByTenantId(TENANT_ID))?.status).toBe("in_progress");
+    expect((await applications.findById("app-1"))?.stage).toBe("installation");
   });
 
-  it("marks the order completed when the customer confirms", async () => {
-    await givenOrder("installation");
-
-    await useCase().execute("token");
-
-    const order = await orders.findByTenantId(TENANT_ID);
-    expect(order?.status).toBe("completed");
-    expect(order?.completedAt).not.toBeNull();
-  });
-
-  it("refuses an onboarding that has not reached installation", async () => {
+  it("refuses an onboarding past or before connectivity verification", async () => {
     await givenOrder("payment");
 
     await expect(useCase().execute("token")).rejects.toBeInstanceOf(

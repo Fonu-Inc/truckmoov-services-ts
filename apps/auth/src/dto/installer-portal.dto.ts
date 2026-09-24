@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { NIGERIAN_STATES } from '../contexts/onboarding/domain/onboarding-application.validation';
+import { MAX_INSTALLER_NOTES_LENGTH } from '../contexts/installation/domain/installation-order';
 
 export class UpdateInstallerProfileDto {
   @ApiPropertyOptional({ example: 'Tunde' })
@@ -38,4 +39,18 @@ export class BindUnitDeviceDto {
   @IsString()
   @Matches(/^[A-Za-z0-9_-]{1,64}$/)
   fleetDeviceId!: string;
+}
+
+export class SetChecklistItemDto {
+  @ApiProperty({ description: 'Tick or untick the item' })
+  @IsBoolean()
+  checked!: boolean;
+}
+
+export class SaveInstallerNotesDto {
+  @ApiPropertyOptional({ nullable: true, maxLength: MAX_INSTALLER_NOTES_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_INSTALLER_NOTES_LENGTH)
+  notes?: string | null;
 }

@@ -16,6 +16,7 @@ import {
   CONNECTIVITY_VERIFICATION,
   type ConnectivityVerification,
   type DeviceConnectivity,
+  type TenantConnectivity,
 } from '@auth/installation/domain/ports/connectivity-verification.port';
 import {
   INSTALLATION_ORDER_REPOSITORY,
@@ -37,6 +38,58 @@ export class InstallationNotConfirmableError extends Error {
   }
 }
 
+/** Only a job the installer completed, at the stage that waits on its devices. */
+function assertConfirmable(order: StoredInstallationOrder, application: StoredOnboardingApplication): void {
+  if (order.status !== 'completed') {
+    throw new InstallationNotConfirmableError('The installer has not completed this installation yet');
+  }
+  if (application.stage !== 'connectivity_verification') {
+    throw new InstallationNotConfirmableError(
+      `An onboarding at the ${application.stage} stage cannot be confirmed`,
+    );
+  }
+}
+
+type Failure = {
+  deviceId: string;
+  imei: string | null;
+  model: string;
+  vehicleId: string | null;
+  lastSeen: string | null;
+  reason: string;
+};
+
+type JobConnectivity = { checked: number; reporting: number; failures: Failure[] };
+
+function toFailure(device: DeviceConnectivity): Failure {
+  return {
+    deviceId: device.deviceId,
+    imei: device.imei,
+    model: `${device.manufacturer} ${device.model}`.trim(),
+    vehicleId: device.assignedVehicleId,
+    lastSeen: device.lastSeen,
+    reason:
+      device.verificationStatus === 'failed'
+        ? 'Verification failed on site'
+        : 'No signal received yet',
+  };
+}
+
+function notFound(deviceId: string): Failure {
+  return { deviceId, imei: null, model: '', vehicleId: null, lastSeen: null, reason: 'Device not found on this account' };
+}
+
+/** A job device fleet did not return counts as not reporting. */
+function forJob(deviceIds: string[], answer: TenantConnectivity): JobConnectivity {
+  const found = new Map(answer.devices.map((device) => [device.deviceId, device]));
+  const failures = deviceIds.flatMap((id) => {
+    const device = found.get(id);
+    if (!device) return [notFound(id)];
+    return device.reporting ? [] : [toFailure(device)];
+  });
+  return { checked: deviceIds.length, reporting: deviceIds.length - failures.length, failures };
+}
+
 @Injectable()
 export class ConfirmInstallationUseCase {
   private readonly logger = new Logger(ConfirmInstallationUseCase.name);
@@ -53,11 +106,14 @@ export class ConfirmInstallationUseCase {
   ) {}
 
   /**
-   * The customer says the fitting is done; the platform checks whether it is.
+   * The installer has completed the job; the platform checks whether its
+   * devices are reporting.
    *
-   * The confirmation is not the evidence. Every device has to be reporting
-   * before the onboarding closes, because a fleet that looks live on a screen
-   * and is silent on the road is the failure this gate exists to prevent.
+   * The completion is not the evidence. Every device fitted on this job has to
+   * be reporting before the onboarding closes, because a fleet that looks live
+   * on a screen and is silent on the road is the failure this gate exists to
+   * prevent. Only the job's own devices are checked: others the tenant holds
+   * say nothing about this installation.
    *
    * A device that is not reporting is named, so the customer knows which
    * vehicle to go back to rather than being told the fleet is not ready.
@@ -74,36 +130,28 @@ export class ConfirmInstallationUseCase {
 
     const application = await this.applications.findById(order.applicationId);
     if (!application) throw new NoInstallationOrderError();
+    assertConfirmable(order, application);
 
-    const now = new Date();
-    if (application.stage === 'installation') {
-      await this.complete(order, application, now);
-    } else if (application.stage !== 'connectivity_verification') {
-      throw new InstallationNotConfirmableError(
-        `An onboarding at the ${application.stage} stage cannot be confirmed`,
-      );
+    const deviceIds = (await this.orders.findAssignments(order.id)).flatMap((unit) =>
+      unit.fleetDeviceId ? [unit.fleetDeviceId] : [],
+    );
+    if (deviceIds.length === 0) {
+      return this.pending(order, null, 'No devices are registered against this installation yet.');
     }
-
-    const answer = await this.connectivity.forTenant(actor.tenantId);
+    const answer = await this.connectivity.forDevices(order.tenantId, deviceIds);
     if (!answer) {
       // Could not ask, which is not the same as every device being silent. The
       // onboarding waits rather than closing on an answer nobody gave.
-      return this.pending(order, [], 'Connectivity could not be checked.');
+      return this.pending(order, null, 'Connectivity could not be checked.');
     }
 
-    const silent = answer.devices.filter((device) => !device.reporting);
-    if (silent.length > 0 || answer.total === 0) {
-      return this.pending(
-        order,
-        silent,
-        answer.total === 0
-          ? 'No devices are registered against this account yet.'
-          : `${silent.length} of ${answer.total} device(s) are not reporting.`,
-      );
+    const job = forJob(deviceIds, answer);
+    if (job.failures.length > 0) {
+      return this.pending(order, job, `${job.failures.length} of ${job.checked} device(s) are not reporting.`);
     }
 
-    await this.markFleetReady(application, now);
-    this.logger.log(`fleet_ready:${order.orderNumber}:devices=${answer.total}`);
+    await this.markFleetReady(application, new Date());
+    this.logger.log(`fleet_ready:${order.orderNumber}:devices=${job.checked}`);
 
     return {
       status: true,
@@ -111,31 +159,11 @@ export class ConfirmInstallationUseCase {
       data: {
         orderNumber: order.orderNumber,
         stage: 'fleet_ready' satisfies OnboardingStage,
-        devicesChecked: answer.total,
-        devicesReporting: answer.reporting,
+        devicesChecked: job.checked,
+        devicesReporting: job.reporting,
         failures: [],
       },
     };
-  }
-
-  private async complete(
-    order: StoredInstallationOrder,
-    application: StoredOnboardingApplication,
-    now: Date,
-  ): Promise<void> {
-    await this.orders.save({
-      ...order,
-      status: 'completed',
-      completedAt: now,
-      updatedAt: now,
-    });
-
-    assertStageAdvance(application.stage, 'connectivity_verification');
-    await this.applications.save({
-      ...application,
-      stage: 'connectivity_verification',
-      updatedAt: now,
-    });
   }
 
   private async markFleetReady(
@@ -155,7 +183,7 @@ export class ConfirmInstallationUseCase {
 
   private pending(
     order: StoredInstallationOrder,
-    silent: DeviceConnectivity[],
+    job: JobConnectivity | null,
     message: string,
   ) {
     return {
@@ -164,19 +192,9 @@ export class ConfirmInstallationUseCase {
       data: {
         orderNumber: order.orderNumber,
         stage: 'connectivity_verification' satisfies OnboardingStage,
-        devicesChecked: silent.length,
-        devicesReporting: 0,
-        failures: silent.map((device) => ({
-          deviceId: device.deviceId,
-          imei: device.imei,
-          model: `${device.manufacturer} ${device.model}`.trim(),
-          vehicleId: device.assignedVehicleId,
-          lastSeen: device.lastSeen,
-          reason:
-            device.verificationStatus === 'failed'
-              ? 'Verification failed on site'
-              : 'No signal received yet',
-        })),
+        devicesChecked: job?.checked ?? 0,
+        devicesReporting: job?.reporting ?? 0,
+        failures: job?.failures ?? [],
       },
     };
   }

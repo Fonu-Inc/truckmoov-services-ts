@@ -19,6 +19,7 @@ function toJobDevice(item: Record<string, unknown>): JobDevice {
     status: String(item.status ?? ''),
     statusLabel: String(item.statusLabel ?? ''),
     deviceType: text(item.deviceType),
+    verificationStatus: text(item.verificationStatus),
   };
 }
 

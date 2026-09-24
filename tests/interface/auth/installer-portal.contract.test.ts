@@ -103,6 +103,20 @@ describe('Installer portal over HTTP (auth)', () => {
     expect(me.body.fullName).toBe('Tunde Installer');
   });
 
+  it('serves the job options, and answers work on a missing job with 404', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const options = await http().get('/auth/installer/options').set(auth);
+    const accept = await http().post('/auth/installer/jobs/nope/accept').set(auth);
+    const tick = await http().put('/auth/installer/jobs/nope/checklist/install_device').set(auth).send({ checked: true });
+    const notes = await http().patch('/auth/installer/jobs/nope/notes').set(auth).send({ notes: 'x'.repeat(2001) });
+
+    expect(options.status).toBe(200);
+    expect(options.body.data.evidenceCategories).toEqual([{ key: 'device_installation', label: 'Device installation' }]);
+    expect(accept.status).toBe(404);
+    expect(tick.status).toBe(404);
+    expect(notes.status).toBe(400);
+  });
+
   it('lists installation orders for platform staff', async () => {
     const staff = await http().get('/auth/system/installation-orders').set('Authorization', `Bearer ${staffToken}`);
 

@@ -19,7 +19,7 @@ import {
   type InstallerPhotoStorage,
 } from '@auth/installation/domain/ports/installer-photo-storage.port';
 import { ActivityLogService } from '../../../../activity-log.service';
-import { TICKET_FILE_SCANNER, type TicketFileScanner } from '../../../../ticket-file-scanner.port';
+import { TICKET_FILE_SCANNER, scanRefusal, type TicketFileScanner } from '../../../../ticket-file-scanner.port';
 import { currentInstaller } from './support/current-installer';
 import {
   editedProfile,
@@ -81,15 +81,10 @@ export class InstallerProfileUseCases {
     return toProfileView(installer, await this.photos.url(installer.photoKey));
   }
 
-  /** Same policy as ticket attachments: a file nobody examined is refused when scanning is required. */
   private async scan(photo: { filename: string; mimeType: string; buffer: Buffer }): Promise<void> {
     const verdict = await this.scanner.scan(photo.filename, photo.mimeType, photo.buffer);
-    if (verdict.scanned && !verdict.clean) {
-      throw new InvalidInstallerPhotoError(`Photo rejected: ${verdict.reason ?? 'flagged by scanner'}`);
-    }
-    if (!verdict.scanned && this.scanRequired) {
-      throw new InvalidInstallerPhotoError(`Photo rejected: ${verdict.reason ?? 'scanning is required but unavailable'}`);
-    }
+    const refusal = scanRefusal(verdict, this.scanRequired);
+    if (refusal) throw new InvalidInstallerPhotoError(`Photo rejected: ${refusal}`);
   }
 
   private async removeQuietly(key: string): Promise<void> {

@@ -6,11 +6,15 @@ import type {
 import { INSTALLATION_SLOT_LABELS } from '@auth/installation/domain/installation-order';
 import type { JobRow } from '@auth/installation/domain/installation-job.reader';
 import type {
+  StoredChecklistTick,
   StoredDeviceAssignment,
+  StoredInstallationEvidence,
   StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
+import type { StoredInstaller } from '@auth/installation/domain/installer.repository';
 import type { JobDevice, JobDeviceLookup } from '@auth/installation/domain/ports/job-device-lookup.port';
 import type { StoredSim } from '../../../../../sim.repository';
+import { toActionsView, toChecklistView, toCompletionView, toEvidenceView } from './job-execution.views';
 
 export type DeviceIndex = Map<string, JobDevice>;
 
@@ -109,6 +113,9 @@ export type JobDetailParts = {
   vehicles: StoredOnboardingApplicationVehicle[];
   devices: DeviceIndex;
   sims: StoredSim[];
+  installer: StoredInstaller;
+  ticks: StoredChecklistTick[];
+  evidence: StoredInstallationEvidence[];
 };
 
 function toUnitView(assignment: StoredDeviceAssignment, parts: JobDetailParts) {
@@ -121,8 +128,22 @@ function toUnitView(assignment: StoredDeviceAssignment, parts: JobDetailParts) {
   };
 }
 
+function completionOf(parts: JobDetailParts, units: ReturnType<typeof toUnitView>[], checklistCompleted: number) {
+  return toCompletionView({
+    order: parts.order,
+    customer: parts.application?.organizationName ?? '',
+    installer: parts.installer.fullName,
+    vehicles: units.flatMap((unit) => (unit.vehicle ? [unit.vehicle.registrationNumber] : [])),
+    devices: units.flatMap((unit) => (unit.device ? [`${unit.device.manufacturer} ${unit.device.model}`.trim()] : [])),
+    checklistCompleted,
+    evidenceCount: parts.evidence.length,
+  });
+}
+
 export function toJobDetail(parts: JobDetailParts) {
   const { order, application } = parts;
+  const units = parts.assignments.map((assignment) => toUnitView(assignment, parts));
+  const checklist = toChecklistView(parts.ticks);
   return {
     id: order.id,
     jobNumber: order.orderNumber,
@@ -135,6 +156,11 @@ export function toJobDetail(parts: JobDetailParts) {
       address: `${order.addressLine}, ${order.city}, ${order.state}`,
       ...schedule(order),
     },
-    units: parts.assignments.map((assignment) => toUnitView(assignment, parts)),
+    units,
+    checklist,
+    evidence: parts.evidence.map(toEvidenceView),
+    notes: order.installerNotes,
+    completion: completionOf(parts, units, checklist.completed),
+    actions: toActionsView(order, parts.assignments, checklist.completed),
   };
 }

@@ -48,14 +48,39 @@ export {
   FleetDeviceRefusedError,
   FleetUnavailableError,
   InstallationJobClosedError,
+  InstallationJobConflictError,
   InstallationJobNotFoundError,
 } from "./domain/installation-job.errors";
+export {
+  CHECKLIST_ITEMS,
+  INSTALLATION_CHECKLIST,
+  type ChecklistGate,
+} from "./domain/installation-checklist";
+export {
+  EVIDENCE_CATEGORIES,
+  InvalidEvidenceError,
+  MAX_EVIDENCE_BYTES,
+} from "./domain/installation-evidence";
+export {
+  INSTALLATION_FLEET,
+  type InstallationFleet,
+  type InstalledUnit,
+  type VerificationStart,
+} from "./domain/ports/installation-fleet.port";
+export {
+  INSTALLATION_EVIDENCE_STORAGE,
+  type InstallationEvidenceStorage,
+} from "./domain/ports/installation-evidence-storage.port";
 export { InvalidInstallerPhotoError, MAX_INSTALLER_PHOTO_BYTES } from "./domain/installer-photo";
 export { JOB_DEVICE_LOOKUP, type JobDeviceLookup } from "./domain/ports/job-device-lookup.port";
 export {
   INSTALLER_PHOTO_STORAGE,
   type InstallerPhotoStorage,
 } from "./domain/ports/installer-photo-storage.port";
+export {
+  INSTALLATION_COMPLETION,
+  type InstallationCompletion,
+} from "./domain/ports/installation-completion.port";
 
 // Application
 export {
@@ -88,6 +113,8 @@ export {
   type JobScope,
 } from "./application/use-cases/installer-jobs.use-cases";
 export { InstallerProfileUseCases } from "./application/use-cases/installer-profile.use-cases";
+export { InstallerJobActionsUseCases } from "./application/use-cases/installer-job-actions.use-cases";
+export { InstallerJobRecordsUseCases } from "./application/use-cases/installer-job-records.use-cases";
 export { InstallerDeviceScopeUseCase } from "./application/use-cases/installer-device-scope.use-case";
 export { ManageInstallationOrdersUseCases } from "./application/use-cases/manage-installation-orders.use-cases";
 
@@ -95,19 +122,25 @@ export { ManageInstallationOrdersUseCases } from "./application/use-cases/manage
 export { InstallerAccountsAdapter } from "./infrastructure/accounts/installer-accounts.adapter";
 export { FleetJobDeviceLookup } from "./infrastructure/connectivity/fleet-job-device.lookup";
 export { ObjectStorageInstallerPhotos } from "./infrastructure/storage/object-storage-installer-photos";
+export { ObjectStorageInstallationEvidence } from "./infrastructure/storage/object-storage-installation-evidence";
+export { FleetInstallationAdapter } from "./infrastructure/connectivity/fleet-installation.adapter";
 export { InstallationSweepScheduler } from "./infrastructure/scheduling/installation-sweep.scheduler";
 export { InMemoryInstallationJobReader } from "./infrastructure/persistence/in-memory-installation-job.reader";
 export { MikroInstallationJobReader } from "./infrastructure/persistence/mikro-installation-job.reader";
 export {
+  InMemoryInstallationCompletion,
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,
 } from "./infrastructure/persistence/in-memory-installation.repositories";
 export {
+  MikroInstallationCompletion,
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
 } from "./infrastructure/persistence/mikro-installation.repositories";
 export {
+  InstallationChecklistTickRecordSchema,
   InstallationDeviceAssignmentRecordSchema,
+  InstallationEvidenceRecordSchema,
   InstallationOrderRecordSchema,
   InstallerRecordSchema,
 } from "./infrastructure/persistence/installation-orm";

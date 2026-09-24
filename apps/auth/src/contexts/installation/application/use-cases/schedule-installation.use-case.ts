@@ -124,6 +124,7 @@ export class ScheduleInstallationUseCase {
         'siteContactPhone',
       ),
       notes: validateNotes(input.notes),
+      installerNotes: null,
       installerId: null,
       status: 'unassigned',
       preExceptionStatus: null,

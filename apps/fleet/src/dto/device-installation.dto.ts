@@ -1,15 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
+  ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
 import { VERIFICATION_FAILURE_REASONS } from "../contexts/fleet/devices/application/use-cases/record-verification-failure.use-case";
 import { BULK_CONFIGURE_LIMIT } from "../contexts/fleet/devices/application/use-cases/bulk-configure-devices.use-case";
@@ -63,4 +66,62 @@ export class RecordVerificationFailureDto {
   @IsString()
   @MaxLength(64)
   sourceAddress?: string | null;
+}
+
+const DEVICE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_JOB_DEVICES = 100;
+
+export class BeginJobVerificationDto {
+  @ApiProperty({ type: String, isArray: true, maxItems: MAX_JOB_DEVICES })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(MAX_JOB_DEVICES)
+  @Matches(DEVICE_ID, { each: true })
+  deviceIds!: string[];
+}
+
+export class InstalledUnitVehicleDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(32)
+  registrationNumber!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  vehicleType?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  make?: string | null;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(80)
+  model!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsInt()
+  year?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  chassisNumber?: string | null;
+}
+
+export class InstalledUnitDto {
+  @ApiProperty()
+  @Matches(DEVICE_ID)
+  deviceId!: string;
+
+  @ApiProperty({ type: InstalledUnitVehicleDto })
+  @ValidateNested()
+  @Type(() => InstalledUnitVehicleDto)
+  vehicle!: InstalledUnitVehicleDto;
 }

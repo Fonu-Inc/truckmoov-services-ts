@@ -12,8 +12,8 @@ export class FleetConnectivityVerification implements ConnectivityVerification {
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
   ) {}
 
-  async forTenant(tenantId: string): Promise<TenantConnectivity | null> {
-    const answer = await this.fleet.tenantConnectivity(tenantId);
+  async forDevices(tenantId: string, deviceIds: string[]): Promise<TenantConnectivity | null> {
+    const answer = await this.fleet.tenantConnectivity(tenantId, deviceIds);
     if (!answer) return null;
 
     const devices = answer.items.map<DeviceConnectivity>((item) => ({

@@ -11,15 +11,19 @@ import {
 import { ForbiddenError } from './contexts/auth/session';
 import { InvalidAccessTokenError } from './contexts/auth/session/domain/errors/invalid-access-token.error';
 import { OnboardingValidationError } from './contexts/onboarding/domain/onboarding-application.validation';
+import { InvalidStageTransitionError } from './contexts/onboarding/domain/onboarding-stage';
 import {
   FleetDeviceRefusedError,
   FleetUnavailableError,
   InstallationJobClosedError,
+  InstallationJobConflictError,
   InstallationJobNotFoundError,
 } from './contexts/installation/domain/installation-job.errors';
 import { InvalidInstallerPhotoError } from './contexts/installation/domain/installer-photo';
+import { InvalidEvidenceError } from './contexts/installation/domain/installation-evidence';
 import {
   INSTALLATION_ORDER_STATUSES,
+  InvalidInstallationTransitionError,
   type InstallationOrderStatus,
 } from './contexts/installation/domain/installation-order';
 
@@ -45,9 +49,13 @@ export function bearer(authorization?: string): string {
 const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) => HttpException]> = [
   [OnboardingValidationError, BadRequestException],
   [InvalidInstallerPhotoError, BadRequestException],
+  [InvalidEvidenceError, BadRequestException],
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
   [InstallationJobClosedError, ConflictException],
+  [InstallationJobConflictError, ConflictException],
+  [InvalidInstallationTransitionError, ConflictException],
+  [InvalidStageTransitionError, ConflictException],
   [FleetUnavailableError, ServiceUnavailableException],
   [ForbiddenError, ForbiddenException],
   [InvalidAccessTokenError, UnauthorizedException],

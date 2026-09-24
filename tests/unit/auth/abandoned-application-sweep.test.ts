@@ -62,6 +62,7 @@ describe("Abandoned application sweep", () => {
   let identityClaims: InMemoryIdentityClaimRepository;
   let deleted: string[];
   let storage: { deleteObject: ReturnType<typeof vi.fn> };
+  let installationOrders: InMemoryInstallationOrderRepository;
   let sweep: AbandonedApplicationSweepService;
 
   beforeEach(() => {
@@ -75,6 +76,7 @@ describe("Abandoned application sweep", () => {
       }),
     };
 
+    installationOrders = new InMemoryInstallationOrderRepository();
     const config = {
       persistence: { backend: "mikro-orm" },
       auth: { onboardingRetentionDays: RETENTION_DAYS },
@@ -87,7 +89,7 @@ describe("Abandoned application sweep", () => {
       identityClaims,
       new InMemoryVerificationResultRepository(),
       new InMemoryOnboardingPaymentRepository(),
-      new InMemoryInstallationOrderRepository(),
+      installationOrders,
       storage as never,
     );
   });
@@ -175,5 +177,29 @@ describe("Abandoned application sweep", () => {
 
     expect(deleted).toContain("key/signed/signature.png");
     expect(await agreements.findSignatureByApplicationId("signed")).toBeNull();
+  });
+
+  it("erases the installation's checklist ticks, evidence rows and evidence files", async () => {
+    const stale = daysAgo(RETENTION_DAYS + 1);
+    await withDocument("fitted", stale);
+    await installationOrders.save({
+      id: "order-1", orderNumber: "FL-1000", applicationId: "fitted", tenantId: "tenant-1", scheduledDate: stale,
+      timeSlot: "morning", addressLine: "x", city: "Abuja", state: "FCT", siteContactName: "Jane", siteContactPhone: "+234",
+      notes: null, installerNotes: null, installerId: null, status: "unassigned", preExceptionStatus: null, assignedAt: null,
+      acceptedAt: null, startedAt: null, completedAt: null, cancelledAt: null, createdAt: stale, updatedAt: stale,
+    });
+    await installationOrders.saveTick({ orderId: "order-1", itemKey: "install_device", checkedAt: stale, checkedBy: "ada" });
+    const fileKey = "tenant-1/installations/order-1/evidence/device_installation/ev-1-unit.png";
+    await installationOrders.saveEvidence({
+      id: "ev-1", orderId: "order-1", category: "device_installation", fileKey, fileHash: "h", fileSize: 1,
+      mimeType: "image/png", uploadedBy: "ada", createdAt: stale,
+    });
+
+    await sweep.run(NOW);
+
+    expect(deleted).toContain(fileKey);
+    expect(await installationOrders.findById("order-1")).toBeNull();
+    expect(await installationOrders.findTicks("order-1")).toEqual([]);
+    expect(await installationOrders.findEvidence("order-1")).toEqual([]);
   });
 });

@@ -67,6 +67,7 @@ export class InstallationOrderRecord {
   siteContactName!: string;
   siteContactPhone!: string;
   notes!: string | null;
+  installerNotes!: string | null;
   installerId!: string | null;
   status!: string;
   preExceptionStatus!: string | null;
@@ -96,6 +97,7 @@ export const InstallationOrderRecordSchema =
       siteContactName: { fieldName: 'site_contact_name', type: 'string', length: 80 },
       siteContactPhone: { fieldName: 'site_contact_phone', type: 'string', length: 20 },
       notes: { type: 'text', nullable: true },
+      installerNotes: { fieldName: 'installer_notes', type: 'text', nullable: true },
       installerId: { fieldName: 'installer_id', type: 'string', length: 64, nullable: true, index: true },
       status: { type: 'string', length: 24, default: 'unassigned', index: true },
       preExceptionStatus: { fieldName: 'pre_exception_status', type: 'string', length: 24, nullable: true },
@@ -128,6 +130,54 @@ export const InstallationDeviceAssignmentRecordSchema =
       deviceIndex: { fieldName: 'device_index', type: 'number' },
       vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64 },
       fleetDeviceId: { fieldName: 'fleet_device_id', type: 'string', length: 64, nullable: true },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
+export class InstallationChecklistTickRecord {
+  orderId!: string;
+  itemKey!: string;
+  checkedAt!: Date;
+  checkedBy!: string;
+}
+
+export const InstallationChecklistTickRecordSchema =
+  new EntitySchema<InstallationChecklistTickRecord>({
+    class: InstallationChecklistTickRecord,
+    tableName: 'installation_checklist_ticks',
+    properties: {
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, primary: true },
+      itemKey: { fieldName: 'item_key', type: 'string', length: 64, primary: true },
+      checkedAt: { fieldName: 'checked_at', type: 'datetime' },
+      checkedBy: { fieldName: 'checked_by', type: 'string', length: 64 },
+    },
+  });
+
+export class InstallationEvidenceRecord {
+  id!: string;
+  orderId!: string;
+  category!: string;
+  fileKey!: string;
+  fileHash!: string;
+  fileSize!: number;
+  mimeType!: string;
+  uploadedBy!: string;
+  createdAt!: Date;
+}
+
+export const InstallationEvidenceRecordSchema =
+  new EntitySchema<InstallationEvidenceRecord>({
+    class: InstallationEvidenceRecord,
+    tableName: 'installation_evidence',
+    properties: {
+      id: { type: 'string', length: 64, primary: true },
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, index: true },
+      category: { type: 'string', length: 32 },
+      fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
+      fileHash: { fieldName: 'file_hash', type: 'string', length: 64 },
+      fileSize: { fieldName: 'file_size', type: 'number' },
+      mimeType: { fieldName: 'mime_type', type: 'string', length: 32 },
+      uploadedBy: { fieldName: 'uploaded_by', type: 'string', length: 64 },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     },
   });

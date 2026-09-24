@@ -9,6 +9,7 @@ import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-ap
 import {
   ACTIVE_JOB_STATUSES,
   INSTALLATION_ORDER_STATUSES,
+  OPEN_JOB_STATUSES,
   TERMINAL_JOB_STATUSES,
   type InstallationOrderStatus,
 } from '@auth/installation/domain/installation-order';
@@ -26,14 +27,14 @@ import {
   type InstallerRepository,
   type StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
-import { InstallationJobNotFoundError } from '@auth/installation/domain/installation-job.errors';
 import {
   JOB_DEVICE_LOOKUP,
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
 import { lagosDayBounds, lagosToday, nextCalendarDay } from '@shared/devices';
 import { SIM_REPOSITORY, type SimRepository } from '../../../../sim.repository';
-import { currentInstaller } from './support/current-installer';
+import { currentInstaller, installerJob } from './support/current-installer';
+import { installerOptions } from './support/job-execution.views';
 import { MAX_PAGE_SIZE, pageOf } from './support/paging';
 import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
 
@@ -53,7 +54,7 @@ const TODAY_LIMIT = MAX_PAGE_SIZE;
 const BOOKED: InstallationOrderStatus[] = ['accepted', 'scheduled'];
 
 const SCOPES: Record<JobScope, readonly InstallationOrderStatus[]> = {
-  active: INSTALLATION_ORDER_STATUSES.filter((s) => !TERMINAL_JOB_STATUSES.includes(s)),
+  active: OPEN_JOB_STATUSES,
   history: TERMINAL_JOB_STATUSES,
 };
 
@@ -146,14 +147,17 @@ export class InstallerJobsUseCases {
   }
 
   async detail(accessToken: string, jobId: string) {
-    const installer = await this.installer(accessToken);
-    const order = await this.orders.findById(jobId);
-    if (!order || order.installerId !== installer.id) throw new InstallationJobNotFoundError();
-
-    const [application, assignments, vehicles] = await Promise.all([
+    const { installer, order } = await installerJob(
+      { tokens: this.tokens, installers: this.installers, orders: this.orders },
+      accessToken,
+      jobId,
+    );
+    const [application, assignments, vehicles, ticks, evidence] = await Promise.all([
       this.applications.findById(order.applicationId),
       this.orders.findAssignments(order.id),
       this.applications.findVehiclesByApplicationId(order.applicationId),
+      this.orders.findTicks(order.id),
+      this.orders.findEvidence(order.id),
     ]);
     const deviceIds = assignments.flatMap((a) => (a.fleetDeviceId ? [a.fleetDeviceId] : []));
     const [devices, sims] = await Promise.all([
@@ -168,7 +172,15 @@ export class InstallerJobsUseCases {
       vehicles,
       devices,
       sims: sims.filter((sim) => sim.tenantId === order.tenantId),
+      installer,
+      ticks,
+      evidence,
     });
+  }
+
+  async options(accessToken: string) {
+    await this.installer(accessToken);
+    return installerOptions();
   }
 
   private installer(accessToken: string): Promise<StoredInstaller> {

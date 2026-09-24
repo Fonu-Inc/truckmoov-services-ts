@@ -110,6 +110,7 @@ import { GetVerificationMonitorUseCase } from "./contexts/fleet/devices/applicat
 import { RecordDeviceTelemetryUseCase } from "./contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
 import { RecordVerificationFailureUseCase } from "./contexts/fleet/devices/application/use-cases/record-verification-failure.use-case";
 import { StartDeviceVerificationUseCase } from "./contexts/fleet/devices/application/use-cases/start-device-verification.use-case";
+import { InstallationHandoverUseCases } from "./contexts/fleet/devices/application/use-cases/installation-handover.use-cases";
 import { DEVICE_CATALOG_PORT } from "./contexts/fleet/devices/domain/ports/device-catalog.port";
 import { DEVICE_VERIFICATION_FAILURE_REPOSITORY } from "./contexts/fleet/devices/domain/repositories/device-verification-failure.repository";
 import { HttpDeviceCatalogAdapter } from "./contexts/fleet/devices/infrastructure/http-device-catalog.adapter";
@@ -650,6 +651,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     ConfigureDeviceUseCase,
     BulkConfigureDevicesUseCase,
     StartDeviceVerificationUseCase,
+    InstallationHandoverUseCases,
     RecordDeviceTelemetryUseCase,
     RecordVerificationFailureUseCase,
     ExpireDeviceVerificationsUseCase,

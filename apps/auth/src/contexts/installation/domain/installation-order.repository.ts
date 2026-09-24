@@ -2,6 +2,7 @@ import type {
   InstallationOrderStatus,
   InstallationTimeSlot,
 } from './installation-order';
+import type { EvidenceCategory } from './installation-evidence';
 
 export type StoredInstallationOrder = {
   id: string;
@@ -16,6 +17,7 @@ export type StoredInstallationOrder = {
   siteContactName: string;
   siteContactPhone: string;
   notes: string | null;
+  installerNotes: string | null;
   installerId: string | null;
   status: InstallationOrderStatus;
   /** The status an issue report interrupted, so resolving it can resume there. */
@@ -43,6 +45,26 @@ export type StoredDeviceAssignment = {
   deviceIndex: number;
   vehicleId: string;
   fleetDeviceId: string | null;
+  createdAt: Date;
+};
+
+export type StoredChecklistTick = {
+  orderId: string;
+  itemKey: string;
+  checkedAt: Date;
+  checkedBy: string;
+};
+
+export type StoredInstallationEvidence = {
+  id: string;
+  orderId: string;
+  category: EvidenceCategory;
+  fileKey: string;
+  /** sha256 hex */
+  fileHash: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedBy: string;
   createdAt: Date;
 };
 
@@ -76,6 +98,23 @@ export interface InstallationOrderRepository {
   /** Moves orders in `from` dated before `before` to overdue; returns how many moved. */
   markOverdue(from: readonly InstallationOrderStatus[], before: Date, now: Date): Promise<number>;
   nextOrderNumber(): Promise<string>;
+  /**
+   * Writes the order's status and step stamps only while it is still `from`,
+   * so two concurrent moves cannot both apply. False when the other one won.
+   */
+  transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean>;
+  saveInstallerNotes(
+    orderId: string,
+    notes: string | null,
+    statuses: readonly InstallationOrderStatus[],
+    now: Date,
+  ): Promise<boolean>;
+
+  findTicks(orderId: string): Promise<StoredChecklistTick[]>;
+  saveTick(tick: StoredChecklistTick): Promise<void>;
+  deleteTick(orderId: string, itemKey: string): Promise<void>;
+  saveEvidence(evidence: StoredInstallationEvidence): Promise<void>;
+  findEvidence(orderId: string): Promise<StoredInstallationEvidence[]>;
 
   replaceAssignments(
     orderId: string,
@@ -84,6 +123,7 @@ export interface InstallationOrderRepository {
   findAssignments(orderId: string): Promise<StoredDeviceAssignment[]>;
   findAssignmentByFleetDeviceId(fleetDeviceId: string): Promise<StoredDeviceAssignment | null>;
   saveAssignment(assignment: StoredDeviceAssignment): Promise<void>;
+  /** The order, its units, ticks and evidence rows. Evidence files are the caller's to remove first. */
   deleteForApplication(applicationId: string): Promise<void>;
   /** Orders per installer and status, in one query. */
   countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]>;

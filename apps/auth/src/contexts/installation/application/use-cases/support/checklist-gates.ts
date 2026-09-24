@@ -1,0 +1,46 @@
+import type { ChecklistGate } from '@auth/installation/domain/installation-checklist';
+import {
+  FleetUnavailableError,
+  InstallationJobConflictError,
+} from '@auth/installation/domain/installation-job.errors';
+import type {
+  InstallationOrderRepository,
+  StoredInstallationOrder,
+} from '@auth/installation/domain/installation-order.repository';
+import type { JobDeviceLookup } from '@auth/installation/domain/ports/job-device-lookup.port';
+
+export type GateReaders = { orders: InstallationOrderRepository; devices: JobDeviceLookup };
+
+async function assertDevicesVerified(readers: GateReaders, order: StoredInstallationOrder): Promise<void> {
+  const units = await readers.orders.findAssignments(order.id);
+  const deviceIds = units.flatMap((unit) => (unit.fleetDeviceId ? [unit.fleetDeviceId] : []));
+  if (units.length === 0 || deviceIds.length < units.length) {
+    throw new InstallationJobConflictError('Every unit needs a bound device before communication can be confirmed');
+  }
+  const devices = await readers.devices.forTenant(order.tenantId, deviceIds);
+  if (!devices) throw new FleetUnavailableError();
+  const verified = deviceIds.every((id) => devices.get(id)?.verificationStatus === 'verified');
+  if (!verified) {
+    throw new InstallationJobConflictError('Every device on this job must be verified before communication can be confirmed');
+  }
+}
+
+async function assertEvidence(readers: GateReaders, order: StoredInstallationOrder): Promise<void> {
+  const evidence = await readers.orders.findEvidence(order.id);
+  if (evidence.length === 0) {
+    throw new InstallationJobConflictError('Upload at least one evidence photo before ticking this item');
+  }
+}
+
+const GATES: Record<ChecklistGate, (readers: GateReaders, order: StoredInstallationOrder) => Promise<void>> = {
+  device_communicating: assertDevicesVerified,
+  evidence: assertEvidence,
+};
+
+export async function assertGateOpen(
+  readers: GateReaders,
+  order: StoredInstallationOrder,
+  gate: ChecklistGate | undefined,
+): Promise<void> {
+  if (gate) await GATES[gate](readers, order);
+}

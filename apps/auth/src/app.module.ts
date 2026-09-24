@@ -112,7 +112,16 @@ import {
   InstallerJobsUseCases,
   InstallerLoginUseCase,
   InstallerProfileUseCases,
+  InstallerJobActionsUseCases,
+  InstallerJobRecordsUseCases,
   InstallationSweepScheduler,
+  INSTALLATION_FLEET,
+  INSTALLATION_COMPLETION,
+  InMemoryInstallationCompletion,
+  MikroInstallationCompletion,
+  INSTALLATION_EVIDENCE_STORAGE,
+  FleetInstallationAdapter,
+  ObjectStorageInstallationEvidence,
   INSTALLATION_JOB_READER,
   INSTALLER_PHOTO_STORAGE,
   InMemoryInstallationJobReader,
@@ -136,6 +145,7 @@ import { InstallationController } from './installation.controller';
 import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
+import { InstallerJobWorkController } from './installer-job-work.controller';
 import { InternalInstallersController } from './internal-installers.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
@@ -695,6 +705,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     StaffRolesController,
     InstallerAuthController,
     InstallerPortalController,
+    InstallerJobWorkController,
     InternalInstallersController,
     SystemInstallersController,
     SystemInstallationOrdersController,
@@ -1537,6 +1548,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemoryInstallationCompletion,
+    MikroInstallationCompletion,
+    {
+      provide: INSTALLATION_COMPLETION,
+      inject: [InMemoryInstallationCompletion, MikroInstallationCompletion, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInstallationCompletion,
+        mikro: MikroInstallationCompletion,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     InMemoryInstallationJobReader,
     MikroInstallationJobReader,
     {
@@ -1550,6 +1572,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     { provide: JOB_DEVICE_LOOKUP, useClass: FleetJobDeviceLookup },
     { provide: INSTALLER_PHOTO_STORAGE, useClass: ObjectStorageInstallerPhotos },
+    { provide: INSTALLATION_EVIDENCE_STORAGE, useClass: ObjectStorageInstallationEvidence },
+    { provide: INSTALLATION_FLEET, useClass: FleetInstallationAdapter },
     InstallerAssignmentService,
     IssueSetupLinkUseCase,
     ScheduleInstallationUseCase,
@@ -1560,6 +1584,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ManageInstallationOrdersUseCases,
     InstallerJobsUseCases,
     InstallerProfileUseCases,
+    InstallerJobActionsUseCases,
+    InstallerJobRecordsUseCases,
     InstallerDeviceScopeUseCase,
     { provide: INSTALLER_ACCOUNTS, useClass: InstallerAccountsAdapter },
     FleetConnectivityVerification,

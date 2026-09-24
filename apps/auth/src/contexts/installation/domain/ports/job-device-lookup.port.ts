@@ -8,6 +8,8 @@ export type JobDevice = {
   status: string;
   statusLabel: string;
   deviceType: string | null;
+  /** waiting, verified or failed; null before verification was ever started. */
+  verificationStatus: string | null;
 };
 
 /**

@@ -208,12 +208,12 @@ export class FleetFactsService {
   }
 
   /**
-   * Whether every device a tenant holds is reporting.
+   * Whether the named devices a tenant holds are reporting.
    *
    * Null when fleet could not be asked. The caller must not read that as every
    * device being silent: one closes an onboarding, the other stalls it.
    */
-  async tenantConnectivity(tenantId: string): Promise<{
+  async tenantConnectivity(tenantId: string, deviceIds: string[]): Promise<{
     total: number;
     reporting: number;
     items: Array<Record<string, unknown>>;
@@ -234,6 +234,7 @@ export class FleetFactsService {
         `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/connectivity`,
         {
           headers,
+          params: { deviceIds: deviceIds.filter(isSafePathId).join(',') },
           timeout: 8000,
           validateStatus: () => true,
         },
@@ -250,6 +251,74 @@ export class FleetFactsService {
         `fleet_tenant_connectivity_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
       );
       return null;
+    }
+  }
+
+  /**
+   * Opens verification on the named devices a tenant holds, skipping any
+   * already waiting or verified. Null when fleet could not be asked.
+   */
+  async beginDeviceVerification(
+    tenantId: string,
+    deviceIds: string[],
+  ): Promise<Array<Record<string, unknown>> | null> {
+    const ids = deviceIds.filter(isSafePathId);
+    if (!isSafePathId(tenantId)) return null;
+    if (ids.length === 0) return [];
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    try {
+      const response = await axios.post<{ data?: { items?: Array<Record<string, unknown>> } }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/devices/verification`,
+        { deviceIds: ids },
+        { headers, timeout: 5000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) return null;
+      return response.data?.data?.items ?? [];
+    } catch (error) {
+      this.logger.warn(
+        `fleet_begin_verification_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Puts a fitted unit into the customer's fleet: the vehicle, created once per
+   * registration, and the device assigned to it.
+   */
+  async handOverInstalledUnit(
+    tenantId: string,
+    unit: { deviceId: string; vehicle: Record<string, unknown> },
+  ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    if (!isSafePathId(tenantId) || !isSafePathId(unit.deviceId)) {
+      return { ok: false, status: 404, message: 'Device not found' };
+    }
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return { ok: false, status: 503, message: 'Device service is not configured' };
+
+    try {
+      const response = await axios.post<{ message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/installed-units`,
+        unit,
+        { headers, timeout: 8000, validateStatus: () => true },
+      );
+
+      if (response.status >= 200 && response.status < 300) return { ok: true };
+      return {
+        ok: false,
+        status: response.status,
+        message: safeDownstreamMessage(response.data?.message, 'The device service refused the installed unit'),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_installed_unit_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
     }
   }
 

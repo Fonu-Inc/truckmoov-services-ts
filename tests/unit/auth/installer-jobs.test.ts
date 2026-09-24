@@ -90,6 +90,7 @@ function order(id: string, overrides: Partial<StoredInstallationOrder> = {}): St
     siteContactName: "Ada",
     siteContactPhone: "+2347014452219",
     notes: null,
+    installerNotes: null,
     installerId: null,
     status: "unassigned",
     preExceptionStatus: null,
@@ -144,7 +145,7 @@ function application(id: string, organizationName: string): StoredOnboardingAppl
 }
 
 function device(id: string): JobDevice {
-  return { id, name: null, imei: "356938035643809", manufacturer: "Teltonika", model: "FMB920", status: "configured", statusLabel: "Configured", deviceType: null };
+  return { id, name: null, imei: "356938035643809", manufacturer: "Teltonika", model: "FMB920", status: "configured", statusLabel: "Configured", deviceType: null, verificationStatus: null };
 }
 
 async function harness() {
