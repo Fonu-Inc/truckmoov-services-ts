@@ -24,6 +24,8 @@ export type StoredSystemDeviceModel = {
   id: string;
   manufacturer: string;
   model: string;
+  /** What the model is, e.g. "GPS Tracker". */
+  deviceType: string | null;
   protocolType: SystemDeviceProtocolType;
   defaultPort: number | null;
   supportedFeatures: SystemDeviceFeatureKey[];

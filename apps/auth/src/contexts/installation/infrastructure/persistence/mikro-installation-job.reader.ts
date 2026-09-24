@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import type {
+  DeviceScopeEntry,
+  DeviceScopeQuery,
   InstallationJobReader,
   JobFilters,
   JobPageRequest,
@@ -117,6 +119,15 @@ function toJobRow(row: Row): JobRow {
   };
 }
 
+const DEVICE_SCOPE = `
+  select o.tenant_id, o.id as order_id, o.order_number, a.fleet_device_id
+    from installers i
+    join installation_orders o on o.installer_id = i.id
+    join installation_device_assignments a on a.order_id = o.id
+   where i.user_id = ? and i.status = 'active' and a.fleet_device_id is not null
+     and (o.status in (?) or (o.status = 'completed' and o.completed_at >= ? and o.completed_at < ?))
+   order by o.scheduled_date asc, o.order_number asc, a.device_index asc`;
+
 /** Jobs with their list columns in one query, joined to the onboarding tables they are read from. */
 @Injectable()
 export class MikroInstallationJobReader implements InstallationJobReader {
@@ -147,5 +158,23 @@ export class MikroInstallationJobReader implements InstallationJobReader {
       .getConnection()
       .execute<Array<{ total: number }>>(`select count(*)::int as total ${COUNT_FROM} ${where.sql}`, where.params);
     return Number(row?.total ?? 0);
+  }
+
+  async deviceScope(query: DeviceScopeQuery): Promise<DeviceScopeEntry[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em
+      .getConnection()
+      .execute<Array<Record<string, string>>>(DEVICE_SCOPE, [
+        query.userId,
+        [...query.statuses],
+        query.completedFrom,
+        query.completedBefore,
+      ]);
+    return rows.map((row) => ({
+      tenantId: row.tenant_id,
+      orderId: row.order_id,
+      jobNumber: row.order_number,
+      deviceId: row.fleet_device_id,
+    }));
   }
 }

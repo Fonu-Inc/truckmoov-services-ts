@@ -8,6 +8,7 @@ import {
   InstallationJobClosedError,
   InstallationJobNotFoundError,
   InstallerAssignmentService,
+  InstallerDeviceScopeUseCase,
   InstallerJobsUseCases,
   InstallerProfileUseCases,
   InvalidInstallationTransitionError,
@@ -30,7 +31,7 @@ import {
 } from "@auth/installation/domain/installation-order";
 import type { StoredInstallationOrder } from "@auth/installation/domain/installation-order.repository";
 import type { JobDevice } from "@auth/installation/domain/ports/job-device-lookup.port";
-import { lagosDate, lagosToday } from "@auth/installation/domain/lagos-day";
+import { lagosDate, lagosToday } from "@shared/devices";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
@@ -40,6 +41,7 @@ import { AccessResolver } from "../../../apps/auth/src/access-resolver";
 import { InMemoryTenantRoleRepository } from "../../../apps/auth/src/in-memory-tenant-role.repository";
 import { InMemoryPermissionRemovalRepository } from "../../../apps/auth/src/in-memory-permission-removal.repository";
 import { Migration20260924020000 } from "../../../apps/auth/src/migrations/Migration20260924020000";
+import { InternalInstallersController } from "../../../apps/auth/src/internal-installers.controller";
 
 const NOW = new Date("2026-09-24T10:00:00Z");
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32)]);
@@ -149,7 +151,7 @@ async function harness() {
   const installers = new InMemoryInstallerRepository();
   const orders = new InMemoryInstallationOrderRepository();
   const applications = new InMemoryOnboardingApplicationRepository();
-  const reader = new InMemoryInstallationJobReader(orders, applications);
+  const reader = new InMemoryInstallationJobReader(orders, applications, installers);
   const sims = new InMemorySimRepository();
   const fleet = new Map<string, JobDevice[]>();
   const lookup = {
@@ -632,4 +634,65 @@ it("stores a booking as the Lagos day it asks for, at UTC midnight", () => {
   expect(bookingDay("2026-10-05T09:00:00Z")).toEqual(day("2026-10-05"));
   expect(bookingDay("2026-10-05T23:30:00Z")).toEqual(day("2026-10-06"));
   expect(() => bookingDay("soon")).toThrow("not a date");
+});
+
+describe("an installer's device scope", () => {
+  const NOW_LAGOS_MORNING = new Date("2026-09-24T10:00:00Z");
+  let h: Awaited<ReturnType<typeof harness>>;
+  let scope: InstallerDeviceScopeUseCase;
+
+  beforeEach(async () => {
+    h = await harness();
+    scope = new InstallerDeviceScopeUseCase(h.reader);
+    await h.installers.save(installer("ada"));
+    await h.installers.save(installer("bola"));
+  });
+
+  const ids = async (userId = "user-ada", now = NOW_LAGOS_MORNING) =>
+    (await scope.forUser(userId, now)).map((entry) => entry.deviceId);
+
+  it("covers every bound device on open jobs, and none on closed or unbound ones", async () => {
+    const mine = { installerId: "ada" };
+    const open = ["assigned", "accepted", "scheduled", "in_progress", "overdue", "issue_reported"] as const;
+    for (const [i, status] of open.entries()) await h.job(`o${i}`, "Open Co", { ...mine, status }, `dev-o${i}`);
+    await h.job("u", "Unassigned Co", { status: "unassigned" }, "dev-u");
+    await h.job("c", "Cancelled Co", { ...mine, status: "cancelled", cancelledAt: NOW_LAGOS_MORNING }, "dev-c");
+    await h.job("n", "Unbound Co", { ...mine, status: "scheduled" });
+    await h.job("b", "Bola Co", { installerId: "bola", status: "scheduled" }, "dev-b");
+
+    expect((await ids()).sort()).toEqual(open.map((_, i) => `dev-o${i}`).sort());
+    expect(await scope.forUser("user-ada", NOW_LAGOS_MORNING)).toContainEqual({
+      tenantId: "tenant-o0", orderId: "o0", jobNumber: "FL-o0", deviceId: "dev-o0",
+    });
+  });
+
+  it("keeps devices on jobs completed today in Lagos, from Lagos midnight", async () => {
+    const done = (id: string, completedAt: string) =>
+      h.job(id, "Done Co", { installerId: "ada", status: "completed", completedAt: new Date(completedAt) }, `dev-${id}`);
+    await done("before", "2026-09-23T22:59:00Z");
+    await done("after", "2026-09-23T23:00:00Z");
+    await done("late", "2026-09-24T22:59:00Z");
+    await done("tomorrow", "2026-09-24T23:00:00Z");
+
+    expect((await ids()).sort()).toEqual(["dev-after", "dev-late"]);
+  });
+
+  it("is empty for a suspended or unknown installer", async () => {
+    await h.job("1", "Open Co", { installerId: "ada", status: "scheduled" }, "dev-1");
+    expect(await ids()).toEqual(["dev-1"]);
+
+    await h.installers.save(installer("ada", { status: "suspended" }));
+    expect(await ids()).toEqual([]);
+    expect(await ids("user-nobody")).toEqual([]);
+  });
+
+  it("answers fleet only", async () => {
+    const callers = { serviceFor: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce("fleet") };
+    const controller = new InternalInstallersController(scope, callers as never);
+    await expect(controller.deviceScope("user-ada", {})).rejects.toThrow("Invalid service token");
+    expect(callers.serviceFor).toHaveBeenCalledWith({}, ["fleet"]);
+
+    await h.job("1", "Open Co", { installerId: "ada", status: "scheduled" }, "dev-1");
+    expect((await controller.deviceScope("user-ada", {})).data.map((entry) => entry.deviceId)).toEqual(["dev-1"]);
+  });
 });

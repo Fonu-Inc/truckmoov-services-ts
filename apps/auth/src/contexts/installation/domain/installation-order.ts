@@ -1,4 +1,4 @@
-import { lagosToday } from './lagos-day';
+import { lagosToday } from '@shared/devices';
 
 export const INSTALLATION_TIME_SLOTS = ['morning', 'afternoon'] as const;
 export type InstallationTimeSlot = (typeof INSTALLATION_TIME_SLOTS)[number];

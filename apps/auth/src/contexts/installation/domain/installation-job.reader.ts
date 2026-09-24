@@ -29,9 +29,22 @@ export type JobRow = {
   deviceCount: number;
 };
 
+/** A fleet device bound to one of an installer's jobs. */
+export type DeviceScopeEntry = { tenantId: string; orderId: string; jobNumber: string; deviceId: string };
+
+export type DeviceScopeQuery = {
+  /** The installer's sign-in; only an active installer has a scope. */
+  userId: string;
+  statuses: readonly InstallationOrderStatus[];
+  /** Completed jobs count too when completed_at falls in [from, before). */
+  completedFrom: Date;
+  completedBefore: Date;
+};
+
 export interface InstallationJobReader {
   list(filters: JobFilters, page: JobPageRequest): Promise<{ items: JobRow[]; total: number }>;
   count(filters: JobFilters): Promise<number>;
+  deviceScope(query: DeviceScopeQuery): Promise<DeviceScopeEntry[]>;
 }
 
 export const INSTALLATION_JOB_READER = Symbol('INSTALLATION_JOB_READER');

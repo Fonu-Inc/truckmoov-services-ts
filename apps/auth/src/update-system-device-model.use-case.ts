@@ -20,6 +20,7 @@ export type UpdateSystemDeviceModelCommand = {
   deviceModelId: string;
   manufacturer?: string;
   model?: string;
+  deviceType?: string | null;
   protocolType?: SystemDeviceProtocolType;
   defaultPort?: number | null;
   supportedFeatures?: SystemDeviceFeatureKey[];
@@ -74,6 +75,10 @@ export class UpdateSystemDeviceModelUseCase {
       ...existing,
       manufacturer: nextManufacturer,
       model: nextModel,
+      deviceType:
+        command.deviceType === undefined
+          ? existing.deviceType
+          : command.deviceType?.trim() || null,
       protocolType: command.protocolType ?? existing.protocolType,
       defaultPort:
         command.defaultPort === undefined

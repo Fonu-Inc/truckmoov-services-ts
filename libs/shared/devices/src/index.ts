@@ -1,4 +1,5 @@
 export {
+  DEVICE_LIFECYCLE_LABELS,
   DEVICE_LIFECYCLE_ONLINE,
   DEVICE_LIFECYCLE_STATUSES,
   DEVICE_PROVISION_STATUSES,
@@ -27,3 +28,12 @@ export {
   type DeviceProtocol,
   type DeviceVerificationStatus,
 } from "./device-installation";
+
+export {
+  INSTALLATION_TIME_ZONE,
+  lagosDate,
+  lagosDayAt,
+  lagosDayBounds,
+  lagosToday,
+  nextCalendarDay,
+} from "./lagos-day";

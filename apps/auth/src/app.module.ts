@@ -108,6 +108,7 @@ import {
   InMemoryInstallerRepository,
   InstallerAccountsAdapter,
   InstallerAssignmentService,
+  InstallerDeviceScopeUseCase,
   InstallerJobsUseCases,
   InstallerLoginUseCase,
   InstallerProfileUseCases,
@@ -135,6 +136,7 @@ import { InstallationController } from './installation.controller';
 import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
+import { InternalInstallersController } from './internal-installers.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
 import { ActivityLogService } from './activity-log.service';
@@ -693,6 +695,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     StaffRolesController,
     InstallerAuthController,
     InstallerPortalController,
+    InternalInstallersController,
     SystemInstallersController,
     SystemInstallationOrdersController,
     OnboardingApplicationsController,
@@ -1557,6 +1560,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ManageInstallationOrdersUseCases,
     InstallerJobsUseCases,
     InstallerProfileUseCases,
+    InstallerDeviceScopeUseCase,
     { provide: INSTALLER_ACCOUNTS, useClass: InstallerAccountsAdapter },
     FleetConnectivityVerification,
     {

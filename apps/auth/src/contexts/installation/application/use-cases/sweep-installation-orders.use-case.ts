@@ -5,7 +5,7 @@ import {
   type StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
 import { OVERDUE_SOURCE_STATUSES } from '@auth/installation/domain/installation-order';
-import { lagosToday } from '@auth/installation/domain/lagos-day';
+import { lagosToday } from '@shared/devices';
 import { InstallerAssignmentService } from '../services/installer-assignment.service';
 
 const BATCH_SIZE = 100;

@@ -56,6 +56,18 @@ export class GetVerificationMonitorUseCase {
     );
   }
 
+  /** The named devices this tenant holds, whatever their state, each with its row. */
+  async forDevices(
+    tenantId: string,
+    ids: string[],
+    now = new Date(),
+  ): Promise<Array<{ device: Device; row: VerificationMonitorRow }>> {
+    const devices = await this.devices.findByIds(tenantId, ids);
+    return Promise.all(
+      devices.map(async (device) => ({ device, row: await this.toRow(device, tenantId, now) })),
+    );
+  }
+
   private async toRow(
     device: Device,
     tenantId: string,

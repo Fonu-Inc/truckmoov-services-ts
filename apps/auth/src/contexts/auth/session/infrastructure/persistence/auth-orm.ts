@@ -995,6 +995,7 @@ export class SystemDeviceModelRecord {
   id!: string;
   manufacturer!: string;
   model!: string;
+  deviceType!: string | null;
   protocolType!: string;
   defaultPort!: number | null;
   supportedFeatures!: string[];
@@ -1016,6 +1017,7 @@ export const SystemDeviceModelRecordSchema =
       id: { type: 'string', primary: true },
       manufacturer: { type: 'string', length: 120 },
       model: { type: 'string', length: 120 },
+      deviceType: { fieldName: 'device_type', type: 'string', length: 80, nullable: true },
       protocolType: { fieldName: 'protocol_type', type: 'string', length: 16 },
       defaultPort: {
         fieldName: 'default_port',

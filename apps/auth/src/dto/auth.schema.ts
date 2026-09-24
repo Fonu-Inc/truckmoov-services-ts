@@ -912,6 +912,9 @@ export class SystemDeviceCatalogModelSchema {
   @ApiProperty()
   model!: string;
 
+  @ApiProperty({ nullable: true, type: String, example: 'GPS Tracker' })
+  deviceType!: string | null;
+
   @ApiProperty({ enum: SYSTEM_DEVICE_PROTOCOL_TYPES })
   protocolType!: (typeof SYSTEM_DEVICE_PROTOCOL_TYPES)[number];
 

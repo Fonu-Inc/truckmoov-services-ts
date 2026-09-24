@@ -1,9 +1,11 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, SetMetadata } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Role, normalizeRole } from "@shared/rbac";
 
 // Routes decorated with @SkipTenantCheck() bypass this guard.
 export const SKIP_TENANT_KEY = "skipTenantCheck";
+
+export const SkipTenantCheck = () => SetMetadata(SKIP_TENANT_KEY, true);
 
 @Injectable()
 export class TenantGuard implements CanActivate {

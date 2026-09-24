@@ -31,7 +31,7 @@ import {
   JOB_DEVICE_LOOKUP,
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
-import { lagosDayBounds, lagosToday, nextCalendarDay } from '@auth/installation/domain/lagos-day';
+import { lagosDayBounds, lagosToday, nextCalendarDay } from '@shared/devices';
 import { SIM_REPOSITORY, type SimRepository } from '../../../../sim.repository';
 import { currentInstaller } from './support/current-installer';
 import { MAX_PAGE_SIZE, pageOf } from './support/paging';

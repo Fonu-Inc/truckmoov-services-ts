@@ -95,6 +95,10 @@ import { FleetController } from "./fleet.controller";
 import { RoutesController } from "./routes.controller";
 import { VehiclesController } from "./vehicles.controller";
 import { DeviceInstallationController } from "./device-installation.controller";
+import { InstallerDevicesController } from "./installer-devices.controller";
+import { InstallerDevicesUseCases } from "./contexts/fleet/devices/application/use-cases/installer-devices.use-cases";
+import { INSTALLER_DEVICE_SCOPE } from "./contexts/fleet/devices/domain/ports/installer-device-scope.port";
+import { HttpInstallerDeviceScopeAdapter } from "./contexts/fleet/devices/infrastructure/http-installer-device-scope.adapter";
 import { DeviceVerificationSweepService } from "./device-verification-sweep.service";
 import { BulkConfigureDevicesUseCase } from "./contexts/fleet/devices/application/use-cases/bulk-configure-devices.use-case";
 import { ConfigureDeviceUseCase } from "./contexts/fleet/devices/application/use-cases/configure-device.use-case";
@@ -318,6 +322,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     VehiclesController,
     DevicesController,
     DeviceInstallationController,
+    InstallerDevicesController,
     WaybillsController,
     InvoicingController,
     DeviceSetupRequestsController,
@@ -652,6 +657,8 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     GetVerificationMonitorUseCase,
     GetInstallerGuideUseCase,
     GetDeviceDiagnosticsUseCase,
+    { provide: INSTALLER_DEVICE_SCOPE, useClass: HttpInstallerDeviceScopeAdapter },
+    InstallerDevicesUseCases,
     DeviceVerificationSweepService,
     InMemoryWaybillRepository,
     MikroWaybillRepository,
@@ -846,6 +853,7 @@ export class AppModule implements NestModule {
         VehiclesController,
         DevicesController,
         DeviceInstallationController,
+        InstallerDevicesController,
         WaybillsController,
         InvoicingController,
         DeviceSetupRequestsController,

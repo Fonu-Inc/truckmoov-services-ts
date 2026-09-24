@@ -40,6 +40,7 @@ export class GetDeviceDiagnosticsUseCase {
     return {
       device: {
         id: device.id,
+        name: device.name,
         imei: device.imei,
         manufacturer: device.manufacturer,
         model: device.model,

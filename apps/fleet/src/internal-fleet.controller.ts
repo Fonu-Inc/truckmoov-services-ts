@@ -31,11 +31,16 @@ import {
   SuspendDeviceUseCase,
 } from "./contexts/fleet/devices";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
-import type { DeviceLifecycleStatus } from "./contexts/fleet/devices/domain/entities/device.entity";
+import type { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
+import {
+  DEVICE_CATALOG_PORT,
+  type DeviceCatalogPort,
+} from "./contexts/fleet/devices/domain/ports/device-catalog.port";
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
 import { Portals, OnResource } from "@shared/access";
+import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -48,18 +53,6 @@ import { Portals, OnResource } from "@shared/access";
 const DRAWER_ROW_LIMIT = 25;
 /** A job lists a handful of units; a page of them at most. */
 const MAX_DEVICE_IDS = 100;
-
-const LIFECYCLE_LABELS: Record<DeviceLifecycleStatus, string> = {
-  registered: "Registered",
-  config_pending: "Configuration pending",
-  configured: "Configured",
-  verified_online: "Verified online",
-  assignable: "Ready to assign",
-  assigned: "Assigned",
-  faulty: "Faulty",
-  suspended: "Suspended",
-  decommissioned: "Decommissioned",
-};
 
 @ApiExcludeController()
 @Portals("service")
@@ -76,6 +69,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository,
     @Inject(SuspendDeviceUseCase) private readonly suspendDeviceUseCase: SuspendDeviceUseCase,
     @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
+    @Inject(DEVICE_CATALOG_PORT) private readonly catalog: DeviceCatalogPort,
   ) {
     super(auditLog, bus);
   }
@@ -230,7 +224,7 @@ export class InternalFleetController extends BaseFleetController {
 
   private async devicesByIds(tenantId: string, ids: string) {
     const wanted = ids.split(",").map((id) => id.trim()).filter(Boolean).slice(0, MAX_DEVICE_IDS);
-    const devices = await this.devices.findByIds(tenantId, wanted);
+    const [devices, deviceType] = await Promise.all([this.devices.findByIds(tenantId, wanted), this.deviceTypes()]);
     const items = devices.map((device) => ({
       id: device.id,
       name: device.name,
@@ -238,10 +232,18 @@ export class InternalFleetController extends BaseFleetController {
       manufacturer: device.manufacturer,
       model: device.model,
       status: device.lifecycleStatus,
-      statusLabel: LIFECYCLE_LABELS[device.lifecycleStatus],
-      deviceType: null,
+      statusLabel: DEVICE_LIFECYCLE_LABELS[device.lifecycleStatus],
+      deviceType: deviceType(device),
     }));
     return { status: true, message: "success", data: { total: items.length, items } };
+  }
+
+  /** Each device's type from its catalogue model; unknown when the catalogue has none. */
+  private async deviceTypes(): Promise<(device: Device) => string | null> {
+    const key = (manufacturer: string, model: string) => `${manufacturer.trim().toLowerCase()}|${model.trim().toLowerCase()}`;
+    const models = await this.catalog.findAll().catch(() => []);
+    const types = new Map(models.map((entry) => [key(entry.manufacturer, entry.model), entry.deviceType]));
+    return (device) => types.get(key(device.manufacturer, device.model)) ?? null;
   }
 
   /**

@@ -19,6 +19,7 @@ const TENANT = "tenant-1";
 const TELTONIKA: DeviceCatalogModel = {
   manufacturer: "Teltonika",
   model: "FMB920",
+  deviceType: "GPS Tracker",
   protocol: "TCP",
   defaultPort: 5001,
   status: "supported",

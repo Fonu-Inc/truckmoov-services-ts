@@ -4,6 +4,8 @@ import type { DeviceProtocol } from "../entities/device.entity";
 export type DeviceCatalogModel = {
   manufacturer: string;
   model: string;
+  /** What the model is, e.g. "GPS Tracker". */
+  deviceType: string | null;
   protocol: DeviceProtocol;
   defaultPort: number | null;
   status: string;

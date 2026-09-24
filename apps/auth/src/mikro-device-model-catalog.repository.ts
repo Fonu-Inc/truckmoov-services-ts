@@ -14,6 +14,7 @@ function toStored(record: SystemDeviceModelRecord): StoredSystemDeviceModel {
     id: record.id,
     manufacturer: record.manufacturer,
     model: record.model,
+    deviceType: record.deviceType ?? null,
     protocolType:
       record.protocolType as StoredSystemDeviceModel['protocolType'],
     defaultPort: record.defaultPort,
@@ -44,6 +45,7 @@ export class MikroDeviceModelCatalogRepository implements DeviceModelCatalogRepo
       id: model.id,
       manufacturer: model.manufacturer,
       model: model.model,
+      deviceType: model.deviceType,
       protocolType: model.protocolType,
       defaultPort: model.defaultPort,
       supportedFeatures: model.supportedFeatures,

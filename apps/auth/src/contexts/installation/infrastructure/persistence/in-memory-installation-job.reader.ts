@@ -5,6 +5,8 @@ import {
   type StoredOnboardingApplicationVehicle,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import type {
+  DeviceScopeEntry,
+  DeviceScopeQuery,
   InstallationJobReader,
   JobFilters,
   JobPageRequest,
@@ -12,7 +14,10 @@ import type {
   JobSort,
 } from '@auth/installation/domain/installation-job.reader';
 import type { StoredInstallationOrder } from '@auth/installation/domain/installation-order.repository';
-import { InMemoryInstallationOrderRepository } from './in-memory-installation.repositories';
+import {
+  InMemoryInstallationOrderRepository,
+  InMemoryInstallerRepository,
+} from './in-memory-installation.repositories';
 
 type Candidate = JobRow & { registrations: string[] };
 
@@ -45,6 +50,11 @@ function searched(candidate: Candidate, search?: string): boolean {
     .some((field) => field.toLowerCase().includes(q));
 }
 
+function inDeviceScope(order: StoredInstallationOrder, query: DeviceScopeQuery): boolean {
+  if (query.statuses.includes(order.status)) return true;
+  return order.status === 'completed' && inRange(order.completedAt, query.completedFrom, query.completedBefore);
+}
+
 function matches(candidate: Candidate, filters: JobFilters): boolean {
   const { order } = candidate;
   return (!filters.installerId || order.installerId === filters.installerId) &&
@@ -59,6 +69,7 @@ export class InMemoryInstallationJobReader implements InstallationJobReader {
   constructor(
     @Inject(InMemoryInstallationOrderRepository) private readonly orders: InMemoryInstallationOrderRepository,
     @Inject(ONBOARDING_APPLICATION_REPOSITORY) private readonly applications: OnboardingApplicationRepository,
+    @Inject(InMemoryInstallerRepository) private readonly installers: InMemoryInstallerRepository,
   ) {}
 
   async list(filters: JobFilters, page: JobPageRequest): Promise<{ items: JobRow[]; total: number }> {
@@ -72,6 +83,22 @@ export class InMemoryInstallationJobReader implements InstallationJobReader {
 
   async count(filters: JobFilters): Promise<number> {
     return (await this.matching(filters)).length;
+  }
+
+  async deviceScope(query: DeviceScopeQuery): Promise<DeviceScopeEntry[]> {
+    const installer = await this.installers.findByUserId(query.userId);
+    if (installer?.status !== 'active') return [];
+    return this.orders
+      .snapshot()
+      .filter(({ order }) => order.installerId === installer.id && inDeviceScope(order, query))
+      .sort((a, b) => a.order.scheduledDate.getTime() - b.order.scheduledDate.getTime() || a.order.orderNumber.localeCompare(b.order.orderNumber))
+      .flatMap(({ order, assignments }) =>
+        assignments.flatMap((unit) =>
+          unit.fleetDeviceId
+            ? [{ tenantId: order.tenantId, orderId: order.id, jobNumber: order.orderNumber, deviceId: unit.fleetDeviceId }]
+            : [],
+        ),
+      );
   }
 
   private async matching(filters: JobFilters): Promise<Candidate[]> {

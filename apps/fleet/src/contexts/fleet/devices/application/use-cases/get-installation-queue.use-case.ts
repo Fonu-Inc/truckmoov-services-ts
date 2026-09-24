@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DEVICE_INSTALLATION_QUEUE_STATUSES } from "@shared/devices";
+import { DEVICE_INSTALLATION_QUEUE_STATUSES, lagosDayAt } from "@shared/devices";
 import type { Device } from "../../domain/entities/device.entity";
 import {
   DEVICE_REPOSITORY,
@@ -51,16 +51,13 @@ export class GetInstallationQueueUseCase {
   }
 
   private async summarise(tenantId: string, now: Date): Promise<InstallationSummary> {
-    const startOfDay = new Date(now);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-
     const [waiting, failed, verifiedToday] = await Promise.all([
       this.devices.findAll({ tenantId, verificationStatus: "waiting" }),
       this.devices.findAll({ tenantId, verificationStatus: "failed" }),
       this.devices.findAll({
         tenantId,
         verificationStatus: "verified",
-        verifiedAfter: startOfDay,
+        verifiedAfter: lagosDayAt(now).start,
       }),
     ]);
 
@@ -70,6 +67,22 @@ export class GetInstallationQueueUseCase {
       verifiedToday: verifiedToday.length,
     };
   }
+}
+
+/** The same figures over a set of devices already read. "Today" is the Lagos day. */
+export function summariseDevices(devices: Device[], now: Date): InstallationSummary {
+  const dayStart = lagosDayAt(now).start.getTime();
+  const count = (test: (device: Device) => boolean) => devices.filter(test).length;
+  return {
+    awaitingSignal: count((device) => device.verificationStatus === "waiting"),
+    failedVerification: count((device) => device.verificationStatus === "failed"),
+    verifiedToday: count(
+      (device) =>
+        device.verificationStatus === "verified"
+        && device.verifiedAt !== null
+        && Date.parse(device.verifiedAt) >= dayStart,
+    ),
+  };
 }
 
 export function toQueueRow(device: Device): InstallationQueueRow {

@@ -11,6 +11,7 @@ import type {
 type CatalogModelResponse = {
   manufacturer?: string;
   model?: string;
+  deviceType?: string | null;
   protocolType?: string;
   defaultPort?: number | null;
   status?: string;
@@ -105,6 +106,7 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
     return {
       manufacturer: entry.manufacturer,
       model: entry.model,
+      deviceType: entry.deviceType ?? null,
       protocol,
       defaultPort: entry.defaultPort ?? null,
       status: entry.status ?? "supported",

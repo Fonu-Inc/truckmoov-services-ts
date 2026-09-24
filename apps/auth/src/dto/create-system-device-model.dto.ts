@@ -29,6 +29,12 @@ export class CreateSystemDeviceModelDto {
   @MaxLength(120)
   model!: string;
 
+  @ApiPropertyOptional({ nullable: true, example: 'GPS Tracker' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  deviceType?: string | null;
+
   @ApiProperty({ enum: SYSTEM_DEVICE_PROTOCOL_TYPES })
   @IsIn(SYSTEM_DEVICE_PROTOCOL_TYPES)
   protocolType!: (typeof SYSTEM_DEVICE_PROTOCOL_TYPES)[number];

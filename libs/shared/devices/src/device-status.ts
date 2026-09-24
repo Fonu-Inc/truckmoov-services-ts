@@ -70,6 +70,19 @@ export function deviceStatusFromLifecycle(status: DeviceLifecycleStatus): Device
   }
 }
 
+/** How each lifecycle state reads on a screen. */
+export const DEVICE_LIFECYCLE_LABELS: Record<DeviceLifecycleStatus, string> = {
+  registered: "Registered",
+  config_pending: "Configuration pending",
+  configured: "Configured",
+  verified_online: "Verified online",
+  assignable: "Ready to assign",
+  assigned: "Assigned",
+  faulty: "Faulty",
+  suspended: "Suspended",
+  decommissioned: "Decommissioned",
+};
+
 /** Lifecycle states that mean the device is installed and reporting. */
 export const DEVICE_LIFECYCLE_ONLINE: readonly DeviceLifecycleStatus[] = [
   "verified_online",

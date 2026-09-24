@@ -40,6 +40,7 @@ export {
 } from "./domain/installer.repository";
 export {
   INSTALLATION_JOB_READER,
+  type DeviceScopeEntry,
   type InstallationJobReader,
 } from "./domain/installation-job.reader";
 export {
@@ -87,6 +88,7 @@ export {
   type JobScope,
 } from "./application/use-cases/installer-jobs.use-cases";
 export { InstallerProfileUseCases } from "./application/use-cases/installer-profile.use-cases";
+export { InstallerDeviceScopeUseCase } from "./application/use-cases/installer-device-scope.use-case";
 export { ManageInstallationOrdersUseCases } from "./application/use-cases/manage-installation-orders.use-cases";
 
 // Infrastructure

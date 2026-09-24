@@ -21,6 +21,7 @@ export type CreateSystemDeviceModelCommand = {
   accessToken: string;
   manufacturer: string;
   model: string;
+  deviceType?: string | null;
   protocolType: SystemDeviceProtocolType;
   defaultPort?: number | null;
   supportedFeatures: SystemDeviceFeatureKey[];
@@ -70,6 +71,7 @@ export class CreateSystemDeviceModelUseCase {
       id: this.idGenerator.generate(),
       manufacturer,
       model,
+      deviceType: command.deviceType?.trim() || null,
       protocolType: command.protocolType,
       defaultPort: command.defaultPort ?? null,
       supportedFeatures: [...command.supportedFeatures],

@@ -10,6 +10,7 @@ export function toSystemDeviceModelResponse(model: StoredSystemDeviceModel) {
     id: model.id,
     manufacturer: model.manufacturer,
     model: model.model,
+    deviceType: model.deviceType,
     protocolType: model.protocolType,
     defaultPort: model.defaultPort,
     supportedFeatures: model.supportedFeatures,
