@@ -38,6 +38,12 @@ export type StoredDeviceAssignment = {
   createdAt: Date;
 };
 
+export type InstallerJobCount = {
+  installerId: string;
+  status: InstallationOrderStatus;
+  count: number;
+};
+
 export interface InstallationOrderRepository {
   save(order: StoredInstallationOrder): Promise<void>;
   findById(id: string): Promise<StoredInstallationOrder | null>;
@@ -52,6 +58,8 @@ export interface InstallationOrderRepository {
   ): Promise<void>;
   findAssignments(orderId: string): Promise<StoredDeviceAssignment[]>;
   deleteForApplication(applicationId: string): Promise<void>;
+  /** Orders per installer and status, in one query. */
+  countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]>;
 }
 
 export const INSTALLATION_ORDER_REPOSITORY = Symbol(

@@ -1,7 +1,8 @@
 import { NotFoundException, SetMetadata } from "@nestjs/common";
+import type { Portal } from "@shared/identity";
 
 /** Who a route serves. */
-export type Audience = "admin" | "tenant" | "service" | "public";
+export type Audience = Portal | "service" | "public";
 
 export const PORTALS_KEY = "truckmoov:portals";
 

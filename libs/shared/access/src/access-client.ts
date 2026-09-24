@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { EventBus } from "@shared/eventbus";
-import type { ServiceCaller } from "@shared/identity";
+import type { Portal, ServiceCaller } from "@shared/identity";
 import type { PermissionKey } from "./catalog";
 
 export const ACCESS_CHANGED_SUBJECT = "tm.system.access.changed";
@@ -8,7 +8,7 @@ export const ACCESS_CHANGED_SUBJECT = "tm.system.access.changed";
 export type RemoteAccess = {
   userId: string;
   tenantId: string;
-  portal: "admin" | "tenant";
+  portal: Portal;
   active: boolean;
   permissions: PermissionKey[];
 };

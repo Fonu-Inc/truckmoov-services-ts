@@ -1,7 +1,10 @@
 export {
+  PORTALS,
   SYSTEM_TENANT_ID,
   holdsMisplacedSystemRole,
+  isInstallerActor,
   isPlatformActor,
+  isPortal,
   portalFor,
   type ActorLike,
   type Portal,

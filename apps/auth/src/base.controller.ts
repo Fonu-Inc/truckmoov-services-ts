@@ -1,5 +1,6 @@
 import { ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
 import { ActivityLogService } from './activity-log.service';
+import type { AuthFailureReason } from './auth-event.repository';
 import {
   EmailNotVerifiedError,
   ForbiddenError,
@@ -36,6 +37,11 @@ export abstract class BaseAuthController {
       }
       throw error;
     }
+  }
+
+  protected mapLoginFailureReason(error: unknown): AuthFailureReason {
+    if (error instanceof EmailNotVerifiedError || error instanceof ForbiddenError) return 'account_locked';
+    return 'invalid_password';
   }
 
   protected rethrowInvalidAccessToken(error: unknown): void {

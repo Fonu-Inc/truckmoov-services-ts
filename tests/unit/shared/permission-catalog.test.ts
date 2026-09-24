@@ -35,5 +35,6 @@ describe("predefined roles", () => {
   it("keep system roles in the admin portal and tenant roles in the tenant portal", () => {
     for (const role of SYSTEM_ROLES) expect(PREDEFINED_ROLES[role].portal).toBe("admin");
     for (const role of TENANT_ROLES) expect(PREDEFINED_ROLES[role].portal).toBe("tenant");
+    expect(PREDEFINED_ROLES[Role.INSTALLER].portal).toBe("installer");
   });
 });

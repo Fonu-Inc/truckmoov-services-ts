@@ -12,8 +12,8 @@ import {
   TOKEN_SERVICE,
   type TokenService,
 } from '../../domain/ports/token-service.port';
-import { isSystemRole } from '@shared/rbac';
-import { isPlatformActor } from '@shared/identity';
+import { Role, isSystemRole } from '@shared/rbac';
+import { isInstallerActor, isPlatformActor } from '@shared/identity';
 import { ForbiddenError } from '../../domain/errors/forbidden.error';
 
 export type LoginCommand = {
@@ -21,7 +21,7 @@ export type LoginCommand = {
   password: string;
 };
 
-export type LoginAudience = 'tenant' | 'system';
+export type LoginAudience = 'tenant' | 'system' | 'installer';
 
 @Injectable()
 export class LoginUseCase {
@@ -62,19 +62,22 @@ export class LoginUseCase {
   /**
    * Each login admits only its own people.
    *
-   * The tenant login refuses every system role, including one held somewhere
-   * it should not be. The system login requires a system role in the system
-   * tenant: checking the role alone would let an account that was wrongly
-   * given platform admin inside a tenant into the admin portal.
+   * The tenant login refuses every system role and installers, including
+   * one held somewhere it should not be. The system and installer logins
+   * each require their role in the system tenant: checking the role alone
+   * would let an account that was wrongly given it inside a tenant through.
    */
   private assertAudience(user: AuthUser, audience: LoginAudience) {
-    if (audience === 'tenant' && isSystemRole(user.role)) {
+    if (audience === 'tenant' && (isSystemRole(user.role) || user.role === Role.INSTALLER)) {
       throw new ForbiddenError(
         'System accounts must use the system login endpoint',
       );
     }
     if (audience === 'system' && !isPlatformActor(user)) {
       throw new ForbiddenError('This endpoint is reserved for system accounts');
+    }
+    if (audience === 'installer' && !isInstallerActor(user)) {
+      throw new ForbiddenError('This endpoint is reserved for installers');
     }
   }
 

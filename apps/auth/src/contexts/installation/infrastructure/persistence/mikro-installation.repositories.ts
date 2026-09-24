@@ -1,12 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { raw, type FilterQuery } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
+import {
+  INSTALLER_STATUSES,
+  formatInstallerCode,
+  type InstallerStatus,
+} from '@auth/installation/domain/installer';
 import type {
+  InstallerFilters,
+  InstallerPage,
+  InstallerPageRequest,
   InstallerRepository,
   StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
 import type {
   InstallationOrderRepository,
+  InstallerJobCount,
   StoredDeviceAssignment,
   StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
@@ -19,14 +29,41 @@ import {
 function toStoredInstaller(r: InstallerRecord): StoredInstaller {
   return {
     id: r.id,
+    userId: r.userId ?? null,
+    code: r.code,
+    firstName: r.firstName,
+    lastName: r.lastName,
     fullName: r.fullName,
     email: r.email,
     phoneNumber: r.phoneNumber,
     team: r.team,
-    state: r.state,
-    isActive: r.isActive,
+    state: r.state ?? null,
+    city: r.city ?? null,
+    serviceAreas: r.serviceAreas ?? [],
+    capabilities: (r.capabilities ?? []) as StoredInstaller['capabilities'],
+    photoKey: r.photoKey ?? null,
+    notificationPreferences: (r.notificationPreferences ?? null) as StoredInstaller['notificationPreferences'],
+    status: r.status as InstallerStatus,
+    maxActiveJobs: r.maxActiveJobs,
+    lastActivityAt: r.lastActivityAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+  };
+}
+
+function installerWhere(filters: InstallerFilters): FilterQuery<InstallerRecord> {
+  const where: FilterQuery<InstallerRecord> = filters.status ? { status: filters.status } : {};
+  const q = filters.search?.trim();
+  if (!q) return where;
+  const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return {
+    ...where,
+    $or: [
+      { fullName: { $ilike: pattern } },
+      { code: { $ilike: pattern } },
+      { email: { $ilike: pattern } },
+      { [raw(`array_to_string(service_areas, ' ')`)]: { $ilike: pattern } },
+    ],
   };
 }
 
@@ -78,24 +115,61 @@ export class MikroInstallerRepository
   }
 
   async findById(id: string): Promise<StoredInstaller | null> {
-    const em = await this.em();
-    const record = await em.findOne(InstallerRecord, { id });
-    return record ? toStoredInstaller(record) : null;
+    return this.findOne({ id });
+  }
+
+  async findByEmail(email: string): Promise<StoredInstaller | null> {
+    return this.findOne({ email });
+  }
+
+  async findByUserId(userId: string): Promise<StoredInstaller | null> {
+    return this.findOne({ userId });
   }
 
   async findActive(): Promise<StoredInstaller[]> {
     const em = await this.em();
-    const records = await em.find(InstallerRecord, { isActive: true });
+    const records = await em.find(InstallerRecord, { status: 'active' });
     return records.map(toStoredInstaller);
   }
 
-  async findActiveInState(state: string): Promise<StoredInstaller[]> {
+  async list(filters: InstallerFilters, page: InstallerPageRequest): Promise<InstallerPage> {
     const em = await this.em();
-    const records = await em.find(InstallerRecord, {
-      isActive: true,
-      state: state.trim(),
+    // A raw() key is spent once used, so each query gets its own filter.
+    const records = await em.find(InstallerRecord, installerWhere(filters), {
+      orderBy: { createdAt: 'desc', id: 'asc' },
+      limit: page.limit,
+      offset: (page.page - 1) * page.limit,
     });
-    return records.map(toStoredInstaller);
+    const total = await em.count(InstallerRecord, installerWhere(filters));
+    return { items: records.map(toStoredInstaller), total };
+  }
+
+  async countByStatus(): Promise<Record<InstallerStatus, number>> {
+    const em = await this.em();
+    const rows = await em
+      .getConnection()
+      .execute<Array<{ status: string; count: number }>>(
+        `select status, count(*)::int as count from installers group by status`,
+      );
+    const counts = Object.fromEntries(INSTALLER_STATUSES.map((s) => [s, 0])) as Record<InstallerStatus, number>;
+    for (const row of rows) {
+      if (row.status in counts) counts[row.status as InstallerStatus] = Number(row.count);
+    }
+    return counts;
+  }
+
+  async nextCode(): Promise<string> {
+    const em = await this.em();
+    const [row] = await em
+      .getConnection()
+      .execute<Array<{ value: string }>>(`select nextval('installer_code_seq') as value`);
+    return formatInstallerCode(Number(row.value));
+  }
+
+  private async findOne(where: FilterQuery<InstallerRecord>): Promise<StoredInstaller | null> {
+    const em = await this.em();
+    const record = await em.findOne(InstallerRecord, where);
+    return record ? toStoredInstaller(record) : null;
   }
 }
 
@@ -175,5 +249,24 @@ export class MikroInstallationOrderRepository
       orderId: order.id,
     });
     await em.nativeDelete(InstallationOrderRecord, { id: order.id });
+  }
+
+  async countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]> {
+    if (installerIds.length === 0) return [];
+    const em = await this.em();
+    const rows = await em.getConnection().execute<
+      Array<{ installer_id: string; status: string; count: number }>
+    >(
+      `select installer_id, status, count(*)::int as count
+         from installation_orders
+        where installer_id in (?)
+        group by installer_id, status`,
+      [installerIds],
+    );
+    return rows.map((row) => ({
+      installerId: row.installer_id,
+      status: row.status as InstallerJobCount['status'],
+      count: Number(row.count),
+    }));
   }
 }

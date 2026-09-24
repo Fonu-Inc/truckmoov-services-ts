@@ -4,12 +4,23 @@ import { EntitySchema } from '@mikro-orm/core';
 
 export class InstallerRecord {
   id!: string;
+  userId!: string | null;
+  code!: string;
+  firstName!: string;
+  lastName!: string;
   fullName!: string;
   email!: string;
   phoneNumber!: string;
   team!: string;
-  state!: string;
-  isActive!: boolean;
+  state!: string | null;
+  city!: string | null;
+  serviceAreas!: string[];
+  capabilities!: string[];
+  photoKey!: string | null;
+  notificationPreferences!: Record<string, boolean> | null;
+  status!: string;
+  maxActiveJobs!: number;
+  lastActivityAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -19,12 +30,23 @@ export const InstallerRecordSchema = new EntitySchema<InstallerRecord>({
   tableName: 'installers',
   properties: {
     id: { type: 'string', primary: true },
+    userId: { fieldName: 'user_id', type: 'string', length: 64, nullable: true, unique: true },
+    code: { type: 'string', length: 16, unique: true },
+    firstName: { fieldName: 'first_name', type: 'string', length: 60 },
+    lastName: { fieldName: 'last_name', type: 'string', length: 60 },
     fullName: { fieldName: 'full_name', type: 'string', length: 120 },
     email: { type: 'string', length: 254, unique: true },
     phoneNumber: { fieldName: 'phone_number', type: 'string', length: 20 },
-    team: { type: 'string', length: 120 },
-    state: { type: 'string', length: 64, index: true },
-    isActive: { fieldName: 'is_active', type: 'boolean', default: true },
+    team: { type: 'string', length: 120, default: '' },
+    state: { type: 'string', length: 64, nullable: true, index: true },
+    city: { type: 'string', length: 80, nullable: true },
+    serviceAreas: { fieldName: 'service_areas', type: 'string[]', defaultRaw: "'{}'" },
+    capabilities: { type: 'string[]', defaultRaw: "'{}'" },
+    photoKey: { fieldName: 'photo_key', type: 'string', length: 512, nullable: true },
+    notificationPreferences: { fieldName: 'notification_preferences', type: 'json', nullable: true },
+    status: { type: 'string', length: 16, default: 'invited', index: true },
+    maxActiveJobs: { fieldName: 'max_active_jobs', type: 'number', default: 3 },
+    lastActivityAt: { fieldName: 'last_activity_at', type: 'datetime', nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
   },

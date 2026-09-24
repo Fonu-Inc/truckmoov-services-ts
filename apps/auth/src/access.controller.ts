@@ -33,7 +33,7 @@ export class InternalAccessController {
 
 /** What the signed-in user can do, and nothing about what exists beyond that. */
 @ApiTags('Auth')
-@Portals('tenant', 'admin')
+@Portals('tenant', 'admin', 'installer')
 @SignedIn()
 @Controller('capabilities')
 export class CapabilitiesController {

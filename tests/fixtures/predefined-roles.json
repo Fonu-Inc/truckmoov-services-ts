@@ -34,6 +34,8 @@
       "admin.ai.manage",
       "admin.audit.read",
       "admin.audit.manage",
+      "admin.installers.read",
+      "admin.installers.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]
@@ -70,6 +72,8 @@
       "admin.ai.manage",
       "admin.audit.read",
       "admin.audit.manage",
+      "admin.installers.read",
+      "admin.installers.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]
@@ -100,8 +104,14 @@
       "admin.devices.read",
       "admin.sims.read",
       "admin.support.read",
-      "admin.support.manage"
+      "admin.support.manage",
+      "admin.installers.read",
+      "admin.installers.manage"
     ]
+  },
+  "INSTALLER": {
+    "portal": "installer",
+    "permissions": []
   },
   "ENTERPRISE_ADMIN": {
     "portal": "tenant",

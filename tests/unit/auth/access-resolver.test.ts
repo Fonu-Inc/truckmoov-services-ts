@@ -20,6 +20,12 @@ describe('resolving what a user may do', () => {
     expect(access?.permissions).not.toContain('tenant.organization.manage');
   });
 
+  it('puts an installer in the installer portal, with nothing mapped yet', async () => {
+    const access = await new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository()).resolve(await users({ id: 'u1', role: 'INSTALLER', tenantId: 'system' }), 'u1');
+
+    expect(access).toMatchObject({ portal: 'installer', permissions: [], active: true });
+  });
+
   it('gives a system role held inside a tenant nothing', async () => {
     const access = await new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository()).resolve(await users({ id: 'u1', role: 'PLATFORM_ADMIN', tenantId: 't1' }), 'u1');
 

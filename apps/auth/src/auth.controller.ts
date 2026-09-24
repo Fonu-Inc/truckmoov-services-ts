@@ -66,7 +66,6 @@ import {
   LogoutUseCase,
   GetHealthUseCase,
   InvalidCredentialsError,
-  EmailNotVerifiedError,
 } from './contexts/auth/session';
 import { Portals, Requires, SignedIn } from '@shared/access';
 import {
@@ -101,7 +100,6 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { IpBlockGuard } from './ip-block.guard';
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
-import type { AuthFailureReason } from './auth-event.repository';
 
 @ApiTags('Auth')
 @Portals('tenant')
@@ -134,11 +132,6 @@ export class AuthController extends BaseAuthController {
     @Inject(RecordAuthEventUseCase) private readonly recordAuthEventUseCase: RecordAuthEventUseCase,
   ) {
     super(activityLogService);
-  }
-
-  private mapLoginFailureReason(error: unknown): AuthFailureReason {
-    if (error instanceof EmailNotVerifiedError || error instanceof ForbiddenError) return 'account_locked';
-    return 'invalid_password';
   }
 
   @Portals('public')
@@ -318,7 +311,7 @@ export class AuthController extends BaseAuthController {
 
   /** Change password for an authenticated system account */
 
-  @Portals('tenant', 'admin')
+  @Portals('tenant', 'admin', 'installer')
   @Get('me')
   @ApiOkResponse({ type: MeResponse })
   async me(

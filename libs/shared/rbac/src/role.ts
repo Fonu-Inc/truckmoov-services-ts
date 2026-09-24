@@ -10,6 +10,9 @@ export enum Role {
   // Fonu's governance team: reviews what each tenant's roles grant and
   // schedules permission removals. Platform admins cannot.
   GOVERNANCE_OFFICER = "GOVERNANCE_OFFICER",
+  // Field installers. Held in the system tenant with their own portal, but
+  // not platform staff: never in SYSTEM_ROLES.
+  INSTALLER          = "INSTALLER",
 
   // Stakeholder organisation roles. One per organisation type.
   ENTERPRISE_ADMIN   = "ENTERPRISE_ADMIN",
@@ -35,6 +38,7 @@ export const ROLE_IDS: Record<Role, number> = {
   [Role.DISPATCHER]: 7,
   [Role.FINANCE_VIEWER]: 8,
   [Role.GOVERNANCE_OFFICER]: 11,
+  [Role.INSTALLER]: 12,
 };
 
 export const ROLE_SEED_ROWS = Object.entries(ROLE_IDS).map(([name, id]) => ({

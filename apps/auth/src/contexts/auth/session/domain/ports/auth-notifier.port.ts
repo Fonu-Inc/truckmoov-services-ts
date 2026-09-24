@@ -25,6 +25,8 @@ export interface AuthNotifier {
   sendTenantInviteEmail(input: InviteEmail): Promise<void>;
   /** Invite for a platform administrator. Always resolves to the admin app. */
   sendPlatformInviteEmail(input: InviteEmail): Promise<void>;
+  /** Invite for a field installer. Always resolves to the installer app. */
+  sendInstallerInviteEmail(input: InviteEmail): Promise<void>;
   sendPasswordResetEmail(input: PasswordResetEmail): Promise<void>;
   sendVerificationEmail(input: VerificationEmail): Promise<void>;
 }

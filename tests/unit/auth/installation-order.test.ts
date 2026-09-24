@@ -21,14 +21,26 @@ function installer(
   state: string,
   isActive = true,
 ): StoredInstaller {
+  const [firstName, lastName] = fullName.split(" ");
   return {
     id: fullName.toLowerCase().replace(/\s+/g, "-"),
+    userId: null,
+    code: "INS-0001",
+    firstName,
+    lastName,
     fullName,
-    email: `${fullName.split(" ")[0].toLowerCase()}@fleetpro.ng`,
+    email: `${firstName.toLowerCase()}@fleetpro.ng`,
     phoneNumber: "+2348024117765",
     team: `${state} Installation Team`,
     state,
-    isActive,
+    city: null,
+    serviceAreas: [state],
+    capabilities: [],
+    photoKey: null,
+    notificationPreferences: null,
+    status: isActive ? "active" : "suspended",
+    maxActiveJobs: 3,
+    lastActivityAt: null,
     createdAt: NOW,
     updatedAt: NOW,
   };

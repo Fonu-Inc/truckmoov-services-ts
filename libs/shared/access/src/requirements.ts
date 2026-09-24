@@ -1,5 +1,5 @@
 import { SetMetadata } from "@nestjs/common";
-import type { PermissionKey } from "./catalog";
+import type { PermissionKey, PermissionPortal } from "./catalog";
 
 export const REQUIREMENT_KEY = "truckmoov:requirement";
 
@@ -19,7 +19,7 @@ export const Requires = (...permissions: PermissionKey[]) =>
  * Every route in the controller works on one resource, e.g. "tenant.vehicles":
  * GET and HEAD need tenant.vehicles.read, every other method tenant.vehicles.manage.
  */
-export const OnResource = (resource: `${"tenant" | "admin"}.${string}`) =>
+export const OnResource = (resource: `${PermissionPortal}.${string}`) =>
   SetMetadata(REQUIREMENT_KEY, { kind: "resource", resource } satisfies Requirement);
 
 /** Self-service: the caller's own profile, session or settings. */

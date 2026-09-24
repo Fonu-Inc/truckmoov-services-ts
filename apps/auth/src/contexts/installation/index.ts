@@ -15,6 +15,16 @@ export {
 } from "./domain/installation-order";
 export { chooseInstaller } from "./domain/assign-installer";
 export {
+  INSTALLER_CAPABILITIES,
+  INSTALLER_STATUSES,
+  InstallerNotFoundError,
+  InstallerStateError,
+  availabilityOf,
+  type InstallerAvailability,
+  type InstallerCapability,
+  type InstallerStatus,
+} from "./domain/installer";
+export {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
   type StoredDeviceAssignment,
@@ -48,12 +58,11 @@ export {
   IssueSetupLinkUseCase,
   SETUP_LINK_TTL_MS,
 } from "./application/use-cases/issue-setup-link.use-case";
+export { InstallerLoginUseCase } from "./application/use-cases/installer-login.use-case";
+export { ManageInstallersUseCases } from "./application/use-cases/manage-installers.use-cases";
 
 // Infrastructure
-export {
-  INSTALLER_SEEDS,
-  InstallersBootstrapService,
-} from "./infrastructure/bootstrap/installers-bootstrap.service";
+export { InstallerAccountsAdapter } from "./infrastructure/accounts/installer-accounts.adapter";
 export {
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,

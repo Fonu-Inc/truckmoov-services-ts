@@ -24,6 +24,7 @@ export { ID_GENERATOR } from "./domain/ports/id-generator.port";
 export { PASSWORD_HASHER } from "./domain/ports/password-hasher.port";
 export { AUTH_NOTIFIER } from "./domain/ports/auth-notifier.port";
 export { AUTH_HEALTH_CHECK } from "./domain/ports/health-check.port";
+export { INSTALLER_ACCOUNTS } from "./domain/ports/installer-accounts.port";
 
 // Infrastructure
 export { DbIdentityProvider } from "./infrastructure/db-identity.provider";

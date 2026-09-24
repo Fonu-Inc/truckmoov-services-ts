@@ -41,8 +41,11 @@ export const PREDEFINED_ROLES: Readonly<Record<Role, PredefinedRole>> = {
       "admin.dashboard.read", "admin.tenants.read", "admin.upgrade_review.read", "admin.upgrade_review.manage",
       "admin.billing.read", "admin.billing.manage", "admin.alerts.read", "admin.alerts.manage",
       "admin.devices.read", "admin.sims.read", "admin.support.read", "admin.support.manage",
+      "admin.installers.read", "admin.installers.manage",
     ],
   },
+  // Signed-in routes only until installer permissions are mapped.
+  [Role.INSTALLER]: { portal: "installer", permissions: [] },
 
   // Each organisation type's owner runs the whole organisation.
   [Role.ENTERPRISE_ADMIN]: { portal: "tenant", permissions: ALL_TENANT },

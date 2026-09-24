@@ -1,3 +1,5 @@
+import type { Portal } from "@shared/identity";
+
 /**
  * Every permission the platform has. Defined here and nowhere else: nobody
  * creates one at runtime. Each belongs to exactly one portal, which is what
@@ -5,7 +7,7 @@
  *
  * A resource has two actions: read, and manage (anything that changes it).
  */
-export type PermissionPortal = "admin" | "tenant";
+export type PermissionPortal = Portal;
 
 const TENANT_RESOURCES = {
   organization: "The organisation's users, invites and settings",
@@ -54,6 +56,7 @@ const ADMIN_RESOURCES = {
   alerts: "Platform alert settings",
   ai: "AI governance",
   audit: "The platform audit log",
+  installers: "Field installers and their invites",
   dashboard: "Platform dashboard and health",
 } as const;
 

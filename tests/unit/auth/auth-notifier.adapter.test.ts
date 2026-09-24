@@ -88,4 +88,28 @@ describe("MailerAuthNotifier", () => {
     );
     expect(inviteLink.searchParams.get("invite")).toBe("platform-token-456");
   });
+
+  it("sends an installer invite to the installer app", async () => {
+    const mailer = new FakeMailerService();
+    const config = {
+      app: {
+        frontendUrl: "https://dev.truckmoov.com",
+        tenantAppUrl: "https://app.truckmoov.com",
+        adminAppUrl: "https://admin.truckmoov.com",
+        installerAppUrl: "https://installer.truckmoov.com",
+        inviteAcceptPath: "/auth/invite",
+        emailVerificationPath: "/auth/verify-email",
+      },
+    } as AppConfigService;
+    const notifier = new MailerAuthNotifier(mailer as unknown as MailerService, config);
+
+    await notifier.sendInstallerInviteEmail({
+      email: "installer@truckmoov.com",
+      role: "INSTALLER",
+      inviteToken: "installer-token-789",
+    });
+
+    const inviteLink = new URL(mailer.sent[0]!.variables.inviteLink);
+    expect(inviteLink.origin + inviteLink.pathname).toBe("https://installer.truckmoov.com/auth/invite");
+  });
 });

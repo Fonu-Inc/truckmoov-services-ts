@@ -34,6 +34,10 @@ export class MailerAuthNotifier implements AuthNotifier {
     await this.sendInvite(input, this.config.app.adminAppUrl);
   }
 
+  async sendInstallerInviteEmail(input: InviteEmail): Promise<void> {
+    await this.sendInvite(input, this.config.app.installerAppUrl);
+  }
+
   private async sendInvite(input: InviteEmail, baseUrl: string): Promise<void> {
     const inviteLink = new URL(this.config.app.inviteAcceptPath, baseUrl);
     // The invite email is deliberately duplicated in the link so the frontend

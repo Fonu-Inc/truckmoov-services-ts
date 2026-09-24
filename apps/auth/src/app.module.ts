@@ -106,8 +106,10 @@ import {
   INSTALLER_REPOSITORY,
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,
-  InstallersBootstrapService,
+  InstallerAccountsAdapter,
+  InstallerLoginUseCase,
   IssueSetupLinkUseCase,
+  ManageInstallersUseCases,
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
   ConfirmInstallationUseCase,
@@ -117,6 +119,9 @@ import {
   ScheduleInstallationUseCase,
 } from '@auth/installation';
 import { InstallationController } from './installation.controller';
+import { InstallerAuthController } from './installer-auth.controller';
+import { SystemInstallersController } from './system-installers.controller';
+import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
 import { SystemAuditController } from './system-audit.controller';
@@ -671,6 +676,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     TenantRolesController,
     GovernanceController,
     StaffRolesController,
+    InstallerAuthController,
+    SystemInstallersController,
     OnboardingApplicationsController,
     InstallationController,
     SystemOnboardingApplicationsController,
@@ -1512,7 +1519,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     IssueSetupLinkUseCase,
     ScheduleInstallationUseCase,
-    InstallersBootstrapService,
+    InstallerLoginUseCase,
+    ManageInstallersUseCases,
+    { provide: INSTALLER_ACCOUNTS, useClass: InstallerAccountsAdapter },
     FleetConnectivityVerification,
     {
       provide: CONNECTIVITY_VERIFICATION,

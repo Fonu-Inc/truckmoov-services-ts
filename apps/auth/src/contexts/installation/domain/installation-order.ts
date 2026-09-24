@@ -14,6 +14,11 @@ export const INSTALLATION_ORDER_STATUSES = [
 export type InstallationOrderStatus =
   (typeof INSTALLATION_ORDER_STATUSES)[number];
 
+/** Jobs that count toward an installer's workload. */
+export const ACTIVE_JOB_STATUSES: readonly InstallationOrderStatus[] = [
+  'installer_assigned',
+];
+
 /** How far ahead an installation can be booked, and how soon. */
 export const MIN_LEAD_TIME_DAYS = 1;
 export const MAX_LEAD_TIME_DAYS = 90;

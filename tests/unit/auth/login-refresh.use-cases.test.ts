@@ -225,6 +225,31 @@ describe("each login admits only its own people", () => {
     expect(result.user.role).toBe("PLATFORM_ADMIN");
   });
 
+  it("tenant login refuses an installer", async () => {
+    await expect(login("INSTALLER", "system").execute(credentials)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("admin login refuses an installer", async () => {
+    await expect(login("INSTALLER", "system").executeForAudience(credentials, "system")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("installer login admits only an installer in the system tenant", async () => {
+    expect((await login("INSTALLER", "system").verifyForAudience(credentials, "installer")).role).toBe("INSTALLER");
+    await expect(login("INSTALLER", "tenant-1").verifyForAudience(credentials, "installer")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(login("PLATFORM_ADMIN", "system").verifyForAudience(credentials, "installer")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("refresh ends a session held by an installer inside a tenant", async () => {
+    const sessionStore = new FakeSessionStore();
+    const userRepo = new FakeUserRepository();
+    userRepo.seed("user-1", "enabled", "INSTALLER", "tenant-1");
+    await sessionStore.save("old-session", AuthUser.create({ id: "user-1", email: "x@co.com", role: "INSTALLER", tenantId: "tenant-1" }));
+
+    const refresh = new RefreshUseCase(sessionStore, new FakeTokenService(), userRepo as never, noSessionTimeout());
+
+    await expect(refresh.execute("old-session")).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it("admin login refuses a tenant role", async () => {
     await expect(
       login("FLEET_ADMIN", "tenant-1").executeForAudience(credentials, "system"),

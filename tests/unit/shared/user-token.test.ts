@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { UserTokenSigner, UserTokenVerifier } from "@shared/identity";
 
@@ -44,6 +45,16 @@ describe("issuing user tokens", () => {
 
     expect(payload.portal).toBe("tenant");
     expect(token.split(".")).toHaveLength(3);
+  });
+
+  it("stamps and accepts the installer portal on an installer in the system tenant", () => {
+    const pair = generateKeyPairSync("ed25519");
+    const raw = (der: Buffer) => der.subarray(der.length - 32).toString("base64url");
+    const privateSeed = raw(pair.privateKey.export({ format: "der", type: "pkcs8" }));
+    const publicKey = raw(pair.publicKey.export({ format: "der", type: "spki" }));
+    const token = new UserTokenSigner(`k:${privateSeed}`, "").sign({ ...user, role: "INSTALLER", tenantId: "system" }, 60);
+
+    expect(new UserTokenVerifier(`k:${publicKey}`).verify(token)).toMatchObject({ portal: "installer", legacy: false });
   });
 
   it("falls back to a shared-secret token when no key is configured", () => {

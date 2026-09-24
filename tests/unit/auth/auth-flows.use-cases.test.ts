@@ -509,6 +509,7 @@ describe("RegisterInvitedUseCase", () => {
       sessionStore,
       new FakePasswordHasher() as any,
       new FakeIdGenerator() as any,
+      { invited: async () => null, activate: async () => {} },
     );
 
     await inviteRepo.save({

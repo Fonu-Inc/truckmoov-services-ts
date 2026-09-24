@@ -11,6 +11,7 @@ import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-re
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
+import { INSTALLER_ACCOUNTS, type InstallerAccounts } from "../../domain/ports/installer-accounts.port";
 
 export type RegisterInvitedCommand = {
   inviteToken: string;
@@ -34,6 +35,8 @@ export class RegisterInvitedUseCase {
     private readonly passwordHasher: PasswordHasher,
     @Inject(ID_GENERATOR)
     private readonly idGenerator: IdGenerator,
+    @Inject(INSTALLER_ACCOUNTS)
+    private readonly installers: InstallerAccounts,
   ) {}
 
   async execute(command: RegisterInvitedCommand) {
@@ -55,6 +58,7 @@ export class RegisterInvitedUseCase {
     const existing = await this.userRepo.findByEmail(invite.email);
     if (existing) throw new EmailTakenError();
 
+    const fullName = await this.fullNameFor(invite.role, invite.email, command.fullName);
     const id = this.idGenerator.generate();
     const passwordHash = await this.passwordHasher.hash(command.password);
     const role = invite.role;
@@ -69,13 +73,14 @@ export class RegisterInvitedUseCase {
       tenantId: invite.tenantId,
       emailVerificationToken: null,
       profile: {
-        fullName: command.fullName.trim(),
+        fullName,
         phoneNumber: null,
         address: null,
         profilePictureUrl: null,
       },
     });
 
+    if (role === Role.INSTALLER) await this.installers.activate(invite.email, id);
     await this.inviteRepo.markAccepted(command.inviteToken);
 
     const user = AuthUser.create({
@@ -91,5 +96,13 @@ export class RegisterInvitedUseCase {
     await this.sessionStore.save(refreshToken, user);
 
     return { accessToken, refreshToken, expiresIn: 3600, user: user.toPrimitives() };
+  }
+
+  /** An installer's name is the one on their installer record, which customers see. */
+  private async fullNameFor(role: string, email: string, given: string): Promise<string> {
+    if (role !== Role.INSTALLER) return given.trim();
+    const installer = await this.installers.invited(email);
+    if (!installer) throw new InviteNotFoundError();
+    return installer.fullName;
   }
 }

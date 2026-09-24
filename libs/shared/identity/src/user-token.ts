@@ -7,7 +7,7 @@ import {
   verify,
   type KeyObject,
 } from "node:crypto";
-import { portalFor, type Portal } from "./platform-actor";
+import { isPortal, portalFor, type Portal } from "./platform-actor";
 
 /** The iss claim auth puts on every signed user token. */
 export const USER_TOKEN_ISSUER = "truckmoov-auth";
@@ -140,7 +140,7 @@ export class UserTokenVerifier {
     if (!verify(null, Buffer.from(`${header}.${payload}`), key, Buffer.from(signature, "base64url"))) return null;
     const claims = decode<Payload>(payload);
     if (claims?.iss !== USER_TOKEN_ISSUER) return null;
-    if (claims.portal !== "admin" && claims.portal !== "tenant") return null;
+    if (!isPortal(claims.portal)) return null;
     return this.complete(claims, false, now);
   }
 
