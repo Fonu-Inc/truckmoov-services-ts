@@ -110,6 +110,13 @@ export class MikroDeviceRepository implements DeviceRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async findByIds(tenantId: string, ids: string[]): Promise<Device[]> {
+    if (ids.length === 0) return [];
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(DeviceRecord, { tenantId, id: { $in: ids } });
+    return records.map((record) => this.toDomain(record));
+  }
+
   async findByIdAcrossTenants(id: string): Promise<Device | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();

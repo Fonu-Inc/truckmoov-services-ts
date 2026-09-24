@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { raw, type FilterQuery } from '@mikro-orm/core';
+import { UniqueConstraintViolationException, raw, type FilterQuery } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
+import {
+  ACTIVE_JOB_STATUSES,
+  buildOrderNumber,
+  type InstallationOrderStatus,
+} from '@auth/installation/domain/installation-order';
+import { DeviceAlreadyBoundError } from '@auth/installation/domain/installation-job.errors';
 import {
   INSTALLER_STATUSES,
   formatInstallerCode,
@@ -15,10 +21,12 @@ import type {
   StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
 import type {
+  AssignmentOutcome,
   InstallationOrderRepository,
   InstallerJobCount,
   StoredDeviceAssignment,
   StoredInstallationOrder,
+  UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
 import {
   InstallationDeviceAssignmentRecord,
@@ -83,9 +91,38 @@ function toStoredOrder(r: InstallationOrderRecord): StoredInstallationOrder {
     notes: r.notes ?? null,
     installerId: r.installerId ?? null,
     status: r.status as StoredInstallationOrder['status'],
+    preExceptionStatus: (r.preExceptionStatus ?? null) as StoredInstallationOrder['preExceptionStatus'],
+    assignedAt: r.assignedAt ?? null,
+    acceptedAt: r.acceptedAt ?? null,
+    startedAt: r.startedAt ?? null,
     completedAt: r.completedAt ?? null,
+    cancelledAt: r.cancelledAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+  };
+}
+
+function unassignedAfter(cursor?: UnassignedCursor): FilterQuery<InstallationOrderRecord> {
+  if (!cursor) return { status: 'unassigned' };
+  const { scheduledDate, createdAt, id } = cursor;
+  return {
+    status: 'unassigned',
+    $or: [
+      { scheduledDate: { $gt: scheduledDate } },
+      { scheduledDate, createdAt: { $gt: createdAt } },
+      { scheduledDate, createdAt, id: { $gt: id } },
+    ],
+  };
+}
+
+function toStoredAssignment(r: InstallationDeviceAssignmentRecord): StoredDeviceAssignment {
+  return {
+    id: r.id,
+    orderId: r.orderId,
+    deviceIndex: r.deviceIndex,
+    vehicleId: r.vehicleId,
+    fleetDeviceId: r.fleetDeviceId ?? null,
+    createdAt: r.createdAt,
   };
 }
 
@@ -193,6 +230,53 @@ export class MikroInstallationOrderRepository
     return record ? toStoredOrder(record) : null;
   }
 
+  async findUnassigned(limit: number, cursor?: UnassignedCursor): Promise<StoredInstallationOrder[]> {
+    const em = await this.em();
+    const records = await em.find(
+      InstallationOrderRecord,
+      unassignedAfter(cursor),
+      { orderBy: { scheduledDate: 'asc', createdAt: 'asc', id: 'asc' }, limit },
+    );
+    return records.map(toStoredOrder);
+  }
+
+  async assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome> {
+    const em = await this.em();
+    return em.transactional(async (tx) => {
+      await tx.execute(`select id from installers where id = ? for update`, [order.installerId]);
+      const [row] = await tx.execute<Array<{ count: number }>>(
+        `select count(*)::int as count from installation_orders where installer_id = ? and status in (?)`,
+        [order.installerId, [...ACTIVE_JOB_STATUSES]],
+      );
+      if (Number(row?.count ?? 0) >= maxActiveJobs) return 'full';
+      const { id, ...fields } = order;
+      const changed = await tx.nativeUpdate(InstallationOrderRecord, { id, status: 'unassigned' }, fields);
+      return changed > 0 ? 'assigned' : 'taken';
+    });
+  }
+
+  async markOverdue(
+    from: readonly InstallationOrderStatus[],
+    before: Date,
+    now: Date,
+  ): Promise<number> {
+    if (from.length === 0) return 0;
+    const em = await this.em();
+    return em.nativeUpdate(
+      InstallationOrderRecord,
+      { status: { $in: [...from] }, scheduledDate: { $lt: before } },
+      { status: 'overdue', updatedAt: now },
+    );
+  }
+
+  async nextOrderNumber(): Promise<string> {
+    const em = await this.em();
+    const [row] = await em
+      .getConnection()
+      .execute<Array<{ value: string }>>(`select nextval('installation_order_number_seq') as value`);
+    return buildOrderNumber(Number(row.value));
+  }
+
   async findByApplicationId(
     applicationId: string,
   ): Promise<StoredInstallationOrder | null> {
@@ -231,13 +315,26 @@ export class MikroInstallationOrderRepository
       { orderId },
       { orderBy: { deviceIndex: 'asc' } },
     );
-    return records.map((record) => ({
-      id: record.id,
-      orderId: record.orderId,
-      deviceIndex: record.deviceIndex,
-      vehicleId: record.vehicleId,
-      createdAt: record.createdAt,
-    }));
+    return records.map(toStoredAssignment);
+  }
+
+  async findAssignmentByFleetDeviceId(
+    fleetDeviceId: string,
+  ): Promise<StoredDeviceAssignment | null> {
+    const em = await this.em();
+    const record = await em.findOne(InstallationDeviceAssignmentRecord, { fleetDeviceId });
+    return record ? toStoredAssignment(record) : null;
+  }
+
+  async saveAssignment(assignment: StoredDeviceAssignment): Promise<void> {
+    const em = await this.em();
+    const { id, ...fields } = assignment;
+    try {
+      await em.nativeUpdate(InstallationDeviceAssignmentRecord, { id }, fields);
+    } catch (error) {
+      if (error instanceof UniqueConstraintViolationException) throw new DeviceAlreadyBoundError();
+      throw error;
+    }
   }
 
   async deleteForApplication(applicationId: string): Promise<void> {

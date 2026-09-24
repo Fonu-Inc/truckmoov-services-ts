@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ACTIVE_JOB_STATUSES,
+  buildOrderNumber,
+  type InstallationOrderStatus,
+} from '@auth/installation/domain/installation-order';
+import { DeviceAlreadyBoundError } from '@auth/installation/domain/installation-job.errors';
+import {
   INSTALLER_STATUSES,
   formatInstallerCode,
   type InstallerStatus,
@@ -12,11 +18,21 @@ import type {
   StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
 import type {
+  AssignmentOutcome,
   InstallationOrderRepository,
   InstallerJobCount,
   StoredDeviceAssignment,
   StoredInstallationOrder,
+  UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
+
+function queueOrder(a: UnassignedCursor, b: UnassignedCursor): number {
+  return (
+    a.scheduledDate.getTime() - b.scheduledDate.getTime() ||
+    a.createdAt.getTime() - b.createdAt.getTime() ||
+    a.id.localeCompare(b.id)
+  );
+}
 
 function matches(installer: StoredInstaller, filters: InstallerFilters): boolean {
   if (filters.status && installer.status !== filters.status) return false;
@@ -82,9 +98,56 @@ export class InMemoryInstallationOrderRepository
 {
   private readonly orders = new Map<string, StoredInstallationOrder>();
   private readonly assignments = new Map<string, StoredDeviceAssignment[]>();
+  private sequence = 999;
 
   async save(order: StoredInstallationOrder): Promise<void> {
     this.orders.set(order.id, { ...order });
+  }
+
+  async findUnassigned(limit: number, after?: UnassignedCursor): Promise<StoredInstallationOrder[]> {
+    return this.all()
+      .filter((order) => order.status === 'unassigned' && (!after || queueOrder(order, after) > 0))
+      .sort(queueOrder)
+      .slice(0, limit);
+  }
+
+  async assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome> {
+    if (this.orders.get(order.id)?.status !== 'unassigned') return 'taken';
+    const active = this.all().filter(
+      (o) => o.installerId === order.installerId && ACTIVE_JOB_STATUSES.includes(o.status),
+    ).length;
+    if (active >= maxActiveJobs) return 'full';
+    await this.save(order);
+    return 'assigned';
+  }
+
+  async markOverdue(
+    from: readonly InstallationOrderStatus[],
+    before: Date,
+    now: Date,
+  ): Promise<number> {
+    const due = this.all().filter(
+      (order) => from.includes(order.status) && order.scheduledDate.getTime() < before.getTime(),
+    );
+    for (const order of due) await this.save({ ...order, status: 'overdue', updatedAt: now });
+    return due.length;
+  }
+
+  async nextOrderNumber(): Promise<string> {
+    this.sequence += 1;
+    return buildOrderNumber(this.sequence);
+  }
+
+  /** Every order with its units, for the in-memory job reader. */
+  snapshot(): Array<{ order: StoredInstallationOrder; assignments: StoredDeviceAssignment[] }> {
+    return this.all().map((order) => ({
+      order: { ...order },
+      assignments: [...(this.assignments.get(order.id) ?? [])].sort((a, b) => a.deviceIndex - b.deviceIndex),
+    }));
+  }
+
+  private all(): StoredInstallationOrder[] {
+    return [...this.orders.values()];
   }
 
   async findById(id: string): Promise<StoredInstallationOrder | null> {
@@ -123,6 +186,23 @@ export class InMemoryInstallationOrderRepository
   async findAssignments(orderId: string): Promise<StoredDeviceAssignment[]> {
     return [...(this.assignments.get(orderId) ?? [])].sort(
       (a, b) => a.deviceIndex - b.deviceIndex,
+    );
+  }
+
+  async findAssignmentByFleetDeviceId(
+    fleetDeviceId: string,
+  ): Promise<StoredDeviceAssignment | null> {
+    const found = [...this.assignments.values()].flat().find((a) => a.fleetDeviceId === fleetDeviceId);
+    return found ? { ...found } : null;
+  }
+
+  async saveAssignment(assignment: StoredDeviceAssignment): Promise<void> {
+    const holder = assignment.fleetDeviceId ? await this.findAssignmentByFleetDeviceId(assignment.fleetDeviceId) : null;
+    if (holder && holder.id !== assignment.id) throw new DeviceAlreadyBoundError();
+    const units = this.assignments.get(assignment.orderId) ?? [];
+    this.assignments.set(
+      assignment.orderId,
+      units.map((unit) => (unit.id === assignment.id ? { ...assignment } : unit)),
     );
   }
 

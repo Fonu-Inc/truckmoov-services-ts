@@ -1,13 +1,16 @@
 // Domain
 export {
   INSTALLATION_ORDER_STATUSES,
+  INSTALLATION_ORDER_TRANSITIONS,
   INSTALLATION_SLOT_LABELS,
   INSTALLATION_TIME_SLOTS,
   assertAssignments,
   assertSchedulable,
+  assertTransition,
   buildOrderNumber,
   DeviceAssignmentMismatchError,
   InvalidInstallationDateError,
+  InvalidInstallationTransitionError,
   VehicleAlreadyAssignedError,
   type DeviceAssignmentInput,
   type InstallationOrderStatus,
@@ -35,6 +38,23 @@ export {
   type InstallerRepository,
   type StoredInstaller,
 } from "./domain/installer.repository";
+export {
+  INSTALLATION_JOB_READER,
+  type InstallationJobReader,
+} from "./domain/installation-job.reader";
+export {
+  DeviceAlreadyBoundError,
+  FleetDeviceRefusedError,
+  FleetUnavailableError,
+  InstallationJobClosedError,
+  InstallationJobNotFoundError,
+} from "./domain/installation-job.errors";
+export { InvalidInstallerPhotoError, MAX_INSTALLER_PHOTO_BYTES } from "./domain/installer-photo";
+export { JOB_DEVICE_LOOKUP, type JobDeviceLookup } from "./domain/ports/job-device-lookup.port";
+export {
+  INSTALLER_PHOTO_STORAGE,
+  type InstallerPhotoStorage,
+} from "./domain/ports/installer-photo-storage.port";
 
 // Application
 export {
@@ -60,9 +80,22 @@ export {
 } from "./application/use-cases/issue-setup-link.use-case";
 export { InstallerLoginUseCase } from "./application/use-cases/installer-login.use-case";
 export { ManageInstallersUseCases } from "./application/use-cases/manage-installers.use-cases";
+export { InstallerAssignmentService } from "./application/services/installer-assignment.service";
+export { SweepInstallationOrdersUseCase } from "./application/use-cases/sweep-installation-orders.use-case";
+export {
+  InstallerJobsUseCases,
+  type JobScope,
+} from "./application/use-cases/installer-jobs.use-cases";
+export { InstallerProfileUseCases } from "./application/use-cases/installer-profile.use-cases";
+export { ManageInstallationOrdersUseCases } from "./application/use-cases/manage-installation-orders.use-cases";
 
 // Infrastructure
 export { InstallerAccountsAdapter } from "./infrastructure/accounts/installer-accounts.adapter";
+export { FleetJobDeviceLookup } from "./infrastructure/connectivity/fleet-job-device.lookup";
+export { ObjectStorageInstallerPhotos } from "./infrastructure/storage/object-storage-installer-photos";
+export { InstallationSweepScheduler } from "./infrastructure/scheduling/installation-sweep.scheduler";
+export { InMemoryInstallationJobReader } from "./infrastructure/persistence/in-memory-installation-job.reader";
+export { MikroInstallationJobReader } from "./infrastructure/persistence/mikro-installation-job.reader";
 export {
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,

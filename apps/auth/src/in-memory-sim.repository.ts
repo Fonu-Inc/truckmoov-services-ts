@@ -35,6 +35,10 @@ export class InMemorySimRepository implements SimRepository {
     return this.store.get(id) ?? null;
   }
 
+  async findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]> {
+    return [...this.store.values()].filter((s) => s.deviceId !== null && deviceIds.includes(s.deviceId));
+  }
+
   async save(sim: StoredSim): Promise<void> {
     this.store.set(sim.id, sim);
   }

@@ -92,6 +92,13 @@ export class MikroSimRepository implements SimRepository {
     return record ? toStored(record) : null;
   }
 
+  async findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]> {
+    if (deviceIds.length === 0) return [];
+    const orm = await getAuthOrm(this.config.db);
+    const records = await orm.em.fork().find(IotSimRecord, { deviceId: { $in: deviceIds } });
+    return records.map(toStored);
+  }
+
   async save(sim: StoredSim): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();

@@ -1,33 +1,39 @@
+import { validateState } from '@auth/onboarding/domain/onboarding-application.validation';
 import type { StoredInstaller } from './installer.repository';
 
+function stateKey(value: string): string {
+  try {
+    return validateState(value).toLowerCase();
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
+function canTake(installer: StoredInstaller, state: string, activeJobs: number): boolean {
+  return (
+    installer.status === 'active' &&
+    installer.userId !== null &&
+    installer.serviceAreas.some((area) => stateKey(area) === state) &&
+    activeJobs < installer.maxActiveJobs
+  );
+}
+
 /**
- * Picks the installer for an order.
+ * Picks the installer for an order: an active, signed-up installer serving the
+ * order's state with room for another job. The least busy wins, then by name
+ * so the same candidates always give the same answer.
  *
- * FIX: hard-coded until the assignment rules are settled. Today it prefers an
- * active installer whose service areas cover the installation's state and
- * otherwise takes any active one, which is the least surprising thing that can
- * be said to be a rule. It knows nothing about team capacity, existing bookings for the slot,
- * or travel — all of which a real rule needs.
- *
- * Returning null is a legitimate answer: no installer covers the state and
- * none is free. The order stays scheduled and unassigned rather than being
- * given to somebody who cannot do it.
+ * Null is a legitimate answer: the order stays unassigned until the sweep
+ * finds somebody.
  */
 export function chooseInstaller(
   candidates: StoredInstaller[],
   state: string,
+  activeJobs: ReadonlyMap<string, number>,
 ): StoredInstaller | null {
-  const active = candidates.filter((installer) => installer.status === 'active');
-  if (active.length === 0) return null;
-
-  const wanted = state.trim().toLowerCase();
-  const local = active.filter((installer) =>
-    installer.serviceAreas.some((area) => area.toLowerCase() === wanted),
-  );
-
-  // Ordered by name so the same set of candidates always produces the same
-  // answer. An arbitrary pick would make an assignment impossible to explain.
-  return [...(local.length > 0 ? local : active)].sort((a, b) =>
-    a.fullName.localeCompare(b.fullName),
-  )[0];
+  const wanted = stateKey(state);
+  const load = (installer: StoredInstaller) => activeJobs.get(installer.id) ?? 0;
+  const eligible = candidates.filter((installer) => canTake(installer, wanted, load(installer)));
+  eligible.sort((a, b) => load(a) - load(b) || a.fullName.localeCompare(b.fullName));
+  return eligible[0] ?? null;
 }

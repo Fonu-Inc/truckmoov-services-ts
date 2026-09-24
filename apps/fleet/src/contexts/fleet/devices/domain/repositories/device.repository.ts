@@ -24,6 +24,8 @@ export interface DeviceRepository {
   save(device: Device): Promise<void>;
   findAll(filters?: DeviceFilters): Promise<Device[]>;
   findById(id: string, tenantId: string): Promise<Device | null>;
+  /** The named devices this tenant holds; ids held elsewhere are left out. */
+  findByIds(tenantId: string, ids: string[]): Promise<Device[]>;
   /**
    * A device by id alone, whatever tenant holds it. Only the platform calls
    * this: an administrator suspending a device does not know, and should not

@@ -175,6 +175,39 @@ export class FleetFactsService {
   }
 
   /**
+   * The named devices, as long as this tenant holds them. A device held by
+   * another tenant is left out, which is how the caller knows it is not theirs.
+   *
+   * Null when fleet cannot be reached.
+   */
+  async tenantDevicesByIds(
+    tenantId: string,
+    deviceIds: string[],
+  ): Promise<Array<Record<string, unknown>> | null> {
+    const ids = deviceIds.filter(isSafePathId);
+    if (!isSafePathId(tenantId)) return null;
+    if (ids.length === 0) return [];
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    try {
+      const response = await axios.get<{ data?: { items?: Array<Record<string, unknown>> } }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/devices`,
+        { headers, params: { ids: ids.join(',') }, timeout: 4000, validateStatus: () => true },
+      );
+
+      if (response.status !== 200) return null;
+      return response.data?.data?.items ?? [];
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_devices_by_ids_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Whether every device a tenant holds is reporting.
    *
    * Null when fleet could not be asked. The caller must not read that as every

@@ -34,7 +34,7 @@ export type JobTally = { active: number; completed: number };
 
 const NO_JOBS: JobTally = { active: 0, completed: 0 };
 
-function personName(field: string, value: unknown): string {
+export function personName(field: string, value: unknown): string {
   const name = String(value ?? '').replace(/\s+/g, ' ').trim();
   if (name.length < 1 || name.length > 60) {
     throw new OnboardingValidationError(field, `${field} must be between 1 and 60 characters`);

@@ -36,6 +36,8 @@
       "admin.audit.manage",
       "admin.installers.read",
       "admin.installers.manage",
+      "admin.installations.read",
+      "admin.installations.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]
@@ -74,6 +76,8 @@
       "admin.audit.manage",
       "admin.installers.read",
       "admin.installers.manage",
+      "admin.installations.read",
+      "admin.installations.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]
@@ -106,7 +110,9 @@
       "admin.support.read",
       "admin.support.manage",
       "admin.installers.read",
-      "admin.installers.manage"
+      "admin.installers.manage",
+      "admin.installations.read",
+      "admin.installations.manage"
     ]
   },
   "INSTALLER": {

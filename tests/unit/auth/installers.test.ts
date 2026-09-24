@@ -112,7 +112,7 @@ describe('platform admins managing installers', () => {
     const tunde = await h.admin.create('platform', NEW_INSTALLER);
     await h.admin.create('platform', { ...NEW_INSTALLER, firstName: 'Ada', email: 'ada@example.com', serviceAreas: ['FCT'] });
     await h.installers.save({ ...(await h.installers.findById(tunde.id))!, status: 'active', maxActiveJobs: 1 });
-    await h.orders.save({ id: 'o1', installerId: tunde.id, status: 'installer_assigned' } as never);
+    await h.orders.save({ id: 'o1', installerId: tunde.id, status: 'assigned' } as never);
     await h.orders.save({ id: 'o2', installerId: tunde.id, status: 'completed' } as never);
 
     const all = await h.admin.list('platform', {});

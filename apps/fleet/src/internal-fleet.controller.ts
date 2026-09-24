@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -30,6 +31,7 @@ import {
   SuspendDeviceUseCase,
 } from "./contexts/fleet/devices";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
+import type { DeviceLifecycleStatus } from "./contexts/fleet/devices/domain/entities/device.entity";
 import { DeviceNotFoundError } from "./contexts/fleet/devices/domain/errors/device-not-found.error";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 import { SuspendDeviceDto } from "./dto/vehicle.dto";
@@ -44,6 +46,20 @@ import { Portals, OnResource } from "@shared/access";
  */
 /** The tenant drawer shows a handful of rows; an operator manages the rest elsewhere. */
 const DRAWER_ROW_LIMIT = 25;
+/** A job lists a handful of units; a page of them at most. */
+const MAX_DEVICE_IDS = 100;
+
+const LIFECYCLE_LABELS: Record<DeviceLifecycleStatus, string> = {
+  registered: "Registered",
+  config_pending: "Configuration pending",
+  configured: "Configured",
+  verified_online: "Verified online",
+  assignable: "Ready to assign",
+  assigned: "Assigned",
+  faulty: "Faulty",
+  suspended: "Suspended",
+  decommissioned: "Decommissioned",
+};
 
 @ApiExcludeController()
 @Portals("service")
@@ -186,9 +202,15 @@ export class InternalFleetController extends BaseFleetController {
     };
   }
 
+  /**
+   * With `ids`, the named devices this tenant holds, as the installer's job
+   * details show them. A device held by another tenant is left out, which is
+   * how auth checks a unit binding belongs to the order's customer.
+   */
   @Get("tenants/:tenantId/devices")
   @UseGuards(PlatformActorGuard)
-  async tenantDevices(@Param("tenantId") tenantId: string) {
+  async tenantDevices(@Param("tenantId") tenantId: string, @Query("ids") ids?: string) {
+    if (ids !== undefined) return this.devicesByIds(tenantId, ids);
     const devices = await this.devices.findAll({ tenantId });
     const rows = devices.slice(0, DRAWER_ROW_LIMIT).map((device) => ({
       deviceId: device.id,
@@ -204,6 +226,22 @@ export class InternalFleetController extends BaseFleetController {
       message: "success",
       data: { total: devices.length, limit: DRAWER_ROW_LIMIT, items: rows },
     };
+  }
+
+  private async devicesByIds(tenantId: string, ids: string) {
+    const wanted = ids.split(",").map((id) => id.trim()).filter(Boolean).slice(0, MAX_DEVICE_IDS);
+    const devices = await this.devices.findByIds(tenantId, wanted);
+    const items = devices.map((device) => ({
+      id: device.id,
+      name: device.name,
+      imei: device.imei,
+      manufacturer: device.manufacturer,
+      model: device.model,
+      status: device.lifecycleStatus,
+      statusLabel: LIFECYCLE_LABELS[device.lifecycleStatus],
+      deviceType: null,
+    }));
+    return { status: true, message: "success", data: { total: items.length, items } };
   }
 
   /**

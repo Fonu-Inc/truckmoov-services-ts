@@ -29,6 +29,7 @@ export class GetMeUseCase {
       return {
         id: actor.id,
         email: actor.email,
+        fullName: actor.profile?.fullName ?? null,
         role: actor.role,
         tenantId: actor.tenantId,
         accountStatus: actor.accountStatus,

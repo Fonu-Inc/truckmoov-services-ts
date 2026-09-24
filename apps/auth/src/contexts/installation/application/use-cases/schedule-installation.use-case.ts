@@ -16,26 +16,23 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.validation';
 import { assertStageAdvance } from '@auth/onboarding/domain/onboarding-stage';
 import { GetOnboardingApplicationUseCase } from '@auth/onboarding/application/use-cases/get-onboarding-application.use-case';
-import { chooseInstaller } from '@auth/installation/domain/assign-installer';
 import {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
   type StoredDeviceAssignment,
+  type StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
-import {
-  INSTALLER_REPOSITORY,
-  type InstallerRepository,
-} from '@auth/installation/domain/installer.repository';
 import {
   assertAssignments,
   assertSchedulable,
-  buildOrderNumber,
+  bookingDay,
   INSTALLATION_SLOT_LABELS,
   INSTALLATION_TIME_SLOTS,
   type DeviceAssignmentInput,
   type InstallationTimeSlot,
 } from '@auth/installation/domain/installation-order';
 import { IssueSetupLinkUseCase } from './issue-setup-link.use-case';
+import { InstallerAssignmentService } from '../services/installer-assignment.service';
 
 export class InstallationNotSchedulableError extends Error {
   constructor(message: string) {
@@ -53,8 +50,8 @@ export class ScheduleInstallationUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(INSTALLATION_ORDER_REPOSITORY)
     private readonly orders: InstallationOrderRepository,
-    @Inject(INSTALLER_REPOSITORY)
-    private readonly installers: InstallerRepository,
+    @Inject(InstallerAssignmentService)
+    private readonly assignment: InstallerAssignmentService,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
     @Inject(IssueSetupLinkUseCase)
@@ -96,7 +93,7 @@ export class ScheduleInstallationUseCase {
       );
     }
 
-    const scheduledDate = new Date(String(input.scheduledDate ?? ''));
+    const scheduledDate = bookingDay(input.scheduledDate);
     assertSchedulable(scheduledDate);
 
     const [deviceRequests, vehicles] = await Promise.all([
@@ -111,11 +108,9 @@ export class ScheduleInstallationUseCase {
 
     const state = validateState(input.state);
     const now = new Date();
-    const order = {
+    const booked: StoredInstallationOrder = {
       id: this.idGenerator.generate(),
-      orderNumber: buildOrderNumber(
-        String(now.getTime()).slice(-6),
-      ),
+      orderNumber: await this.orders.nextOrderNumber(),
       applicationId: application.id,
       tenantId: application.tenantId,
       scheduledDate,
@@ -129,26 +124,25 @@ export class ScheduleInstallationUseCase {
         'siteContactPhone',
       ),
       notes: validateNotes(input.notes),
-      installerId: null as string | null,
-      status: 'scheduled' as const,
+      installerId: null,
+      status: 'unassigned',
+      preExceptionStatus: null,
+      assignedAt: null,
+      acceptedAt: null,
+      startedAt: null,
       completedAt: null,
+      cancelledAt: null,
       createdAt: now,
       updatedAt: now,
     };
 
-    // Assignment is attempted immediately rather than left to a queue: the
-    // applicant is shown who is coming, and an order nobody can take is a fact
-    // worth surfacing now rather than on the morning.
-    const installer = chooseInstaller(
-      await this.installers.findActive(),
-      state,
-    );
-    if (installer) {
-      order.installerId = installer.id;
-      order.status = 'installer_assigned' as never;
-    }
+    await this.orders.save(booked);
+    // Assignment is attempted immediately rather than left to the sweep: the
+    // applicant is shown who is coming.
+    const assignment = await (await this.assignment.assigner())(booked, now);
+    const order = assignment?.order ?? booked;
+    const installer = assignment?.installer ?? null;
 
-    await this.orders.save(order);
     await this.orders.replaceAssignments(
       order.id,
       input.assignments.map<StoredDeviceAssignment>((assignment) => ({
@@ -156,6 +150,7 @@ export class ScheduleInstallationUseCase {
         orderId: order.id,
         deviceIndex: assignment.deviceIndex,
         vehicleId: assignment.vehicleId,
+        fleetDeviceId: null,
         createdAt: now,
       })),
     );

@@ -57,6 +57,7 @@ const ADMIN_RESOURCES = {
   ai: "AI governance",
   audit: "The platform audit log",
   installers: "Field installers and their invites",
+  installations: "Installation jobs and the devices bound to them",
   dashboard: "Platform dashboard and health",
 } as const;
 

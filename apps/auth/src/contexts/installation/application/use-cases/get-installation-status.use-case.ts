@@ -17,6 +17,10 @@ import {
   type InstallerRepository,
 } from '@auth/installation/domain/installer.repository';
 import { INSTALLATION_SLOT_LABELS } from '@auth/installation/domain/installation-order';
+import {
+  INSTALLER_PHOTO_STORAGE,
+  type InstallerPhotoStorage,
+} from '@auth/installation/domain/ports/installer-photo-storage.port';
 
 @Injectable()
 export class GetInstallationStatusUseCase {
@@ -29,6 +33,7 @@ export class GetInstallationStatusUseCase {
     private readonly installers: InstallerRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+    @Inject(INSTALLER_PHOTO_STORAGE) private readonly photos: InstallerPhotoStorage,
   ) {}
 
   /** What the customer sees on the Get Started screen after logging in. */
@@ -56,6 +61,8 @@ export class GetInstallationStatusUseCase {
       this.applications.findById(order.applicationId),
     ]);
 
+    const photoUrl = await this.photos.url(installer?.photoKey ?? null);
+
     return {
       status: true,
       message: 'success',
@@ -79,6 +86,7 @@ export class GetInstallationStatusUseCase {
               team: installer.team,
               phoneNumber: installer.phoneNumber,
               email: installer.email,
+              photoUrl,
             }
           : null,
         assignments: assignments.map((assignment) => ({

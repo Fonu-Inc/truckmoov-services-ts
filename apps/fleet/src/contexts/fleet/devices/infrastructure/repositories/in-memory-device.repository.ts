@@ -75,6 +75,13 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     });
   }
 
+  async findByIds(tenantId: string, ids: string[]): Promise<Device[]> {
+    return [...new Set(ids)].flatMap((id) => {
+      const device = this.data.get(id);
+      return device && device.tenantId === tenantId ? [device] : [];
+    });
+  }
+
   async findById(id: string, tenantId: string): Promise<Device | null> {
     const device = this.data.get(id);
     if (!device || device.tenantId !== tenantId) return null;

@@ -5,7 +5,6 @@ import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
   EmailTakenError,
-  ForbiddenError,
   ID_GENERATOR,
   INVITE_REPOSITORY,
   SESSION_STORE,
@@ -42,12 +41,11 @@ import {
   toInstallerView,
   type InstallerDetailsInput,
 } from './support/installer-admin.support';
+import { requireStaff, type Staff } from './support/platform-staff';
 
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-type Staff = { id: string; email: string; role: string };
 
 export type ListInstallersQuery = { search?: string; status?: InstallerStatus; page?: number; limit?: number };
 export type CreateInstallerInput = InstallerDetailsInput & { email?: unknown };
@@ -174,13 +172,8 @@ export class ManageInstallersUseCases {
     return this.view(installer);
   }
 
-  private async staff(accessToken: string, permission: PermissionKey): Promise<Staff> {
-    const user = this.tokens.resolveAccessToken(accessToken);
-    const access = user ? await this.access.resolve(this.users, user.id) : null;
-    if (!user || !access?.active || access.portal !== 'admin' || !access.permissions.includes(permission)) {
-      throw new ForbiddenError();
-    }
-    return { id: user.id, email: user.email, role: user.role };
+  private staff(accessToken: string, permission: PermissionKey): Promise<Staff> {
+    return requireStaff({ tokens: this.tokens, access: this.access, users: this.users }, accessToken, permission);
   }
 
   private async found(id: string): Promise<StoredInstaller> {

@@ -69,7 +69,12 @@ export class InstallationOrderRecord {
   notes!: string | null;
   installerId!: string | null;
   status!: string;
+  preExceptionStatus!: string | null;
+  assignedAt!: Date | null;
+  acceptedAt!: Date | null;
+  startedAt!: Date | null;
   completedAt!: Date | null;
+  cancelledAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -92,8 +97,13 @@ export const InstallationOrderRecordSchema =
       siteContactPhone: { fieldName: 'site_contact_phone', type: 'string', length: 20 },
       notes: { type: 'text', nullable: true },
       installerId: { fieldName: 'installer_id', type: 'string', length: 64, nullable: true, index: true },
-      status: { type: 'string', length: 24, default: 'scheduled', index: true },
+      status: { type: 'string', length: 24, default: 'unassigned', index: true },
+      preExceptionStatus: { fieldName: 'pre_exception_status', type: 'string', length: 24, nullable: true },
+      assignedAt: { fieldName: 'assigned_at', type: 'datetime', nullable: true },
+      acceptedAt: { fieldName: 'accepted_at', type: 'datetime', nullable: true },
+      startedAt: { fieldName: 'started_at', type: 'datetime', nullable: true },
       completedAt: { fieldName: 'completed_at', type: 'datetime', nullable: true },
+      cancelledAt: { fieldName: 'cancelled_at', type: 'datetime', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
@@ -104,6 +114,7 @@ export class InstallationDeviceAssignmentRecord {
   orderId!: string;
   deviceIndex!: number;
   vehicleId!: string;
+  fleetDeviceId!: string | null;
   createdAt!: Date;
 }
 
@@ -116,6 +127,7 @@ export const InstallationDeviceAssignmentRecordSchema =
       orderId: { fieldName: 'order_id', type: 'string', length: 64, index: true },
       deviceIndex: { fieldName: 'device_index', type: 'number' },
       vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64 },
+      fleetDeviceId: { fieldName: 'fleet_device_id', type: 'string', length: 64, nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     },
   });

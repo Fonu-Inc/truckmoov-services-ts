@@ -86,6 +86,30 @@ describe('Installer portal over HTTP (auth)', () => {
     expect(installer.body).toEqual(staff.body);
   });
 
+  it('reads its own dashboard, jobs and profile, and a missing job answers 404', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const dashboard = await http().get('/auth/installer/dashboard').set(auth);
+    const jobs = await http().get('/auth/installer/jobs?scope=history').set(auth);
+    const missing = await http().get('/auth/installer/jobs/nope').set(auth);
+    const edited = await http().patch('/auth/installer/profile').set(auth).send({ firstName: 'Tunde', city: 'Ikeja' });
+    const me = await http().get('/auth/me').set(auth);
+
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.counters).toMatchObject({ newlyAssigned: 0, completed: 0 });
+    expect(jobs.body.data).toMatchObject({ items: [], total: 0, countsByStatus: { all: 0 } });
+    expect(missing.status).toBe(404);
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.personal).toMatchObject({ firstName: 'Tunde', city: 'Ikeja', photoUrl: null });
+    expect(me.body.fullName).toBe('Tunde Installer');
+  });
+
+  it('lists installation orders for platform staff', async () => {
+    const staff = await http().get('/auth/system/installation-orders').set('Authorization', `Bearer ${staffToken}`);
+
+    expect(staff.status).toBe(200);
+    expect(staff.body.data).toMatchObject({ items: [], total: 0 });
+  });
+
   it('cannot sign in once suspended', async () => {
     const suspended = await http().post(`/auth/system/installers/${installerId}/suspend`).set('Authorization', `Bearer ${staffToken}`);
     const login = await http().post('/auth/installer/login').send({ email, password });

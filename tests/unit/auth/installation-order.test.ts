@@ -24,7 +24,7 @@ function installer(
   const [firstName, lastName] = fullName.split(" ");
   return {
     id: fullName.toLowerCase().replace(/\s+/g, "-"),
-    userId: null,
+    userId: `user-${fullName}`,
     code: "INS-0001",
     firstName,
     lastName,
@@ -138,29 +138,48 @@ describe("Assigning devices to vehicles", () => {
 });
 
 describe("Choosing an installer", () => {
-  it("prefers one working the installation's own state", () => {
+  const none = new Map<string, number>();
+
+  it("takes only an installer serving the order's state, case-insensitively", () => {
     const chosen = chooseInstaller(
       [installer("Adaeze Nwosu", "Kano"), installer("Chinedu Okafor", "Lagos")],
-      "Lagos",
+      "lagos",
+      none,
     );
 
     expect(chosen?.fullName).toBe("Chinedu Okafor");
   });
 
-  it("falls back to any active installer when none covers the state", () => {
-    const chosen = chooseInstaller([installer("Adaeze Nwosu", "Kano")], "Lagos");
-
-    expect(chosen?.fullName).toBe("Adaeze Nwosu");
+  it("leaves the order unassigned when nobody serves the state", () => {
+    expect(chooseInstaller([installer("Adaeze Nwosu", "Kano")], "Lagos", none)).toBeNull();
   });
 
-  it("never picks an inactive installer", () => {
-    expect(
-      chooseInstaller([installer("Chinedu Okafor", "Lagos", false)], "Lagos"),
-    ).toBeNull();
+  it("never picks a suspended installer or one who has not signed up", () => {
+    const suspended = installer("Chinedu Okafor", "Lagos", false);
+    const invited = { ...installer("Musa Ibrahim", "Lagos"), userId: null };
+
+    expect(chooseInstaller([suspended, invited], "Lagos", none)).toBeNull();
+  });
+
+  it("skips an installer at capacity", () => {
+    const full = installer("Chinedu Okafor", "Lagos");
+
+    expect(chooseInstaller([full], "Lagos", new Map([[full.id, 3]]))).toBeNull();
+    expect(chooseInstaller([full], "Lagos", new Map([[full.id, 2]]))?.id).toBe(full.id);
+  });
+
+  it("prefers the least busy, then the name", () => {
+    const musa = installer("Musa Ibrahim", "Lagos");
+    const chinedu = installer("Chinedu Okafor", "Lagos");
+    const ada = installer("Ada Obi", "Lagos");
+    const load = new Map([[ada.id, 2], [chinedu.id, 1]]);
+
+    expect(chooseInstaller([chinedu, musa, ada], "Lagos", load)?.fullName).toBe("Musa Ibrahim");
+    expect(chooseInstaller([chinedu, ada], "Lagos", new Map())?.fullName).toBe("Ada Obi");
   });
 
   it("answers null rather than picking somebody who cannot do it", () => {
-    expect(chooseInstaller([], "Lagos")).toBeNull();
+    expect(chooseInstaller([], "Lagos", none)).toBeNull();
   });
 
   it("gives the same answer for the same candidates", () => {
@@ -169,8 +188,8 @@ describe("Choosing an installer", () => {
       installer("Chinedu Okafor", "Lagos"),
     ];
 
-    expect(chooseInstaller(candidates, "Lagos")?.fullName).toBe(
-      chooseInstaller([...candidates].reverse(), "Lagos")?.fullName,
+    expect(chooseInstaller(candidates, "Lagos", none)?.fullName).toBe(
+      chooseInstaller([...candidates].reverse(), "Lagos", none)?.fullName,
     );
   });
 });

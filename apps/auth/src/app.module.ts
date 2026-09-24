@@ -107,9 +107,22 @@ import {
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,
   InstallerAccountsAdapter,
+  InstallerAssignmentService,
+  InstallerJobsUseCases,
   InstallerLoginUseCase,
+  InstallerProfileUseCases,
+  InstallationSweepScheduler,
+  INSTALLATION_JOB_READER,
+  INSTALLER_PHOTO_STORAGE,
+  InMemoryInstallationJobReader,
   IssueSetupLinkUseCase,
+  JOB_DEVICE_LOOKUP,
+  FleetJobDeviceLookup,
+  ManageInstallationOrdersUseCases,
   ManageInstallersUseCases,
+  MikroInstallationJobReader,
+  ObjectStorageInstallerPhotos,
+  SweepInstallationOrdersUseCase,
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
   ConfirmInstallationUseCase,
@@ -121,6 +134,8 @@ import {
 import { InstallationController } from './installation.controller';
 import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
+import { InstallerPortalController } from './installer-portal.controller';
+import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
 import { ActivityLogService } from './activity-log.service';
 import { SystemAiController } from './system-ai.controller';
@@ -677,7 +692,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GovernanceController,
     StaffRolesController,
     InstallerAuthController,
+    InstallerPortalController,
     SystemInstallersController,
+    SystemInstallationOrdersController,
     OnboardingApplicationsController,
     InstallationController,
     SystemOnboardingApplicationsController,
@@ -1517,10 +1534,29 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemoryInstallationJobReader,
+    MikroInstallationJobReader,
+    {
+      provide: INSTALLATION_JOB_READER,
+      inject: [InMemoryInstallationJobReader, MikroInstallationJobReader, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryInstallationJobReader,
+        mikro: MikroInstallationJobReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    { provide: JOB_DEVICE_LOOKUP, useClass: FleetJobDeviceLookup },
+    { provide: INSTALLER_PHOTO_STORAGE, useClass: ObjectStorageInstallerPhotos },
+    InstallerAssignmentService,
     IssueSetupLinkUseCase,
     ScheduleInstallationUseCase,
+    SweepInstallationOrdersUseCase,
+    InstallationSweepScheduler,
     InstallerLoginUseCase,
     ManageInstallersUseCases,
+    ManageInstallationOrdersUseCases,
+    InstallerJobsUseCases,
+    InstallerProfileUseCases,
     { provide: INSTALLER_ACCOUNTS, useClass: InstallerAccountsAdapter },
     FleetConnectivityVerification,
     {
