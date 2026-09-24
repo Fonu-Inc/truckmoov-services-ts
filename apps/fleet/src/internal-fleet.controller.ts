@@ -63,8 +63,6 @@ const MAX_DEVICE_IDS = 100;
 @OnResource("tenant.vehicles")
 @SkipTenantScope()
 @Controller("internal")
-// Cross-tenant: callers are services and platform actors, gated by portal and role.
-@SkipTenantScope()
 @UseGuards(RolesGuard)
 export class InternalFleetController extends BaseFleetController {
   constructor(
