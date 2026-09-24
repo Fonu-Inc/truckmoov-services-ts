@@ -40,9 +40,9 @@ describe("Onboarding applications OpenAPI contract", () => {
     ["listM2mPlans", "200", M2mPlansResponse],
     ["get", "200", OnboardingApplicationResponse],
     ["update", "200", OnboardingApplicationResponse],
-    ["verifyEmail", "200", OnboardingApplicationResponse],
-    ["sendEmailCode", "200", VerificationCodeSentResponse],
-    ["submit", "200", SubmittedOnboardingApplicationResponse],
+    ["verifyEmail", "201", OnboardingApplicationResponse],
+    ["sendEmailCode", "201", VerificationCodeSentResponse],
+    ["submit", "201", SubmittedOnboardingApplicationResponse],
     ["status", "200", OnboardingApplicationStatusResponse],
   ])("%s documents a %s response body", (name, status, type) => {
     expect(responses(name)[status]?.type).toBe(type);

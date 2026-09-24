@@ -242,6 +242,12 @@ export class VerificationCodeSentResponse extends StandardApiResponse<Verificati
 }
 
 export class VerificationResendTooSoonSchema {
+  @ApiProperty({
+    example: 429,
+    required: false,
+    description: 'Present on the hourly cap and the IP rate limit, absent on the resend cooldown.',
+  })
+  statusCode?: number;
   @ApiProperty() message!: string;
   @ApiProperty({
     example: 42,
@@ -297,4 +303,53 @@ export class BillingEmailSchema {
 
 export class BillingEmailResponse extends StandardApiResponse<BillingEmailSchema> {
   @ApiProperty({ type: BillingEmailSchema }) data!: BillingEmailSchema;
+}
+
+export class ApplicationPaymentSchema {
+  @ApiProperty({ example: 'FPA-APP-2026-1A2B3C4D-1767225600000' }) reference!: string;
+  @ApiProperty({
+    ...NULLABLE_STRING,
+    description: 'Where to send the applicant to pay. Null when the provider returns no page.',
+  })
+  authorizationUrl!: string | null;
+  @ApiProperty({ example: 'paystack' }) provider!: string;
+  @ApiProperty({ type: OnboardingOrderSchema }) order!: OnboardingOrderSchema;
+}
+
+export class ApplicationPaymentResponse extends StandardApiResponse<ApplicationPaymentSchema> {
+  @ApiProperty({ type: ApplicationPaymentSchema }) data!: ApplicationPaymentSchema;
+}
+
+export class VehicleImportSkippedRowSchema {
+  @ApiProperty({ example: 3, description: 'Position among the non-blank lines, the header being line 1.' })
+  line!: number;
+  @ApiProperty() message!: string;
+}
+
+export class VehicleImportSchema {
+  @ApiProperty() created!: number;
+  @ApiProperty() updated!: number;
+  @ApiProperty({ type: [VehicleImportSkippedRowSchema] })
+  skipped!: VehicleImportSkippedRowSchema[];
+  @ApiProperty({ type: OnboardingApplicationViewSchema })
+  application!: OnboardingApplicationViewSchema;
+}
+
+export class VehicleImportResponse extends StandardApiResponse<VehicleImportSchema> {
+  @ApiProperty({ type: VehicleImportSchema }) data!: VehicleImportSchema;
+}
+
+export class VehicleCsvColumnSchema {
+  @ApiProperty({ example: 'registration_number' }) header!: string;
+  @ApiProperty() required!: boolean;
+  @ApiProperty({ example: 'LAG-123-ABC' }) example!: string;
+  @ApiProperty({ description: 'Empty string when there is nothing to add.' }) note!: string;
+}
+
+export class VehicleCsvColumnsSchema {
+  @ApiProperty({ type: [VehicleCsvColumnSchema] }) columns!: VehicleCsvColumnSchema[];
+}
+
+export class VehicleCsvColumnsResponse extends StandardApiResponse<VehicleCsvColumnsSchema> {
+  @ApiProperty({ type: VehicleCsvColumnsSchema }) data!: VehicleCsvColumnsSchema;
 }

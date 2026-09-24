@@ -21,22 +21,27 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  applyDecorators,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
 import {
-  ApiBadRequestResponse,
   ApiBody,
-  ApiConflictResponse,
   ApiConsumes,
   ApiCreatedResponse,
   ApiHeader,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
+import {
+  ApiErrorBody,
+  ApiErrorResponse,
+  ApiValidationErrorBody,
+  DuplicateIdentityErrorBody,
+  OnboardingFieldErrorBody,
+  OnboardingIncompleteErrorBody,
+} from './dto/api-error.dto';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { Portals } from '@shared/access';
@@ -98,6 +103,7 @@ import {
 } from './dto/onboarding-application.dto';
 import {
   ApplicationOrderResponse,
+  ApplicationPaymentResponse,
   BillingEmailResponse,
   CreatedOnboardingApplicationResponse,
   IndemnityAgreementResponse,
@@ -107,9 +113,12 @@ import {
   OnboardingApplicationStatusResponse,
   ResumeApplicationResponse,
   SubmittedOnboardingApplicationResponse,
+  VehicleCsvColumnsResponse,
+  VehicleImportResponse,
   VerificationCodeSentResponse,
   VerificationResendTooSoonSchema,
 } from './dto/onboarding-application-response.dto';
+import { ScheduledInstallationResponse } from './dto/installation-response.dto';
 import {
   DeviceAssignmentMismatchError,
   InstallationNotSchedulableError,
@@ -124,6 +133,38 @@ import {
 import { ScheduleInstallationDto } from './dto/schedule-installation.dto';
 
 const APPLICATION_TOKEN_HEADER = 'x-application-token';
+
+const RateLimited = () =>
+  ApiErrorResponse(
+    429,
+    'Per-IP limit on every application route: { statusCode: 429, message: "Too many requests, please try again shortly" }',
+  );
+
+const CodeSendLimited = () =>
+  ApiErrorResponse(
+    429,
+    'Resend cooldown: { message: "Wait <n> seconds before requesting another code", retryAfterSeconds }. Hourly cap: { statusCode: 429, message: "Too many codes requested for this application, try again later" }. Per-IP limit: { statusCode: 429, message: "Too many requests, please try again shortly" }.',
+    VerificationResendTooSoonSchema,
+  );
+
+const NOT_FOUND = '"Application not found": unknown id, wrong token, or an expired draft';
+const NOT_EDITABLE = '"An application in <status> state cannot be changed"';
+const FIELD_OR_WHITELIST =
+  'A field failed a domain rule: { message, field }. An unknown property: the ValidationPipe array body.';
+
+/** 401, 404 and 429 of every route that reads the application with its token. */
+const TokenErrors = (notFound = NOT_FOUND, tooMany = RateLimited) =>
+  applyDecorators(
+    ApiErrorResponse(401, 'No x-application-token header: "Missing application token"'),
+    ApiErrorResponse(404, notFound),
+    tooMany(),
+  );
+
+const TooLarge = (limit: string) =>
+  ApiErrorResponse(
+    413,
+    `The file is over ${limit}, refused by the upload limit before the handler runs: { statusCode: 413, message: "File too large", error: "Payload Too Large" }`,
+  );
 
 const ApplicationTokenHeader = () =>
   ApiHeader({
@@ -219,10 +260,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Draft application created',
     type: CreatedOnboardingApplicationResponse,
   })
-  @ApiBadRequestResponse({ description: 'A submitted field is invalid' })
-  @ApiConflictResponse({
-    description: 'An account or live application already exists for this email',
-  })
+  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @ApiErrorResponse(
+    409,
+    '"An account or application already exists for this email", or an identity detail already on another application: { message, claimTypes }',
+    ApiErrorBody,
+    DuplicateIdentityErrorBody,
+  )
+  @RateLimited()
   async create(@Body() payload: OnboardingApplicationDto) {
     return this.run(() => this.createApplication.execute(payload));
   }
@@ -234,6 +279,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
       'The plans shown on the customer details step. Each is priced per device, with a first year price and a renewal price.',
   })
   @ApiOkResponse({ description: 'Plans returned', type: M2mPlansResponse })
+  @RateLimited()
   async listM2mPlans() {
     return this.m2mPlans.execute();
   }
@@ -249,6 +295,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Request accepted',
     type: ResumeApplicationResponse,
   })
+  @ApiErrorResponse(400, 'The address is not a valid email: { message, field: "businessEmail" }', OnboardingFieldErrorBody)
+  @RateLimited()
   async resume(@Body('businessEmail') businessEmail?: string) {
     return this.run(() => this.resumeApplication.execute(businessEmail));
   }
@@ -263,6 +311,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Agreement returned',
     type: IndemnityAgreementResponse,
   })
+  @RateLimited()
+  @ApiErrorResponse(503, '"No indemnity agreement is published"')
   async readIndemnityAgreement() {
     return this.run(() => this.indemnityTemplate.execute());
   }
@@ -273,7 +323,11 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the column layout the vehicle import expects, with one example row.',
   })
-  @ApiOkResponse({ description: 'CSV file', content: { 'text/csv': {} } })
+  @ApiOkResponse({
+    description: 'CSV file',
+    content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @RateLimited()
   downloadVehicleTemplate(@Res() res: FileResponse): void {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
@@ -289,7 +343,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'The column list behind the template, so the upload screen can explain the format without parsing a CSV.',
   })
-  @ApiOkResponse({ description: 'Column definitions' })
+  @ApiOkResponse({ description: 'Column definitions', type: VehicleCsvColumnsResponse })
+  @RateLimited()
   describeVehicleColumns() {
     return {
       status: true,
@@ -305,7 +360,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
       'Returns the application, its documents and which required documents are still missing. Requires the application token.',
   })
   @ApiOkResponse({ description: 'Application returned', type: OnboardingApplicationResponse })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @TokenErrors()
   @ApplicationTokenHeader()
   async get(
     @Param('applicationId') applicationId: string,
@@ -322,9 +377,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
       'Replaces the organization and contact details. Changing a verified email or phone clears that verification.',
   })
   @ApiOkResponse({ description: 'Application updated', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({ description: 'A submitted field is invalid' })
-  @ApiNotFoundResponse({ description: 'Application not found' })
-  @ApiConflictResponse({ description: 'Application can no longer be changed' })
+  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    `${NOT_EDITABLE}, "An account or application already exists for this email", or an identity detail already on another application: { message, claimTypes }`,
+    ApiErrorBody,
+    DuplicateIdentityErrorBody,
+  )
   @ApplicationTokenHeader()
   async update(
     @Param('applicationId') applicationId: string,
@@ -344,8 +404,9 @@ export class OnboardingApplicationsController extends BaseAuthController {
       'Adds one vehicle to the application. A registration can only appear once per application.',
   })
   @ApiCreatedResponse({ description: 'Vehicle added', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({ description: 'A submitted field is invalid' })
-  @ApiConflictResponse({ description: 'This registration is already on the application' })
+  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @TokenErrors()
+  @ApiErrorResponse(409, `${NOT_EDITABLE}, or "<registration> has already been added to this application"`)
   @ApplicationTokenHeader()
   async addApplicationVehicle(
     @Param('applicationId') applicationId: string,
@@ -365,7 +426,9 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @Patch(':applicationId/vehicles/:vehicleId')
   @ApiOperation({ summary: 'Update a vehicle' })
   @ApiOkResponse({ description: 'Vehicle updated', type: OnboardingApplicationResponse })
-  @ApiNotFoundResponse({ description: 'Vehicle not found' })
+  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @TokenErrors(`${NOT_FOUND}, or "Vehicle not found"`)
+  @ApiErrorResponse(409, `${NOT_EDITABLE}, or "<registration> has already been added to this application"`)
   @ApplicationTokenHeader()
   async updateApplicationVehicle(
     @Param('applicationId') applicationId: string,
@@ -390,7 +453,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Removes the vehicle and any document filed against it.',
   })
   @ApiOkResponse({ description: 'Vehicle removed', type: OnboardingApplicationResponse })
-  @ApiNotFoundResponse({ description: 'Vehicle not found' })
+  @TokenErrors(`${NOT_FOUND}, or "Vehicle not found"`)
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async removeApplicationVehicle(
     @Param('applicationId') applicationId: string,
@@ -421,8 +485,18 @@ export class OnboardingApplicationsController extends BaseAuthController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  @ApiCreatedResponse({ description: 'Vehicles imported' })
-  @ApiBadRequestResponse({ description: 'The file is empty or missing columns' })
+  @ApiCreatedResponse({
+    description:
+      'Vehicles imported. Rows that could not be read are listed in data.skipped; message is "<n> vehicle(s) added, <m> updated".',
+    type: VehicleImportResponse,
+  })
+  @ApiErrorResponse(
+    400,
+    '"A CSV file is required", "The uploaded file has no rows", "The uploaded file is missing these columns: <list>", or a multipart error such as "Unexpected field"',
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
+  @TooLarge('2MB')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_VEHICLE_CSV_BYTES)))
   @ApplicationTokenHeader()
   async importApplicationVehicles(
@@ -451,7 +525,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Device request submitted',
     type: OnboardingApplicationResponse,
   })
-  @ApiBadRequestResponse({ description: 'More devices than vehicles, or an invalid field' })
+  @ApiErrorResponse(
+    400,
+    `${FIELD_OR_WHITELIST} Asking for more devices than vehicles is field "quantity".`,
+    OnboardingFieldErrorBody,
+    ApiValidationErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async requestApplicationDevices(
     @Param('applicationId') applicationId: string,
@@ -476,7 +557,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Device request removed',
     type: OnboardingApplicationResponse,
   })
-  @ApiNotFoundResponse({ description: 'Device request not found' })
+  @TokenErrors(`${NOT_FOUND}, or "Device request not found"`)
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async removeApplicationDeviceRequest(
     @Param('applicationId') applicationId: string,
@@ -500,6 +582,11 @@ export class OnboardingApplicationsController extends BaseAuthController {
       'What the applicant owes: the licence per device, the installation fee, and the total. Priced from the application, never from the request.',
   })
   @ApiOkResponse({ description: 'Order returned', type: ApplicationOrderResponse })
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    'Cannot be priced: "No M2M licence plan was chosen", "The chosen M2M licence plan is no longer available", or "No devices were requested"',
+  )
   @ApplicationTokenHeader()
   async order(
     @Param('applicationId') applicationId: string,
@@ -520,8 +607,9 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Billing email saved',
     type: BillingEmailResponse,
   })
-  @ApiConflictResponse({ description: 'Past the payment stage' })
-  @ApiBadRequestResponse({ description: 'The address is invalid' })
+  @ApiErrorResponse(400, 'The address is not a valid email: { message, field }', OnboardingFieldErrorBody)
+  @TokenErrors()
+  @ApiErrorResponse(409, `Past the payment stage or already paid: ${NOT_EDITABLE}`)
   @ApplicationTokenHeader()
   async billingEmail(
     @Param('applicationId') applicationId: string,
@@ -544,10 +632,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Sends a 6 digit code to the billing address.',
   })
   @ApiCreatedResponse({ description: 'Code sent', type: VerificationCodeSentResponse })
-  @ApiTooManyRequestsResponse({
-    description: 'Resend cooldown or hourly cap',
-    type: VerificationResendTooSoonSchema,
-  })
+  @ApiErrorResponse(
+    400,
+    'No billing email yet: { message: "Set a billing email before requesting a code for it", field: "billingEmail" }',
+    OnboardingFieldErrorBody,
+  )
+  @TokenErrors(NOT_FOUND, CodeSendLimited)
+  @ApiErrorResponse(409, `Past the payment stage or already paid: ${NOT_EDITABLE}`)
+  @ApiErrorResponse(503, '"Could not send the billing_email verification code"')
   @ApplicationTokenHeader()
   async sendBillingEmailCode(
     @Param('applicationId') applicationId: string,
@@ -567,7 +659,14 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiOperation({ summary: 'Verify the billing email code' })
   @ApiBody({ type: VerificationCodeDto })
   @ApiCreatedResponse({ description: 'Billing email verified', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({ description: 'The code is wrong or has expired' })
+  @ApiErrorResponse(
+    400,
+    '"The verification code is incorrect or has expired", or "Too many incorrect attempts, request a new code". Not 6 digits: { message, field: "code" }.',
+    ApiErrorBody,
+    OnboardingFieldErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, `Past the payment stage or already paid: ${NOT_EDITABLE}`)
   @ApplicationTokenHeader()
   async verifyBillingEmail(
     @Param('applicationId') applicationId: string,
@@ -591,11 +690,27 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Initialises a charge for the order. The amount is computed from the application, so a request cannot name its own price.',
   })
-  @ApiCreatedResponse({ description: 'Payment initialised' })
-  @ApiConflictResponse({
-    description: 'Not at the payment stage, or already paid',
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        redirectUrl: { type: 'string', description: 'Where the provider returns the applicant after paying.' },
+      },
+    },
   })
-  @ApiBadRequestResponse({ description: 'The billing email is not verified' })
+  @ApiCreatedResponse({ description: 'Payment initialised', type: ApplicationPaymentResponse })
+  @ApiErrorResponse(400, '"Verify the billing email before paying"')
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    '"An application at the <stage> stage cannot be paid for", "This application is already paid", "No M2M licence plan was chosen", "The chosen M2M licence plan is no longer available", or "No devices were requested"',
+  )
+  @ApiErrorResponse(503, '"No payment provider is configured"')
+  @ApiErrorResponse(
+    500,
+    'The provider refused to initialise the charge. That error is not mapped, so it answers { statusCode: 500, message: "Internal server error" }.',
+  )
   @ApplicationTokenHeader()
   async pay(
     @Param('applicationId') applicationId: string,
@@ -618,13 +733,23 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Books the fitting and assigns an installer. Every paid-for device is assigned to one vehicle, and no vehicle takes two. The account setup link is emailed once this succeeds.',
   })
-  @ApiCreatedResponse({ description: 'Installation scheduled' })
-  @ApiBadRequestResponse({
-    description: 'The date, the address or the device assignment is invalid',
+  @ApiCreatedResponse({
+    description:
+      'Installation scheduled. message says whether an installer was assigned at once.',
+    type: ScheduledInstallationResponse,
   })
-  @ApiConflictResponse({
-    description: 'Not at the scheduling stage, or already scheduled',
-  })
+  @ApiErrorResponse(
+    400,
+    'An address, contact, timeSlot or notes field: { message, field }. An unknown property: the ValidationPipe array body. The date ("The installation date is not a date", "An installation must be booked at least one day ahead", "An installation cannot be booked more than 90 days ahead") or the assignments ("<n> device(s) were paid for but <m> were assigned", "Device <i> is not on this order", "Device <i> was assigned twice", "A device was assigned to a vehicle that is not on this application", "<vehicleId> already has a device assigned to it"): { statusCode, message, error }.',
+    OnboardingFieldErrorBody,
+    ApiValidationErrorBody,
+    ApiErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    '"An onboarding at the <stage> stage cannot be scheduled", "This application has no tenant yet", or "An installation is already scheduled"',
+  )
   @ApplicationTokenHeader()
   async schedule(
     @Param('applicationId') applicationId: string,
@@ -672,8 +797,19 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Agreement signed',
     type: IndemnitySignatureResponse,
   })
-  @ApiBadRequestResponse({ description: 'Missing signature image or an invalid field' })
-  @ApiConflictResponse({ description: 'A newer version of the agreement is in force' })
+  @ApiErrorResponse(
+    400,
+    'signer_name or method: { message, field }. The image: "Missing signature image" or "Signature must be a JPG or PNG image". Or a multipart error such as "Unexpected field".',
+    OnboardingFieldErrorBody,
+    ApiErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    `${NOT_EDITABLE}, or "This form is version <x> but version <y> is now in force. Read the current form and sign again."`,
+  )
+  @TooLarge('2MB')
+  @ApiErrorResponse(503, '"No indemnity agreement is published", or "Signature upload failed"')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_SIGNATURE_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
   async signIndemnityAgreement(
@@ -723,11 +859,21 @@ export class OnboardingApplicationsController extends BaseAuthController {
     },
   })
   @ApiCreatedResponse({ description: 'Document stored', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({
-    description: 'Missing file, unsupported format or invalid document_type',
-  })
-  @ApiNotFoundResponse({ description: 'Application not found' })
-  @ApiConflictResponse({ description: 'Application can no longer be changed' })
+  @ApiErrorResponse(
+    400,
+    'The file or type: "Invalid or missing document_type", "Missing upload file", or an unsupported format: { statusCode, message, error }. A type this applicant does not file, or a bad vehicle_id: { message, field }. Or a multipart error such as "Unexpected field".',
+    ApiErrorBody,
+    OnboardingFieldErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(
+    409,
+    `${NOT_EDITABLE}, or the file or an identity detail is already on another application: { message, claimTypes }`,
+    ApiErrorBody,
+    DuplicateIdentityErrorBody,
+  )
+  @TooLarge('10MB')
+  @ApiErrorResponse(503, '"File upload failed"')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
   async upload(
@@ -761,8 +907,13 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Deletes one uploaded document and its stored file.',
   })
   @ApiOkResponse({ description: 'Document removed', type: OnboardingApplicationResponse })
-  @ApiNotFoundResponse({ description: 'Application or document not found' })
-  @ApiConflictResponse({ description: 'Application can no longer be changed' })
+  @TokenErrors(`${NOT_FOUND}. An unknown document also answers "Application not found"`)
+  @ApiErrorResponse(
+    409,
+    `${NOT_EDITABLE}, or an identity conflict re-checked after the removal: { message, claimTypes }`,
+    ApiErrorBody,
+    DuplicateIdentityErrorBody,
+  )
   @ApplicationTokenHeader()
   async remove(
     @Param('applicationId') applicationId: string,
@@ -785,12 +936,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Sends a 6 digit code to the business email. Any previous code stops working. Rate limited per application.',
   })
-  @ApiOkResponse({ description: 'Code sent', type: VerificationCodeSentResponse })
-  @ApiTooManyRequestsResponse({
-    description: 'Resend cooldown or hourly cap',
-    type: VerificationResendTooSoonSchema,
-  })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @ApiCreatedResponse({ description: 'Code sent', type: VerificationCodeSentResponse })
+  @TokenErrors(NOT_FOUND, CodeSendLimited)
+  @ApiErrorResponse(409, NOT_EDITABLE)
+  @ApiErrorResponse(503, '"Could not send the email verification code"')
   @ApplicationTokenHeader()
   async sendEmailCode(
     @Param('applicationId') applicationId: string,
@@ -812,8 +961,15 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Confirms the 6 digit code sent to the business email.',
   })
   @ApiBody({ type: VerificationCodeDto })
-  @ApiOkResponse({ description: 'Email verified', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({ description: 'The code is wrong or has expired' })
+  @ApiCreatedResponse({ description: 'Email verified', type: OnboardingApplicationResponse })
+  @ApiErrorResponse(
+    400,
+    '"The verification code is incorrect or has expired", or "Too many incorrect attempts, request a new code". Not 6 digits: { message, field: "code" }.',
+    ApiErrorBody,
+    OnboardingFieldErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async verifyEmail(
     @Param('applicationId') applicationId: string,
@@ -837,12 +993,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Sends a 6 digit code by SMS to the organization phone number. The platform pays for the message, never the applicant.',
   })
-  @ApiOkResponse({ description: 'Code sent', type: VerificationCodeSentResponse })
-  @ApiTooManyRequestsResponse({
-    description: 'Resend cooldown or hourly cap',
-    type: VerificationResendTooSoonSchema,
-  })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @ApiCreatedResponse({ description: 'Code sent', type: VerificationCodeSentResponse })
+  @TokenErrors(NOT_FOUND, CodeSendLimited)
+  @ApiErrorResponse(409, NOT_EDITABLE)
+  @ApiErrorResponse(503, '"Could not send the sms verification code"')
   @ApplicationTokenHeader()
   async sendPhoneCode(
     @Param('applicationId') applicationId: string,
@@ -864,8 +1018,15 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Confirms the 6 digit code sent by SMS.',
   })
   @ApiBody({ type: VerificationCodeDto })
-  @ApiOkResponse({ description: 'Phone number verified', type: OnboardingApplicationResponse })
-  @ApiBadRequestResponse({ description: 'The code is wrong or has expired' })
+  @ApiCreatedResponse({ description: 'Phone number verified', type: OnboardingApplicationResponse })
+  @ApiErrorResponse(
+    400,
+    '"The verification code is incorrect or has expired", or "Too many incorrect attempts, request a new code". Not 6 digits: { message, field: "code" }.',
+    ApiErrorBody,
+    OnboardingFieldErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async verifyPhone(
     @Param('applicationId') applicationId: string,
@@ -889,16 +1050,18 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description:
       'Locks the application, runs the automated checks and places it in the review queue. Requires: business email and phone verified, an M2M plan chosen, the indemnity agreement signed, at least one vehicle, every document required for the applicant type, a vehicle licence for each vehicle, and no more devices requested than vehicles. The response carries automatedDecision.',
   })
-  @ApiOkResponse({
+  @ApiCreatedResponse({
     description:
       'Application submitted. data.automatedDecision is approve, reject or manual_review.',
     type: SubmittedOnboardingApplicationResponse,
   })
-  @ApiBadRequestResponse({
-    description:
-      'Incomplete. Body: message, emailVerified, phoneVerified, missingDocuments, vehiclesMissingDocuments, vehicleCount, requestedDevices, indemnitySigned, planSelected',
-  })
-  @ApiConflictResponse({ description: 'Application can no longer be changed' })
+  @ApiErrorResponse(
+    400,
+    'Incomplete. message lists every reason; the other keys say which gate failed.',
+    OnboardingIncompleteErrorBody,
+  )
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
   async submit(
     @Param('applicationId') applicationId: string,
@@ -920,7 +1083,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
     description: 'Status returned',
     type: OnboardingApplicationStatusResponse,
   })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @TokenErrors()
   @ApplicationTokenHeader()
   async status(
     @Param('applicationId') applicationId: string,

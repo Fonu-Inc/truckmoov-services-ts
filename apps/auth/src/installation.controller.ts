@@ -11,13 +11,16 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiErrorResponse } from './dto/api-error.dto';
+import {
+  InstallationConfirmationResponse,
+  InstallationStatusResponse,
+} from './dto/installation-response.dto';
 import {
   ConfirmInstallationUseCase,
   GetInstallationStatusUseCase,
@@ -26,6 +29,14 @@ import {
   NoInstallationOrderError,
 } from '@auth/installation';
 import { Portals, OnResource } from '@shared/access';
+
+const MissingToken = () =>
+  ApiErrorResponse(
+    401,
+    '"Missing authorization" without a bearer token. Under PORTAL_ENFORCEMENT=enforce an invalid or expired token gets "missing or invalid authorization"; without enforcement it reaches the handler, which does not map it and answers { statusCode: 500, message: "Internal server error" }.',
+  );
+
+const OTHER_PORTAL = 'a caller outside the tenant portal gets "Cannot <METHOD> <path>"';
 
 /**
  * The customer's view of their own installation, once they have an account.
@@ -53,7 +64,12 @@ export class InstallationController {
     description:
       'The booking, the assigned installer and how far the onboarding has reached.',
   })
-  @ApiOkResponse({ description: 'Status returned' })
+  @ApiOkResponse({
+    description: 'Status returned. Nothing booked is still a 200 with data.order null.',
+    type: InstallationStatusResponse,
+  })
+  @MissingToken()
+  @ApiErrorResponse(404, `Only under access enforcement: ${OTHER_PORTAL}`)
   async status(@Headers('authorization') authorization?: string) {
     return this.run(() => this.getStatus.execute(this.token(authorization)));
   }
@@ -65,9 +81,17 @@ export class InstallationController {
     description:
       'Checks every fitted device is reporting before the onboarding closes. A device that is silent is named, so the customer knows which vehicle to go back to.',
   })
-  @ApiCreatedResponse({ description: 'Checked' })
-  @ApiNotFoundResponse({ description: 'No installation is scheduled' })
-  @ApiConflictResponse({ description: 'The onboarding is not at this stage' })
+  @ApiCreatedResponse({
+    description:
+      'Checked. data.stage is fleet_ready when every device reports; otherwise connectivity_verification, with the silent devices in data.failures and the reason in message.',
+    type: InstallationConfirmationResponse,
+  })
+  @MissingToken()
+  @ApiErrorResponse(404, `"No installation is scheduled for this account". Under access enforcement: ${OTHER_PORTAL}`)
+  @ApiErrorResponse(
+    409,
+    '"The installer has not completed this installation yet", or "An onboarding at the <stage> stage cannot be confirmed"',
+  )
   async confirmInstallation(@Headers('authorization') authorization?: string) {
     return this.run(() => this.confirm.execute(this.token(authorization)));
   }

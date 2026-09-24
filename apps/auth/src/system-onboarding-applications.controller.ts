@@ -13,19 +13,30 @@ import {
   Post,
   Query,
   UnauthorizedException,
+  applyDecorators,
 } from '@nestjs/common';
 import {
-  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
-  ApiConflictResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import { ApiErrorResponse } from './dto/api-error.dto';
+import {
+  ApplicationTimelineResponse,
+  ApprovedApplicationResponse,
+  ChangesRequestedResponse,
+  DocumentDecisionResponse,
+  ProvisionedResponse,
+  RejectedApplicationResponse,
+  ReviewApplicationResponse,
+  ReviewCountersResponse,
+  ReviewQueueResponse,
+  SetupLinkResentResponse,
+} from './dto/onboarding-review-response.dto';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -50,6 +61,36 @@ import {
   SetupLinkNotResendableError,
 } from '@auth/onboarding';
 import { Portals, OnResource } from '@shared/access';
+
+const REFUSED_AS_NOT_FOUND =
+  'Under PORTAL_ENFORCEMENT or PERMISSION_ENFORCEMENT=enforce, a refused caller gets "Cannot <METHOD> <path>" here instead of a 403.';
+
+const AdminErrors = (notFound?: string) =>
+  applyDecorators(
+    ApiErrorResponse(
+      401,
+      '"Missing authorization" without a bearer token, "Invalid or expired access token" for a bad one. Under PORTAL_ENFORCEMENT=enforce the guard answers first with "missing or invalid authorization".',
+    ),
+    ApiErrorResponse(
+      403,
+      'Not a platform admin: "You are not permitted to access this resource", or "This account has been disabled".',
+    ),
+    ApiErrorResponse(404, notFound ? `${notFound}. ${REFUSED_AS_NOT_FOUND}` : REFUSED_AS_NOT_FOUND),
+  );
+
+const NOT_FOUND = '"Application not found"';
+const NOT_REVIEWABLE = 'Not submitted or under review: "An application in <status> state cannot be reviewed"';
+const REASON_REQUIRED = 'Missing or blank reason: "A reason is required"';
+
+const ReasonBody = () =>
+  ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: { reason: { type: 'string', example: 'The CAC certificate is unreadable' } },
+      description: 'May also be sent wrapped as { data: { reason } }.',
+    },
+  });
 
 @ApiTags('System Onboarding Applications')
 @ApiBearerAuth()
@@ -94,8 +135,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  @ApiOkResponse({ description: 'Queue returned' })
-  @ApiForbiddenResponse({ description: 'Caller is not a platform admin' })
+  @ApiOkResponse({ description: 'Queue returned', type: ReviewQueueResponse })
+  @AdminErrors()
   async list(
     @Headers('authorization') authorization?: string,
     @Query('status') status?: string,
@@ -122,7 +163,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     summary: 'KYC review counters',
     description: 'The four cards above the review queue.',
   })
-  @ApiOkResponse({ description: 'Review counters' })
+  @ApiOkResponse({ description: 'Review counters', type: ReviewCountersResponse })
+  @AdminErrors()
   async summary(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -142,8 +184,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the application with its documents and short-lived download links.',
   })
-  @ApiOkResponse({ description: 'Application returned' })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @ApiOkResponse({ description: 'Application returned', type: ReviewApplicationResponse })
+  @AdminErrors(NOT_FOUND)
   async get(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
@@ -160,8 +202,12 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Says the devices and SIMs are allocated, which is what opens payment for the applicant.',
   })
-  @ApiCreatedResponse({ description: 'Provisioning complete' })
-  @ApiConflictResponse({ description: 'The onboarding is not at the provisioning stage' })
+  @ApiCreatedResponse({ description: 'Provisioning complete', type: ProvisionedResponse })
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(
+    500,
+    'Not at the provisioning stage. The stage error is not mapped to an HTTP status, so it answers { statusCode: 500, message: "Internal server error" }.',
+  )
   async provisioned(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
@@ -180,8 +226,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Everything that has happened to this application, oldest first, read from the audit trail.',
   })
-  @ApiOkResponse({ description: 'Timeline returned' })
-  @ApiNotFoundResponse({ description: 'Application not found' })
+  @ApiOkResponse({ description: 'Timeline returned', type: ApplicationTimelineResponse })
+  @AdminErrors(NOT_FOUND)
   async timeline(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
@@ -192,8 +238,9 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
 
   @Patch(':applicationId/documents/:documentId/approve')
   @ApiOperation({ summary: 'Approve one document' })
-  @ApiOkResponse({ description: 'Document approved' })
-  @ApiNotFoundResponse({ description: 'Application or document not found' })
+  @ApiOkResponse({ description: 'Document approved. message is "Document approved".', type: DocumentDecisionResponse })
+  @AdminErrors(`${NOT_FOUND}, or "Application document not found"`)
+  @ApiErrorResponse(409, NOT_REVIEWABLE)
   async approveDocument(
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
@@ -218,8 +265,11 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Marks a single document rejected with a reason. Use "request changes" to send the application back to the applicant.',
   })
-  @ApiOkResponse({ description: 'Document rejected' })
-  @ApiBadRequestResponse({ description: 'A reason is required' })
+  @ReasonBody()
+  @ApiOkResponse({ description: 'Document rejected. message is "Document rejected".', type: DocumentDecisionResponse })
+  @ApiErrorResponse(400, REASON_REQUIRED)
+  @AdminErrors(`${NOT_FOUND}, or "Application document not found"`)
+  @ApiErrorResponse(409, NOT_REVIEWABLE)
   async rejectDocument(
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
@@ -246,11 +296,16 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Creates the tenant, transfers document ownership and emails the account setup link. Refused while any document is rejected or missing.',
   })
-  @ApiOkResponse({ description: 'Application approved' })
-  @ApiConflictResponse({
-    description: 'Application is not reviewable, or the email is now taken',
-  })
-  @ApiBadRequestResponse({ description: 'Documents are missing or rejected' })
+  @ApiCreatedResponse({ description: 'Application approved', type: ApprovedApplicationResponse })
+  @ApiErrorResponse(
+    400,
+    '"<n> required document(s) are missing", or "Some documents are rejected. Request changes instead of approving."',
+  )
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(
+    409,
+    `${NOT_REVIEWABLE}, or the email was taken meanwhile: "An account or application already exists for this email"`,
+  )
   async approve(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
@@ -272,8 +327,11 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Terminal decision. No tenant is created and the applicant is emailed the reason.',
   })
-  @ApiOkResponse({ description: 'Application rejected' })
-  @ApiBadRequestResponse({ description: 'A reason is required' })
+  @ReasonBody()
+  @ApiCreatedResponse({ description: 'Application rejected', type: RejectedApplicationResponse })
+  @ApiErrorResponse(400, REASON_REQUIRED)
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, NOT_REVIEWABLE)
   async reject(
     @Param('applicationId') applicationId: string,
     @Body(BodyOrDataPipe) payload: { reason?: string },
@@ -297,8 +355,11 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the application to the applicant with a reason and a fresh resume link. Not terminal.',
   })
-  @ApiOkResponse({ description: 'Changes requested' })
-  @ApiBadRequestResponse({ description: 'A reason is required' })
+  @ReasonBody()
+  @ApiCreatedResponse({ description: 'Changes requested', type: ChangesRequestedResponse })
+  @ApiErrorResponse(400, REASON_REQUIRED)
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, NOT_REVIEWABLE)
   async changes(
     @Param('applicationId') applicationId: string,
     @Body(BodyOrDataPipe) payload: { reason?: string },
@@ -326,10 +387,16 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Issues a new setup link for an approved application and invalidates the previous one. Refused once the account exists.',
   })
-  @ApiOkResponse({ description: 'Setup link resent' })
-  @ApiConflictResponse({
-    description: 'Application is not approved, or the account already exists',
+  @ApiCreatedResponse({
+    description:
+      'Setup link issued. A failed send is still a 201: message is "The setup link could not be delivered" and data.setupLinkStatus is failed.',
+    type: SetupLinkResentResponse,
   })
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(
+    409,
+    '"Only an approved application has a setup link", or "This account has already been set up. Use password reset instead."',
+  )
   async resend(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
