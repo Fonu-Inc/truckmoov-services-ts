@@ -3,14 +3,23 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import {
+  clearEscalation,
+  STATUS_ROUTE_TICKET_STATUSES,
+  SUPPORT_TICKET_REPOSITORY,
+  type SupportTicketRepository,
+} from './support-ticket.repository';
 import { SupportTicketNotifierService } from './support-ticket-notifier.service';
 
-const VALID_STATUSES = new Set(['open', 'in_progress', 'waiting_on_tenant', 'escalated', 'resolved', 'closed']);
+const VALID_STATUSES = new Set<string>(STATUS_ROUTE_TICKET_STATUSES);
 
 export class InvalidTicketStatusError extends Error {
   constructor(status: string) {
-    super(`Invalid ticket status: ${status}`);
+    super(
+      status === 'escalated'
+        ? 'Tickets are escalated through PATCH /auth/system/support/tickets/:ticketId/escalate, which records the party'
+        : `Invalid ticket status: ${status}`,
+    );
   }
 }
 
@@ -37,6 +46,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
     const now = new Date();
     ticket.status = status;
     ticket.updatedAt = now;
+    clearEscalation(ticket);
     if (status === 'resolved') ticket.resolvedAt = now;
     if (status === 'closed') ticket.closedAt = now;
 

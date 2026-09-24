@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_CHANNELS, SUPPORT_TICKET_STATUSES } from '../support-ticket.repository';
+import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_CHANNELS, STATUS_ROUTE_TICKET_STATUSES } from '../support-ticket.repository';
 
-const TICKET_STATUSES = SUPPORT_TICKET_STATUSES;
 const ESCALATION_TARGETS = ['fleetpro_internal', 'fonu_connectivity', 'vendor_installer'] as const;
 /** Kept exported under this name: the platform admin screens already import it. */
 export const TICKET_CATEGORIES = SUPPORT_TICKET_CATEGORIES;
@@ -18,8 +17,10 @@ export class AssignTicketDto {
 }
 
 export class UpdateTicketStatusDto {
-  @ApiProperty({ enum: TICKET_STATUSES })
-  @IsIn(TICKET_STATUSES)
+  @ApiProperty({ enum: STATUS_ROUTE_TICKET_STATUSES, description: 'To escalate, use PATCH /auth/system/support/tickets/:ticketId/escalate.' })
+  @IsIn(STATUS_ROUTE_TICKET_STATUSES, {
+    message: `status must be one of: ${STATUS_ROUTE_TICKET_STATUSES.join(', ')}. To escalate, use PATCH /auth/system/support/tickets/:ticketId/escalate`,
+  })
   status!: string;
 }
 

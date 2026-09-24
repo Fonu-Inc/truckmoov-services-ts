@@ -526,7 +526,13 @@ describe("the support desk's view of installer tickets", () => {
     const auth = [{ resolveAccessToken: () => ({ id: "admin" }) } as never, { findById: async () => staff } as never] as const;
     const context = new InstallerTicketContextService(h.installers, h.orders);
     const list = new ListSystemSupportTicketsUseCase(...auth, h.tickets, context);
-    const get = new GetSystemSupportTicketUseCase(...auth, h.tickets, new InMemorySupportMessageRepository(), context);
+    const get = new GetSystemSupportTicketUseCase(
+      ...auth,
+      h.tickets,
+      new InMemorySupportMessageRepository(),
+      context,
+      new InMemorySupportTicketAttachmentRepository(),
+    );
 
     const desk = await list.execute("token", { reporterType: "installer" });
     expect(desk.data.tickets).toHaveLength(1);

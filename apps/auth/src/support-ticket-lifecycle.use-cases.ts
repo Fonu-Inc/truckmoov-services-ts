@@ -5,7 +5,7 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
-import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
+import { clearEscalation, SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
 export class TicketActionNotAllowedError extends Error {
   constructor(message: string) {
@@ -152,6 +152,7 @@ export class ReopenMySupportTicketUseCase {
     ticket.status = 'open';
     ticket.resolvedAt = null;
     ticket.updatedAt = now;
+    clearEscalation(ticket);
     await this.ticketRepo.save(ticket);
     await this.messageRepo.save({
       id: randomUUID(),

@@ -24,6 +24,22 @@ export class InvalidTicketFieldError extends Error {
   }
 }
 
+/** Snapshot keys fleet uses for the record id it resolved an IMEI or plate to. */
+const CANONICAL_ID_KEYS: Record<string, string> = { device: 'deviceId', vehicle: 'vehicleId' };
+
+/**
+ * The record's own id when fleet resolved an IMEI or registration to it, so
+ * the ticket links to the record however the reporter named it.
+ */
+export function canonicalContextId(
+  contextType: string,
+  requestedId: string | null,
+  snapshot: Record<string, unknown> | null,
+): string | null {
+  const resolved = snapshot?.[CANONICAL_ID_KEYS[contextType] ?? ''];
+  return typeof resolved === 'string' && resolved ? resolved : requestedId;
+}
+
 export type CreateSupportTicketCommand = {
   accessToken: string;
   subject: string;
@@ -89,11 +105,12 @@ export class CreateSupportTicketUseCase {
       throw new InvalidTicketFieldError('contextId is required when contextType is not none');
     }
 
-    const contextId = contextType === 'none' ? null : (command.contextId?.trim() ?? null);
+    const requestedContextId = contextType === 'none' ? null : (command.contextId?.trim() ?? null);
     // Read from the record itself, never taken from the request. A ticket
     // carrying device state the reporter supplied is a ticket that can claim a
     // device was offline when it never was, and support would act on it.
-    const contextSnapshot = await this.snapshotFor(actor.tenantId!, contextType, contextId);
+    const contextSnapshot = await this.snapshotFor(actor.tenantId!, contextType, requestedContextId);
+    const contextId = canonicalContextId(contextType, requestedContextId, contextSnapshot);
 
     const now = new Date();
     const ticket: StoredSupportTicket = {

@@ -27,6 +27,7 @@ export type SupportDashboardMetrics = {
   firstResponseBacklog: number;
   awaitingTenant: number;
   avgResolutionHours: number | null;
+  avgResolutionMinutes: number | null;
   resolvedLast7Days: number;
 };
 
@@ -58,12 +59,12 @@ export function isSlaBreaching(ticket: StoredSupportTicket, now: number): boolea
 }
 
 /**
- * Mean hours from raised to resolved, over tickets that actually resolved.
+ * Mean time from raised to resolved, over tickets that actually resolved.
  *
  * Null when none have. An average over nothing is not a number worth showing,
  * and zero would read as instant resolution.
  */
-export function averageResolutionHours(tickets: StoredSupportTicket[]): number | null {
+function averageResolutionMs(tickets: StoredSupportTicket[]): number | null {
   const resolved = tickets.filter((ticket) => ticket.resolvedAt !== null);
   if (resolved.length === 0) return null;
 
@@ -71,7 +72,18 @@ export function averageResolutionHours(tickets: StoredSupportTicket[]): number |
     (total, ticket) => total + (ticket.resolvedAt!.getTime() - ticket.createdAt.getTime()),
     0,
   );
-  return Math.round((totalMs / resolved.length / 3_600_000) * 10) / 10;
+  return totalMs / resolved.length;
+}
+
+/** Two decimals: one would round anything under three minutes to zero. */
+export function averageResolutionHours(tickets: StoredSupportTicket[]): number | null {
+  const ms = averageResolutionMs(tickets);
+  return ms === null ? null : Math.round((ms / 3_600_000) * 100) / 100;
+}
+
+export function averageResolutionMinutes(tickets: StoredSupportTicket[]): number | null {
+  const ms = averageResolutionMs(tickets);
+  return ms === null ? null : Math.round(ms / 60_000);
 }
 
 export function resolvedWithinDays(
@@ -105,6 +117,7 @@ export function buildDashboardMetrics(input: {
     ).length,
     awaitingTenant: tickets.filter((ticket) => ticket.status === 'waiting_on_tenant').length,
     avgResolutionHours: averageResolutionHours(tickets),
+    avgResolutionMinutes: averageResolutionMinutes(tickets),
     resolvedLast7Days: resolvedWithinDays(tickets, 7, now),
   };
 }

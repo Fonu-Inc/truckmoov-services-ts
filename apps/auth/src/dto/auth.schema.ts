@@ -1555,6 +1555,10 @@ export class SystemSupportDashboardDataSchema {
   @ApiProperty() resolved!: number;
   @ApiProperty() closed!: number;
   @ApiProperty() resolvedToday!: number;
+  @ApiProperty({ nullable: true, type: Number, example: 0.03, description: 'Mean hours raised to resolved, two decimals. Null when nothing resolved.' })
+  avgResolutionHours!: number | null;
+  @ApiProperty({ nullable: true, type: Number, example: 2, description: 'Mean minutes raised to resolved, rounded. Null when nothing resolved.' })
+  avgResolutionMinutes!: number | null;
   @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byCategory!: Record<string, number>;
   @ApiProperty({ type: SystemSupportTopTenantSchema, isArray: true }) topTenants!: SystemSupportTopTenantSchema[];
   @ApiProperty({ type: SystemSupportNeedsAttentionSchema, isArray: true }) needsAttention!: SystemSupportNeedsAttentionSchema[];
@@ -1848,6 +1852,19 @@ export class SystemSupportMessageSchema {
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
 }
 
+export class SystemSupportTicketAttachmentSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() ticketId!: string;
+  @ApiProperty() tenantId!: string;
+  @ApiProperty({ nullable: true, type: String, description: 'Set when attached with a reply' }) messageId!: string | null;
+  @ApiProperty() key!: string;
+  @ApiProperty() filename!: string;
+  @ApiProperty() contentType!: string;
+  @ApiProperty() sizeBytes!: number;
+  @ApiProperty() uploadedBy!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+}
+
 export class SystemSupportTicketDetailDataSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 1000 }) ticketNumber!: number;
@@ -1866,6 +1883,7 @@ export class SystemSupportTicketDetailDataSchema {
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
   @ApiProperty({ type: SystemSupportMessageSchema, isArray: true }) messages!: SystemSupportMessageSchema[];
+  @ApiProperty({ type: SystemSupportTicketAttachmentSchema, isArray: true }) attachments!: SystemSupportTicketAttachmentSchema[];
 }
 
 export class SystemSupportTicketDetailResponse extends StandardApiResponse<SystemSupportTicketDetailDataSchema> {

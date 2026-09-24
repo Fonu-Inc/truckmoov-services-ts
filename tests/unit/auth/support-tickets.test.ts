@@ -1,4 +1,8 @@
+import "reflect-metadata";
 import { describe, expect, it } from "vitest";
+import { validate } from "class-validator";
+import { plainToInstance } from "class-transformer";
+import { UpdateTicketStatusDto } from "../../../apps/auth/src/dto/support.dto";
 import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
 import { InMemorySupportMessageRepository } from "../../../apps/auth/src/in-memory-support-message.repository";
 import { InMemorySupportTicketAttachmentRepository } from "../../../apps/auth/src/in-memory-support-ticket-attachment.repository";
@@ -20,7 +24,11 @@ import {
   MAX_TICKET_ATTACHMENT_BYTES,
 } from "../../../apps/auth/src/support-ticket-attachment.errors";
 import { SendSystemSupportMessageUseCase } from "../../../apps/auth/src/send-system-support-message.use-case";
-import { UpdateSystemSupportTicketStatusUseCase } from "../../../apps/auth/src/update-system-support-ticket-status.use-case";
+import {
+  InvalidTicketStatusError,
+  UpdateSystemSupportTicketStatusUseCase,
+} from "../../../apps/auth/src/update-system-support-ticket-status.use-case";
+import { GetSystemSupportTicketUseCase } from "../../../apps/auth/src/get-system-support-ticket.use-case";
 import type { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session";
 
 const TENANT = "tenant-a";
@@ -136,6 +144,37 @@ describe("Raising a ticket", () => {
   it("rejects an other-channel label that exceeds the database limit", async () => {
     await expect(() => raise(harness(), { channel: "other", otherChannel: "x".repeat(256) }))
       .rejects.toThrow("255 characters or fewer");
+  });
+
+  it("stores the record id fleet resolved an IMEI to", async () => {
+    const { tokenService, userRepository } = fakeAuth(TENANT);
+    const fleet = { contextSnapshot: async () => ({ deviceId: "dev-42", imei: "359779090012346" }) } as never;
+    const create = new CreateSupportTicketUseCase(
+      tokenService, userRepository, { generate: () => "t-imei" } as never, new InMemorySupportTicketRepository(), fleet,
+    );
+
+    const { ticket } = await create.execute({
+      accessToken: "token", subject: "Offline", description: "No fix", category: "device_tracking",
+      contextType: "device", contextId: "359779090012346",
+    });
+
+    expect(ticket.contextId).toBe("dev-42");
+    expect(ticket.contextSnapshot).toMatchObject({ imei: "359779090012346" });
+  });
+
+  it("keeps the given context id when fleet returns no record id", async () => {
+    const { tokenService, userRepository } = fakeAuth(TENANT);
+    const fleet = { contextSnapshot: async () => ({ registrationNumber: "LAG123XY" }) } as never;
+    const create = new CreateSupportTicketUseCase(
+      tokenService, userRepository, { generate: () => "t-plate" } as never, new InMemorySupportTicketRepository(), fleet,
+    );
+
+    const { ticket } = await create.execute({
+      accessToken: "token", subject: "Offline", description: "No fix", category: "device_tracking",
+      contextType: "vehicle", contextId: "veh-7",
+    });
+
+    expect(ticket.contextId).toBe("veh-7");
   });
 
   it("defaults channel to null when omitted", async () => {
@@ -280,6 +319,20 @@ describe("Closing and reopening", () => {
 
     const messages = await kit.messages.findByTicketId(ticket.id);
     expect(messages[0]?.message).toContain("tracker went dark again");
+  });
+
+  it("drops the escalation party on reopen", async () => {
+    const kit = harness();
+    const ticket = await raise(kit);
+    Object.assign(ticket, {
+      status: "resolved", resolvedAt: new Date(), escalatedTo: "fonu_connectivity",
+      escalatedReferenceId: "FONU-1", escalationNotes: "SIM", escalatedAt: new Date(), escalatedBy: "staff-1",
+    });
+    await kit.tickets.save(ticket);
+
+    const { ticket: reopened } = await kit.reopen.execute({ accessToken: "token", ticketId: ticket.id, reason: "again" });
+
+    expect(reopened).toMatchObject({ escalatedTo: null, escalatedReferenceId: null, escalationNotes: null, escalatedBy: "staff-1" });
   });
 
   it("refuses to reopen a ticket that is not resolved", async () => {
@@ -490,5 +543,64 @@ describe("Notifying the tenant of platform-side changes", () => {
     await useCase.execute("token", ticket.id, "resolved");
 
     expect(notified).toEqual([{ tenantId: TENANT, ticketId: ticket.id, status: "resolved" }]);
+  });
+
+  function statusUseCase(kit: ReturnType<typeof harness>) {
+    const { tokenService, userRepository } = adminFakeAuth();
+    const notifier = { notifyStatusChanged: async () => undefined } as never;
+    return new UpdateSystemSupportTicketStatusUseCase(tokenService, userRepository, kit.tickets, notifier);
+  }
+
+  it("refuses escalated on the status route, which cannot record the party", async () => {
+    const kit = harness(TENANT);
+    const ticket = await raise(kit);
+
+    await expect(statusUseCase(kit).execute("token", ticket.id, "escalated")).rejects.toThrow(InvalidTicketStatusError);
+    expect((await kit.tickets.findById(ticket.id))?.status).toBe("open");
+  });
+
+  it("rejects escalated at the request body, pointing at the escalate route", async () => {
+    const errors = await validate(plainToInstance(UpdateTicketStatusDto, { status: "escalated" }));
+    expect(errors[0]?.constraints?.isIn).toContain("/escalate");
+    expect(await validate(plainToInstance(UpdateTicketStatusDto, { status: "resolved" }))).toHaveLength(0);
+  });
+
+  it("drops the escalation party once the ticket leaves escalated", async () => {
+    const kit = harness(TENANT);
+    const ticket = await raise(kit);
+    Object.assign(ticket, { status: "escalated", escalatedTo: "vendor_installer", escalatedReferenceId: "V-9", escalationNotes: "n" });
+    await kit.tickets.save(ticket);
+
+    await statusUseCase(kit).execute("token", ticket.id, "in_progress");
+
+    expect(await kit.tickets.findById(ticket.id)).toMatchObject({
+      status: "in_progress", escalatedTo: null, escalatedReferenceId: null, escalationNotes: null,
+    });
+  });
+});
+
+describe("The support desk's ticket detail", () => {
+  it("carries the ticket's attachments, as the tenant detail does", async () => {
+    const kit = harness(TENANT);
+    const ticket = await raise(kit);
+    await kit.attachments.save({
+      id: "att-1", ticketId: ticket.id, tenantId: TENANT, messageId: null, key: "k", filename: "photo.png",
+      contentType: "image/png", sizeBytes: 10, uploadedBy: "user-1", createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    const staff = { id: "staff-1", email: "s@truckmoov.com", role: "SYSTEM_ADMIN", tenantId: "system", accountStatus: "active" };
+    const get = new GetSystemSupportTicketUseCase(
+      { resolveAccessToken: () => ({ id: "staff-1" }) } as never,
+      { findById: async () => staff } as never,
+      kit.tickets,
+      kit.messages,
+      { describe: async () => new Map() } as never,
+      kit.attachments,
+    );
+
+    const { data } = await get.execute("token", ticket.id);
+
+    expect(data.attachments).toEqual([
+      expect.objectContaining({ id: "att-1", filename: "photo.png", createdAt: "2026-09-01T00:00:00.000Z" }),
+    ]);
   });
 });

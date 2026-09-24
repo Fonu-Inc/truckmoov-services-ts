@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   averageResolutionHours,
+  averageResolutionMinutes,
   awaitingFirstResponse,
   buildDashboardMetrics,
   isSlaBreaching,
@@ -123,6 +124,16 @@ describe('Average resolution time', () => {
     expect(averageResolutionHours([ticket()])).toBeNull();
     expect(averageResolutionHours([])).toBeNull();
   });
+
+  it('does not collapse a sub-three-minute average to zero', () => {
+    const quick = [ticket({ createdAt: new Date(NOW - 102_000), resolvedAt: new Date(NOW) })];
+    expect(averageResolutionHours(quick)).toBe(0.03);
+    expect(averageResolutionMinutes(quick)).toBe(2);
+  });
+
+  it('reports minutes as null when nothing has resolved', () => {
+    expect(averageResolutionMinutes([ticket()])).toBeNull();
+  });
 });
 
 describe('Resolved in the last seven days', () => {
@@ -164,6 +175,7 @@ describe('The dashboard cards together', () => {
       firstResponseBacklog: 0,
       awaitingTenant: 1,
       avgResolutionHours: 10,
+      avgResolutionMinutes: 600,
       resolvedLast7Days: 1,
     });
   });

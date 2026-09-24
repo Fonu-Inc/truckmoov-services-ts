@@ -22,6 +22,15 @@ export const SYSTEM_ONLY_TICKET_STATUSES: readonly SupportTicketStatus[] = [
   'escalated',
 ];
 
+/**
+ * What the status route may set. Escalated is left out: only the escalate
+ * route records who the ticket went to, and a status-only escalation lands in
+ * the escalated list under no party.
+ */
+export const STATUS_ROUTE_TICKET_STATUSES = SUPPORT_TICKET_STATUSES.filter(
+  (status) => status !== 'escalated',
+);
+
 export const SUPPORT_TICKET_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type SupportTicketPriority = (typeof SUPPORT_TICKET_PRIORITIES)[number];
 
@@ -166,6 +175,17 @@ export interface SupportTicketRepository {
   countByStatusForReporter(reporter: TicketReporter): Promise<Record<string, number>>;
   /** Tickets about these installation orders, newest first; only `contextType` ones when given. */
   findByRelatedOrders(orderIds: string[], contextType?: string): Promise<StoredSupportTicket[]>;
+}
+
+/**
+ * Drops the escalation party once a ticket leaves escalated, so a reopened or
+ * de-escalated ticket stops reading as still with that party. escalatedAt and
+ * escalatedBy stay as the record that it once was escalated.
+ */
+export function clearEscalation(ticket: StoredSupportTicket): void {
+  ticket.escalatedTo = null;
+  ticket.escalatedReferenceId = null;
+  ticket.escalationNotes = null;
 }
 
 export const SUPPORT_TICKET_REPOSITORY = Symbol('SUPPORT_TICKET_REPOSITORY');
