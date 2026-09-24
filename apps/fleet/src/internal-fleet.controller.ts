@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { Roles, Role, RolesGuard } from "@shared/rbac";
+import { Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { AuditLogService } from "./audit-log.service";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
@@ -44,6 +44,7 @@ import { SuspendDeviceDto } from "./dto/vehicle.dto";
 const DRAWER_ROW_LIMIT = 25;
 
 @ApiExcludeController()
+@SkipTenantScope()
 @Controller("internal")
 @UseGuards(RolesGuard)
 export class InternalFleetController extends BaseFleetController {
