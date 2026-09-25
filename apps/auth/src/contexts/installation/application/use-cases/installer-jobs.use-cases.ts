@@ -9,7 +9,6 @@ import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-ap
 import {
   INSTALLATION_ORDER_STATUSES,
   OPEN_JOB_STATUSES,
-  TERMINAL_JOB_STATUSES,
   type InstallationOrderStatus,
 } from '@auth/installation/domain/installation-order';
 import {
@@ -38,10 +37,12 @@ import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../.
 import { currentInstaller, installerJob } from './support/current-installer';
 import { installerOptions } from './support/job-execution.views';
 import { pageOf } from './support/paging';
-import { devicesForJobs, toDashboardJob, toJobDetail, toJobListItem } from './support/installation-job.views';
+import { devicesForJobs, toDashboardJob, toInstallerJobItem, toJobDetail } from './support/installation-job.views';
+import { HISTORY_EXPORT_CAP, exportTimeZone, historyCsv } from './support/installation-history-export';
 import {
   activitySeries,
   dashboardCounters,
+  jobsPageCounters,
   lagosMonths,
   toActivityView,
   type StatusCounts,
@@ -60,6 +61,11 @@ export type ListJobsQuery = {
   limit?: number;
 };
 
+export type ExportHistoryQuery = Pick<ListJobsQuery, 'search' | 'completedFrom' | 'completedTo'> & {
+  /** IANA zone the completion date and time are written in. */
+  timezone?: string;
+};
+
 const DASHBOARD_SECTION_LIMIT = 5;
 const RECENT_ACTIVITY_LIMIT = 10;
 const ACTIVITY_MONTHS = 6;
@@ -67,7 +73,7 @@ const TODAY_STATUSES: InstallationOrderStatus[] = ['scheduled', 'in_progress', '
 
 const SCOPES: Record<JobScope, readonly InstallationOrderStatus[]> = {
   active: OPEN_JOB_STATUSES,
-  history: TERMINAL_JOB_STATUSES,
+  history: ['completed'],
 };
 
 function isCalendarDay(value: string): boolean {
@@ -93,6 +99,17 @@ function completionRange(query: ListJobsQuery): Pick<JobFilters, 'completedFrom'
 function scopedStatuses(scope: JobScope, status?: InstallationOrderStatus): InstallationOrderStatus[] {
   const inScope = SCOPES[scope];
   return status ? inScope.filter((s) => s === status) : [...inScope];
+}
+
+function jobFilters(installerId: string, query: ListJobsQuery): JobFilters {
+  const scope = query.scope ?? 'active';
+  return {
+    installerId,
+    statuses: scopedStatuses(scope, query.status),
+    search: query.search,
+    ...completionRange(query),
+    sort: scope === 'history' ? 'completion' : 'scheduled',
+  };
 }
 
 /** What an installer reads about their own jobs: the dashboard, the lists and one job. */
@@ -136,19 +153,22 @@ export class InstallerJobsUseCases {
 
   async list(accessToken: string, query: ListJobsQuery) {
     const installer = await this.installer(accessToken);
-    const scope = query.scope ?? 'active';
     const { page, limit } = pageOf(query);
-    const filters: JobFilters = {
-      installerId: installer.id,
-      statuses: scopedStatuses(scope, query.status),
-      search: query.search,
-      ...completionRange(query),
-      sort: scope === 'history' ? 'completion' : 'scheduled',
-    };
-    const [counts, found] = await Promise.all([this.statusCounts(installer), this.jobs.list(filters, { page, limit })]);
-    const all = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    const [counts, found] = await Promise.all([
+      this.statusCounts(installer),
+      this.jobs.list(jobFilters(installer.id, query), { page, limit }),
+    ]);
 
-    return { countsByStatus: { all, ...counts }, items: await this.listItems(found.items), page, limit, total: found.total };
+    return { counters: jobsPageCounters(counts), items: await this.listItems(found.items), page, limit, total: found.total };
+  }
+
+  /** Installation History as CSV, newest completion first, at most HISTORY_EXPORT_CAP rows. */
+  async exportHistory(accessToken: string, query: ExportHistoryQuery): Promise<string> {
+    const installer = await this.installer(accessToken);
+    const timeZone = exportTimeZone(query.timezone);
+    const filters = jobFilters(installer.id, { ...query, scope: 'history' });
+    const found = await this.jobs.list(filters, { page: 1, limit: HISTORY_EXPORT_CAP });
+    return historyCsv(found.items, timeZone);
   }
 
   async detail(accessToken: string, jobId: string) {
@@ -219,6 +239,6 @@ export class InstallerJobsUseCases {
       this.devices,
       rows.map((row) => ({ tenantId: row.order.tenantId, deviceId: row.firstFleetDeviceId })),
     );
-    return rows.map((row) => toJobListItem(row, devices));
+    return rows.map((row) => toInstallerJobItem(row, devices));
   }
 }

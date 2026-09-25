@@ -141,7 +141,7 @@ export class JobIssueTicketSchema {
   @ApiProperty({ example: '#tkt-12' }) displayId!: string;
 }
 
-export class InstallerJobListItemSchema {
+export class JobListItemSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 'FL-0042' }) jobNumber!: string;
   @ApiProperty({ description: 'Organisation name, empty when the application is gone.' })
@@ -163,7 +163,7 @@ export class InstallerJobListItemSchema {
   completedAt!: string | null;
 }
 
-export class InstallationJobListItemSchema extends InstallerJobListItemSchema {
+export class InstallationJobListItemSchema extends JobListItemSchema {
   @ApiProperty() tenantId!: string;
   @ApiProperty({ type: JobInstallerSummarySchema, nullable: true })
   installer!: JobInstallerSummarySchema | null;

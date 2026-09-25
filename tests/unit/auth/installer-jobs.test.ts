@@ -35,6 +35,10 @@ import { lagosDate, lagosToday } from "@shared/devices";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
+import {
+  HISTORY_EXPORT_CAP,
+  HISTORY_EXPORT_COLUMNS,
+} from "@auth/installation/application/use-cases/support/installation-history-export";
 import { InMemoryUserRepository } from "../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-user.repository";
 import { InMemorySimRepository } from "../../../apps/auth/src/in-memory-sim.repository";
 import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
@@ -356,9 +360,15 @@ describe("an installer's jobs", () => {
 
     expect(first).toMatchObject({
       jobNumber: "FL-1",
-      customer: "Lagos Express Logistics",
+      companyName: "Lagos Express Logistics",
       siteContactName: "Ada",
       siteContactPhone: "+2347014452219",
+      address: "14 Kudirat Abiola Way",
+      city: "Ikeja",
+      state: "Lagos",
+      vehicleCount: 1,
+      deviceCount: 1,
+      status: "scheduled",
       firstVehicle: { registrationNumber: "LSD-1-XA", make: "Mercedes-Benz", model: "Actros 1844" },
       firstDevice: { manufacturer: "Teltonika", model: "FMB920" },
       scheduledDate: "2026-09-25",
@@ -367,25 +377,26 @@ describe("an installer's jobs", () => {
     });
     expect(first).not.toHaveProperty("timeSlot");
     expect(first).not.toHaveProperty("timeSlotLabel");
+    expect(first).not.toHaveProperty("customer");
+    expect(first).not.toHaveProperty("location");
   });
 
-  it("lists active jobs with counts across every status", async () => {
+  it("lists active jobs with the page counters", async () => {
     const active = await h.jobs.list("user-ada", {});
 
     expect(active.items.map((j) => j.jobNumber)).toEqual(["FL-1", "FL-3", "FL-2"]);
     expect(active.total).toBe(3);
-    expect(active.countsByStatus).toEqual({
-      all: 5, unassigned: 0, assigned: 0, scheduled: 2, in_progress: 1, overdue: 0, issue_reported: 0, completed: 1, cancelled: 1,
+    expect(active.counters).toEqual({
+      total: 5, scheduled: 2, inProgress: 1, overdue: 0, completed: 1, cancelled: 1, issueReported: 0, unassigned: 0,
     });
+    expect(active).not.toHaveProperty("countsByStatus");
   });
 
-  it("lists history newest first with the completion date falling back to cancellation", async () => {
+  it("lists completed jobs only as history, newest first", async () => {
     const history = await h.jobs.list("user-ada", { scope: "history" });
 
-    expect(history.items.map((j) => [j.jobNumber, j.completedAt])).toEqual([
-      ["FL-5", "2026-09-01T09:00:00.000Z"],
-      ["FL-4", "2026-08-24T15:00:00.000Z"],
-    ]);
+    expect(history.items.map((j) => [j.jobNumber, j.completedAt])).toEqual([["FL-4", "2026-08-24T15:00:00.000Z"]]);
+    expect((await h.jobs.list("user-ada", { scope: "history", status: "cancelled" })).items).toEqual([]);
     const august = await h.jobs.list("user-ada", { scope: "history", completedFrom: "2026-08-01", completedTo: "2026-08-31" });
     expect(august.items.map((j) => j.jobNumber)).toEqual(["FL-4"]);
     await expect(h.jobs.list("user-ada", { scope: "history", completedFrom: "24/08/2026" })).rejects.toBeInstanceOf(OnboardingValidationError);
@@ -460,6 +471,135 @@ describe("an installer's jobs", () => {
     await expect(h.jobs.dashboard("user-ada", NOW)).rejects.toThrow("reserved for installers");
     await expect(h.jobs.list("user-ada", {})).rejects.toThrow("reserved for installers");
     await expect(h.jobs.detail("user-ada", "1")).rejects.toThrow("reserved for installers");
+  });
+});
+
+describe("the Installation Jobs page", () => {
+  let h: Awaited<ReturnType<typeof harness>>;
+  const mine = { installerId: "ada" };
+  const at = (iso: string) => new Date(iso);
+
+  beforeEach(async () => {
+    h = await harness();
+    await h.installers.save(installer("ada"));
+    await h.installers.save(installer("bola"));
+    await h.job("offer", "Eko Haulage Ltd", { ...mine, orderNumber: "FL-2200", status: "assigned", addressLine: "3 Creek Road", city: "Apapa", scheduledDate: day("2026-09-26") });
+    await h.job("sched", "Northgate Transport", { ...mine, orderNumber: "FL-2201", status: "scheduled", addressLine: "18 Allen Avenue", scheduledDate: day("2026-09-27") });
+    await h.job("late", "Coastline Movers", { ...mine, orderNumber: "FL-2202", status: "overdue", city: "Lekki", scheduledDate: day("2026-09-20") });
+    await h.job("work", "Prime Agro Logistics", { ...mine, orderNumber: "FL-2203", status: "in_progress", state: "Ogun", scheduledDate: day("2026-09-24") });
+    await h.job("issue", "Red Star Haulage", { ...mine, orderNumber: "FL-1004", status: "issue_reported", scheduledDate: day("2026-09-12") });
+    await h.job("done-aug", "Lagos Express Logistics", { ...mine, orderNumber: "FL-0998", status: "completed", scheduledDate: day("2026-08-24"), completedAt: at("2026-08-24T13:12:00Z") });
+    await h.job("done-sep", "Sunrise Foods", { ...mine, orderNumber: "FL-0999", status: "completed", scheduledDate: day("2026-08-31"), completedAt: at("2026-08-31T23:30:00Z") });
+    await h.job("gone", "Apapa Freight", { ...mine, orderNumber: "FL-0997", status: "cancelled", scheduledDate: day("2026-09-01"), cancelledAt: at("2026-09-01T09:00:00Z") });
+    await h.job("theirs", "Northgate Transport", { installerId: "bola", orderNumber: "FL-3001", status: "completed", completedAt: at("2026-08-24T10:00:00Z") });
+  });
+
+  const numbers = async (query: Parameters<typeof h.jobs.list>[1]) => (await h.jobs.list("user-ada", query)).items.map((j) => j.jobNumber);
+
+  it("counts every job but offers, overdue included, and never another installer's", async () => {
+    const { counters } = await h.jobs.list("user-ada", { status: "assigned" });
+
+    expect(counters).toEqual({ total: 7, scheduled: 1, inProgress: 1, overdue: 1, completed: 2, cancelled: 1, issueReported: 1, unassigned: 0 });
+  });
+
+  it("lists offers with the site contact, address and slot", async () => {
+    const offers = await h.jobs.list("user-ada", { status: "assigned" });
+
+    expect(offers.items).toHaveLength(1);
+    expect(offers.items[0]).toMatchObject({
+      jobNumber: "FL-2200", companyName: "Eko Haulage Ltd", siteContactName: "Ada", siteContactPhone: "+2347014452219",
+      address: "3 Creek Road", city: "Apapa", state: "Lagos", status: "assigned",
+      scheduledAt: "2026-09-26T07:00:00.000Z", scheduledUntil: "2026-09-26T11:00:00.000Z",
+    });
+  });
+
+  it("lists reported issues on their own tab", async () => {
+    expect(await numbers({ status: "issue_reported" })).toEqual(["FL-1004"]);
+  });
+
+  it.each([
+    ["company name", "northgate", ["FL-2201"]],
+    ["job number with prefix", "fl-2201", ["FL-2201"]],
+    ["job number without prefix", "2201", ["FL-2201"]],
+    ["address", "allen avenue", ["FL-2201"]],
+    ["city", "lekki", ["FL-2202"]],
+    ["state", "ogun", ["FL-2203"]],
+    ["vehicle registration", "lsd-work", ["FL-2203"]],
+  ])("searches the %s", async (_, search, expected) => {
+    expect(await numbers({ search })).toEqual(expected);
+  });
+
+  it("searches completed installations the same way, never another installer's", async () => {
+    expect(await numbers({ scope: "history", search: "lagos express" })).toEqual(["FL-0998"]);
+    expect(await numbers({ scope: "history", search: "0999" })).toEqual(["FL-0999"]);
+    expect(await numbers({ scope: "history", search: "northgate" })).toEqual([]);
+    expect(await numbers({ scope: "history", search: "apapa freight" })).toEqual([]);
+  });
+
+  it("filters history by Lagos completion day", async () => {
+    expect(await numbers({ scope: "history" })).toEqual(["FL-0999", "FL-0998"]);
+    expect(await numbers({ scope: "history", completedFrom: "2026-08-01", completedTo: "2026-08-31" })).toEqual(["FL-0998"]);
+    expect(await numbers({ scope: "history", completedFrom: "2026-09-01" })).toEqual(["FL-0999"]);
+    await expect(h.jobs.list("user-ada", { scope: "history", completedTo: "31-08-2026" })).rejects.toBeInstanceOf(OnboardingValidationError);
+  });
+
+  describe("export", () => {
+    const lines = (csv: string) => csv.split("\n");
+
+    it("writes the history columns with completion in Lagos by default", async () => {
+      const [header, ...rows] = lines(await h.jobs.exportHistory("user-ada", {}));
+
+      expect(header).toBe(HISTORY_EXPORT_COLUMNS.join(","));
+      expect(header).toBe("Company Name,Job Number,Site Contact Name,Contact Phone,Installation Location,Devices,Vehicles,Completion Date,Completion Time,Status");
+      expect(rows).toEqual([
+        "Sunrise Foods,FL-0999,Ada,'+2347014452219,\"Ikeja, Lagos\",1,1,2026-09-01,00:30,Completed",
+        "Lagos Express Logistics,FL-0998,Ada,'+2347014452219,\"Ikeja, Lagos\",1,1,2026-08-24,14:12,Completed",
+      ]);
+    });
+
+    it("writes the completion in the time zone asked for", async () => {
+      const rows = lines(await h.jobs.exportHistory("user-ada", { timezone: "America/New_York" })).slice(1);
+      expect(rows.map((row) => row.split(",").slice(-3, -1))).toEqual([["2026-08-31", "19:30"], ["2026-08-24", "09:12"]]);
+
+      const utc = lines(await h.jobs.exportHistory("user-ada", { timezone: "UTC" })).slice(1);
+      expect(utc[0]).toContain("2026-08-31,23:30");
+    });
+
+    it.each(["Mars/Olympus", "+01:00", "Africa/Lagos; drop", "../etc"])("refuses the time zone %s", async (timezone) => {
+      await expect(h.jobs.exportHistory("user-ada", { timezone })).rejects.toThrow("timezone must be an IANA time zone");
+    });
+
+    it("applies the search and completion filters, and leaves out other installers' and cancelled jobs", async () => {
+      const csv = await h.jobs.exportHistory("user-ada", { search: "sunrise", completedFrom: "2026-09-01", completedTo: "2026-09-30" });
+      expect(lines(csv).slice(1).map((row) => row.split(",")[1])).toEqual(["FL-0999"]);
+
+      const all = await h.jobs.exportHistory("user-ada", {});
+      expect(all).not.toContain("FL-3001");
+      expect(all).not.toContain("FL-0997");
+      await expect(h.jobs.exportHistory("user-ada", { completedFrom: "yesterday" })).rejects.toBeInstanceOf(OnboardingValidationError);
+    });
+
+    it("neutralises formulas typed into the job", async () => {
+      await h.job("evil", "=HYPERLINK(\"http://x\")", { ...mine, orderNumber: "FL-0990", siteContactName: "@SUM(A1)", status: "completed", completedAt: at("2026-08-01T10:00:00Z") });
+      const row = lines(await h.jobs.exportHistory("user-ada", { search: "fl-0990" }))[1];
+
+      expect(row.startsWith("\"'=HYPERLINK(\"\"http://x\"\")\",FL-0990,'@SUM(A1),")).toBe(true);
+    });
+
+    it(`reads at most ${HISTORY_EXPORT_CAP} rows, newest completion first`, async () => {
+      const list = vi.spyOn(h.reader, "list");
+      await h.jobs.exportHistory("user-ada", {});
+
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ installerId: "ada", statuses: ["completed"], sort: "completion" }),
+        { page: 1, limit: HISTORY_EXPORT_CAP },
+      );
+      expect(HISTORY_EXPORT_CAP).toBe(5000);
+    });
+
+    it("is refused to a caller who is not an installer", async () => {
+      await expect(h.jobs.exportHistory("user-nobody", {})).rejects.toThrow("reserved for installers");
+    });
   });
 });
 

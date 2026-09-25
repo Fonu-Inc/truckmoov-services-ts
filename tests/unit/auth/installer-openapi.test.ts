@@ -6,11 +6,12 @@ import { DECORATORS } from "@nestjs/swagger/dist/constants";
 import { InstallerPortalController } from "../../../apps/auth/src/installer-portal.controller";
 import { InstallerJobWorkController } from "../../../apps/auth/src/installer-job-work.controller";
 import { InstallerJobDetailResponse, RejectedOfferResponse } from "../../../apps/auth/src/dto/installer-job-response.dto";
+import { HISTORY_EXPORT_CAP } from "../../../apps/auth/src/contexts/installation/application/use-cases/support/installation-history-export";
 
 type Documented = { type?: unknown; schema?: unknown; content?: unknown };
 
 const DOCUMENTED: Array<[string, object, string]> = [
-  ...["dashboard", "options", "list", "detail"].map((name) => ["InstallerPortalController", InstallerPortalController.prototype, name] as [string, object, string]),
+  ...["dashboard", "options", "list", "exportHistory", "detail"].map((name) => ["InstallerPortalController", InstallerPortalController.prototype, name] as [string, object, string]),
   ...["accept", "reject", "start", "setChecklistItem", "saveNotes", "reportIssue", "complete"].map(
     (name) => ["InstallerJobWorkController", InstallerJobWorkController.prototype, name] as [string, object, string],
   ),
@@ -49,5 +50,16 @@ describe("Installer portal OpenAPI contract", () => {
     expect(responses(InstallerJobWorkController.prototype, "reject")["201"]?.type).toBe(RejectedOfferResponse);
     expect(hasBody(responses(InstallerJobWorkController.prototype, "reject")["400"])).toBe(true);
     expect(hasBody(responses(InstallerJobWorkController.prototype, "reject")["409"])).toBe(true);
+  });
+
+  it("documents the history export as CSV with its cap, columns and 400", () => {
+    const exported = handler(InstallerPortalController.prototype, "exportHistory");
+    const operation = Reflect.getMetadata(DECORATORS.API_OPERATION, exported) as { description: string };
+    const documented = responses(InstallerPortalController.prototype, "exportHistory");
+
+    expect(Reflect.getMetadata(DECORATORS.API_PRODUCES, exported)).toEqual(["text/csv"]);
+    expect(operation.description).toContain(`capped at ${HISTORY_EXPORT_CAP} rows`);
+    expect((documented["200"] as { description?: string }).description).toContain("Completion Date, Completion Time, Status");
+    expect(hasBody(documented["400"])).toBe(true);
   });
 });

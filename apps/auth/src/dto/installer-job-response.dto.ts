@@ -1,9 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { StandardApiResponse } from '@shared/openapi';
 import { INSTALLATION_ORDER_STATUSES, JOB_EVENT_STAMPS } from '@auth/installation';
 import {
   FleetDeviceSchema,
-  InstallerJobListItemSchema,
+  JobListItemSchema,
   SLOT_END,
   SLOT_START,
 } from './installation-response.dto';
@@ -73,21 +73,29 @@ export class InstallerDashboardResponse extends StandardApiResponse<InstallerDas
   @ApiProperty({ type: InstallerDashboardSchema }) data!: InstallerDashboardSchema;
 }
 
-export class JobStatusCountsSchema {
-  @ApiProperty() all!: number;
-  @ApiProperty() unassigned!: number;
-  @ApiProperty() assigned!: number;
+export class InstallerJobCountersSchema {
+  @ApiProperty({ description: 'Every job of the installer except offers (assigned); overdue included.' }) total!: number;
   @ApiProperty() scheduled!: number;
-  @ApiProperty() in_progress!: number;
+  @ApiProperty() inProgress!: number;
   @ApiProperty() overdue!: number;
-  @ApiProperty() issue_reported!: number;
   @ApiProperty() completed!: number;
   @ApiProperty() cancelled!: number;
+  @ApiProperty() issueReported!: number;
+  @ApiProperty({ description: 'Internal status; a rejected or unassigned job has no installer, so 0 in practice.' })
+  unassigned!: number;
+}
+
+export class InstallerJobListItemSchema extends OmitType(JobListItemSchema, ['customer', 'location'] as const) {
+  @ApiProperty({ example: 'Eko Haulage Ltd', description: 'Organisation name, empty when the application is gone.' })
+  companyName!: string;
+  @ApiProperty({ example: '3 Creek Road, Apapa' }) address!: string;
+  @ApiProperty({ example: 'Apapa' }) city!: string;
+  @ApiProperty({ example: 'Lagos' }) state!: string;
 }
 
 export class InstallerJobPageSchema {
-  @ApiProperty({ type: JobStatusCountsSchema, description: 'Across every status, whatever the filters.' })
-  countsByStatus!: JobStatusCountsSchema;
+  @ApiProperty({ type: InstallerJobCountersSchema, description: 'Across every status, whatever the filters.' })
+  counters!: InstallerJobCountersSchema;
   @ApiProperty({ type: [InstallerJobListItemSchema] }) items!: InstallerJobListItemSchema[];
   @ApiProperty({ example: 1 }) page!: number;
   @ApiProperty({ example: 20 }) limit!: number;

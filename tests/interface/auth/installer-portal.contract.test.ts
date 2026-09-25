@@ -96,11 +96,24 @@ describe('Installer portal over HTTP (auth)', () => {
 
     expect(dashboard.status).toBe(200);
     expect(dashboard.body.data.counters).toEqual({ total: 0, completed: 0, pending: 0, successRate: 0 });
-    expect(jobs.body.data).toMatchObject({ items: [], total: 0, countsByStatus: { all: 0 } });
+    expect(jobs.body.data).toMatchObject({ items: [], total: 0, counters: { total: 0, scheduled: 0, issueReported: 0 } });
     expect(missing.status).toBe(404);
     expect(edited.status).toBe(200);
     expect(edited.body.data.personal).toMatchObject({ firstName: 'Tunde', city: 'Ikeja', photoUrl: null });
     expect(me.body.fullName).toBe('Tunde Installer');
+  });
+
+  it('exports the history as CSV ahead of the job route, and refuses a bad time zone', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const csv = await http().get('/auth/installer/jobs/export?timezone=Europe/London').set(auth);
+    const refused = await http().get('/auth/installer/jobs/export?timezone=Mars/Olympus').set(auth);
+
+    expect(csv.status).toBe(200);
+    expect(csv.headers['content-type']).toMatch(/^text\/csv/);
+    expect(csv.headers['content-disposition']).toContain('installation-history.csv');
+    expect(csv.text).toBe('Company Name,Job Number,Site Contact Name,Contact Phone,Installation Location,Devices,Vehicles,Completion Date,Completion Time,Status');
+    expect(refused.status).toBe(400);
+    expect(refused.body.message).toBe('timezone must be an IANA time zone, such as Africa/Lagos');
   });
 
   it('serves the job options, and answers work on a missing job with 404', async () => {

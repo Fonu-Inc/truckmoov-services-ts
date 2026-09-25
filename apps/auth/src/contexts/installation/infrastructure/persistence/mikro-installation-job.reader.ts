@@ -72,11 +72,12 @@ function whereOf(filters: JobFilters): { sql: string; params: unknown[] } {
   if (q) {
     const pattern = escapeLike(q);
     add(
-      `(o.order_number ilike ? or app.organization_name ilike ? or o.city ilike ? or o.state ilike ?
+      `(o.order_number ilike ? or app.organization_name ilike ? or o.address_line ilike ? or o.city ilike ?
+        or o.state ilike ?
         or exists (select 1 from installation_device_assignments sa
                      join onboarding_application_vehicles sv on sv.id = sa.vehicle_id
                     where sa.order_id = o.id and sv.registration_number ilike ?))`,
-      pattern, pattern, pattern, pattern, pattern,
+      ...Array(6).fill(pattern),
     );
   }
 

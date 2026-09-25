@@ -7,7 +7,7 @@ export type JobFilters = {
   orderId?: string;
   installerId?: string;
   statuses?: readonly InstallationOrderStatus[];
-  /** Job number, customer, any vehicle registration, city or state. */
+  /** Contained in the job number, customer, address, city, state or a registration on the job's units. */
   search?: string;
   /** Stored calendar dates: [from, before). */
   scheduledFrom?: Date;

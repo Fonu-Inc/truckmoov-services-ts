@@ -9,17 +9,35 @@ import type {
 
 export type StatusCounts = Record<InstallationOrderStatus, number>;
 
-/** Offers are not the installer's jobs until accepted, so they count nowhere here. */
-export function dashboardCounters(counts: StatusCounts) {
-  const total = Object.entries(counts)
+/** Offers are not the installer's jobs until accepted, so they count toward no total. */
+function withoutOffers(counts: StatusCounts): number {
+  return Object.entries(counts)
     .filter(([status]) => status !== 'assigned')
     .reduce((sum, [, count]) => sum + count, 0);
+}
+
+export function dashboardCounters(counts: StatusCounts) {
+  const total = withoutOffers(counts);
   const completed = counts.completed;
   return {
     total,
     completed,
     pending: total - completed - counts.cancelled,
     successRate: total === 0 ? 0 : Math.round((completed / total) * 100),
+  };
+}
+
+/** The Installation Jobs counters; unassigned stays while the internal status is still exposed. */
+export function jobsPageCounters(counts: StatusCounts) {
+  return {
+    total: withoutOffers(counts),
+    scheduled: counts.scheduled,
+    inProgress: counts.in_progress,
+    overdue: counts.overdue,
+    completed: counts.completed,
+    cancelled: counts.cancelled,
+    issueReported: counts.issue_reported,
+    unassigned: counts.unassigned,
   };
 }
 

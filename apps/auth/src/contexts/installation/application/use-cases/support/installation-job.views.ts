@@ -82,6 +82,12 @@ export function toJobListItem(row: JobRow, devices: DeviceIndex) {
   };
 }
 
+/** A row on the installer's Installation Jobs tabs. */
+export function toInstallerJobItem(row: JobRow, devices: DeviceIndex) {
+  const { customer, location, ...item } = toJobListItem(row, devices);
+  return { ...item, companyName: customer, address: row.order.addressLine, city: location.city, state: location.state };
+}
+
 /** A dashboard card: an offer, today's job or an upcoming one. */
 export function toDashboardJob(row: JobRow) {
   const { order } = row;

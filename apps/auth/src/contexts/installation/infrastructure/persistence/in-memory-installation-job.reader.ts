@@ -61,7 +61,7 @@ function searched(candidate: Candidate, search?: string): boolean {
   const q = search?.trim().toLowerCase();
   if (!q) return true;
   const { order } = candidate;
-  return [order.orderNumber, candidate.customerName, order.city, order.state, ...candidate.registrations]
+  return [order.orderNumber, candidate.customerName, order.addressLine, order.city, order.state, ...candidate.registrations]
     .some((field) => field.toLowerCase().includes(q));
 }
 
