@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { NIGERIAN_STATES } from '../contexts/onboarding/domain/onboarding-application.validation';
 import {
   INSTALLATION_TIME_SLOTS,
@@ -7,6 +8,12 @@ import {
   MAX_REJECTION_REASON_LENGTH,
   MIN_REJECTION_REASON_LENGTH,
 } from '../contexts/installation/domain/installation-order';
+import {
+  DISPLAY_TIME_RANGES,
+  INSTALLER_SET_AVAILABILITIES,
+  PREFERRED_PERIODS,
+} from '../contexts/installation/domain/installer-preferences';
+import { ChangeSystemPasswordDto } from './change-system-password.dto';
 import {
   INSTALLER_PRIORITY_LABELS,
   INSTALLER_SUPPORT_CATEGORIES,
@@ -49,31 +56,79 @@ export class UpdateInstallerProfileDto {
 }
 
 export class UpdateInstallerNotificationPreferencesDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'New installation offers (job_assigned)' })
   @IsOptional()
   @IsBoolean()
-  newJobAssigned?: boolean;
+  newInstallationOffers?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Schedule reminders (job_reminder)' })
   @IsOptional()
   @IsBoolean()
   scheduleReminders?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Job and issue updates (job_updated, job_cancelled, issue_resolved, device_verified, device_verification_failed)' })
   @IsOptional()
   @IsBoolean()
-  jobStatusUpdates?: boolean;
+  jobAndIssueUpdates?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Support ticket updates (support_ticket_updated)' })
   @IsOptional()
   @IsBoolean()
-  smsAlerts?: boolean;
+  supportTicketUpdates?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Send each notice by email too' })
   @IsOptional()
   @IsBoolean()
   emailAlerts?: boolean;
+
+  @ApiPropertyOptional({ description: 'Write each notice to the notification bell' })
+  @IsOptional()
+  @IsBoolean()
+  inPlatformAlerts?: boolean;
 }
+
+export class UpdateInstallerDisplayPreferencesDto {
+  @ApiPropertyOptional({ example: 'Africa/Lagos', description: 'IANA time zone name' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
+  @ApiPropertyOptional({ enum: DISPLAY_TIME_RANGES })
+  @IsOptional()
+  @IsIn(DISPLAY_TIME_RANGES)
+  defaultTimeRange?: string;
+}
+
+export class WorkingHoursDto {
+  @ApiProperty({ example: '08:00', description: 'HH:MM, 24-hour, Lagos time' })
+  @IsString()
+  start!: string;
+
+  @ApiProperty({ example: '18:00', description: 'HH:MM, 24-hour, Lagos time; after start' })
+  @IsString()
+  end!: string;
+}
+
+export class UpdateInstallerWorkPreferencesDto {
+  @ApiPropertyOptional({ enum: INSTALLER_SET_AVAILABILITIES })
+  @IsOptional()
+  @IsIn(INSTALLER_SET_AVAILABILITIES)
+  availability?: string;
+
+  @ApiPropertyOptional({ type: WorkingHoursDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => WorkingHoursDto)
+  workingHours?: WorkingHoursDto;
+
+  @ApiPropertyOptional({ enum: PREFERRED_PERIODS })
+  @IsOptional()
+  @IsIn(PREFERRED_PERIODS)
+  preferredPeriods?: string;
+}
+
+export class ChangeInstallerPasswordDto extends ChangeSystemPasswordDto {}
 
 export class BindUnitDeviceDto {
   @ApiProperty({ description: 'The fleet device fitted as this unit' })

@@ -66,7 +66,7 @@ export class InstallerAssignmentService {
     load: Map<string, number>,
     excluded: Set<string>,
   ): Promise<Assignment | null> {
-    let installer = chooseInstaller(candidates, order.state, load, excluded);
+    let installer = chooseInstaller(candidates, order, load, excluded);
     while (installer) {
       const assigned = assignOrder(order, installer.id, now);
       const outcome = await this.orders.assignIfRoom(assigned, installer.maxActiveJobs);
@@ -77,7 +77,7 @@ export class InstallerAssignmentService {
       }
       if (outcome === 'declined') excluded.add(installer.id);
       else load.set(installer.id, installer.maxActiveJobs);
-      installer = chooseInstaller(candidates, order.state, load, excluded);
+      installer = chooseInstaller(candidates, order, load, excluded);
     }
     return null;
   }

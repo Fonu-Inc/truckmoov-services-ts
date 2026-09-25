@@ -6,6 +6,7 @@ import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
 import { SupportTicketNotifierService } from './support-ticket-notifier.service';
+import { InstallerNotifier } from './contexts/installation/application/services/installer-notifier.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class SendSystemSupportMessageUseCase {
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
     @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
+    @Inject(InstallerNotifier) private readonly installerNotifier: InstallerNotifier,
   ) {}
 
   async execute(
@@ -53,6 +55,7 @@ export class SendSystemSupportMessageUseCase {
     // happened — that would leak that a note exists without showing its content.
     if (!isInternal) {
       await this.notifier.notifyReplied(ticket.tenantId, ticketId);
+      await this.installerNotifier.notifyTicket(ticket, { messageId: newMessage.id }, now);
     }
 
     return {

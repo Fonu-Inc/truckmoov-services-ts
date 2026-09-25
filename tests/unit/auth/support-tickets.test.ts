@@ -33,6 +33,7 @@ import type { ForbiddenError } from "../../../apps/auth/src/contexts/auth/sessio
 
 const TENANT = "tenant-a";
 const OTHER_TENANT = "tenant-b";
+const NO_INSTALLER_NOTICES = { notifyTicket: async () => undefined } as never;
 
 function fakeAuth(tenantId: string, role = "FLEET_ADMIN") {
   const user = { id: "user-1", email: "ops@tenant-a.com", role, tenantId, accountStatus: "active" };
@@ -508,7 +509,7 @@ describe("Notifying the tenant of platform-side changes", () => {
       },
     } as never;
 
-    const useCase = new SendSystemSupportMessageUseCase(tokenService, userRepository, kit.tickets, kit.messages, notifier);
+    const useCase = new SendSystemSupportMessageUseCase(tokenService, userRepository, kit.tickets, kit.messages, notifier, NO_INSTALLER_NOTICES);
     await useCase.execute("token", ticket.id, "we are on it", false);
 
     expect(notified).toEqual([{ tenantId: TENANT, ticketId: ticket.id }]);
@@ -521,7 +522,7 @@ describe("Notifying the tenant of platform-side changes", () => {
     const notified: unknown[] = [];
     const notifier = { notifyReplied: async () => notified.push(1) } as never;
 
-    const useCase = new SendSystemSupportMessageUseCase(tokenService, userRepository, kit.tickets, kit.messages, notifier);
+    const useCase = new SendSystemSupportMessageUseCase(tokenService, userRepository, kit.tickets, kit.messages, notifier, NO_INSTALLER_NOTICES);
     // An internal note must not leak that a note exists, or its content, to the tenant.
     await useCase.execute("token", ticket.id, "checking with the SIM vendor", true);
 
@@ -539,7 +540,7 @@ describe("Notifying the tenant of platform-side changes", () => {
       },
     } as never;
 
-    const useCase = new UpdateSystemSupportTicketStatusUseCase(tokenService, userRepository, kit.tickets, notifier);
+    const useCase = new UpdateSystemSupportTicketStatusUseCase(tokenService, userRepository, kit.tickets, notifier, NO_INSTALLER_NOTICES);
     await useCase.execute("token", ticket.id, "resolved");
 
     expect(notified).toEqual([{ tenantId: TENANT, ticketId: ticket.id, status: "resolved" }]);
@@ -548,7 +549,7 @@ describe("Notifying the tenant of platform-side changes", () => {
   function statusUseCase(kit: ReturnType<typeof harness>) {
     const { tokenService, userRepository } = adminFakeAuth();
     const notifier = { notifyStatusChanged: async () => undefined } as never;
-    return new UpdateSystemSupportTicketStatusUseCase(tokenService, userRepository, kit.tickets, notifier);
+    return new UpdateSystemSupportTicketStatusUseCase(tokenService, userRepository, kit.tickets, notifier, NO_INSTALLER_NOTICES);
   }
 
   it("refuses escalated on the status route, which cannot record the party", async () => {

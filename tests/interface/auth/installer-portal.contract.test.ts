@@ -193,6 +193,46 @@ describe('Installer portal over HTTP (auth)', () => {
     expect(edit.status).toBe(404);
   });
 
+  it('reads and changes its settings: profile without capabilities, display, work and notification preferences', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const profile = await http().get('/auth/installer/profile').set(auth);
+    const display = await http().patch('/auth/installer/preferences/display').set(auth).send({ timezone: 'Europe/London' });
+    const badZone = await http().patch('/auth/installer/preferences/display').set(auth).send({ timezone: 'Mars/Olympus' });
+    const work = await http().patch('/auth/installer/preferences/work').set(auth).send({ availability: 'unavailable', preferredPeriods: 'weekdays' });
+    const badHours = await http().patch('/auth/installer/preferences/work').set(auth).send({ workingHours: { start: '18:00', end: '08:00' } });
+    const toggles = await http().patch('/auth/installer/preferences/notifications').set(auth).send({ inPlatformAlerts: false });
+    const pool = await http().get(`/auth/system/installers/${installerId}`).set('Authorization', `Bearer ${staffToken}`);
+
+    expect(profile.status).toBe(200);
+    expect(profile.body.data.record).toEqual({ code: expect.any(String), status: 'active', serviceAreas: ['Lagos'], createdAt: expect.any(String) });
+    expect(display.body.data).toEqual({ timezone: 'Europe/London', defaultTimeRange: 'last_7_days' });
+    expect(badZone.status).toBe(400);
+    expect(work.body.data).toEqual({
+      availability: 'unavailable', workingHours: { start: '08:00', end: '18:00' }, preferredPeriods: 'weekdays', serviceAreas: ['Lagos'],
+    });
+    expect(badHours.status).toBe(400);
+    expect(toggles.body.data).toMatchObject({ inPlatformAlerts: false, emailAlerts: true, supportTicketUpdates: true });
+    expect(pool.body.data.availability).toBe('unavailable');
+  });
+
+  it('changes its password: a wrong current one answers 401 like the system route, a right one returns a new session', async () => {
+    const auth = { Authorization: `Bearer ${installerToken}` };
+    const wrong = await http().post('/auth/installer/password').set(auth).send({ currentPassword: 'NotMine123!', newPassword: 'Installer456!' });
+    const changed = await http().post('/auth/installer/password').set(auth).send({ currentPassword: password, newPassword: 'Installer456!' });
+    installerToken = changed.body.data?.accessToken ?? installerToken;
+    const back = await http()
+      .post('/auth/installer/password')
+      .set('Authorization', `Bearer ${installerToken}`)
+      .send({ currentPassword: 'Installer456!', newPassword: password });
+    installerToken = back.body.data?.accessToken ?? installerToken;
+
+    expect(wrong.status).toBe(401);
+    expect(wrong.body).toEqual({ statusCode: 401, message: 'Invalid credentials', error: 'Unauthorized' });
+    expect(changed.status).toBe(201);
+    expect(changed.body.data).toMatchObject({ accessToken: expect.any(String), refreshToken: expect.any(String), user: { role: 'INSTALLER' } });
+    expect(back.status).toBe(201);
+  });
+
   it('cannot sign in once suspended', async () => {
     const suspended = await http().post(`/auth/system/installers/${installerId}/suspend`).set('Authorization', `Bearer ${staffToken}`);
     const login = await http().post('/auth/installer/login').send({ email, password });

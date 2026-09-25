@@ -17,7 +17,16 @@ export {
   type InstallationOrderStatus,
   type InstallationTimeSlot,
 } from "./domain/installation-order";
-export { chooseInstaller } from "./domain/assign-installer";
+export { chooseInstaller, type Booking } from "./domain/assign-installer";
+export {
+  DEFAULT_DISPLAY_PREFERENCES,
+  DEFAULT_WORK_PREFERENCES,
+  DISPLAY_TIME_RANGES,
+  INSTALLER_SET_AVAILABILITIES,
+  PREFERRED_PERIODS,
+  type InstallerDisplayPreferences,
+  type InstallerWorkPreferences,
+} from "./domain/installer-preferences";
 export {
   INSTALLER_CAPABILITIES,
   INSTALLER_STATUSES,
@@ -136,6 +145,8 @@ export {
   type JobScope,
 } from "./application/use-cases/installer-jobs.use-cases";
 export { InstallerProfileUseCases } from "./application/use-cases/installer-profile.use-cases";
+export { ChangeInstallerPasswordUseCase } from "./application/use-cases/change-installer-password.use-case";
+export { InstallerPreferencesUseCases } from "./application/use-cases/installer-preferences.use-cases";
 export { InstallerJobActionsUseCases } from "./application/use-cases/installer-job-actions.use-cases";
 export { RejectJobOfferUseCase } from "./application/use-cases/reject-job-offer.use-case";
 export { InstallerJobRecordsUseCases } from "./application/use-cases/installer-job-records.use-cases";

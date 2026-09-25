@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { ForbiddenError } from './contexts/auth/session';
+import { ForbiddenError, InvalidCredentialsError } from './contexts/auth/session';
 import { InvalidAccessTokenError } from './contexts/auth/session/domain/errors/invalid-access-token.error';
 import { OnboardingValidationError } from './contexts/onboarding/domain/onboarding-application.validation';
 import { InvalidStageTransitionError } from './contexts/onboarding/domain/onboarding-stage';
@@ -65,6 +65,7 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [FleetUnavailableError, ServiceUnavailableException],
   [ForbiddenError, ForbiddenException],
   [InvalidAccessTokenError, UnauthorizedException],
+  [InvalidCredentialsError, UnauthorizedException],
 ];
 
 /** Installation domain errors as HTTP answers. */

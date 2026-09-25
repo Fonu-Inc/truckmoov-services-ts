@@ -66,6 +66,8 @@ function toStoredInstaller(r: InstallerRecord): StoredInstaller {
     capabilities: (r.capabilities ?? []) as StoredInstaller['capabilities'],
     photoKey: r.photoKey ?? null,
     notificationPreferences: (r.notificationPreferences ?? null) as StoredInstaller['notificationPreferences'],
+    displayPreferences: (r.displayPreferences ?? null) as StoredInstaller['displayPreferences'],
+    workPreferences: (r.workPreferences ?? null) as StoredInstaller['workPreferences'],
     status: r.status as InstallerStatus,
     maxActiveJobs: r.maxActiveJobs,
     lastActivityAt: r.lastActivityAt ?? null,

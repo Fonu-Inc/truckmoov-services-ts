@@ -19,6 +19,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProduces,
@@ -41,7 +42,8 @@ import { InstallerProfileUseCases } from './contexts/installation/application/us
 import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
 import { UpdateInstallerProfileDto } from './dto/installer-portal.dto';
 import { bearer, jobStatusFilter, mapped, numeric, ok } from './installation-http';
-import { InstallerErrors, JOB_NOT_FOUND } from './installer-openapi';
+import { InstallerErrors, InvalidInstallerBody, JOB_NOT_FOUND } from './installer-openapi';
+import { InstallerProfileResponse } from './dto/installer-settings-response.dto';
 import { ApiErrorResponse } from './dto/api-error.dto';
 import {
   InstallerDashboardResponse,
@@ -52,6 +54,8 @@ import {
 
 const SCOPES: readonly JobScope[] = ['active', 'history'];
 const SEARCH_FIELDS = 'Contained in the job number (FL-2201 or 2201), company name, address, city, state or a vehicle registration on the job';
+const PROFILE_ERRORS =
+  '"firstName must be between 1 and 60 characters" (likewise lastName), "Phone number must be a valid Nigerian mobile number", "State must be a Nigerian state or FCT", or "City must not contain digits or symbols".';
 const DATE_ERRORS = '"completedFrom must be a date (YYYY-MM-DD)" (likewise completedTo)';
 
 type CsvResponse = { setHeader(name: string, value: string): void };
@@ -168,12 +172,17 @@ export class InstallerPortalController {
 
   @Get('profile')
   @ApiOperation({ summary: 'Personal details and the read-only installer record' })
+  @ApiOkResponse({ description: 'The profile', type: InstallerProfileResponse })
+  @InstallerErrors()
   async getProfile(@Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.profile.get(bearer(authorization))));
   }
 
   @Patch('profile')
   @ApiOperation({ summary: 'Update name, phone, state and city' })
+  @ApiOkResponse({ description: 'The updated profile', type: InstallerProfileResponse })
+  @InvalidInstallerBody(PROFILE_ERRORS)
+  @InstallerErrors()
   async updateProfile(@Body() body: UpdateInstallerProfileDto, @Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.profile.update(bearer(authorization), body)), 'Profile updated');
   }
@@ -183,6 +192,10 @@ export class InstallerPortalController {
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } } })
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_INSTALLER_PHOTO_BYTES)))
+  @ApiCreatedResponse({ description: 'The profile with the new photo', type: InstallerProfileResponse })
+  @ApiErrorResponse(400, '"Missing photo", "Photo must be 2MB or smaller", "Photo must be a JPG or PNG image", or "Photo rejected: <reason>".')
+  @ApiErrorResponse(413, 'The photo is over 2 MB: { statusCode: 413, message: "File too large", error: "Payload Too Large" }')
+  @InstallerErrors()
   async uploadPhoto(@UploadedFile() file?: UploadedDocumentFile, @Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.profile.uploadPhoto(bearer(authorization), file)), 'Photo updated');
   }

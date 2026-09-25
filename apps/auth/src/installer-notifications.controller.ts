@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Portals, SignedIn } from '@shared/access';
 import { InstallerNotificationsUseCases } from './contexts/installation/application/use-cases/installer-notifications.use-cases';
 import { UpdateInstallerNotificationPreferencesDto } from './dto/installer-portal.dto';
+import { InstallerNotificationPreferencesResponse } from './dto/installer-settings-response.dto';
 import { bearer, mapped, numeric, ok } from './installation-http';
+import { InstallerErrors, InvalidInstallerBody } from './installer-openapi';
 
 function flag(value?: string): boolean {
   return value === 'true' || value === '1';
@@ -46,13 +48,21 @@ export class InstallerNotificationsController {
   }
 
   @Get('preferences/notifications')
-  @ApiOperation({ summary: 'The five notification toggles; each defaults to on' })
+  @ApiOperation({ summary: 'The four type toggles and the email and in-platform channel toggles; each defaults to on' })
+  @ApiOkResponse({ description: 'The notification preferences', type: InstallerNotificationPreferencesResponse })
+  @InstallerErrors()
   async preferences(@Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.notifications.preferences(bearer(authorization))));
   }
 
   @Patch('preferences/notifications')
-  @ApiOperation({ summary: 'Change any of the notification toggles' })
+  @ApiOperation({
+    summary: 'Change any of the notification toggles',
+    description: 'A notice goes out only if its type toggle is on; then to the inbox only with inPlatformAlerts, by email only with emailAlerts. No SMS.',
+  })
+  @ApiOkResponse({ description: 'The notification preferences', type: InstallerNotificationPreferencesResponse })
+  @InvalidInstallerBody('"<toggle> must be true or false", or "Nothing to change" for an empty body.')
+  @InstallerErrors()
   async updatePreferences(
     @Body() body: UpdateInstallerNotificationPreferencesDto,
     @Headers('authorization') authorization?: string,

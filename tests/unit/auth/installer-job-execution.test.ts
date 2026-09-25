@@ -36,7 +36,8 @@ function installer(id: string): StoredInstaller {
   return {
     id, userId: `user-${id}`, code: `INS-${id}`, firstName: id, lastName: "Installer", fullName: `${id} Installer`,
     email: `${id}@fieldops.ng`, phoneNumber: "+2348031234567", team: "", state: "Lagos", city: "Ikeja", serviceAreas: ["Lagos"],
-    capabilities: ["device_installation"], photoKey: null, notificationPreferences: null, status: "active", maxActiveJobs: 3,
+    capabilities: ["device_installation"], photoKey: null, notificationPreferences: null, displayPreferences: null, workPreferences: null,
+    status: "active", maxActiveJobs: 3,
     lastActivityAt: null, createdAt: NOW, updatedAt: NOW,
   };
 }

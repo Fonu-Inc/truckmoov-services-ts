@@ -3,6 +3,7 @@ import type {
   InstallerNotificationPreferences,
   InstallerStatus,
 } from './installer';
+import type { InstallerDisplayPreferences, InstallerWorkPreferences } from './installer-preferences';
 
 export type StoredInstaller = {
   id: string;
@@ -23,6 +24,9 @@ export type StoredInstaller = {
   capabilities: InstallerCapability[];
   photoKey: string | null;
   notificationPreferences: InstallerNotificationPreferences | null;
+  displayPreferences: InstallerDisplayPreferences | null;
+  /** The installer's own availability, working hours and days; null until first saved. */
+  workPreferences: InstallerWorkPreferences | null;
   status: InstallerStatus;
   maxActiveJobs: number;
   lastActivityAt: Date | null;

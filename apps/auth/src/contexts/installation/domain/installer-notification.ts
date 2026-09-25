@@ -1,5 +1,6 @@
 import type { InstallationTimeSlot } from './installation-order';
 import type { InstallerNotificationPreferences } from './installer';
+import { INSTALLER_TICKET_STATUS_LABELS } from './installer-support';
 
 export const INSTALLER_NOTIFICATION_TYPES = [
   'job_assigned',
@@ -9,34 +10,51 @@ export const INSTALLER_NOTIFICATION_TYPES = [
   'issue_resolved',
   'device_verified',
   'device_verification_failed',
+  'support_ticket_updated',
 ] as const;
 export type InstallerNotificationType = (typeof INSTALLER_NOTIFICATION_TYPES)[number];
+export type JobNotificationType = Exclude<InstallerNotificationType, 'support_ticket_updated'>;
 
 export type NotificationToggle = keyof InstallerNotificationPreferences;
+type TypeToggle = Exclude<NotificationToggle, 'emailAlerts' | 'inPlatformAlerts'>;
+
 export const NOTIFICATION_TOGGLES: readonly NotificationToggle[] = [
-  'newJobAssigned',
+  'newInstallationOffers',
   'scheduleReminders',
-  'jobStatusUpdates',
-  'smsAlerts',
+  'jobAndIssueUpdates',
+  'supportTicketUpdates',
   'emailAlerts',
+  'inPlatformAlerts',
 ];
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: InstallerNotificationPreferences = {
-  newJobAssigned: true,
+  newInstallationOffers: true,
   scheduleReminders: true,
-  jobStatusUpdates: true,
-  smsAlerts: true,
+  jobAndIssueUpdates: true,
+  supportTicketUpdates: true,
   emailAlerts: true,
+  inPlatformAlerts: true,
 };
 
+const TYPE_TOGGLES: Record<InstallerNotificationType, TypeToggle> = {
+  job_assigned: 'newInstallationOffers',
+  job_reminder: 'scheduleReminders',
+  job_updated: 'jobAndIssueUpdates',
+  job_cancelled: 'jobAndIssueUpdates',
+  issue_resolved: 'jobAndIssueUpdates',
+  device_verified: 'jobAndIssueUpdates',
+  device_verification_failed: 'jobAndIssueUpdates',
+  support_ticket_updated: 'supportTicketUpdates',
+};
+
+/** Known toggles only, each defaulting to on. */
 export function preferencesOf(stored: Partial<InstallerNotificationPreferences> | null): InstallerNotificationPreferences {
-  return { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(stored ?? {}) };
+  const entries = NOTIFICATION_TOGGLES.map((toggle) => [toggle, stored?.[toggle] ?? DEFAULT_NOTIFICATION_PREFERENCES[toggle]]);
+  return Object.fromEntries(entries) as InstallerNotificationPreferences;
 }
 
-export function typeToggle(type: InstallerNotificationType): NotificationToggle {
-  if (type === 'job_assigned') return 'newJobAssigned';
-  if (type === 'job_reminder') return 'scheduleReminders';
-  return 'jobStatusUpdates';
+export function typeToggle(type: InstallerNotificationType): TypeToggle {
+  return TYPE_TOGGLES[type];
 }
 
 export type NotifiedDevice = { manufacturer: string; model: string; imei: string };
@@ -65,7 +83,7 @@ function sentence(text: string | undefined): string {
   return (text ?? 'unknown reason').trim().replace(/\.+$/, '');
 }
 
-const COPY: Record<InstallerNotificationType, (facts: NotificationFacts) => NotificationCopy> = {
+const COPY: Record<JobNotificationType, (facts: NotificationFacts) => NotificationCopy> = {
   job_assigned: (f) => ({ title: 'New job assigned', body: `You have been assigned a new installation job (${f.jobNumber}).` }),
   job_updated: (f) => ({ title: 'Job updated', body: `Installation details for Job #${f.jobNumber} have been updated.` }),
   job_reminder: (f) => ({
@@ -87,8 +105,23 @@ const COPY: Record<InstallerNotificationType, (facts: NotificationFacts) => Noti
   }),
 };
 
-export function notificationCopy(type: InstallerNotificationType, facts: NotificationFacts): NotificationCopy {
+export function notificationCopy(type: JobNotificationType, facts: NotificationFacts): NotificationCopy {
   return COPY[type](facts);
+}
+
+/** What an admin did to an installer's ticket: moved it to a status, or replied with a message. */
+export type TicketChange = { status: string } | { messageId: string };
+
+export function ticketChangeKey(ticketId: string, change: TicketChange): string {
+  return 'status' in change ? `${ticketId}:status:${change.status}` : `${ticketId}:message:${change.messageId}`;
+}
+
+export function ticketUpdateCopy(displayId: string, change: TicketChange): NotificationCopy {
+  if ('messageId' in change) {
+    return { title: 'New support reply', body: `Support replied to your ticket ${displayId}.` };
+  }
+  const status = INSTALLER_TICKET_STATUS_LABELS[change.status] ?? change.status;
+  return { title: 'Support ticket updated', body: `Your support ticket ${displayId} is now ${status}.` };
 }
 
 export class InstallerNotificationNotFoundError extends Error {

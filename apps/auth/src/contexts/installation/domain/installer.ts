@@ -1,3 +1,5 @@
+import { workPreferencesOf, type InstallerWorkPreferences } from './installer-preferences';
+
 export const INSTALLER_STATUSES = ['invited', 'active', 'suspended'] as const;
 export type InstallerStatus = (typeof INSTALLER_STATUSES)[number];
 
@@ -17,11 +19,12 @@ export type InstallerAvailability =
   | 'available';
 
 export type InstallerNotificationPreferences = {
-  newJobAssigned: boolean;
+  newInstallationOffers: boolean;
   scheduleReminders: boolean;
-  jobStatusUpdates: boolean;
-  smsAlerts: boolean;
+  jobAndIssueUpdates: boolean;
+  supportTicketUpdates: boolean;
   emailAlerts: boolean;
+  inPlatformAlerts: boolean;
 };
 
 export const DEFAULT_MAX_ACTIVE_JOBS = 3;
@@ -39,13 +42,14 @@ export function installerFullName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim();
 }
 
-/** Worked out from the account and its workload, never set by hand. */
+/** Worked out from the account, the installer's own availability and their workload. */
 export function availabilityOf(
-  installer: { status: InstallerStatus; maxActiveJobs: number },
+  installer: { status: InstallerStatus; maxActiveJobs: number; workPreferences: InstallerWorkPreferences | null },
   activeJobs: number,
 ): InstallerAvailability {
   if (installer.status === 'invited') return 'not_onboarded';
   if (installer.status === 'suspended') return 'unavailable';
+  if (workPreferencesOf(installer.workPreferences).availability === 'unavailable') return 'unavailable';
   return activeJobs >= installer.maxActiveJobs ? 'at_capacity' : 'available';
 }
 

@@ -157,6 +157,8 @@ import {
   InstallerNotificationsUseCases,
   NotifyDeviceVerificationUseCase,
   DeviceVerificationListener,
+  ChangeInstallerPasswordUseCase,
+  InstallerPreferencesUseCases,
 } from '@auth/installation';
 import { InstallationController } from './installation.controller';
 import { InstallerSupportController } from './installer-support.controller';
@@ -165,6 +167,7 @@ import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
 import { InstallerJobWorkController } from './installer-job-work.controller';
 import { InstallerNotificationsController } from './installer-notifications.controller';
+import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
@@ -726,6 +729,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerPortalController,
     InstallerJobWorkController,
     InstallerNotificationsController,
+    InstallerSettingsController,
     InstallerSupportController,
     InternalInstallersController,
     SystemInstallersController,
@@ -1632,6 +1636,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ManageInstallationOrdersUseCases,
     InstallerJobsUseCases,
     InstallerProfileUseCases,
+    ChangeInstallerPasswordUseCase,
+    InstallerPreferencesUseCases,
     InstallerJobActionsUseCases,
     RejectJobOfferUseCase,
     InstallerJobRecordsUseCases,

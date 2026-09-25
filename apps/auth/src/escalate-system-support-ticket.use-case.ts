@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 import { SupportTicketNotifierService } from './support-ticket-notifier.service';
+import { InstallerNotifier } from './contexts/installation/application/services/installer-notifier.service';
 
 const VALID_TARGETS = new Set(['fleetpro_internal', 'fonu_connectivity', 'vendor_installer']);
 
@@ -21,6 +22,7 @@ export class EscalateSystemSupportTicketUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
+    @Inject(InstallerNotifier) private readonly installerNotifier: InstallerNotifier,
   ) {}
 
   async execute(
@@ -41,6 +43,7 @@ export class EscalateSystemSupportTicketUseCase {
     if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
 
     const now = new Date();
+    const changed = ticket.status !== 'escalated';
     ticket.status = 'escalated';
     ticket.escalatedTo = escalatedTo;
     ticket.escalatedReferenceId = referenceId ?? null;
@@ -51,6 +54,7 @@ export class EscalateSystemSupportTicketUseCase {
 
     await this.ticketRepo.save(ticket);
     await this.notifier.notifyStatusChanged(ticket.tenantId, ticketId, 'escalated');
+    if (changed) await this.installerNotifier.notifyTicket(ticket, { status: 'escalated' }, now);
 
     return {
       status: true,

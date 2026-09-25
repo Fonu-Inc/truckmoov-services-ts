@@ -1,4 +1,6 @@
+import "reflect-metadata";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BadRequestException, ValidationPipe } from "@nestjs/common";
 import {
   AdminJobChangesUseCases,
   DeviceVerificationListener,
@@ -18,6 +20,13 @@ import type { StoredInstallationOrder } from "@auth/installation/domain/installa
 import type { InstallerNotificationType } from "@auth/installation/domain/installer-notification";
 import type { InstallerNotice } from "@auth/installation/application/services/installer-notifier.service";
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
+import { installerTicket } from "@auth/installation/application/use-cases/support/installer-ticket";
+import { UpdateInstallerNotificationPreferencesDto } from "../../../apps/auth/src/dto/installer-portal.dto";
+import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
+import { InMemorySupportMessageRepository } from "../../../apps/auth/src/in-memory-support-message.repository";
+import { UpdateSystemSupportTicketStatusUseCase } from "../../../apps/auth/src/update-system-support-ticket-status.use-case";
+import { SendSystemSupportMessageUseCase } from "../../../apps/auth/src/send-system-support-message.use-case";
+import { EscalateSystemSupportTicketUseCase } from "../../../apps/auth/src/escalate-system-support-ticket.use-case";
 import { InMemoryUserRepository } from "../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-user.repository";
 import { AccessResolver } from "../../../apps/auth/src/access-resolver";
 import { InMemoryTenantRoleRepository } from "../../../apps/auth/src/in-memory-tenant-role.repository";
@@ -31,7 +40,8 @@ function installer(id: string, overrides: Partial<StoredInstaller> = {}): Stored
   return {
     id, userId: `user-${id}`, code: `INS-${id}`, firstName: id, lastName: "Installer", fullName: `${id} Installer`,
     email: `${id}@fieldops.ng`, phoneNumber: "+2348031234567", team: "", state: "Lagos", city: "Ikeja", serviceAreas: ["Lagos"],
-    capabilities: ["device_installation"], photoKey: null, notificationPreferences: null, status: "active", maxActiveJobs: 3,
+    capabilities: ["device_installation"], photoKey: null, notificationPreferences: null, displayPreferences: null, workPreferences: null,
+    status: "active", maxActiveJobs: 3,
     lastActivityAt: null, createdAt: NOW, updatedAt: NOW, ...overrides,
   };
 }
@@ -79,69 +89,92 @@ function notice(type: InstallerNotificationType, overrides: Partial<InstallerNot
   return { type, order: order("1024"), stamp: "s1", ...overrides };
 }
 
+const TYPE_TOGGLES: Array<[InstallerNotificationType, string]> = [
+  ["job_assigned", "newInstallationOffers"],
+  ["job_reminder", "scheduleReminders"],
+  ["job_updated", "jobAndIssueUpdates"],
+  ["job_cancelled", "jobAndIssueUpdates"],
+  ["issue_resolved", "jobAndIssueUpdates"],
+  ["device_verified", "jobAndIssueUpdates"],
+  ["device_verification_failed", "jobAndIssueUpdates"],
+  ["support_ticket_updated", "supportTicketUpdates"],
+];
+
+function adaTicket() {
+  return installerTicket({
+    id: "tkt-1", ticketNumber: 1042, installer: installer("ada"), category: "configuration_setup", chip: null, priority: "medium",
+    description: "Commands time out", callbackPhone: null, job: null, aboutJob: false, now: NOW,
+  });
+}
+
+async function raise(h: Harness, type: InstallerNotificationType) {
+  if (type === "support_ticket_updated") await h.notifier.notifyTicket(adaTicket(), { status: "resolved" }, NOW);
+  else await h.notifier.notify(notice(type), NOW);
+}
+
+const channelsSent = (h: Harness) => h.publisher.notify.mock.calls.map((call) => (call as unknown as [{ channel: string }])[0].channel);
+
 describe("the notification preference matrix", () => {
   let h: Harness;
   beforeEach(async () => {
     h = await harness();
   });
 
-  it("writes the inbox row and sends SMS and email under the system tenant when every toggle is at its default", async () => {
+  it("writes the inbox row and emails under the system tenant, never SMS, when every toggle is at its default", async () => {
     await h.notifier.notify(notice("job_assigned"), NOW);
 
     expect(await rows(h)).toMatchObject([
       { type: "job_assigned", title: "New job assigned", body: "You have been assigned a new installation job (FL-1024).", orderId: "1024", jobNumber: null },
     ]);
-    expect(h.publisher.notify).toHaveBeenCalledWith({
-      tenantId: "system", notificationType: "job_assigned", channel: "sms", recipient: "+2348031234567",
-      content: "You have been assigned a new installation job (FL-1024).",
-    });
-    expect(h.publisher.notify).toHaveBeenCalledWith({
+    expect(h.publisher.notify.mock.calls).toEqual([[{
       tenantId: "system", notificationType: "job_assigned", channel: "email", recipient: "ada@fieldops.ng",
       content: "New job assigned\n\nYou have been assigned a new installation job (FL-1024).",
-    });
+    }]]);
   });
 
-  const typeToggles: Array<[string, InstallerNotificationType, InstallerNotificationType]> = [
-    ["newJobAssigned", "job_assigned", "job_updated"],
-    ["scheduleReminders", "job_reminder", "job_assigned"],
-    ["jobStatusUpdates", "job_cancelled", "job_reminder"],
-    ["jobStatusUpdates", "device_verified", "job_assigned"],
-  ];
-  for (const [toggle, silenced, unaffected] of typeToggles) {
-    it(`${toggle} off silences ${silenced} entirely but not ${unaffected}`, async () => {
-      await h.installers.save(installer("ada", { notificationPreferences: { [toggle]: false } as never }));
-
-      await h.notifier.notify(notice(silenced), NOW);
-      expect(await rows(h)).toEqual([]);
-      expect(h.publisher.notify).not.toHaveBeenCalled();
-
-      await h.notifier.notify(notice(unaffected), NOW);
-      expect((await rows(h)).map((row) => row.type)).toEqual([unaffected]);
-    });
-  }
-
-  const channels: Array<[Record<string, boolean>, string[]]> = [
-    [{ smsAlerts: false }, ["email"]],
-    [{ emailAlerts: false }, ["sms"]],
-    [{ smsAlerts: false, emailAlerts: false }, []],
-  ];
-  for (const [preferences, sent] of channels) {
-    it(`keeps the inbox row and sends only ${sent.join(" and ") || "nothing"} with ${JSON.stringify(preferences)}`, async () => {
+  const matrix = TYPE_TOGGLES.flatMap(([type, toggle]) =>
+    [true, false].flatMap((typeOn) =>
+      [[true, true], [true, false], [false, true], [false, false]].map(([inPlatformAlerts, emailAlerts]) => ({
+        type, toggle, typeOn, inPlatformAlerts, emailAlerts,
+      })),
+    ),
+  );
+  it.each(matrix)(
+    "$type with $toggle=$typeOn, inPlatformAlerts=$inPlatformAlerts, emailAlerts=$emailAlerts",
+    async ({ type, toggle, typeOn, inPlatformAlerts, emailAlerts }) => {
+      const preferences = { [toggle]: typeOn, inPlatformAlerts, emailAlerts };
       await h.installers.save(installer("ada", { notificationPreferences: preferences as never }));
 
-      await h.notifier.notify(notice("job_updated"), NOW);
+      await raise(h, type);
 
-      expect(await rows(h)).toHaveLength(1);
-      expect(h.publisher.notify.mock.calls.map((call) => (call as unknown as [{ channel: string }])[0].channel)).toEqual(sent);
-    });
-  }
+      expect((await rows(h)).map((row) => row.type)).toEqual(typeOn && inPlatformAlerts ? [type] : []);
+      expect(channelsSent(h)).toEqual(typeOn && emailAlerts ? ["email"] : []);
+    },
+  );
 
-  it("writes one row and sends once for the same notice twice", async () => {
+  it("a type toggle off silences only its own types", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { jobAndIssueUpdates: false } as never }));
+
+    for (const [type] of TYPE_TOGGLES) await raise(h, type);
+
+    expect((await rows(h)).map((row) => row.type).sort()).toEqual(["job_assigned", "job_reminder", "support_ticket_updated"]);
+  });
+
+  it("ignores a stored smsAlerts and sends no SMS even with it on", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { smsAlerts: true } as never }));
+
+    await h.notifier.notify(notice("job_updated"), NOW);
+
+    expect(channelsSent(h)).toEqual(["email"]);
+    expect(await h.notifications.preferences("user-ada")).not.toHaveProperty("smsAlerts");
+  });
+
+  it("writes one row and emails once for the same notice twice", async () => {
     await h.notifier.notify(notice("job_updated"), NOW);
     await h.notifier.notify(notice("job_updated"), NOW);
 
     expect(await rows(h)).toHaveLength(1);
-    expect(h.publisher.notify).toHaveBeenCalledTimes(2);
+    expect(h.publisher.notify).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing for a job without an installer", async () => {
@@ -157,6 +190,8 @@ describe("the notification preference matrix", () => {
     await expect(h.notifier.deliver(notice("job_updated"), NOW)).resolves.toBeUndefined();
     vi.spyOn(h.inbox, "add").mockRejectedValueOnce(new Error("db down"));
     await expect(h.notifier.deliver(notice("job_cancelled"), NOW)).rejects.toThrow("db down");
+    vi.spyOn(h.inbox, "add").mockRejectedValueOnce(new Error("db down"));
+    await expect(h.notifier.notifyTicket(adaTicket(), { status: "resolved" }, NOW)).resolves.toBeUndefined();
   });
 });
 
@@ -224,22 +259,112 @@ describe("notification preferences", () => {
 
   it("defaults every toggle to on", async () => {
     expect(await h.notifications.preferences("user-ada")).toEqual({
-      newJobAssigned: true, scheduleReminders: true, jobStatusUpdates: true, smsAlerts: true, emailAlerts: true,
+      newInstallationOffers: true, scheduleReminders: true, jobAndIssueUpdates: true,
+      supportTicketUpdates: true, emailAlerts: true, inPlatformAlerts: true,
     });
   });
 
   it("changes only the toggles sent", async () => {
-    await h.notifications.updatePreferences("user-ada", { smsAlerts: false });
-    const updated = await h.notifications.updatePreferences("user-ada", { scheduleReminders: false });
+    await h.notifications.updatePreferences("user-ada", { inPlatformAlerts: false });
+    const updated = await h.notifications.updatePreferences("user-ada", { scheduleReminders: false, supportTicketUpdates: false });
 
-    expect(updated).toEqual({ newJobAssigned: true, scheduleReminders: false, jobStatusUpdates: true, smsAlerts: false, emailAlerts: true });
+    expect(updated).toEqual({
+      newInstallationOffers: true, scheduleReminders: false, jobAndIssueUpdates: true,
+      supportTicketUpdates: false, emailAlerts: true, inPlatformAlerts: false,
+    });
     expect((await h.installers.findById("ada"))?.notificationPreferences).toEqual(updated);
-    expect(await h.notifications.preferences("user-bola")).toMatchObject({ smsAlerts: true });
+    expect(await h.notifications.preferences("user-bola")).toMatchObject({ inPlatformAlerts: true });
   });
 
-  it("refuses a non-boolean or an empty change", async () => {
-    await expect(h.notifications.updatePreferences("user-ada", { smsAlerts: "no" })).rejects.toBeInstanceOf(OnboardingValidationError);
+  it("refuses a non-boolean or an empty change, and the retired toggles change nothing", async () => {
+    await expect(h.notifications.updatePreferences("user-ada", { emailAlerts: "no" })).rejects.toBeInstanceOf(OnboardingValidationError);
     await expect(h.notifications.updatePreferences("user-ada", {})).rejects.toBeInstanceOf(OnboardingValidationError);
+    await expect(h.notifications.updatePreferences("user-ada", { smsAlerts: false } as never)).rejects.toBeInstanceOf(OnboardingValidationError);
+  });
+
+  it("refuses unknown and retired properties at the ValidationPipe", async () => {
+    const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+    const check = (body: object) => pipe.transform(body, { type: "body", metatype: UpdateInstallerNotificationPreferencesDto });
+
+    await expect(check({ inPlatformAlerts: false })).resolves.toMatchObject({ inPlatformAlerts: false });
+    for (const retired of ["smsAlerts", "newJobAssigned", "jobStatusUpdates", "somethingElse"]) {
+      await expect(check({ [retired]: true })).rejects.toBeInstanceOf(BadRequestException);
+    }
+    await expect(check({ emailAlerts: "yes" })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe("support ticket updates", () => {
+  let h: Harness;
+  let tickets: InMemorySupportTicketRepository;
+  let status: UpdateSystemSupportTicketStatusUseCase;
+  let reply: SendSystemSupportMessageUseCase;
+  let escalate: EscalateSystemSupportTicketUseCase;
+
+  beforeEach(async () => {
+    h = await harness();
+    tickets = new InMemorySupportTicketRepository();
+    const staff = { id: "staff-1", email: "staff@truckmoov.com", role: "SYSTEM_ADMIN", tenantId: "system", accountStatus: "active" };
+    const tokens = { resolveAccessToken: () => ({ id: "staff-1", tenantId: "system", role: "SYSTEM_ADMIN" }) } as never;
+    const users = { findById: async () => staff } as never;
+    const desk = { notifyStatusChanged: vi.fn(async () => {}), notifyReplied: vi.fn(async () => {}) } as never;
+    status = new UpdateSystemSupportTicketStatusUseCase(tokens, users, tickets, desk, h.notifier);
+    reply = new SendSystemSupportMessageUseCase(tokens, users, tickets, new InMemorySupportMessageRepository(), desk, h.notifier);
+    escalate = new EscalateSystemSupportTicketUseCase(tokens, users, tickets, desk, h.notifier);
+    await tickets.save(adaTicket());
+  });
+
+  it("tells the installer who raised it that an admin changed its status", async () => {
+    await status.execute("staff", "tkt-1", "in_progress");
+
+    expect(await rows(h)).toMatchObject([
+      { type: "support_ticket_updated", title: "Support ticket updated", body: "Your support ticket #tkt-1042 is now In Progress.", orderId: null },
+    ]);
+    expect(h.publisher.notify).toHaveBeenCalledWith(expect.objectContaining({ notificationType: "support_ticket_updated", channel: "email" }));
+  });
+
+  it("tells them on escalation and on each reply, but not on an internal note", async () => {
+    await escalate.execute("staff", "tkt-1", "vendor_installer");
+    await reply.execute("staff", "tkt-1", "We are on it", false);
+    await reply.execute("staff", "tkt-1", "Vendor is slow", true);
+    await reply.execute("staff", "tkt-1", "Fixed on our side", false);
+
+    expect((await rows(h)).map((row) => row.body)).toEqual([
+      "Support replied to your ticket #tkt-1042.",
+      "Support replied to your ticket #tkt-1042.",
+      "Your support ticket #tkt-1042 is now Escalated.",
+    ]);
+  });
+
+  it("is keyed per ticket and status: the same status set again adds nothing", async () => {
+    await status.execute("staff", "tkt-1", "resolved");
+    await status.execute("staff", "tkt-1", "resolved");
+    await status.execute("staff", "tkt-1", "open");
+    await h.notifier.notifyTicket((await tickets.findById("tkt-1"))!, { status: "open" }, NOW);
+
+    expect((await rows(h)).map((row) => row.body)).toEqual([
+      "Your support ticket #tkt-1042 is now Open.",
+      "Your support ticket #tkt-1042 is now Resolved.",
+    ]);
+  });
+
+  it("says nothing about a tenant's ticket", async () => {
+    await tickets.save({ ...adaTicket(), id: "tenant-ticket", tenantId: "tenant-1", reporterType: "tenant_user", reporterId: "user-1" });
+
+    await status.execute("staff", "tenant-ticket", "resolved");
+    await reply.execute("staff", "tenant-ticket", "Done", false);
+
+    expect(await rows(h)).toEqual([]);
+    expect(h.publisher.notify).not.toHaveBeenCalled();
+  });
+
+  it("stays silent with supportTicketUpdates off, and never fails the admin's change", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { supportTicketUpdates: false } as never }));
+    await status.execute("staff", "tkt-1", "resolved");
+    expect(await rows(h)).toEqual([]);
+
+    vi.spyOn(h.installers, "findById").mockRejectedValueOnce(new Error("db down"));
+    await expect(status.execute("staff", "tkt-1", "closed")).resolves.toMatchObject({ data: { status: "closed" } });
   });
 });
 
@@ -453,7 +578,7 @@ describe("fleet verification events", () => {
     await emit(envelope("verified"));
 
     expect(await rows(h)).toHaveLength(1);
-    expect(h.publisher.notify).toHaveBeenCalledTimes(2);
+    expect(h.publisher.notify).toHaveBeenCalledTimes(1);
   });
 
   it("ignores devices on no open job of the event's tenant", async () => {

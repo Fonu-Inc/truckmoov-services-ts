@@ -124,6 +124,20 @@ describe('platform admins managing installers', () => {
     expect((await h.admin.list('platform', { status: 'active' })).items.map((i) => i.id)).toEqual([tunde.id]);
   });
 
+  it('shows an installer who set themselves unavailable as unavailable, even with room for work', async () => {
+    const tunde = await h.admin.create('platform', NEW_INSTALLER);
+    const stored = (await h.installers.findById(tunde.id))!;
+    const work = { availability: 'unavailable', workingHours: { start: '08:00', end: '18:00' }, preferredPeriods: 'all_days' } as const;
+    await h.installers.save({ ...stored, workPreferences: work });
+    expect(await h.admin.get('platform', tunde.id)).toMatchObject({ status: 'invited', availability: 'not_onboarded' });
+
+    await h.installers.save({ ...stored, status: 'active', workPreferences: work });
+    expect(await h.admin.get('platform', tunde.id)).toMatchObject({ availability: 'unavailable' });
+
+    await h.installers.save({ ...stored, status: 'active', workPreferences: { ...work, availability: 'available' } });
+    expect(await h.admin.get('platform', tunde.id)).toMatchObject({ availability: 'available' });
+  });
+
   it('suspends an active installer: account disabled, sessions ended, access change published', async () => {
     const view = await h.admin.create('platform', NEW_INSTALLER);
     const invite = (await h.invites.findByEmail('tunde@example.com'))!;
@@ -223,7 +237,8 @@ describe('installer sign-in', () => {
     await installers.save({
       id: 'i1', userId: 'u1', code: 'INS-0001', firstName: 'Tunde', lastName: 'Akinwale', fullName: 'Tunde Akinwale',
       email: credentials.email, phoneNumber: '+2348031234567', team: '', state: null, city: null, serviceAreas: ['Lagos'],
-      capabilities: [], photoKey: null, notificationPreferences: null, status, maxActiveJobs: 3, lastActivityAt: null,
+      capabilities: [], photoKey: null, notificationPreferences: null, displayPreferences: null, workPreferences: null,
+      status, maxActiveJobs: 3, lastActivityAt: null,
       createdAt: new Date(), updatedAt: new Date(),
     });
     return installers;

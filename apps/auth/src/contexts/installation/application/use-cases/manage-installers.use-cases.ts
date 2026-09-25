@@ -117,6 +117,8 @@ export class ManageInstallersUseCases {
       city: null,
       photoKey: null,
       notificationPreferences: null,
+      displayPreferences: null,
+      workPreferences: null,
       status: 'invited',
       lastActivityAt: null,
       createdAt: now,

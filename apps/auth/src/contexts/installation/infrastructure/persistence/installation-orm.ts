@@ -18,6 +18,8 @@ export class InstallerRecord {
   capabilities!: string[];
   photoKey!: string | null;
   notificationPreferences!: Record<string, boolean> | null;
+  displayPreferences!: Record<string, unknown> | null;
+  workPreferences!: Record<string, unknown> | null;
   status!: string;
   maxActiveJobs!: number;
   lastActivityAt!: Date | null;
@@ -44,6 +46,8 @@ export const InstallerRecordSchema = new EntitySchema<InstallerRecord>({
     capabilities: { type: 'string[]', defaultRaw: "'{}'" },
     photoKey: { fieldName: 'photo_key', type: 'string', length: 512, nullable: true },
     notificationPreferences: { fieldName: 'notification_preferences', type: 'json', nullable: true },
+    displayPreferences: { fieldName: 'display_preferences', type: 'json', nullable: true },
+    workPreferences: { fieldName: 'work_preferences', type: 'json', nullable: true },
     status: { type: 'string', length: 16, default: 'invited', index: true },
     maxActiveJobs: { fieldName: 'max_active_jobs', type: 'number', default: 3 },
     lastActivityAt: { fieldName: 'last_activity_at', type: 'datetime', nullable: true },

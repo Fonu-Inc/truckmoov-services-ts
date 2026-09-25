@@ -3,7 +3,7 @@ import {
   validateNigerianPhone,
   validateState,
 } from '@auth/onboarding/domain/onboarding-application.validation';
-import { INSTALLER_CAPABILITIES, installerFullName } from '@auth/installation/domain/installer';
+import { installerFullName } from '@auth/installation/domain/installer';
 import type { StoredInstaller } from '@auth/installation/domain/installer.repository';
 import { personName } from './installer-admin.support';
 
@@ -49,7 +49,6 @@ export function toProfileView(installer: StoredInstaller, photoUrl: string | nul
       code: installer.code,
       status: installer.status,
       serviceAreas: installer.serviceAreas,
-      capabilities: installer.capabilities.map((key) => ({ key, label: INSTALLER_CAPABILITIES[key] ?? key })),
       createdAt: installer.createdAt.toISOString(),
     },
   };

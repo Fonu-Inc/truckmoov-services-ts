@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
-import type { InstallerNotificationPreferences } from '@auth/installation/domain/installer';
 import {
   notificationCopy,
   preferencesOf,
+  ticketChangeKey,
+  ticketUpdateCopy,
   typeToggle,
   type InstallerNotificationType,
+  type JobNotificationType,
   type NotificationCopy,
   type NotifiedDevice,
+  type TicketChange,
 } from '@auth/installation/domain/installer-notification';
 import {
   INSTALLER_NOTIFICATION_REPOSITORY,
@@ -21,9 +24,10 @@ import {
   type StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
 import { TenantNotificationPublisher, type TenantNotification } from '../../../../tenant-notification.publisher';
+import { ticketDisplayId, type StoredSupportTicket } from '../../../../support-ticket.repository';
 
 export type InstallerNotice = {
-  type: InstallerNotificationType;
+  type: JobNotificationType;
   order: StoredInstallationOrder;
   /** Makes the notice unique per order and type: a timestamp or an event id. */
   stamp: string;
@@ -36,20 +40,18 @@ export function assignedNotice(order: StoredInstallationOrder, now: Date): Insta
   return { type: 'job_assigned', order, stamp: `${order.installerId}:${(order.assignedAt ?? now).toISOString()}` };
 }
 
-type Outbound = Pick<TenantNotification, 'channel' | 'recipient' | 'content'>;
+type Message = { type: InstallerNotificationType; copy: NotificationCopy; orderId: string | null; dedupeKey: string };
 
-function outbound(installer: StoredInstaller, preferences: InstallerNotificationPreferences, copy: NotificationCopy): Outbound[] {
-  const sends: Outbound[] = [];
-  if (preferences.smsAlerts && installer.phoneNumber) {
-    sends.push({ channel: 'sms', recipient: installer.phoneNumber, content: copy.body });
-  }
-  if (preferences.emailAlerts && installer.email) {
-    sends.push({ channel: 'email', recipient: installer.email, content: `${copy.title}\n\n${copy.body}` });
-  }
-  return sends;
+/** Installers get email only; SMS is not sent to them. */
+function outbound(installer: StoredInstaller, copy: NotificationCopy): Pick<TenantNotification, 'channel' | 'recipient' | 'content'> {
+  return { channel: 'email', recipient: installer.email, content: `${copy.title}\n\n${copy.body}` };
 }
 
-/** The inbox row and the SMS/email for one notice, as the installer's toggles allow. Sent under the system tenant. */
+/**
+ * The inbox row and the email for one notice, as the installer's toggles allow:
+ * nothing unless the type's toggle is on, the row only with inPlatformAlerts,
+ * the email only with emailAlerts. Sent under the system tenant.
+ */
 @Injectable()
 export class InstallerNotifier {
   private readonly logger = new Logger(InstallerNotifier.name);
@@ -62,13 +64,7 @@ export class InstallerNotifier {
 
   /** Best effort: a failure is logged and never reaches the action that raised it. */
   async notify(notice: InstallerNotice, now: Date = new Date()): Promise<void> {
-    try {
-      await this.deliver(notice, now);
-    } catch (error) {
-      this.logger.warn(
-        `installer_notification_failed:${notice.type}:${notice.order.id}:${error instanceof Error ? error.message : 'unknown'}`,
-      );
-    }
+    await this.quietly(`${notice.type}:${notice.order.id}`, () => this.deliver(notice, now));
   }
 
   /** Throws on failure, so a redelivered event can try again; the dedupe key keeps it to one row. */
@@ -76,8 +72,6 @@ export class InstallerNotifier {
     const { order } = notice;
     const installer = order.installerId ? await this.installers.findById(order.installerId) : null;
     if (!installer) return;
-    const preferences = preferencesOf(installer.notificationPreferences);
-    if (!preferences[typeToggle(notice.type)]) return;
 
     const copy = notificationCopy(notice.type, {
       jobNumber: order.orderNumber,
@@ -86,19 +80,50 @@ export class InstallerNotifier {
       device: notice.device,
       reason: notice.reason,
     });
-    const added = await this.notifications.add({
+    const dedupeKey = `${notice.type}:${order.id}:${notice.stamp}`;
+    await this.send(installer, { type: notice.type, copy, orderId: order.id, dedupeKey }, now);
+  }
+
+  /** Tells the installer who raised the ticket that an admin moved it or replied. Best effort; other tickets are ignored. */
+  async notifyTicket(ticket: StoredSupportTicket, change: TicketChange, now: Date = new Date()): Promise<void> {
+    if (ticket.reporterType !== 'installer' || !ticket.reporterId) return;
+    const reporterId = ticket.reporterId;
+    await this.quietly(`support_ticket_updated:${ticket.id}`, async () => {
+      const installer = await this.installers.findById(reporterId);
+      if (!installer) return;
+      const copy = ticketUpdateCopy(ticketDisplayId(ticket.ticketNumber), change);
+      const dedupeKey = `support_ticket_updated:${ticketChangeKey(ticket.id, change)}`;
+      await this.send(installer, { type: 'support_ticket_updated', copy, orderId: null, dedupeKey }, now);
+    });
+  }
+
+  private async send(installer: StoredInstaller, message: Message, now: Date): Promise<void> {
+    const preferences = preferencesOf(installer.notificationPreferences);
+    if (!preferences[typeToggle(message.type)]) return;
+    if (preferences.inPlatformAlerts && !(await this.addRow(installer, message, now))) return;
+    if (!preferences.emailAlerts || !installer.email) return;
+    await this.publisher.notify({ tenantId: SYSTEM_TENANT_ID, notificationType: message.type, ...outbound(installer, message.copy) });
+  }
+
+  /** False when the same notice was already written. */
+  private addRow(installer: StoredInstaller, message: Message, now: Date): Promise<boolean> {
+    return this.notifications.add({
       id: randomUUID(),
       installerId: installer.id,
-      type: notice.type,
-      ...copy,
-      orderId: order.id,
-      dedupeKey: `${notice.type}:${order.id}:${notice.stamp}`,
+      type: message.type,
+      ...message.copy,
+      orderId: message.orderId,
+      dedupeKey: message.dedupeKey,
       createdAt: now,
       readAt: null,
     });
-    if (!added) return;
-    for (const send of outbound(installer, preferences, copy)) {
-      await this.publisher.notify({ tenantId: SYSTEM_TENANT_ID, notificationType: notice.type, ...send });
+  }
+
+  private async quietly(subject: string, work: () => Promise<void>): Promise<void> {
+    try {
+      await work();
+    } catch (error) {
+      this.logger.warn(`installer_notification_failed:${subject}:${error instanceof Error ? error.message : 'unknown'}`);
     }
   }
 }

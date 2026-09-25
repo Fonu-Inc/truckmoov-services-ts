@@ -11,6 +11,8 @@ import { resolveActorUser } from "./support/resolve-actor-user";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
 
 
+const SYSTEM_ACCOUNT_ROLES: readonly string[] = [Role.SUPER_ADMIN, Role.SYSTEM_ADMIN];
+
 export type ChangeSystemPasswordCommand = {
   accessToken: string;
   currentPassword: string;
@@ -30,12 +32,13 @@ export class ChangeSystemPasswordUseCase {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async execute(command: ChangeSystemPasswordCommand) {
+  /** `roles`: the system-tenant roles the caller may hold; installers pass their own. */
+  async execute(command: ChangeSystemPasswordCommand, roles: readonly string[] = SYSTEM_ACCOUNT_ROLES) {
     const actor = await resolveActorUser(command.accessToken, this.tokenService, this.userRepo);
     if (actor.tenantId !== SYSTEM_TENANT_ID) {
       throw new ForbiddenError("This endpoint is reserved for system accounts");
     }
-    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.SYSTEM_ADMIN) {
+    if (!roles.includes(actor.role)) {
       throw new ForbiddenError("This endpoint is reserved for system accounts");
     }
 

@@ -2,6 +2,7 @@ import { escapeCsvValue } from '@shared/csv';
 import { INSTALLATION_TIME_ZONE } from '@shared/devices';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import type { JobRow } from '@auth/installation/domain/installation-job.reader';
+import { canonicalTimeZone } from '@auth/installation/domain/installer-preferences';
 
 export const HISTORY_EXPORT_CAP = 5000;
 
@@ -17,8 +18,6 @@ export const HISTORY_EXPORT_COLUMNS = [
   'Completion Time',
   'Status',
 ] as const;
-
-const IANA_NAME = /^[A-Za-z]+(?:[/_+-][A-Za-z0-9]+)*$/;
 
 function formatterIn(timeZone: string): Intl.DateTimeFormat | null {
   try {
@@ -39,7 +38,7 @@ function formatterIn(timeZone: string): Intl.DateTimeFormat | null {
 /** An IANA zone name the runtime knows; Africa/Lagos when none is given. Offsets like +01:00 are refused. */
 export function exportTimeZone(value?: string): string {
   const zone = value?.trim() || INSTALLATION_TIME_ZONE;
-  if (!IANA_NAME.test(zone) || !formatterIn(zone)) {
+  if (!canonicalTimeZone(zone)) {
     throw new OnboardingValidationError('timezone', 'timezone must be an IANA time zone, such as Africa/Lagos');
   }
   return zone;

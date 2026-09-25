@@ -10,6 +10,7 @@ import {
   type SupportTicketRepository,
 } from './support-ticket.repository';
 import { SupportTicketNotifierService } from './support-ticket-notifier.service';
+import { InstallerNotifier } from './contexts/installation/application/services/installer-notifier.service';
 
 const VALID_STATUSES = new Set<string>(STATUS_ROUTE_TICKET_STATUSES);
 
@@ -30,6 +31,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SupportTicketNotifierService) private readonly notifier: SupportTicketNotifierService,
+    @Inject(InstallerNotifier) private readonly installerNotifier: InstallerNotifier,
   ) {}
 
   async execute(accessToken: string, ticketId: string, status: string) {
@@ -44,6 +46,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
     if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
 
     const now = new Date();
+    const changed = ticket.status !== status;
     ticket.status = status;
     ticket.updatedAt = now;
     clearEscalation(ticket);
@@ -52,6 +55,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
 
     await this.ticketRepo.save(ticket);
     await this.notifier.notifyStatusChanged(ticket.tenantId, ticketId, status);
+    if (changed) await this.installerNotifier.notifyTicket(ticket, { status }, now);
 
     return {
       status: true,

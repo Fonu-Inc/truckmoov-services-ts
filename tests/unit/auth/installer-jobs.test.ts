@@ -72,6 +72,8 @@ function installer(id: string, overrides: Partial<StoredInstaller> = {}): Stored
     capabilities: ["device_installation"],
     photoKey: null,
     notificationPreferences: null,
+    displayPreferences: null,
+    workPreferences: null,
     status: "active",
     maxActiveJobs: 3,
     lastActivityAt: null,
@@ -631,16 +633,13 @@ describe("an installer's profile", () => {
     profile = new InstallerProfileUseCases(tokens as never, installers, users, photos, scanner, activity as never, config as never);
   });
 
-  it("shows personal details with a signed photo link and the read-only record", async () => {
+  it("shows personal details with a signed photo link and the read-only record, without capabilities", async () => {
     expect(await profile.get("user-ada")).toEqual({
       personal: {
         firstName: "ada", lastName: "Installer", email: "ada@fieldops.ng", phoneNumber: "+2348031234567",
         state: "Lagos", city: "Ikeja", photoUrl: "https://signed/auth/installers/ada/photo/old.png",
       },
-      record: {
-        code: "INS-ada", status: "active", serviceAreas: ["Lagos"],
-        capabilities: [{ key: "device_installation", label: "Device installation" }], createdAt: NOW.toISOString(),
-      },
+      record: { code: "INS-ada", status: "active", serviceAreas: ["Lagos"], createdAt: NOW.toISOString() },
     });
   });
 
