@@ -24,6 +24,7 @@ import { ApiErrorBody, ApiErrorResponse, ApiValidationErrorBody } from './dto/ap
 import {
   BoundUnitResponse,
   InstallationJobChangeResponse,
+  InstallationJobDetailResponse,
   InstallationJobPageResponse,
 } from './dto/installation-response.dto';
 
@@ -85,6 +86,15 @@ export class SystemInstallationOrdersController {
   ) {
     const query = { status: jobStatusFilter(status), installerId, search, page: numeric(page), limit: numeric(limit) };
     return ok(await mapped(() => this.orders.list(bearer(authorization), query)));
+  }
+
+  @Get(':id')
+  @Requires('admin.installations.read')
+  @ApiOperation({ summary: 'One installation job, with every installer who rejected the offer and why' })
+  @ApiOkResponse({ description: 'The job', type: InstallationJobDetailResponse })
+  @StaffErrors(JOB_NOT_FOUND)
+  async detail(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return ok(await mapped(() => this.orders.detail(bearer(authorization), id)));
   }
 
   @Put(':id/units/:deviceIndex')

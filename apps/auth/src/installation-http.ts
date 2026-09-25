@@ -26,6 +26,7 @@ import {
   INSTALLATION_ORDER_STATUSES,
   InvalidInstallationDateError,
   InvalidInstallationTransitionError,
+  InvalidRejectionReasonError,
   type InstallationOrderStatus,
 } from './contexts/installation/domain/installation-order';
 
@@ -53,6 +54,7 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [InvalidInstallerPhotoError, BadRequestException],
   [InvalidEvidenceError, BadRequestException],
   [InvalidInstallationDateError, BadRequestException],
+  [InvalidRejectionReasonError, BadRequestException],
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
   [InstallerNotificationNotFoundError, NotFoundException],

@@ -1,21 +1,32 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { INSTALLATION_TIME_ZONE } from '@shared/devices';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import type {
+  ActivityMeasure,
   DeviceScopeEntry,
   DeviceScopeQuery,
   InstallationJobReader,
+  JobEvent,
+  JobEventType,
   JobFilters,
   JobPageRequest,
   JobRow,
   JobSort,
+  MonthlyCount,
+  MonthRange,
 } from '@auth/installation/domain/installation-job.reader';
+import { INSTALLATION_SLOT_HOURS } from '@auth/installation/domain/installation-order';
 import type { StoredInstallationOrder } from '@auth/installation/domain/installation-order.repository';
 
 type Row = Record<string, unknown> & { total: number };
 
+const SLOT_START = `case o.time_slot ${Object.entries(INSTALLATION_SLOT_HOURS)
+  .map(([slot, hours]) => `when '${slot}' then ${hours.start}`)
+  .join(' ')} end`;
+
 const ORDER_BY: Record<JobSort, string> = {
-  scheduled: 'o.scheduled_date asc, o.created_at asc, o.id asc',
+  scheduled: `o.scheduled_date asc, ${SLOT_START} asc, o.created_at asc, o.id asc`,
   completion: 'coalesce(o.completed_at, o.cancelled_at) desc nulls last, o.id asc',
   newest: 'o.created_at desc, o.id asc',
 };
@@ -48,6 +59,7 @@ function whereOf(filters: JobFilters): { sql: string; params: unknown[] } {
     params.push(...values);
   };
 
+  if (filters.orderId) add('o.id = ?', filters.orderId);
   if (filters.installerId) add('o.installer_id = ?', filters.installerId);
   if (filters.statuses?.length === 0) add('false');
   if (filters.statuses?.length) add('o.status in (?)', [...filters.statuses]);
@@ -109,6 +121,7 @@ function toJobRow(row: Row): JobRow {
   return {
     order: toOrder(row),
     customerName: (row.customer_name as string | null) ?? '',
+    customerEmail: (row.customer_email as string | null) ?? null,
     firstVehicle: row.registration_number
       ? {
           registrationNumber: String(row.registration_number),
@@ -131,6 +144,42 @@ const DEVICE_SCOPE = `
      and (o.status in (?) or (o.status = 'completed' and o.completed_at >= ? and o.completed_at < ?))
    order by o.scheduled_date asc, o.order_number asc, a.device_index asc`;
 
+const MEASURE_COLUMNS: Record<ActivityMeasure, string> = {
+  completed: 'completed_at',
+  inProgress: 'started_at',
+  scheduled: 'scheduled_date',
+};
+
+/** Stored dates are UTC midnight of their Lagos day, so the same Lagos conversion holds for them. */
+function monthlyActivitySql(measure: ActivityMeasure): string {
+  const column = `o.${MEASURE_COLUMNS[measure]}`;
+  return `select to_char(${column} at time zone '${INSTALLATION_TIME_ZONE}', 'YYYY-MM') as month, count(*)::int as count
+    from installation_orders o
+   where o.installer_id = ? and o.status <> 'assigned' and ${column} >= ? and ${column} < ?
+   group by 1`;
+}
+
+const EVENT_COLUMNS: Record<JobEventType, string> = {
+  offered: 'assigned_at',
+  accepted: 'accepted_at',
+  started: 'started_at',
+  issue_reported: 'issue_reported_at',
+  completed: 'completed_at',
+  cancelled: 'cancelled_at',
+};
+
+const EVENT_VALUES = Object.entries(EVENT_COLUMNS)
+  .map(([type, column], step) => `('${type}', ${step}, o.${column})`)
+  .join(', ');
+
+const RECENT_EVENTS = `
+  select e.type, e.occurred_at, o.id as order_id, o.order_number
+    from installation_orders o
+   cross join lateral (values ${EVENT_VALUES}) as e(type, step, occurred_at)
+   where o.installer_id = ? and e.occurred_at is not null
+   order by e.occurred_at desc, e.step desc, o.id asc
+   limit ?`;
+
 /** Jobs with their list columns in one query, joined to the onboarding tables they are read from. */
 @Injectable()
 export class MikroInstallationJobReader implements InstallationJobReader {
@@ -140,7 +189,7 @@ export class MikroInstallationJobReader implements InstallationJobReader {
     const orm = await getAuthOrm(this.config.db);
     const where = whereOf(filters);
     const rows = await orm.em.getConnection().execute<Row[]>(
-      `select o.*, app.organization_name as customer_name,
+      `select o.*, app.organization_name as customer_name, app.business_email as customer_email,
               fv.registration_number, fv.make, fv.model, fa.fleet_device_id,
               units.device_count, units.vehicle_count, count(*) over ()::int as total
          ${FROM}
@@ -178,6 +227,25 @@ export class MikroInstallationJobReader implements InstallationJobReader {
       orderId: row.order_id,
       jobNumber: row.order_number,
       deviceId: row.fleet_device_id,
+    }));
+  }
+
+  async monthlyActivity(installerId: string, measure: ActivityMeasure, range: MonthRange): Promise<MonthlyCount[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em
+      .getConnection()
+      .execute<Array<{ month: string; count: number }>>(monthlyActivitySql(measure), [installerId, range.from, range.before]);
+    return rows.map((row) => ({ month: row.month, count: Number(row.count) }));
+  }
+
+  async recentEvents(installerId: string, limit: number): Promise<JobEvent[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<Record<string, unknown>>>(RECENT_EVENTS, [installerId, limit]);
+    return rows.map((row) => ({
+      type: row.type as JobEventType,
+      orderId: String(row.order_id),
+      jobNumber: String(row.order_number),
+      occurredAt: new Date(row.occurred_at as string),
     }));
   }
 }

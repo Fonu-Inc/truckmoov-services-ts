@@ -26,6 +26,7 @@ import {
   type StoredDeviceAssignment,
   type StoredInstallationEvidence,
   type StoredInstallationOrder,
+  type StoredOfferRejection,
   type UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
 import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
@@ -111,6 +112,7 @@ export class InMemoryInstallationOrderRepository
   private readonly assignments = new Map<string, StoredDeviceAssignment[]>();
   private readonly ticks = new Map<string, StoredChecklistTick>();
   private readonly evidence = new Map<string, StoredInstallationEvidence>();
+  private readonly rejections = new Map<string, StoredOfferRejection>();
   private sequence = 999;
 
   async save(order: StoredInstallationOrder): Promise<void> {
@@ -126,12 +128,29 @@ export class InMemoryInstallationOrderRepository
 
   async assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome> {
     if (this.orders.get(order.id)?.status !== 'unassigned') return 'taken';
+    if (this.rejections.has(`${order.id}:${order.installerId}`)) return 'declined';
     const active = this.all().filter(
       (o) => o.installerId === order.installerId && ACTIVE_JOB_STATUSES.includes(o.status),
     ).length;
     if (active >= maxActiveJobs) return 'full';
     await this.save(order);
     return 'assigned';
+  }
+
+  async rejectOffer(order: StoredInstallationOrder, rejection: StoredOfferRejection): Promise<boolean> {
+    const current = this.orders.get(order.id);
+    if (current?.status !== 'assigned' || current.installerId !== rejection.installerId) return false;
+    await this.transition(order, 'assigned');
+    this.orders.set(order.id, { ...this.orders.get(order.id)!, installerId: null });
+    this.rejections.set(`${rejection.orderId}:${rejection.installerId}`, { ...rejection });
+    return true;
+  }
+
+  async findOfferRejections(orderIds: string[]): Promise<StoredOfferRejection[]> {
+    return [...this.rejections.values()]
+      .filter((rejection) => orderIds.includes(rejection.orderId))
+      .sort((a, b) => a.rejectedAt.getTime() - b.rejectedAt.getTime() || a.installerId.localeCompare(b.installerId))
+      .map((rejection) => ({ ...rejection }));
   }
 
   async claimReminders(
@@ -294,6 +313,7 @@ export class InMemoryInstallationOrderRepository
     if (!order) return;
     for (const [key, tick] of this.ticks) if (tick.orderId === order.id) this.ticks.delete(key);
     for (const [id, item] of this.evidence) if (item.orderId === order.id) this.evidence.delete(id);
+    for (const [key, item] of this.rejections) if (item.orderId === order.id) this.rejections.delete(key);
     this.assignments.delete(order.id);
     this.orders.delete(order.id);
   }

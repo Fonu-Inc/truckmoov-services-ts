@@ -205,7 +205,7 @@ describe("installation job statuses", () => {
   });
 
   it("resumes an issue at the status it interrupted, or cancels it", () => {
-    const started = transitionOrder(order("1", { status: "accepted" }), "in_progress", NOW);
+    const started = transitionOrder(order("1", { status: "scheduled" }), "in_progress", NOW);
     const reported = transitionOrder(started, "issue_reported", NOW);
 
     expect(reported.preExceptionStatus).toBe("in_progress");
@@ -218,7 +218,8 @@ describe("installation job statuses", () => {
   it("stamps each step", () => {
     const assigned = assignOrder(order("1"), "inst-1", NOW);
     expect(assigned).toMatchObject({ status: "assigned", installerId: "inst-1", assignedAt: NOW });
-    expect(transitionOrder(assigned, "accepted", NOW).acceptedAt).toEqual(NOW);
+    expect(transitionOrder(assigned, "scheduled", NOW).acceptedAt).toEqual(NOW);
+    expect(transitionOrder({ ...assigned, status: "overdue" }, "scheduled", NOW).acceptedAt).toBeNull();
     expect(transitionOrder({ ...assigned, status: "in_progress" }, "completed", NOW).completedAt).toEqual(NOW);
     expect(transitionOrder(assigned, "cancelled", NOW).cancelledAt).toEqual(NOW);
   });
@@ -318,7 +319,7 @@ describe("the installation sweep", () => {
 
   it("marks jobs overdue once their Lagos day has passed", async () => {
     const lateEvening = new Date("2026-09-24T23:30:00Z");
-    await h.orders.save(order("yesterday", { status: "accepted", installerId: "ada", scheduledDate: day("2026-09-24") }));
+    await h.orders.save(order("yesterday", { status: "assigned", installerId: "ada", scheduledDate: day("2026-09-24") }));
     await h.orders.save(order("today", { status: "scheduled", installerId: "ada", scheduledDate: day("2026-09-25") }));
     await h.orders.save(order("started", { status: "in_progress", installerId: "ada", scheduledDate: day("2026-09-20") }));
 
@@ -339,7 +340,7 @@ describe("an installer's jobs", () => {
     await h.installers.save(installer("ada"));
     await h.installers.save(installer("bola"));
     const mine = { installerId: "ada" };
-    await h.job("1", "Lagos Express Logistics", { ...mine, status: "accepted", scheduledDate: day("2026-09-25") }, "dev-1");
+    await h.job("1", "Lagos Express Logistics", { ...mine, status: "scheduled", scheduledDate: day("2026-09-25") }, "dev-1");
     await h.job("2", "Adebayo Haulage", { ...mine, status: "scheduled", scheduledDate: day("2026-09-30"), city: "Surulere" });
     await h.job("3", "Northline Distribution", { ...mine, status: "in_progress", scheduledDate: day("2026-09-25") });
     await h.job("4", "Lagos Express Logistics", {
@@ -350,32 +351,22 @@ describe("an installer's jobs", () => {
     h.fleet.set("tenant-1", [device("dev-1")]);
   });
 
-  it("counts the dashboard on the Lagos day", async () => {
-    const mine = { installerId: "ada" };
-    await h.job("7", "Assigned Co", { ...mine, status: "assigned", scheduledDate: day("2026-09-27") });
-    for (const id of ["8", "9"]) await h.job(id, "Late Co", { ...mine, status: "overdue", scheduledDate: day("2026-09-20") });
-    for (const id of ["10", "11", "12"]) {
-      await h.job(id, "Issue Co", { ...mine, status: "issue_reported", preExceptionStatus: "scheduled", scheduledDate: day("2026-09-26") });
-    }
-    await h.job("13", "Midday Co", { ...mine, status: "scheduled", scheduledDate: new Date("2026-09-25T09:00:00Z") });
-    const dashboard = await h.jobs.dashboard("user-ada", new Date("2026-09-24T23:30:00Z"));
+  it("lists items with the site contact and the slot as instants", async () => {
+    const [first] = (await h.jobs.list("user-ada", {})).items;
 
-    expect(dashboard.counters).toEqual({
-      newlyAssigned: 1, scheduledToday: 2, upcoming: 1, inProgress: 1, overdue: 2, completed: 1, issuesReported: 3,
-    });
-    expect(dashboard.statusOverview).toEqual({ accepted: 1, scheduled: 2, inProgress: 1, overdue: 2, completed: 1 });
-    expect(dashboard.todaysJobs.map((j) => j.jobNumber)).toEqual(["FL-1", "FL-3", "FL-13"]);
-    expect(dashboard.todaysJobs[0]).toMatchObject({
+    expect(first).toMatchObject({
+      jobNumber: "FL-1",
       customer: "Lagos Express Logistics",
+      siteContactName: "Ada",
+      siteContactPhone: "+2347014452219",
       firstVehicle: { registrationNumber: "LSD-1-XA", make: "Mercedes-Benz", model: "Actros 1844" },
       firstDevice: { manufacturer: "Teltonika", model: "FMB920" },
-      location: { city: "Ikeja", state: "Lagos" },
-      vehicleCount: 1,
-      deviceCount: 1,
       scheduledDate: "2026-09-25",
-      timeSlotLabel: "Morning (8:00 – 12:00)",
+      scheduledAt: "2026-09-25T07:00:00.000Z",
+      scheduledUntil: "2026-09-25T11:00:00.000Z",
     });
-    expect((await h.jobs.dashboard("user-ada", new Date("2026-09-24T22:30:00Z"))).counters.scheduledToday).toBe(0);
+    expect(first).not.toHaveProperty("timeSlot");
+    expect(first).not.toHaveProperty("timeSlotLabel");
   });
 
   it("lists active jobs with counts across every status", async () => {
@@ -383,7 +374,9 @@ describe("an installer's jobs", () => {
 
     expect(active.items.map((j) => j.jobNumber)).toEqual(["FL-1", "FL-3", "FL-2"]);
     expect(active.total).toBe(3);
-    expect(active.countsByStatus).toMatchObject({ all: 5, accepted: 1, scheduled: 1, in_progress: 1, completed: 1, cancelled: 1, assigned: 0 });
+    expect(active.countsByStatus).toEqual({
+      all: 5, unassigned: 0, assigned: 0, scheduled: 2, in_progress: 1, overdue: 0, issue_reported: 0, completed: 1, cancelled: 1,
+    });
   });
 
   it("lists history newest first with the completion date falling back to cancellation", async () => {
@@ -400,7 +393,7 @@ describe("an installer's jobs", () => {
   });
 
   it("filters by status within the scope and searches job, customer, vehicle and place", async () => {
-    expect((await h.jobs.list("user-ada", { status: "scheduled" })).items.map((j) => j.jobNumber)).toEqual(["FL-2"]);
+    expect((await h.jobs.list("user-ada", { status: "scheduled" })).items.map((j) => j.jobNumber)).toEqual(["FL-1", "FL-2"]);
     expect((await h.jobs.list("user-ada", { status: "completed" })).items).toEqual([]);
     expect((await h.jobs.list("user-ada", { search: "adebayo" })).items.map((j) => j.jobNumber)).toEqual(["FL-2"]);
     expect((await h.jobs.list("user-ada", { search: "lsd-3" })).items.map((j) => j.jobNumber)).toEqual(["FL-3"]);
@@ -431,8 +424,8 @@ describe("an installer's jobs", () => {
       email: "ops@1.ng",
       address: "14 Kudirat Abiola Way, Ikeja, Lagos",
       scheduledDate: "2026-09-25",
-      timeSlot: "morning",
-      timeSlotLabel: "Morning (8:00 – 12:00)",
+      scheduledAt: "2026-09-25T07:00:00.000Z",
+      scheduledUntil: "2026-09-25T11:00:00.000Z",
     });
     expect(detail.units).toEqual([
       {
@@ -657,7 +650,7 @@ describe("an installer's device scope", () => {
 
   it("covers every bound device on open jobs, and none on closed or unbound ones", async () => {
     const mine = { installerId: "ada" };
-    const open = ["assigned", "accepted", "scheduled", "in_progress", "overdue", "issue_reported"] as const;
+    const open = ["assigned", "scheduled", "in_progress", "overdue", "issue_reported"] as const;
     for (const [i, status] of open.entries()) await h.job(`o${i}`, "Open Co", { ...mine, status }, `dev-o${i}`);
     await h.job("u", "Unassigned Co", { status: "unassigned" }, "dev-u");
     await h.job("c", "Cancelled Co", { ...mine, status: "cancelled", cancelledAt: NOW_LAGOS_MORNING }, "dev-c");

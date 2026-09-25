@@ -186,6 +186,25 @@ export const InstallationEvidenceRecordSchema =
     },
   });
 
+export class InstallationOfferRejectionRecord {
+  orderId!: string;
+  installerId!: string;
+  reason!: string;
+  rejectedAt!: Date;
+}
+
+export const InstallationOfferRejectionRecordSchema =
+  new EntitySchema<InstallationOfferRejectionRecord>({
+    class: InstallationOfferRejectionRecord,
+    tableName: 'installation_offer_rejections',
+    properties: {
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, primary: true },
+      installerId: { fieldName: 'installer_id', type: 'string', length: 64, primary: true },
+      reason: { type: 'string', length: 500 },
+      rejectedAt: { fieldName: 'rejected_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
 export class InstallerNotificationRecord {
   id!: string;
   installerId!: string;

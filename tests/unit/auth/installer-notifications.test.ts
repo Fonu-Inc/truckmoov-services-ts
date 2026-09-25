@@ -40,7 +40,7 @@ function order(id: string, overrides: Partial<StoredInstallationOrder> = {}): St
   return {
     id, orderNumber: `FL-${id}`, applicationId: `app-${id}`, tenantId: TENANT, scheduledDate: day("2026-09-30"), timeSlot: "morning",
     addressLine: "14 Kudirat Abiola Way", city: "Ikeja", state: "Lagos", siteContactName: "Ada Obi", siteContactPhone: "+2347014452219",
-    notes: null, installerNotes: null, installerId: "ada", status: "accepted", preExceptionStatus: null, assignedAt: NOW,
+    notes: null, installerNotes: null, installerId: "ada", status: "scheduled", preExceptionStatus: null, assignedAt: NOW,
     acceptedAt: NOW, startedAt: null, issueReportedAt: null, completedAt: null, cancelledAt: null, reminderSentAt: null,
     createdAt: NOW, updatedAt: NOW, ...overrides,
   };
@@ -294,7 +294,7 @@ describe("producers", () => {
   });
 
   it("tells the installer an issue was resolved and the job resumed", async () => {
-    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "accepted" }));
+    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "scheduled" }));
 
     await h.changes.resolveIssue("platform", "o1", "resume", undefined, NOW);
 
@@ -304,7 +304,7 @@ describe("producers", () => {
   });
 
   it("tells the installer the job was cancelled when the issue is resolved by cancelling", async () => {
-    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "accepted" }));
+    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "scheduled" }));
 
     await h.changes.resolveIssue("platform", "o1", "cancel", undefined, NOW);
 
@@ -313,7 +313,7 @@ describe("producers", () => {
 
   it("never fails or undoes the admin's change when notifying fails", async () => {
     vi.spyOn(h.inbox, "add").mockRejectedValue(new Error("db down"));
-    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "accepted" }));
+    await h.orders.save(order("o1", { status: "issue_reported", preExceptionStatus: "scheduled" }));
     await h.orders.save(order("o2", { status: "unassigned", installerId: null, assignedAt: null }));
 
     await expect(h.changes.resolveIssue("platform", "o1", "cancel", undefined, NOW)).resolves.toMatchObject({ status: "cancelled" });
@@ -328,11 +328,11 @@ describe("the reminder sweep", () => {
     h = await harness();
   });
 
-  it("reminds accepted and scheduled jobs booked for tomorrow in Lagos, with the date and slot", async () => {
-    await h.orders.save(order("acc", { status: "accepted", scheduledDate: day("2026-09-25") }));
+  it("reminds scheduled jobs booked for tomorrow in Lagos, never offers, with the date and slot", async () => {
+    await h.orders.save(order("acc", { status: "scheduled", scheduledDate: day("2026-09-25") }));
     await h.orders.save(order("sch", { status: "scheduled", scheduledDate: day("2026-09-25"), timeSlot: "afternoon" }));
     await h.orders.save(order("asg", { status: "assigned", scheduledDate: day("2026-09-25") }));
-    await h.orders.save(order("later", { status: "accepted", scheduledDate: day("2026-09-26") }));
+    await h.orders.save(order("later", { status: "scheduled", scheduledDate: day("2026-09-26") }));
 
     expect((await h.sweep.run(NOW)).reminded).toBe(2);
 
@@ -461,7 +461,7 @@ describe("fleet verification events", () => {
     await emit(envelope("verified", { id: "evt-3" }, { device_id: "unbound" }));
     await h.orders.save(order("o1", { status: "completed" }));
     await emit(envelope("verified", { id: "evt-4" }));
-    await h.orders.save(order("o1", { status: "accepted", installerId: null }));
+    await h.orders.save(order("o1", { status: "scheduled", installerId: null }));
     await emit(envelope("verified", { id: "evt-5" }));
     await emit({ ...envelope("verified", { id: "evt-6", type: "device.identity.changed" }) });
 

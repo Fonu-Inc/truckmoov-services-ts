@@ -60,12 +60,13 @@ export class InstallerJobActionsUseCases {
     @Inject(INSTALLATION_COMPLETION) private readonly completion: InstallationCompletion,
   ) {}
 
+  /** Accepting an offer schedules it. */
   async accept(accessToken: string, jobId: string, now: Date = new Date()): Promise<void> {
     const { order } = await this.job(accessToken, jobId);
     if (order.status !== 'assigned') {
       throw new InstallationJobConflictError(`A job that is ${order.status} cannot be accepted`);
     }
-    await moveJob(this.orders, order, 'accepted', now);
+    await moveJob(this.orders, order, 'scheduled', now);
   }
 
   async start(accessToken: string, jobId: string, now: Date = new Date()): Promise<void> {

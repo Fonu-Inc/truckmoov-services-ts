@@ -3,7 +3,7 @@ import type {
   StoredOnboardingApplication,
   StoredOnboardingApplicationVehicle,
 } from '@auth/onboarding/domain/onboarding-application.repository';
-import { INSTALLATION_SLOT_LABELS } from '@auth/installation/domain/installation-order';
+import { slotWindow } from '@auth/installation/domain/installation-order';
 import type { JobRow } from '@auth/installation/domain/installation-job.reader';
 import type {
   StoredChecklistTick,
@@ -34,12 +34,14 @@ const SIM_ACTIVATION: Record<string, string> = {
 
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
+/** The booking's slot as instants; the client formats them. */
+export function scheduledInstants(order: StoredInstallationOrder) {
+  const window = slotWindow(order.scheduledDate, order.timeSlot);
+  return { scheduledAt: window.start.toISOString(), scheduledUntil: window.end.toISOString() };
+}
+
 function schedule(order: StoredInstallationOrder) {
-  return {
-    scheduledDate: day(order.scheduledDate),
-    timeSlot: order.timeSlot,
-    timeSlotLabel: INSTALLATION_SLOT_LABELS[order.timeSlot],
-  };
+  return { scheduledDate: day(order.scheduledDate), ...scheduledInstants(order) };
 }
 
 /**
@@ -67,6 +69,8 @@ export function toJobListItem(row: JobRow, devices: DeviceIndex) {
     id: order.id,
     jobNumber: order.orderNumber,
     customer: row.customerName,
+    siteContactName: order.siteContactName,
+    siteContactPhone: order.siteContactPhone,
     firstVehicle: row.firstVehicle,
     firstDevice: device ? { manufacturer: device.manufacturer, model: device.model } : null,
     location: { city: order.city, state: order.state },
@@ -75,6 +79,24 @@ export function toJobListItem(row: JobRow, devices: DeviceIndex) {
     ...schedule(order),
     status: order.status,
     completedAt: (order.completedAt ?? order.cancelledAt)?.toISOString() ?? null,
+  };
+}
+
+/** A dashboard card: an offer, today's job or an upcoming one. */
+export function toDashboardJob(row: JobRow) {
+  const { order } = row;
+  return {
+    jobId: order.id,
+    jobNumber: order.orderNumber,
+    companyName: row.customerName,
+    siteContactName: order.siteContactName,
+    siteContactPhone: order.siteContactPhone,
+    siteContactEmail: row.customerEmail,
+    address: order.addressLine,
+    city: order.city,
+    state: order.state,
+    ...scheduledInstants(order),
+    status: order.status,
   };
 }
 

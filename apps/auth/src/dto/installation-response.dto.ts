@@ -7,6 +7,16 @@ const NULLABLE_STRING = { type: String, nullable: true } as const;
 const NULLABLE_DATE_TIME = { type: String, format: 'date-time', nullable: true } as const;
 const BOOKING_DAY = { format: 'date', example: '2026-10-05' } as const;
 const SLOT_LABEL = { example: 'Morning (8:00 – 12:00)' } as const;
+export const SLOT_START = {
+  format: 'date-time',
+  example: '2026-10-05T07:00:00.000Z',
+  description: 'Slot start: the booked Lagos day at the slot opening hour, as a UTC instant.',
+} as const;
+export const SLOT_END = {
+  format: 'date-time',
+  example: '2026-10-05T11:00:00.000Z',
+  description: 'Slot end, as a UTC instant.',
+} as const;
 
 export class InstallerContactSchema {
   @ApiProperty() fullName!: string;
@@ -40,6 +50,8 @@ export class InstallationOrderStatusSchema {
   @ApiProperty(BOOKING_DAY) scheduledDate!: string;
   @ApiProperty({ enum: [...INSTALLATION_TIME_SLOTS] }) timeSlot!: string;
   @ApiProperty(SLOT_LABEL) timeSlotLabel!: string;
+  @ApiProperty(SLOT_START) scheduledAt!: string;
+  @ApiProperty(SLOT_END) scheduledUntil!: string;
   @ApiProperty({ example: '12 Mazi Fedelis Street, Ikeja, Lagos' }) location!: string;
   @ApiProperty() siteContactName!: string;
   @ApiProperty() siteContactPhone!: string;
@@ -129,11 +141,13 @@ export class JobIssueTicketSchema {
   @ApiProperty({ example: '#tkt-12' }) displayId!: string;
 }
 
-export class InstallationJobListItemSchema {
+export class InstallerJobListItemSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 'FL-0042' }) jobNumber!: string;
   @ApiProperty({ description: 'Organisation name, empty when the application is gone.' })
   customer!: string;
+  @ApiProperty() siteContactName!: string;
+  @ApiProperty() siteContactPhone!: string;
   @ApiProperty({ type: JobVehicleSummarySchema, nullable: true })
   firstVehicle!: JobVehicleSummarySchema | null;
   @ApiProperty({ type: JobDeviceSummarySchema, nullable: true })
@@ -142,11 +156,14 @@ export class InstallationJobListItemSchema {
   @ApiProperty() vehicleCount!: number;
   @ApiProperty() deviceCount!: number;
   @ApiProperty(BOOKING_DAY) scheduledDate!: string;
-  @ApiProperty({ enum: [...INSTALLATION_TIME_SLOTS] }) timeSlot!: string;
-  @ApiProperty(SLOT_LABEL) timeSlotLabel!: string;
+  @ApiProperty(SLOT_START) scheduledAt!: string;
+  @ApiProperty(SLOT_END) scheduledUntil!: string;
   @ApiProperty({ enum: [...INSTALLATION_ORDER_STATUSES] }) status!: string;
   @ApiProperty({ ...NULLABLE_DATE_TIME, description: 'When it was completed or cancelled.' })
   completedAt!: string | null;
+}
+
+export class InstallationJobListItemSchema extends InstallerJobListItemSchema {
   @ApiProperty() tenantId!: string;
   @ApiProperty({ type: JobInstallerSummarySchema, nullable: true })
   installer!: JobInstallerSummarySchema | null;
@@ -156,6 +173,23 @@ export class InstallationJobListItemSchema {
     description: 'The newest issue report, only while the job is issue_reported.',
   })
   issueTicket!: JobIssueTicketSchema | null;
+}
+
+export class OfferRejectionSchema {
+  @ApiProperty() installerId!: string;
+  @ApiProperty({ ...NULLABLE_STRING, description: 'Null when the installer record is gone.' })
+  installerName!: string | null;
+  @ApiProperty({ example: 'Vehicle location is outside my service route this week' }) reason!: string;
+  @ApiProperty({ format: 'date-time' }) rejectedAt!: string;
+}
+
+export class InstallationJobDetailSchema extends InstallationJobListItemSchema {
+  @ApiProperty({ type: [OfferRejectionSchema], description: 'Every installer who rejected the offer, oldest first.' })
+  offerRejections!: OfferRejectionSchema[];
+}
+
+export class InstallationJobDetailResponse extends StandardApiResponse<InstallationJobDetailSchema> {
+  @ApiProperty({ type: InstallationJobDetailSchema }) data!: InstallationJobDetailSchema;
 }
 
 export class InstallationJobPageSchema {

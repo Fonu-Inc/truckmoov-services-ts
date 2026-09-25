@@ -4,15 +4,24 @@ import {
   type OnboardingApplicationRepository,
   type StoredOnboardingApplicationVehicle,
 } from '@auth/onboarding/domain/onboarding-application.repository';
-import type {
-  DeviceScopeEntry,
-  DeviceScopeQuery,
-  InstallationJobReader,
-  JobFilters,
-  JobPageRequest,
-  JobRow,
-  JobSort,
+import { lagosDate } from '@shared/devices';
+import {
+  ACTIVITY_MEASURES,
+  JOB_EVENT_STAMPS,
+  type ActivityMeasure,
+  type DeviceScopeEntry,
+  type DeviceScopeQuery,
+  type InstallationJobReader,
+  type JobEvent,
+  type JobEventType,
+  type JobFilters,
+  type JobPageRequest,
+  type JobRow,
+  type JobSort,
+  type MonthlyCount,
+  type MonthRange,
 } from '@auth/installation/domain/installation-job.reader';
+import { INSTALLATION_SLOT_HOURS } from '@auth/installation/domain/installation-order';
 import type { StoredInstallationOrder } from '@auth/installation/domain/installation-order.repository';
 import {
   InMemoryInstallationOrderRepository,
@@ -24,8 +33,14 @@ type Candidate = JobRow & { registrations: string[] };
 const time = (value: Date | null) => value?.getTime() ?? Number.NEGATIVE_INFINITY;
 const finishedAt = (order: StoredInstallationOrder) => order.completedAt ?? order.cancelledAt;
 
+const slotStart = (order: StoredInstallationOrder) => INSTALLATION_SLOT_HOURS[order.timeSlot].start;
+
 const SORTS: Record<JobSort, (a: Candidate, b: Candidate) => number> = {
-  scheduled: (a, b) => a.order.scheduledDate.getTime() - b.order.scheduledDate.getTime(),
+  scheduled: (a, b) =>
+    a.order.scheduledDate.getTime() - b.order.scheduledDate.getTime() ||
+    slotStart(a.order) - slotStart(b.order) ||
+    a.order.createdAt.getTime() - b.order.createdAt.getTime() ||
+    a.order.id.localeCompare(b.order.id),
   completion: (a, b) => time(finishedAt(b.order)) - time(finishedAt(a.order)),
   newest: (a, b) => b.order.createdAt.getTime() - a.order.createdAt.getTime(),
 };
@@ -55,9 +70,23 @@ function inDeviceScope(order: StoredInstallationOrder, query: DeviceScopeQuery):
   return order.status === 'completed' && inRange(order.completedAt, query.completedFrom, query.completedBefore);
 }
 
+const STEPS = Object.keys(JOB_EVENT_STAMPS) as JobEventType[];
+
+function eventsOf(order: StoredInstallationOrder): JobEvent[] {
+  return STEPS.flatMap((type) => {
+    const at = order[JOB_EVENT_STAMPS[type]];
+    return at instanceof Date ? [{ type, orderId: order.id, jobNumber: order.orderNumber, occurredAt: at }] : [];
+  });
+}
+
+function newestFirst(a: JobEvent, b: JobEvent): number {
+  return b.occurredAt.getTime() - a.occurredAt.getTime() || STEPS.indexOf(b.type) - STEPS.indexOf(a.type) || a.orderId.localeCompare(b.orderId);
+}
+
 function matches(candidate: Candidate, filters: JobFilters): boolean {
   const { order } = candidate;
-  return (!filters.installerId || order.installerId === filters.installerId) &&
+  return (!filters.orderId || order.id === filters.orderId) &&
+    (!filters.installerId || order.installerId === filters.installerId) &&
     (!filters.statuses || filters.statuses.includes(order.status)) &&
     scheduledIn(order, filters) &&
     inRange(finishedAt(order), filters.completedFrom, filters.completedBefore) &&
@@ -101,6 +130,26 @@ export class InMemoryInstallationJobReader implements InstallationJobReader {
       );
   }
 
+  async monthlyActivity(installerId: string, measure: ActivityMeasure, range: MonthRange): Promise<MonthlyCount[]> {
+    const counts = new Map<string, number>();
+    for (const { order } of this.orders.snapshot()) {
+      const at = order[ACTIVITY_MEASURES[measure]];
+      if (order.installerId !== installerId || order.status === 'assigned' || !inRange(at, range.from, range.before)) continue;
+      const month = lagosDate(at!).slice(0, 7);
+      counts.set(month, (counts.get(month) ?? 0) + 1);
+    }
+    return [...counts].map(([month, count]) => ({ month, count }));
+  }
+
+  async recentEvents(installerId: string, limit: number): Promise<JobEvent[]> {
+    return this.orders
+      .snapshot()
+      .filter(({ order }) => order.installerId === installerId)
+      .flatMap(({ order }) => eventsOf(order))
+      .sort(newestFirst)
+      .slice(0, limit);
+  }
+
   private async matching(filters: JobFilters): Promise<Candidate[]> {
     const candidates = await Promise.all(this.orders.snapshot().map((entry) => this.candidate(entry)));
     return candidates.filter((c) => matches(c, filters));
@@ -120,6 +169,7 @@ export class InMemoryInstallationJobReader implements InstallationJobReader {
     return {
       order,
       customerName: application?.organizationName ?? '',
+      customerEmail: application?.businessEmail ?? null,
       firstVehicle: first ? { registrationNumber: first.registrationNumber, make: first.make, model: first.model } : null,
       firstFleetDeviceId: assignments[0]?.fleetDeviceId ?? null,
       vehicleCount: new Set(assignments.map((a) => a.vehicleId)).size,

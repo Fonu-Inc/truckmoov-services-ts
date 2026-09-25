@@ -1,17 +1,34 @@
-import { lagosToday } from '@shared/devices';
+import { lagosDayBounds, lagosToday } from '@shared/devices';
 
 export const INSTALLATION_TIME_SLOTS = ['morning', 'afternoon'] as const;
 export type InstallationTimeSlot = (typeof INSTALLATION_TIME_SLOTS)[number];
 
-export const INSTALLATION_SLOT_LABELS: Record<InstallationTimeSlot, string> = {
-  morning: 'Morning (8:00 – 12:00)',
-  afternoon: 'Afternoon (12:00 – 17:00)',
+/** Each slot's Lagos hours: [start, end). */
+export const INSTALLATION_SLOT_HOURS: Record<InstallationTimeSlot, { start: number; end: number }> = {
+  morning: { start: 8, end: 12 },
+  afternoon: { start: 12, end: 17 },
 };
+
+const slotLabel = (name: string, slot: InstallationTimeSlot) =>
+  `${name} (${INSTALLATION_SLOT_HOURS[slot].start}:00 – ${INSTALLATION_SLOT_HOURS[slot].end}:00)`;
+
+export const INSTALLATION_SLOT_LABELS: Record<InstallationTimeSlot, string> = {
+  morning: slotLabel('Morning', 'morning'),
+  afternoon: slotLabel('Afternoon', 'afternoon'),
+};
+
+const HOUR_MS = 3_600_000;
+
+/** The instants a booking covers: its stored Lagos day at the slot's hours. */
+export function slotWindow(scheduledDate: Date, slot: InstallationTimeSlot): { start: Date; end: Date } {
+  const midnight = lagosDayBounds(scheduledDate.toISOString().slice(0, 10)).start.getTime();
+  const hours = INSTALLATION_SLOT_HOURS[slot];
+  return { start: new Date(midnight + hours.start * HOUR_MS), end: new Date(midnight + hours.end * HOUR_MS) };
+}
 
 export const INSTALLATION_ORDER_STATUSES = [
   'unassigned',
   'assigned',
-  'accepted',
   'scheduled',
   'in_progress',
   'overdue',
@@ -22,14 +39,16 @@ export const INSTALLATION_ORDER_STATUSES = [
 export type InstallationOrderStatus =
   (typeof INSTALLATION_ORDER_STATUSES)[number];
 
-/** Where each status may go. Leaving issue_reported also allows its pre_exception_status. */
+/**
+ * Where each status may go. Leaving issue_reported also allows its pre_exception_status.
+ * assigned is an offer: accepting schedules it, rejecting hands it back to unassigned.
+ */
 export const INSTALLATION_ORDER_TRANSITIONS: Record<
   InstallationOrderStatus,
   readonly InstallationOrderStatus[]
 > = {
   unassigned: ['assigned', 'cancelled'],
-  assigned: ['accepted', 'overdue', 'issue_reported', 'cancelled', 'unassigned'],
-  accepted: ['scheduled', 'in_progress', 'overdue', 'issue_reported', 'cancelled'],
+  assigned: ['scheduled', 'overdue', 'issue_reported', 'cancelled', 'unassigned'],
   scheduled: ['in_progress', 'overdue', 'issue_reported', 'cancelled'],
   overdue: ['in_progress', 'issue_reported', 'cancelled', 'scheduled'],
   in_progress: ['completed', 'issue_reported', 'cancelled'],
@@ -41,7 +60,6 @@ export const INSTALLATION_ORDER_TRANSITIONS: Record<
 /** Jobs that count toward an installer's workload. */
 export const ACTIVE_JOB_STATUSES: readonly InstallationOrderStatus[] = [
   'assigned',
-  'accepted',
   'scheduled',
   'in_progress',
   'overdue',
@@ -54,21 +72,16 @@ export const TERMINAL_JOB_STATUSES: readonly InstallationOrderStatus[] = [
 ];
 
 /** Statuses the sweep moves to overdue once their date has passed. */
-export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
-  'assigned',
-  'accepted',
-  'scheduled',
-];
+export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['assigned', 'scheduled'];
 
-export const REMINDER_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled'];
+export const REMINDER_STATUSES: readonly InstallationOrderStatus[] = ['scheduled'];
 
 /** Where Start Installation may begin. Resuming after an issue report is the admin's call, not a start. */
-export const START_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['accepted', 'scheduled', 'overdue'];
+export const START_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['scheduled', 'overdue'];
 
 /** Where an installer may report an issue; the job waits in issue_reported for the admin. */
 export const ISSUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = [
   'assigned',
-  'accepted',
   'scheduled',
   'overdue',
   'in_progress',
@@ -121,12 +134,18 @@ type Stamped = Transitionable & {
 
 const STAMPS: Partial<Record<InstallationOrderStatus, keyof Stamped>> = {
   assigned: 'assignedAt',
-  accepted: 'acceptedAt',
   in_progress: 'startedAt',
   issue_reported: 'issueReportedAt',
   completed: 'completedAt',
   cancelled: 'cancelledAt',
 };
+
+/** Scheduling an offer is its acceptance; an overdue job rebooked keeps its original acceptance. */
+function stampOf(order: Transitionable, next: InstallationOrderStatus): keyof Stamped | undefined {
+  if (isResuming(order, next)) return undefined;
+  if (next === 'scheduled') return order.status === 'assigned' ? 'acceptedAt' : undefined;
+  return STAMPS[next];
+}
 
 /** The order in its next status, with the moment it got there recorded. Resuming keeps the original stamp. */
 export function transitionOrder<T extends Stamped>(
@@ -135,7 +154,7 @@ export function transitionOrder<T extends Stamped>(
   now: Date,
 ): T {
   assertTransition(order, next);
-  const stamp = isResuming(order, next) ? undefined : STAMPS[next];
+  const stamp = stampOf(order, next);
   return {
     ...order,
     ...(stamp ? { [stamp]: now } : {}),
@@ -279,4 +298,27 @@ export function assignOrder<T extends Stamped & { installerId: string | null }>(
   now: Date,
 ): T {
   return { ...transitionOrder(order, 'assigned', now), installerId };
+}
+
+/** A rejected offer, back in the queue with no installer. */
+export function unassignOrder<T extends Stamped & { installerId: string | null }>(order: T, now: Date): T {
+  return { ...transitionOrder(order, 'unassigned', now), installerId: null, assignedAt: null };
+}
+
+export const MIN_REJECTION_REASON_LENGTH = 3;
+export const MAX_REJECTION_REASON_LENGTH = 500;
+
+export class InvalidRejectionReasonError extends Error {
+  constructor() {
+    super(`reason must be ${MIN_REJECTION_REASON_LENGTH} to ${MAX_REJECTION_REASON_LENGTH} characters`);
+    this.name = 'InvalidRejectionReasonError';
+  }
+}
+
+export function rejectionReason(value: unknown): string {
+  const reason = typeof value === 'string' ? value.trim() : '';
+  if (reason.length < MIN_REJECTION_REASON_LENGTH || reason.length > MAX_REJECTION_REASON_LENGTH) {
+    throw new InvalidRejectionReasonError();
+  }
+  return reason;
 }

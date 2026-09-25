@@ -34,6 +34,7 @@ import type {
   StoredDeviceAssignment,
   StoredInstallationEvidence,
   StoredInstallationOrder,
+  StoredOfferRejection,
   UnassignedCursor,
 } from '@auth/installation/domain/installation-order.repository';
 import type { InstallationCompletion } from '@auth/installation/domain/ports/installation-completion.port';
@@ -43,6 +44,7 @@ import {
   InstallationChecklistTickRecord,
   InstallationDeviceAssignmentRecord,
   InstallationEvidenceRecord,
+  InstallationOfferRejectionRecord,
   InstallationOrderRecord,
   InstallerRecord,
 } from './installation-orm';
@@ -289,6 +291,8 @@ export class MikroInstallationOrderRepository
     const em = await this.em();
     return em.transactional(async (tx) => {
       await tx.execute(`select id from installers where id = ? for update`, [order.installerId]);
+      const declined = await tx.count(InstallationOfferRejectionRecord, { orderId: order.id, installerId: order.installerId! });
+      if (declined > 0) return 'declined';
       const [row] = await tx.execute<Array<{ count: number }>>(
         `select count(*)::int as count from installation_orders where installer_id = ? and status in (?)`,
         [order.installerId, [...ACTIVE_JOB_STATUSES]],
@@ -298,6 +302,35 @@ export class MikroInstallationOrderRepository
       const changed = await tx.nativeUpdate(InstallationOrderRecord, { id, status: 'unassigned' }, fields);
       return changed > 0 ? 'assigned' : 'taken';
     });
+  }
+
+  async rejectOffer(order: StoredInstallationOrder, rejection: StoredOfferRejection): Promise<boolean> {
+    const em = await this.em();
+    return em.transactional(async (tx) => {
+      const changed = await tx.nativeUpdate(
+        InstallationOrderRecord,
+        { id: order.id, status: 'assigned', installerId: rejection.installerId },
+        { ...transitionFields(order), installerId: null },
+      );
+      if (changed === 0) return false;
+      await tx.execute(
+        `insert into installation_offer_rejections (order_id, installer_id, reason, rejected_at) values (?, ?, ?, ?)
+         on conflict (order_id, installer_id) do update set reason = excluded.reason, rejected_at = excluded.rejected_at`,
+        [rejection.orderId, rejection.installerId, rejection.reason, rejection.rejectedAt],
+      );
+      return true;
+    });
+  }
+
+  async findOfferRejections(orderIds: string[]): Promise<StoredOfferRejection[]> {
+    if (orderIds.length === 0) return [];
+    const em = await this.em();
+    const records = await em.find(
+      InstallationOfferRejectionRecord,
+      { orderId: { $in: orderIds } },
+      { orderBy: { rejectedAt: 'asc', installerId: 'asc' } },
+    );
+    return records.map((r) => ({ orderId: r.orderId, installerId: r.installerId, reason: r.reason, rejectedAt: r.rejectedAt }));
   }
 
   async claimReminders(
@@ -476,6 +509,7 @@ export class MikroInstallationOrderRepository
 
     await em.nativeDelete(InstallationChecklistTickRecord, { orderId: order.id });
     await em.nativeDelete(InstallationEvidenceRecord, { orderId: order.id });
+    await em.nativeDelete(InstallationOfferRejectionRecord, { orderId: order.id });
     await em.nativeDelete(InstallationDeviceAssignmentRecord, {
       orderId: order.id,
     });

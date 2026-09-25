@@ -31,8 +31,9 @@ export type InstallerNotice = {
   reason?: string;
 };
 
+/** Keyed by installer too: a rejected offer handed on in the same instant still reaches the next one. */
 export function assignedNotice(order: StoredInstallationOrder, now: Date): InstallerNotice {
-  return { type: 'job_assigned', order, stamp: (order.assignedAt ?? now).toISOString() };
+  return { type: 'job_assigned', order, stamp: `${order.installerId}:${(order.assignedAt ?? now).toISOString()}` };
 }
 
 type Outbound = Pick<TenantNotification, 'channel' | 'recipient' | 'content'>;

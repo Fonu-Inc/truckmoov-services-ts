@@ -143,25 +143,25 @@ describe("accepting a job", () => {
     h = await harness();
   });
 
-  it("moves assigned to accepted and stamps it", async () => {
+  it("schedules the offer and stamps the acceptance", async () => {
     await h.givenJob();
     await h.actions.accept("user-ada", "job-1", NOW);
 
-    expect(await h.orders.findById("job-1")).toMatchObject({ status: "accepted", acceptedAt: NOW });
+    expect(await h.orders.findById("job-1")).toMatchObject({ status: "scheduled", acceptedAt: NOW });
   });
 
   it("refuses every status but assigned", async () => {
-    for (const from of ["accepted", "scheduled", "in_progress", "completed", "cancelled"] as const) {
+    for (const from of ["scheduled", "overdue", "in_progress", "completed", "cancelled"] as const) {
       await h.givenJob({ status: from });
       await expect(h.actions.accept("user-ada", "job-1", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
     }
   });
 
   it("leaves resuming a reported issue to the admin", async () => {
-    await h.givenJob({ status: "issue_reported", preExceptionStatus: "accepted" });
+    await h.givenJob({ status: "issue_reported", preExceptionStatus: "assigned" });
 
     await expect(h.actions.accept("user-ada", "job-1", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
-    expect(await h.orders.findById("job-1")).toMatchObject({ status: "issue_reported", preExceptionStatus: "accepted" });
+    expect(await h.orders.findById("job-1")).toMatchObject({ status: "issue_reported", preExceptionStatus: "assigned" });
   });
 
   it("answers another installer's job like a missing one", async () => {
@@ -175,7 +175,7 @@ describe("accepting a job", () => {
     const results = await Promise.allSettled([h.actions.accept("user-ada", "job-1", NOW), h.actions.accept("user-ada", "job-1", NOW)]);
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(await status(h)).toBe("accepted");
+    expect(await status(h)).toBe("scheduled");
   });
 
   it("refuses a move made from a stale read", async () => {
@@ -183,9 +183,9 @@ describe("accepting a job", () => {
     const stale = (await h.orders.findById("job-1"))!;
     await h.actions.accept("user-ada", "job-1", NOW);
 
-    await expect(moveJob(h.orders, stale, "accepted", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
+    await expect(moveJob(h.orders, stale, "scheduled", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
     await expect(moveJob(h.orders, stale, "cancelled", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
-    expect(await status(h)).toBe("accepted");
+    expect(await status(h)).toBe("scheduled");
   });
 });
 
@@ -195,8 +195,8 @@ describe("starting a job", () => {
     h = await harness();
   });
 
-  it("starts from accepted, scheduled or overdue, on any day", async () => {
-    for (const from of ["accepted", "scheduled", "overdue"] as const) {
+  it("starts from scheduled or overdue, on any day", async () => {
+    for (const from of ["scheduled", "overdue"] as const) {
       await h.givenJob({ status: from, scheduledDate: new Date("2026-12-01T00:00:00Z") });
       await h.actions.start("user-ada", "job-1", NOW);
       expect(await h.orders.findById("job-1")).toMatchObject({ status: "in_progress", startedAt: NOW });
@@ -212,22 +212,22 @@ describe("starting a job", () => {
   });
 
   it("refuses while a unit has no bound device", async () => {
-    await h.givenJob({ status: "accepted" }, null);
+    await h.givenJob({ status: "scheduled" }, null);
 
     await expect(h.actions.start("user-ada", "job-1", NOW)).rejects.toThrow("Every unit needs its device bound");
-    expect(await status(h)).toBe("accepted");
+    expect(await status(h)).toBe("scheduled");
     expect(h.fleet.beginVerification).not.toHaveBeenCalled();
   });
 
   it("opens verification on the job's devices in the order's tenant", async () => {
-    await h.givenJob({ status: "accepted" });
+    await h.givenJob({ status: "scheduled" });
     await h.actions.start("user-ada", "job-1", NOW);
 
     expect(h.fleet.beginVerification).toHaveBeenCalledWith(TENANT, ["dev-1"]);
   });
 
   it("stays started when fleet fails or cannot be asked", async () => {
-    await h.givenJob({ status: "accepted" });
+    await h.givenJob({ status: "scheduled" });
     h.fleet.beginVerification.mockRejectedValueOnce(new Error("boom"));
     await h.actions.start("user-ada", "job-1", NOW);
     expect(await status(h)).toBe("in_progress");
@@ -269,7 +269,7 @@ describe("the checklist", () => {
   });
 
   it("changes only while the job is in progress", async () => {
-    await h.givenJob({ status: "accepted" });
+    await h.givenJob({ status: "scheduled" });
     await expect(h.records.setChecklistItem("user-ada", "job-1", "install_device", true, NOW)).rejects.toBeInstanceOf(
       InstallationJobConflictError,
     );
@@ -313,7 +313,7 @@ describe("installer notes", () => {
   });
 
   it("saves in any open status", async () => {
-    for (const from of ["assigned", "accepted", "in_progress", "overdue", "issue_reported"] as const) {
+    for (const from of ["assigned", "scheduled", "in_progress", "overdue", "issue_reported"] as const) {
       await h.givenJob({ status: from });
       await h.records.saveNotes("user-ada", "job-1", `note ${from}`, NOW);
       expect((await h.orders.findById("job-1"))?.installerNotes).toBe(`note ${from}`);
@@ -338,7 +338,7 @@ describe("evidence", () => {
   let h: Harness;
   beforeEach(async () => {
     h = await harness();
-    await h.givenJob({ status: "accepted" });
+    await h.givenJob({ status: "scheduled" });
   });
 
   const upload = (h: Harness, buffer: Buffer, category = "device_installation", name?: string) =>
@@ -470,7 +470,7 @@ describe("completing a job", () => {
   });
 
   it("refuses a job that is not in progress", async () => {
-    await h.givenJob({ status: "accepted" });
+    await h.givenJob({ status: "scheduled" });
     await h.tickAll();
     await expect(h.actions.complete("user-ada", "job-1", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
   });
@@ -505,7 +505,7 @@ describe("the job detail while working", () => {
 
     expect(options.checklist.flatMap((g) => g.items)).toHaveLength(15);
     expect(options.evidenceCategories).toEqual([{ key: "device_installation", label: "Device installation" }]);
-    expect(options.timeSlots.map((s) => s.key)).toEqual(["morning", "afternoon"]);
+    expect(options).not.toHaveProperty("timeSlots");
   });
 });
 

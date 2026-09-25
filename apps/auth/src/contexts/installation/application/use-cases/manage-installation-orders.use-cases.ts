@@ -16,6 +16,7 @@ import {
 import {
   INSTALLATION_JOB_READER,
   type InstallationJobReader,
+  type JobRow,
 } from '@auth/installation/domain/installation-job.reader';
 import {
   INSTALLER_REPOSITORY,
@@ -90,22 +91,24 @@ export class ManageInstallationOrdersUseCases {
       },
       { page, limit },
     );
-    const [devices, installers, issues] = await Promise.all([
-      devicesForJobs(this.devices, found.items.map((row) => ({ tenantId: row.order.tenantId, deviceId: row.firstFleetDeviceId }))),
-      this.installersFor(found.items.map((row) => row.order)),
-      this.latestIssues(found.items.map((row) => row.order)),
-    ]);
+    return { items: await this.items(found.items), page, limit, total: found.total };
+  }
 
+  /** One job as the list shows it, with every installer who rejected the offer. */
+  async detail(accessToken: string, orderId: string) {
+    await this.staff(accessToken, 'admin.installations.read');
+    const [row] = (await this.jobs.list({ orderId }, { page: 1, limit: 1 })).items;
+    if (!row) throw new InstallationJobNotFoundError();
+    const [[item], rejections] = await Promise.all([this.items([row]), this.orders.findOfferRejections([row.order.id])]);
+    const rejecters = await this.installersById(rejections.map((r) => r.installerId));
     return {
-      items: found.items.map((row) => ({
-        ...toJobListItem(row, devices),
-        tenantId: row.order.tenantId,
-        installer: installerSummary(installers.get(row.order.installerId ?? '')),
-        issueTicket: issueSummary(issues.get(row.order.id)),
+      ...item,
+      offerRejections: rejections.map((rejection) => ({
+        installerId: rejection.installerId,
+        installerName: rejecters.get(rejection.installerId)?.fullName ?? null,
+        reason: rejection.reason,
+        rejectedAt: rejection.rejectedAt.toISOString(),
       })),
-      page,
-      limit,
-      total: found.total,
     };
   }
 
@@ -127,8 +130,23 @@ export class ManageInstallationOrdersUseCases {
     return requireStaff({ tokens: this.tokens, access: this.access, users: this.users }, accessToken, permission);
   }
 
-  private async installersFor(orders: StoredInstallationOrder[]): Promise<Map<string, StoredInstaller>> {
-    const ids = [...new Set(orders.flatMap((order) => (order.installerId ? [order.installerId] : [])))];
+  private async items(rows: JobRow[]) {
+    const orders = rows.map((row) => row.order);
+    const [devices, installers, issues] = await Promise.all([
+      devicesForJobs(this.devices, rows.map((row) => ({ tenantId: row.order.tenantId, deviceId: row.firstFleetDeviceId }))),
+      this.installersById(orders.flatMap((order) => (order.installerId ? [order.installerId] : []))),
+      this.latestIssues(orders),
+    ]);
+    return rows.map((row) => ({
+      ...toJobListItem(row, devices),
+      tenantId: row.order.tenantId,
+      installer: installerSummary(installers.get(row.order.installerId ?? '')),
+      issueTicket: issueSummary(issues.get(row.order.id)),
+    }));
+  }
+
+  private async installersById(installerIds: string[]): Promise<Map<string, StoredInstaller>> {
+    const ids = [...new Set(installerIds)];
     const found = await Promise.all(ids.map((id) => this.installers.findById(id)));
     return new Map(found.flatMap((installer) => (installer ? [[installer.id, installer] as const] : [])));
   }

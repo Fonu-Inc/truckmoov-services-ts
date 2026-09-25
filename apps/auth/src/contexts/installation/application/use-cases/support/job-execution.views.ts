@@ -1,10 +1,5 @@
 import { lagosDate } from '@shared/devices';
-import {
-  INSTALLATION_SLOT_LABELS,
-  INSTALLATION_TIME_SLOTS,
-  OPEN_JOB_STATUSES,
-  START_SOURCE_STATUSES,
-} from '@auth/installation/domain/installation-order';
+import { OPEN_JOB_STATUSES, START_SOURCE_STATUSES } from '@auth/installation/domain/installation-order';
 import {
   CHECKLIST_ITEMS,
   INSTALLATION_CHECKLIST,
@@ -92,6 +87,5 @@ export function installerOptions() {
   return {
     checklist: INSTALLATION_CHECKLIST,
     evidenceCategories: Object.entries(EVIDENCE_CATEGORIES).map(([key, label]) => ({ key, label })),
-    timeSlots: INSTALLATION_TIME_SLOTS.map((key) => ({ key, label: INSTALLATION_SLOT_LABELS[key] })),
   };
 }

@@ -51,7 +51,7 @@ function order(overrides: Partial<StoredInstallationOrder> = {}): StoredInstalla
   return {
     id: "job-1", orderNumber: "FL-1000", applicationId: "app-1", tenantId: TENANT, scheduledDate: new Date("2026-09-25T00:00:00Z"),
     timeSlot: "morning", addressLine: "14 Kudirat Abiola Way", city: "Ikeja", state: "Lagos", siteContactName: "Ada Obi",
-    siteContactPhone: "+2347014452219", notes: null, installerNotes: null, installerId: "ada", status: "accepted",
+    siteContactPhone: "+2347014452219", notes: null, installerNotes: null, installerId: "ada", status: "scheduled",
     preExceptionStatus: null, assignedAt: NOW, acceptedAt: NOW, startedAt: null, issueReportedAt: null, completedAt: null,
     cancelledAt: null, createdAt: NOW, updatedAt: NOW, ...overrides,
   };
@@ -287,7 +287,7 @@ describe("reporting a job issue", () => {
   });
 
   it("raises the ticket and moves the job to issue_reported from every working status", async () => {
-    for (const from of ["assigned", "accepted", "scheduled", "overdue", "in_progress"] as const) {
+    for (const from of ["assigned", "scheduled", "overdue", "in_progress"] as const) {
       await h.orders.save(order({ status: from, startedAt: from === "in_progress" ? NOW : null }));
       const issue = await h.report.execute("user-ada", "job-1", { issueType: "job_scheduling", description: "Customer away" }, NOW);
 
@@ -360,7 +360,7 @@ describe("reporting a job issue", () => {
     await expect(report(PNG)).rejects.toBeInstanceOf(OnboardingValidationError);
 
     expect(h.files.store).not.toHaveBeenCalled();
-    expect((await h.orders.findById("job-1"))?.status).toBe("accepted");
+    expect((await h.orders.findById("job-1"))?.status).toBe("scheduled");
   });
 
   for (const failing of ["tickets", "attachments"] as const) {
@@ -371,7 +371,7 @@ describe("reporting a job issue", () => {
         h.report.execute("user-ada", "job-1", { issueType: "device_hardware", description: "x", photo: photo(PNG) }, NOW),
       ).rejects.toThrow("db down");
 
-      expect(await h.orders.findById("job-1")).toMatchObject({ status: "accepted", preExceptionStatus: null, issueReportedAt: null });
+      expect(await h.orders.findById("job-1")).toMatchObject({ status: "scheduled", preExceptionStatus: null, issueReportedAt: null });
       expect(await h.tickets.findAll()).toEqual([]);
       const key = (h.files.store.mock.calls[0] as unknown as [string])[0];
       const ticketId = key.split("/").at(-2)!;

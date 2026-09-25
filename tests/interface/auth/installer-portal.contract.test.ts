@@ -95,7 +95,7 @@ describe('Installer portal over HTTP (auth)', () => {
     const me = await http().get('/auth/me').set(auth);
 
     expect(dashboard.status).toBe(200);
-    expect(dashboard.body.data.counters).toMatchObject({ newlyAssigned: 0, completed: 0 });
+    expect(dashboard.body.data.counters).toEqual({ total: 0, completed: 0, pending: 0, successRate: 0 });
     expect(jobs.body.data).toMatchObject({ items: [], total: 0, countsByStatus: { all: 0 } });
     expect(missing.status).toBe(404);
     expect(edited.status).toBe(200);
@@ -109,12 +109,16 @@ describe('Installer portal over HTTP (auth)', () => {
     const accept = await http().post('/auth/installer/jobs/nope/accept').set(auth);
     const tick = await http().put('/auth/installer/jobs/nope/checklist/install_device').set(auth).send({ checked: true });
     const notes = await http().patch('/auth/installer/jobs/nope/notes').set(auth).send({ notes: 'x'.repeat(2001) });
+    const reject = await http().post('/auth/installer/jobs/nope/reject').set(auth).send({ reason: 'Too far from my route' });
+    const vague = await http().post('/auth/installer/jobs/nope/reject').set(auth).send({ reason: '  no ' });
 
     expect(options.status).toBe(200);
     expect(options.body.data.evidenceCategories).toEqual([{ key: 'device_installation', label: 'Device installation' }]);
     expect(accept.status).toBe(404);
     expect(tick.status).toBe(404);
     expect(notes.status).toBe(400);
+    expect(reject.status).toBe(404);
+    expect(vague.status).toBe(400);
   });
 
   it('lists installation orders for platform staff', async () => {

@@ -12,7 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Portals, SignedIn } from '@shared/access';
 import { uploadLimits } from '@shared/http';
 import { EVIDENCE_CATEGORIES, MAX_EVIDENCE_BYTES } from './contexts/installation/domain/installation-evidence';
@@ -21,9 +21,16 @@ import { ReportJobIssueUseCase } from './contexts/installation/application/use-c
 import { InstallerJobsUseCases } from './contexts/installation/application/use-cases/installer-jobs.use-cases';
 import { InstallerJobActionsUseCases } from './contexts/installation/application/use-cases/installer-job-actions.use-cases';
 import { InstallerJobRecordsUseCases } from './contexts/installation/application/use-cases/installer-job-records.use-cases';
+import { RejectJobOfferUseCase } from './contexts/installation/application/use-cases/reject-job-offer.use-case';
 import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
-import { SaveInstallerNotesDto, SetChecklistItemDto } from './dto/installer-portal.dto';
+import { RejectJobOfferDto, SaveInstallerNotesDto, SetChecklistItemDto } from './dto/installer-portal.dto';
+import { InstallerJobDetailResponse, RejectedOfferResponse } from './dto/installer-job-response.dto';
+import { ApiErrorResponse } from './dto/api-error.dto';
 import { bearer, mapped, ok } from './installation-http';
+import { InstallerErrors, InvalidInstallerBody, JOB_CHANGED, JOB_NOT_FOUND } from './installer-openapi';
+
+const JOB_CLOSED = '"A completed or cancelled installation cannot be changed"';
+const Changed = (description: string) => ApiCreatedResponse({ description, type: InstallerJobDetailResponse });
 
 /** Each change answers with the job as it now stands. */
 @ApiTags('Installer portal')
@@ -37,22 +44,60 @@ export class InstallerJobWorkController {
     @Inject(InstallerJobActionsUseCases) private readonly actions: InstallerJobActionsUseCases,
     @Inject(InstallerJobRecordsUseCases) private readonly records: InstallerJobRecordsUseCases,
     @Inject(ReportJobIssueUseCase) private readonly issues: ReportJobIssueUseCase,
+    @Inject(RejectJobOfferUseCase) private readonly rejections: RejectJobOfferUseCase,
   ) {}
 
   @Post('accept')
-  @ApiOperation({ summary: 'Accept an assigned job' })
+  @ApiOperation({ summary: 'Accept an offer: assigned becomes scheduled' })
+  @Changed('The job, now scheduled. message is "Job accepted".')
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(409, `"A job that is <status> cannot be accepted", or ${JOB_CHANGED}`)
   async accept(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
     return this.changed(authorization, jobId, (token) => this.actions.accept(token, jobId), 'Job accepted');
   }
 
+  @Post('reject')
+  @ApiOperation({
+    summary: 'Reject an offer with a reason; the job is offered to the next installer, never again to one who rejected it',
+  })
+  @ApiCreatedResponse({
+    description: 'Offer rejected. message is "Offer rejected". The job is no longer the caller\'s, so only its id comes back.',
+    type: RejectedOfferResponse,
+  })
+  @InvalidInstallerBody('"reason must be 3 to 500 characters" (after trimming).')
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(409, `"A job that is <status> cannot be rejected", or ${JOB_CHANGED}`)
+  async reject(
+    @Param('jobId') jobId: string,
+    @Body() body: RejectJobOfferDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const token = bearer(authorization);
+    return ok(await mapped(() => this.rejections.execute(token, jobId, body.reason)), 'Offer rejected');
+  }
+
   @Post('start')
   @ApiOperation({ summary: 'Start the installation; every unit must have its device bound' })
+  @Changed('The job, now in progress. message is "Installation started".')
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(
+    409,
+    `"A job that is <status> cannot be started", "Every unit needs its device bound before the installation can start", or ${JOB_CHANGED}`,
+  )
   async start(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
     return this.changed(authorization, jobId, (token) => this.actions.start(token, jobId), 'Installation started');
   }
 
   @Put('checklist/:itemKey')
   @ApiOperation({ summary: 'Tick or untick a checklist item while the installation is in progress' })
+  @ApiOkResponse({ description: 'The job', type: InstallerJobDetailResponse })
+  @InvalidInstallerBody('checked must be a boolean.')
+  @InstallerErrors(`${JOB_NOT_FOUND}, or "Checklist item not found"`)
+  @ApiErrorResponse(
+    409,
+    '"Checklist items can be changed only while the installation is in progress", "Every unit needs a bound device before communication can be confirmed", "Every device on this job must be verified before communication can be confirmed", or "Upload at least one evidence photo before ticking this item"',
+  )
+  @ApiErrorResponse(503, '"The device service could not be reached"')
   async setChecklistItem(
     @Param('jobId') jobId: string,
     @Param('itemKey') itemKey: string,
@@ -64,6 +109,10 @@ export class InstallerJobWorkController {
 
   @Patch('notes')
   @ApiOperation({ summary: 'Save the installer notes (autosave), until the job is completed or cancelled' })
+  @ApiOkResponse({ description: 'The job. message is "Notes saved".', type: InstallerJobDetailResponse })
+  @InvalidInstallerBody('"notes must be text", or "notes must be 2000 characters or fewer".')
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(409, JOB_CLOSED)
   async saveNotes(
     @Param('jobId') jobId: string,
     @Body() body: SaveInstallerNotesDto,
@@ -122,6 +171,14 @@ export class InstallerJobWorkController {
     },
   })
   @UseInterceptors(FileInterceptor('photo', uploadLimits(MAX_EVIDENCE_BYTES)))
+  @Changed('The job, now issue_reported. message is "Issue reported".')
+  @ApiErrorResponse(
+    400,
+    '"issueType must be one of: <categories>", "A description is required", "description must be <n> characters or fewer", or "Issue photo rejected: <reason>"',
+  )
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(409, `"An issue cannot be reported on a job that is <status>", or ${JOB_CHANGED}`)
+  @ApiErrorResponse(413, 'The photo is over 10 MB: { statusCode: 413, message: "File too large", error: "Payload Too Large" }')
   async reportIssue(
     @Param('jobId') jobId: string,
     @Body('issueType') issueType?: string,
@@ -136,6 +193,14 @@ export class InstallerJobWorkController {
 
   @Post('complete')
   @ApiOperation({ summary: 'Complete the installation: all 15 checklist items, devices verified, evidence uploaded' })
+  @Changed('The job, now completed. message is "Installation completed".')
+  @InstallerErrors(`${JOB_NOT_FOUND}, or "The onboarding for this job no longer exists"`)
+  @ApiErrorResponse(
+    409,
+    `"Only an installation in progress can be completed", "<n>/15 checklist items are complete", a checklist gate refusal, the onboarding stage refusal, "Unit <n> has no vehicle or device to hand over", or ${JOB_CHANGED}`,
+  )
+  @ApiErrorResponse(422, "Fleet refused the hand-over, such as a device outside the customer's fleet")
+  @ApiErrorResponse(503, '"The device service could not be reached"')
   async complete(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
     return this.changed(authorization, jobId, (token) => this.actions.complete(token, jobId), 'Installation completed');
   }

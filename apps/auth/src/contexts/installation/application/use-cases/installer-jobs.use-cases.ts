@@ -7,7 +7,6 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
-  ACTIVE_JOB_STATUSES,
   INSTALLATION_ORDER_STATUSES,
   OPEN_JOB_STATUSES,
   TERMINAL_JOB_STATUSES,
@@ -19,6 +18,7 @@ import {
 } from '@auth/installation/domain/installation-order.repository';
 import {
   INSTALLATION_JOB_READER,
+  type ActivityMeasure,
   type InstallationJobReader,
   type JobFilters,
 } from '@auth/installation/domain/installation-job.reader';
@@ -37,8 +37,15 @@ import { SIM_REPOSITORY, type SimRepository } from '../../../../sim.repository';
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../../../support-ticket.repository';
 import { currentInstaller, installerJob } from './support/current-installer';
 import { installerOptions } from './support/job-execution.views';
-import { MAX_PAGE_SIZE, pageOf } from './support/paging';
-import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
+import { pageOf } from './support/paging';
+import { devicesForJobs, toDashboardJob, toJobDetail, toJobListItem } from './support/installation-job.views';
+import {
+  activitySeries,
+  dashboardCounters,
+  lagosMonths,
+  toActivityView,
+  type StatusCounts,
+} from './support/installer-dashboard';
 import { installerSupportOptions, toJobIssueView } from './support/installer-ticket.views';
 
 export type JobScope = 'active' | 'history';
@@ -53,8 +60,10 @@ export type ListJobsQuery = {
   limit?: number;
 };
 
-const TODAY_LIMIT = MAX_PAGE_SIZE;
-const BOOKED: InstallationOrderStatus[] = ['accepted', 'scheduled'];
+const DASHBOARD_SECTION_LIMIT = 5;
+const RECENT_ACTIVITY_LIMIT = 10;
+const ACTIVITY_MONTHS = 6;
+const TODAY_STATUSES: InstallationOrderStatus[] = ['scheduled', 'in_progress', 'overdue', 'issue_reported'];
 
 const SCOPES: Record<JobScope, readonly InstallationOrderStatus[]> = {
   active: OPEN_JOB_STATUSES,
@@ -100,36 +109,28 @@ export class InstallerJobsUseCases {
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
   ) {}
 
+  /** Offers, today's and upcoming jobs, monthly activity and recent events, on Lagos days and months. */
   async dashboard(accessToken: string, now: Date = new Date()) {
     const installer = await this.installer(accessToken);
     const today = lagosToday(now);
     const tomorrow = nextCalendarDay(today);
-    const mine = { installerId: installer.id };
-    const [counts, todays, bookedToday, upcoming] = await Promise.all([
+    const mine: JobFilters = { installerId: installer.id, sort: 'scheduled' };
+    const [counts, offers, todaysJobs, upcomingJobs, activityOverTime, recent] = await Promise.all([
       this.statusCounts(installer),
-      this.jobs.list({ ...mine, statuses: ACTIVE_JOB_STATUSES, scheduledFrom: today, scheduledBefore: tomorrow }, { page: 1, limit: TODAY_LIMIT }),
-      this.jobs.count({ ...mine, statuses: BOOKED, scheduledFrom: today, scheduledBefore: tomorrow }),
-      this.jobs.count({ ...mine, statuses: BOOKED, scheduledFrom: tomorrow }),
+      this.section({ ...mine, statuses: ['assigned'] }),
+      this.section({ ...mine, statuses: TODAY_STATUSES, scheduledFrom: today, scheduledBefore: tomorrow }),
+      this.section({ ...mine, statuses: ['scheduled'], scheduledFrom: tomorrow }),
+      this.activityOverTime(installer.id, now),
+      this.jobs.recentEvents(installer.id, RECENT_ACTIVITY_LIMIT),
     ]);
 
     return {
-      counters: {
-        newlyAssigned: counts.assigned,
-        scheduledToday: bookedToday,
-        upcoming,
-        inProgress: counts.in_progress,
-        overdue: counts.overdue,
-        completed: counts.completed,
-        issuesReported: counts.issue_reported,
-      },
-      statusOverview: {
-        accepted: counts.accepted,
-        scheduled: counts.scheduled,
-        inProgress: counts.in_progress,
-        overdue: counts.overdue,
-        completed: counts.completed,
-      },
-      todaysJobs: await this.listItems(todays.items),
+      counters: dashboardCounters(counts),
+      offers,
+      todaysJobs,
+      upcomingJobs,
+      activityOverTime,
+      recentActivity: recent.map(toActivityView),
     };
   }
 
@@ -193,8 +194,20 @@ export class InstallerJobsUseCases {
     return currentInstaller({ tokens: this.tokens, installers: this.installers }, accessToken);
   }
 
-  private async statusCounts(installer: StoredInstaller): Promise<Record<InstallationOrderStatus, number>> {
-    const counts = Object.fromEntries(INSTALLATION_ORDER_STATUSES.map((s) => [s, 0])) as Record<InstallationOrderStatus, number>;
+  private async section(filters: JobFilters) {
+    const found = await this.jobs.list(filters, { page: 1, limit: DASHBOARD_SECTION_LIMIT });
+    return { items: found.items.map(toDashboardJob), total: found.total };
+  }
+
+  private async activityOverTime(installerId: string, now: Date) {
+    const { months, range } = lagosMonths(now, ACTIVITY_MONTHS);
+    const count = (measure: ActivityMeasure) => this.jobs.monthlyActivity(installerId, measure, range);
+    const [completed, inProgress, scheduled] = await Promise.all([count('completed'), count('inProgress'), count('scheduled')]);
+    return activitySeries(months, { completed, inProgress, scheduled });
+  }
+
+  private async statusCounts(installer: StoredInstaller): Promise<StatusCounts> {
+    const counts = Object.fromEntries(INSTALLATION_ORDER_STATUSES.map((s) => [s, 0])) as StatusCounts;
     for (const row of await this.orders.countByInstaller([installer.id])) {
       if (row.status in counts) counts[row.status] += row.count;
     }

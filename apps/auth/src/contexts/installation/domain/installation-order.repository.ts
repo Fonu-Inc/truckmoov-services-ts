@@ -76,6 +76,13 @@ export type StoredInstallationEvidence = {
   createdAt: Date;
 };
 
+export type StoredOfferRejection = {
+  orderId: string;
+  installerId: string;
+  reason: string;
+  rejectedAt: Date;
+};
+
 export type InstallerJobCount = {
   installerId: string;
   status: InstallationOrderStatus;
@@ -85,8 +92,11 @@ export type InstallerJobCount = {
 /** Where the unassigned queue was read up to: the last order of the previous page. */
 export type UnassignedCursor = Pick<StoredInstallationOrder, 'scheduledDate' | 'createdAt' | 'id'>;
 
-/** assigned; full: the installer has no room left; taken: the order is no longer unassigned. */
-export type AssignmentOutcome = 'assigned' | 'full' | 'taken';
+/**
+ * assigned; full: the installer has no room left; taken: the order is no longer
+ * unassigned; declined: the installer rejected this order before.
+ */
+export type AssignmentOutcome = 'assigned' | 'full' | 'taken' | 'declined';
 
 export interface InstallationOrderRepository {
   save(order: StoredInstallationOrder): Promise<void>;
@@ -98,11 +108,18 @@ export interface InstallationOrderRepository {
   /** Oldest booking first, then creation, then id; resumes after `after`. */
   findUnassigned(limit: number, after?: UnassignedCursor): Promise<StoredInstallationOrder[]>;
   /**
-   * Writes an assignment while the order is still unassigned and its installer
-   * has fewer than `maxActiveJobs` active jobs, holding the installer so two
-   * writers cannot both take the last place.
+   * Writes an assignment while the order is still unassigned, its installer never
+   * rejected it and has fewer than `maxActiveJobs` active jobs, holding the
+   * installer so two writers cannot both take the last place.
    */
   assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome>;
+  /**
+   * Hands a rejected offer back: writes the order (unassigned, no installer) and
+   * the rejection together, only while it is still assigned to the rejecting installer.
+   */
+  rejectOffer(order: StoredInstallationOrder, rejection: StoredOfferRejection): Promise<boolean>;
+  /** Oldest first. */
+  findOfferRejections(orderIds: string[]): Promise<StoredOfferRejection[]>;
   /**
    * Stamps reminder_sent_at on orders in `statuses` booked for `day` that have
    * no reminder yet, and returns them. Each order is claimed by one caller only.
@@ -141,7 +158,7 @@ export interface InstallationOrderRepository {
   findAssignments(orderId: string): Promise<StoredDeviceAssignment[]>;
   findAssignmentByFleetDeviceId(fleetDeviceId: string): Promise<StoredDeviceAssignment | null>;
   saveAssignment(assignment: StoredDeviceAssignment): Promise<void>;
-  /** The order, its units, ticks and evidence rows. Evidence files are the caller's to remove first. */
+  /** The order, its units, ticks, evidence and offer rejections. Evidence files are the caller's to remove first. */
   deleteForApplication(applicationId: string): Promise<void>;
   /** Orders per installer and status, in one query. */
   countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]>;

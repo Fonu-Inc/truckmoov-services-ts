@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { NIGERIAN_STATES } from '../contexts/onboarding/domain/onboarding-application.validation';
-import { INSTALLATION_TIME_SLOTS, MAX_INSTALLER_NOTES_LENGTH } from '../contexts/installation/domain/installation-order';
+import {
+  INSTALLATION_TIME_SLOTS,
+  MAX_INSTALLER_NOTES_LENGTH,
+  MAX_REJECTION_REASON_LENGTH,
+  MIN_REJECTION_REASON_LENGTH,
+} from '../contexts/installation/domain/installation-order';
 import {
   INSTALLER_PRIORITY_LABELS,
   INSTALLER_SUPPORT_CATEGORIES,
@@ -75,6 +80,17 @@ export class BindUnitDeviceDto {
   @IsString()
   @Matches(/^[A-Za-z0-9_-]{1,64}$/)
   fleetDeviceId!: string;
+}
+
+export class RejectJobOfferDto {
+  @ApiProperty({
+    example: 'The site is outside my service route this week',
+    minLength: MIN_REJECTION_REASON_LENGTH,
+    maxLength: MAX_REJECTION_REASON_LENGTH,
+    description: 'Trimmed before the length is checked.',
+  })
+  @IsString()
+  reason!: string;
 }
 
 export class SetChecklistItemDto {

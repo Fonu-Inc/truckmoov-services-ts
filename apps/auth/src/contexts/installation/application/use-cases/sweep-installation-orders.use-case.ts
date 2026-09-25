@@ -6,7 +6,7 @@ import {
 } from '@auth/installation/domain/installation-order.repository';
 import { OVERDUE_SOURCE_STATUSES, REMINDER_STATUSES } from '@auth/installation/domain/installation-order';
 import { lagosToday, nextCalendarDay } from '@shared/devices';
-import { InstallerAssignmentService } from '../services/installer-assignment.service';
+import { InstallerAssignmentService, rejectersByOrder } from '../services/installer-assignment.service';
 import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
 
 const BATCH_SIZE = 100;
@@ -16,6 +16,7 @@ const BATCH_SIZE = 100;
  * overdue, and reminds installers of tomorrow's jobs once. Every write is conditional on the status it read, so
  * several replicas sweeping at once cannot assign one order twice. The whole
  * queue is read page by page, so orders nobody can take never hide the rest.
+ * An order is never offered again to an installer who rejected it.
  */
 @Injectable()
 export class SweepInstallationOrdersUseCase {
@@ -53,8 +54,9 @@ export class SweepInstallationOrdersUseCase {
     const assign = await this.assignment.assigner();
     let assigned = 0;
     while (page.length > 0) {
+      const rejecters = rejectersByOrder(await this.orders.findOfferRejections(page.map((order) => order.id)));
       for (const order of page) {
-        const assignment = await assign(order, now);
+        const assignment = await assign(order, now, rejecters.get(order.id));
         if (!assignment) continue;
         assigned += 1;
         await this.notifier.notify(assignedNotice(assignment.order, now), now);

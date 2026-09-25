@@ -21,6 +21,7 @@ import {
   INSTALLER_PHOTO_STORAGE,
   type InstallerPhotoStorage,
 } from '@auth/installation/domain/ports/installer-photo-storage.port';
+import { scheduledInstants } from './support/installation-job.views';
 
 @Injectable()
 export class GetInstallationStatusUseCase {
@@ -72,6 +73,7 @@ export class GetInstallationStatusUseCase {
           scheduledDate: order.scheduledDate.toISOString().slice(0, 10),
           timeSlot: order.timeSlot,
           timeSlotLabel: INSTALLATION_SLOT_LABELS[order.timeSlot],
+          ...scheduledInstants(order),
           location: `${order.addressLine}, ${order.city}, ${order.state}`,
           siteContactName: order.siteContactName,
           siteContactPhone: order.siteContactPhone,

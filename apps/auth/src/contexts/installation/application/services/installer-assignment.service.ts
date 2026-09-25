@@ -5,6 +5,7 @@ import {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
   type StoredInstallationOrder,
+  type StoredOfferRejection,
 } from '@auth/installation/domain/installation-order.repository';
 import {
   INSTALLER_REPOSITORY,
@@ -15,8 +16,24 @@ import { tallyJobs } from '../use-cases/support/installer-admin.support';
 
 export type Assignment = { order: StoredInstallationOrder; installer: StoredInstaller };
 
-/** Assigns one unassigned order; null when nobody can take it or another writer moved it. */
-export type InstallerAssigner = (order: StoredInstallationOrder, now: Date) => Promise<Assignment | null>;
+/**
+ * Assigns one unassigned order to anyone but `excluded` (those who rejected it);
+ * null when nobody can take it or another writer moved it.
+ */
+export type InstallerAssigner = (
+  order: StoredInstallationOrder,
+  now: Date,
+  excluded?: ReadonlySet<string>,
+) => Promise<Assignment | null>;
+
+/** Who rejected each order. */
+export function rejectersByOrder(rejections: StoredOfferRejection[]): Map<string, Set<string>> {
+  const byOrder = new Map<string, Set<string>>();
+  for (const { orderId, installerId } of rejections) {
+    byOrder.set(orderId, (byOrder.get(orderId) ?? new Set()).add(installerId));
+  }
+  return byOrder;
+}
 
 /** Loads who can take work and how busy they are, once per booking or sweep. */
 @Injectable()
@@ -35,17 +52,21 @@ export class InstallerAssignmentService {
     const tallies = tallyJobs(await this.orders.countByInstaller(candidates.map((c) => c.id)));
     const load = new Map([...tallies].map(([id, tally]) => [id, tally.active]));
 
-    return (order, now) => this.assign(order, now, candidates, load);
+    return (order, now, excluded = new Set()) => this.assign(order, now, candidates, load, new Set(excluded));
   }
 
-  /** Tries candidates in pick order; one found full is ranked out and the next tried. */
+  /**
+   * Tries candidates in pick order. One found full is ranked out for every order;
+   * one who turned this order down, found only at the write, for this order alone.
+   */
   private async assign(
     order: StoredInstallationOrder,
     now: Date,
     candidates: StoredInstaller[],
     load: Map<string, number>,
+    excluded: Set<string>,
   ): Promise<Assignment | null> {
-    let installer = chooseInstaller(candidates, order.state, load);
+    let installer = chooseInstaller(candidates, order.state, load, excluded);
     while (installer) {
       const assigned = assignOrder(order, installer.id, now);
       const outcome = await this.orders.assignIfRoom(assigned, installer.maxActiveJobs);
@@ -54,8 +75,9 @@ export class InstallerAssignmentService {
         load.set(installer.id, (load.get(installer.id) ?? 0) + 1);
         return { order: assigned, installer };
       }
-      load.set(installer.id, installer.maxActiveJobs);
-      installer = chooseInstaller(candidates, order.state, load);
+      if (outcome === 'declined') excluded.add(installer.id);
+      else load.set(installer.id, installer.maxActiveJobs);
+      installer = chooseInstaller(candidates, order.state, load, excluded);
     }
     return null;
   }

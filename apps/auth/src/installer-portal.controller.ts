@@ -13,7 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Portals, SignedIn } from '@shared/access';
 import { uploadLimits } from '@shared/http';
 import { INSTALLATION_ORDER_STATUSES } from './contexts/installation/domain/installation-order';
@@ -26,6 +26,14 @@ import { InstallerProfileUseCases } from './contexts/installation/application/us
 import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
 import { UpdateInstallerProfileDto } from './dto/installer-portal.dto';
 import { bearer, jobStatusFilter, mapped, numeric, ok } from './installation-http';
+import { InstallerErrors, JOB_NOT_FOUND } from './installer-openapi';
+import { ApiErrorResponse } from './dto/api-error.dto';
+import {
+  InstallerDashboardResponse,
+  InstallerJobDetailResponse,
+  InstallerJobPageResponse,
+  InstallerOptionsResponse,
+} from './dto/installer-job-response.dto';
 
 const SCOPES: readonly JobScope[] = ['active', 'history'];
 
@@ -48,13 +56,17 @@ export class InstallerPortalController {
   ) {}
 
   @Get('dashboard')
-  @ApiOperation({ summary: "Counters, status overview and today's jobs, in Lagos time" })
+  @ApiOperation({ summary: "Counters, offers, today's and upcoming jobs, monthly activity and recent events, in Lagos time" })
+  @ApiOkResponse({ description: 'The dashboard', type: InstallerDashboardResponse })
+  @InstallerErrors()
   async dashboard(@Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.jobs.dashboard(bearer(authorization))));
   }
 
   @Get('options')
-  @ApiOperation({ summary: 'Checklist definition, evidence categories and time slot labels' })
+  @ApiOperation({ summary: 'Checklist definition, evidence categories, support categories, tips, priorities and ticket statuses' })
+  @ApiOkResponse({ description: 'The options', type: InstallerOptionsResponse })
+  @InstallerErrors()
   async options(@Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.jobs.options(bearer(authorization))));
   }
@@ -67,7 +79,13 @@ export class InstallerPortalController {
   @ApiQuery({ name: 'completedFrom', required: false, description: 'YYYY-MM-DD' })
   @ApiQuery({ name: 'completedTo', required: false, description: 'YYYY-MM-DD' })
   @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'limit', required: false, description: 'Default 20, at most 100' })
+  @ApiOkResponse({ description: 'Page of jobs, soonest first; history by completion, newest first', type: InstallerJobPageResponse })
+  @ApiErrorResponse(
+    400,
+    '"scope must be one of: active, history", "status must be one of: <statuses>", or "completedFrom must be a date (YYYY-MM-DD)" (likewise completedTo).',
+  )
+  @InstallerErrors()
   async list(
     @Query('scope') scope?: string,
     @Query('status') status?: string,
@@ -92,6 +110,8 @@ export class InstallerPortalController {
 
   @Get('jobs/:jobId')
   @ApiOperation({ summary: 'Customer and site, each unit, the checklist, evidence, notes, completion summary and allowed actions' })
+  @ApiOkResponse({ description: 'The job', type: InstallerJobDetailResponse })
+  @InstallerErrors(JOB_NOT_FOUND)
   async detail(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
     return ok(await mapped(() => this.jobs.detail(bearer(authorization), jobId)));
   }
