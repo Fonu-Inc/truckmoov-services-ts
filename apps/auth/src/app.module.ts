@@ -419,7 +419,8 @@ import { MikroTenantRoleRepository } from './mikro-tenant-role.repository';
 import { TenantRolesUseCases } from './tenant-roles.use-cases';
 import { TenantRolesController } from './tenant-roles.controller';
 import { AccessGrantCheck } from './access-grant-check';
-import { AdminTwoFactorLogin } from './admin-two-factor-login.use-case';
+import { TwoFactorLogin } from './two-factor-login.use-case';
+import { LoginEvents } from './login-events';
 import { GovernanceUseCases, PermissionRemovalSweep } from './governance.use-cases';
 import { GovernanceController, StaffRolesController } from './governance.controller';
 import { PERMISSION_REMOVAL_REPOSITORY } from './permission-removal.repository';
@@ -879,7 +880,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AccessChangeNotifier,
     TenantRolesUseCases,
     GovernanceUseCases,
-    AdminTwoFactorLogin,
+    TwoFactorLogin,
+    LoginEvents,
     PermissionRemovalSweep,
     { provide: GRANT_CHECK, useClass: AccessGrantCheck },
     {

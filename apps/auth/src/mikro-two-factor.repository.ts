@@ -20,6 +20,8 @@ export class MikroTwoFactorRepository implements TwoFactorRepository {
       secretCiphertext: record.secretCiphertext,
       confirmedAt: record.confirmedAt ?? null,
       recoveryCodeHashes: record.recoveryCodeHashes ?? [],
+      lastUsedStep: record.lastUsedStep ?? null,
+      version: record.version ?? 0,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
     };
@@ -28,6 +30,13 @@ export class MikroTwoFactorRepository implements TwoFactorRepository {
   async save(enrolment: StoredTwoFactorEnrolment): Promise<void> {
     const em = await this.em();
     await em.upsert(TwoFactorEnrolmentRecord, { ...enrolment });
+  }
+
+  async saveIfVersion(enrolment: StoredTwoFactorEnrolment, expectedVersion: number): Promise<boolean> {
+    const em = await this.em();
+    const { userId, ...fields } = enrolment;
+    const changed = await em.nativeUpdate(TwoFactorEnrolmentRecord, { userId, version: expectedVersion }, fields);
+    return changed === 1;
   }
 
   async deleteByUserId(userId: string): Promise<void> {
@@ -51,6 +60,12 @@ export class InMemoryTwoFactorRepository implements TwoFactorRepository {
 
   async save(enrolment: StoredTwoFactorEnrolment): Promise<void> {
     this.store.set(enrolment.userId, { ...enrolment });
+  }
+
+  async saveIfVersion(enrolment: StoredTwoFactorEnrolment, expectedVersion: number): Promise<boolean> {
+    if (this.store.get(enrolment.userId)?.version !== expectedVersion) return false;
+    this.store.set(enrolment.userId, { ...enrolment });
+    return true;
   }
 
   async deleteByUserId(userId: string): Promise<void> {

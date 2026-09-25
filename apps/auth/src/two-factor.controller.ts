@@ -9,13 +9,22 @@ import {
   Inject,
   Post,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
+import { LoginRateLimitGuard } from './login-rate-limit.guard';
+import { ApiErrorBody, ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
 import { TwoFactorCodeDto } from './dto/two-factor.dto';
+import {
+  TwoFactorDisabledResponse,
+  TwoFactorEnrolmentResponse,
+  TwoFactorRecoveryCodesResponse,
+  TwoFactorStatusResponse,
+} from './dto/two-factor-response.dto';
 import {
   BeginTwoFactorEnrolmentUseCase,
   ConfirmTwoFactorEnrolmentUseCase,
@@ -29,7 +38,7 @@ import {
 import { Portals, SignedIn } from '@shared/access';
 
 @ApiTags('Two-factor')
-@Portals('tenant', 'admin')
+@Portals('tenant', 'admin', 'installer')
 @SignedIn()
 @Controller('two-factor')
 export class TwoFactorController extends BaseAuthController {
@@ -46,7 +55,9 @@ export class TwoFactorController extends BaseAuthController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Whether two-factor is on for the signed-in account' })
-  @ApiOkResponse({ description: 'Two-factor status' })
+  @ApiOkResponse({ description: 'Two-factor status', type: TwoFactorStatusResponse })
+  @ApiErrorResponse(401, 'Missing or invalid bearer token')
+  @ApiErrorResponse(404, 'Not open to the caller\'s portal')
   async getStatus(@Headers('authorization') authorization?: string) {
     return this.run(() => this.status.execute(this.requireToken(authorization)));
   }
@@ -57,18 +68,28 @@ export class TwoFactorController extends BaseAuthController {
     summary: 'Begin two-factor enrolment',
     description: 'Returns the secret and an otpauth URI to render as a QR code. Shown once.',
   })
-  @ApiOkResponse({ description: 'The enrolment secret' })
+  @ApiCreatedResponse({ description: 'The enrolment secret', type: TwoFactorEnrolmentResponse })
+  @ApiErrorResponse(401, 'Missing or invalid bearer token')
+  @ApiErrorResponse(404, 'Not open to the caller\'s portal')
+  @ApiErrorResponse(409, '"Two-factor is already set up for this account"')
   async beginEnrolment(@Headers('authorization') authorization?: string) {
     return this.run(() => this.begin.execute(this.requireToken(authorization)));
   }
 
+  // Rate limited like sign-in: a six-digit code is guessable without it.
   @Post('enrol/confirm')
+  @UseGuards(LoginRateLimitGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Confirm enrolment with a code',
     description: 'Turns two-factor on and returns the recovery codes. They are shown once.',
   })
-  @ApiOkResponse({ description: 'Recovery codes' })
+  @ApiCreatedResponse({ description: 'Recovery codes', type: TwoFactorRecoveryCodesResponse })
+  @ApiErrorResponse(400, '"That code is not valid", "Two-factor has not been set up for this account", or a validation error', ApiErrorBody, ApiValidationErrorBody)
+  @ApiErrorResponse(401, 'Missing or invalid bearer token')
+  @ApiErrorResponse(404, 'Not open to the caller\'s portal')
+  @ApiErrorResponse(409, '"Two-factor is already set up for this account"')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async confirmEnrolment(
     @Body(BodyOrDataPipe) payload: TwoFactorCodeDto,
     @Headers('authorization') authorization?: string,
@@ -86,12 +107,17 @@ export class TwoFactorController extends BaseAuthController {
   }
 
   @Post('disable')
+  @UseGuards(LoginRateLimitGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Turn two-factor off',
     description: 'Needs a current code, and is refused while the platform requires two-factor.',
   })
-  @ApiOkResponse({ description: 'Two-factor disabled' })
+  @ApiCreatedResponse({ description: 'Two-factor disabled', type: TwoFactorDisabledResponse })
+  @ApiErrorResponse(400, '"That code is not valid", "Two-factor has not been set up for this account", or a validation error', ApiErrorBody, ApiValidationErrorBody)
+  @ApiErrorResponse(401, 'Missing or invalid bearer token')
+  @ApiErrorResponse(404, 'Not open to the caller\'s portal, or refused while the platform requires two-factor')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async disableTwoFactor(
     @Body(BodyOrDataPipe) payload: TwoFactorCodeDto,
     @Headers('authorization') authorization?: string,

@@ -23,6 +23,12 @@ export type LoginCommand = {
 
 export type LoginAudience = 'tenant' | 'system' | 'installer';
 
+const AUDIENCE_REFUSALS: Record<LoginAudience, string> = {
+  tenant: 'System accounts must use the system login endpoint',
+  system: 'This endpoint is reserved for system accounts',
+  installer: 'This endpoint is reserved for installers',
+};
+
 @Injectable()
 export class LoginUseCase {
   constructor(
@@ -67,18 +73,14 @@ export class LoginUseCase {
    * each require their role in the system tenant: checking the role alone
    * would let an account that was wrongly given it inside a tenant through.
    */
+  admits(user: AuthUser, audience: LoginAudience): boolean {
+    if (audience === 'tenant') return !isSystemRole(user.role) && user.role !== Role.INSTALLER;
+    if (audience === 'system') return isPlatformActor(user);
+    return isInstallerActor(user);
+  }
+
   private assertAudience(user: AuthUser, audience: LoginAudience) {
-    if (audience === 'tenant' && (isSystemRole(user.role) || user.role === Role.INSTALLER)) {
-      throw new ForbiddenError(
-        'System accounts must use the system login endpoint',
-      );
-    }
-    if (audience === 'system' && !isPlatformActor(user)) {
-      throw new ForbiddenError('This endpoint is reserved for system accounts');
-    }
-    if (audience === 'installer' && !isInstallerActor(user)) {
-      throw new ForbiddenError('This endpoint is reserved for installers');
-    }
+    if (!this.admits(user, audience)) throw new ForbiddenError(AUDIENCE_REFUSALS[audience]);
   }
 
   async issueSession(user: AuthUser) {

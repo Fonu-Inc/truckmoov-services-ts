@@ -16,6 +16,9 @@ import {
 } from '../../../apps/auth/src/contexts/installation/infrastructure/persistence/in-memory-installation.repositories';
 import { InstallerAccountsAdapter } from '../../../apps/auth/src/contexts/installation/infrastructure/accounts/installer-accounts.adapter';
 import { InstallerLoginUseCase } from '../../../apps/auth/src/contexts/installation/application/use-cases/installer-login.use-case';
+import { InMemoryTwoFactorRepository } from '../../../apps/auth/src/mikro-two-factor.repository';
+import { TwoFactorLogin } from '../../../apps/auth/src/two-factor-login.use-case';
+import { generateTotpSecret, totpCodeAt } from '@shared/crypto';
 import { ManageInstallersUseCases } from '../../../apps/auth/src/contexts/installation/application/use-cases/manage-installers.use-cases';
 import { InstallerStateError } from '../../../apps/auth/src/contexts/installation/domain/installer';
 
@@ -224,11 +227,31 @@ describe('accepting an installer invite', () => {
 });
 
 describe('installer sign-in', () => {
-  function signIn(role: string, tenantId: string, installers: InMemoryInstallerRepository) {
+  function signIn(
+    role: string,
+    tenantId: string,
+    installers: InMemoryInstallerRepository,
+    enrolments = new InMemoryTwoFactorRepository(),
+  ) {
     const identity = { verifyCredentials: async (email: string) => AuthUser.create({ id: 'u1', email, role, tenantId }) };
     const tokens = { issueAccessToken: () => 'access', issueRefreshToken: () => 'refresh' };
     const login = new LoginUseCase(identity as never, tokens as never, new InMemorySessionStore());
-    return new InstallerLoginUseCase(login, installers);
+    const users = { findById: async () => ({ id: 'u1', email: credentials.email, passwordHash: 'x', role, tenantId }) };
+    const cipher = { encrypt: (s: string) => ({ ciphertext: s }), decrypt: (c: string) => c };
+    const config = { adminTwoFactorRequired: false, auth: { jwtSecret: 'challenge-secret' } };
+    const twoFactor = new TwoFactorLogin(login, users as never, enrolments, cipher as never, config as never);
+    return new InstallerLoginUseCase(login, installers, twoFactor);
+  }
+
+  async function enrolled() {
+    const enrolments = new InMemoryTwoFactorRepository();
+    const secret = generateTotpSecret();
+    const now = new Date();
+    await enrolments.save({
+      userId: 'u1', secretCiphertext: secret, confirmedAt: now, recoveryCodeHashes: [], lastUsedStep: null, version: 1,
+      createdAt: now, updatedAt: now,
+    });
+    return { enrolments, secret };
   }
   const credentials = { email: 'tunde@example.com', password: 'StrongPass123!' };
 
@@ -247,10 +270,37 @@ describe('installer sign-in', () => {
   it('admits an active installer and records the activity', async () => {
     const installers = await installerWith('active');
 
-    const session = await signIn('INSTALLER', 'system', installers).execute(credentials);
+    const started = await signIn('INSTALLER', 'system', installers).execute(credentials);
 
-    expect(session.user.role).toBe('INSTALLER');
+    expect(started.kind === 'session' && started.session.user.role).toBe('INSTALLER');
     expect((await installers.findById('i1'))?.lastActivityAt).not.toBeNull();
+  });
+
+  it('asks an enrolled installer for a code before opening a session', async () => {
+    const installers = await installerWith('active');
+    const { enrolments, secret } = await enrolled();
+    const flow = signIn('INSTALLER', 'system', installers, enrolments);
+
+    const started = await flow.execute(credentials);
+    expect(started.kind).toBe('code');
+    expect((await installers.findById('i1'))?.lastActivityAt).toBeNull();
+
+    const challenge = started.kind === 'code' ? started.challengeToken : '';
+    const done = await flow.completeTwoFactor(challenge, totpCodeAt(secret, Date.now()));
+    expect(done.session.user.role).toBe('INSTALLER');
+    expect((await installers.findById('i1'))?.lastActivityAt).not.toBeNull();
+  });
+
+  it('refuses the code step for an installer suspended since the password step', async () => {
+    const installers = await installerWith('active');
+    const { enrolments, secret } = await enrolled();
+    const flow = signIn('INSTALLER', 'system', installers, enrolments);
+    const started = await flow.execute(credentials);
+    const installer = await installers.findById('i1');
+    await installers.save({ ...installer!, status: 'suspended' });
+
+    const challenge = started.kind === 'code' ? started.challengeToken : '';
+    await expect(flow.completeTwoFactor(challenge, totpCodeAt(secret, Date.now()))).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('refuses a suspended installer whose account is still enabled', async () => {

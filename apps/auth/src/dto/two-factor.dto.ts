@@ -10,13 +10,13 @@ export class TwoFactorCodeDto {
   code!: string;
 }
 
-export class AdminTwoFactorDto {
-  /** From the password step of admin sign-in. */
+export class LoginTwoFactorDto {
+  @ApiProperty({ description: 'From the password step of the same portal\'s sign-in.' })
   @IsString()
   @MaxLength(2048)
   challengeToken!: string;
 
-  /** Six digits from the authenticator, or a recovery code. */
+  @ApiProperty({ description: 'Six digits from the authenticator, or a recovery code.', example: '123456' })
   @IsString()
   @MaxLength(32)
   code!: string;

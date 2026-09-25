@@ -90,9 +90,9 @@ import {
 } from './update-plan-entitlements.use-case';
 import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-case';
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
-import { AdminTwoFactorLogin, InvalidChallengeError } from './admin-two-factor-login.use-case';
+import { InvalidChallengeError, TwoFactorLogin, challengeBody } from './two-factor-login.use-case';
 import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
-import { AdminTwoFactorDto } from './dto/two-factor.dto';
+import { LoginTwoFactorDto } from './dto/two-factor.dto';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
@@ -108,7 +108,7 @@ import { UnsupportedPlatformCurrencyError } from './platform-currency.errors';
 export class SystemController extends BaseAuthController {
   constructor(
     @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,
-    @Inject(AdminTwoFactorLogin) private readonly adminLogin: AdminTwoFactorLogin,
+    @Inject(TwoFactorLogin) private readonly twoFactorLogin: TwoFactorLogin,
     @Inject(ChangeSystemPasswordUseCase) private readonly changeSystemPasswordUseCase: ChangeSystemPasswordUseCase,
     @Inject(CreateSystemAdminUseCase) private readonly createSystemAdminUseCase: CreateSystemAdminUseCase,
     @Inject(CreateSystemAdminInviteUseCase) private readonly createSystemAdminInviteUseCase: CreateSystemAdminInviteUseCase,
@@ -159,19 +159,9 @@ export class SystemController extends BaseAuthController {
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
   ): Promise<AuthResponse | Record<string, unknown>> {
-    const started = await this.runAuthUseCase(() => this.adminLogin.start(payload));
-    if (started.kind === 'code') {
-      return { twoFactorRequired: true, step: 'code', challengeToken: started.challengeToken };
-    }
-    if (started.kind === 'enrolment') {
-      return {
-        twoFactorRequired: true,
-        step: 'enrolment',
-        challengeToken: started.challengeToken,
-        enrolment: { secret: started.secret, otpauthUri: started.otpauthUri },
-      };
-    }
-    return this.signedIn(started.session);
+    const started = await this.runAuthUseCase(() => this.twoFactorLogin.start('system', payload));
+    if (started.kind === 'session') return this.signedIn(started.session);
+    return challengeBody(started);
   }
 
   @Portals('public')
@@ -183,9 +173,9 @@ export class SystemController extends BaseAuthController {
       'Takes the challenge from the password step and a code from the authenticator, or a recovery code. On first enrolment it also returns the recovery codes, shown once.',
   })
   @ApiOkResponse({ type: AuthResponse })
-  async systemLoginTwoFactor(@Body(BodyOrDataPipe) payload: AdminTwoFactorDto) {
+  async systemLoginTwoFactor(@Body(BodyOrDataPipe) payload: LoginTwoFactorDto) {
     try {
-      return await this.signedIn(await this.adminLogin.complete(payload.challengeToken, payload.code));
+      return await this.signedIn((await this.twoFactorLogin.complete('system', payload.challengeToken, payload.code)).session);
     } catch (error) {
       if (error instanceof InvalidChallengeError || error instanceof InvalidTwoFactorCodeError) {
         throw new UnauthorizedException(error.message);

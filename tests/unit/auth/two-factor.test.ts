@@ -1,5 +1,6 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { generateTotpSecret, totpCodeAt } from '@shared/crypto';
+import { generateTotpSecret, matchTotpStep, TOTP_PERIOD_SECONDS, totpCodeAt } from '@shared/crypto';
 import {
   BeginTwoFactorEnrolmentUseCase,
   ConfirmTwoFactorEnrolmentUseCase,
@@ -226,7 +227,7 @@ describe('Recovery codes', () => {
 
 describe('The login challenge', () => {
   it('round trips a signed challenge', () => {
-    const token = issueChallengeToken({ userId: 'user-1', audience: 'system' }, SIGNING_SECRET);
+    const token = issueChallengeToken({ userId: 'user-1', audience: 'system', version: 1 }, SIGNING_SECRET);
     expect(readChallengeToken(token, SIGNING_SECRET)).toMatchObject({
       userId: 'user-1',
       audience: 'system',
@@ -234,12 +235,12 @@ describe('The login challenge', () => {
   });
 
   it('refuses one signed with a different secret', () => {
-    const token = issueChallengeToken({ userId: 'user-1', audience: 'system' }, SIGNING_SECRET);
+    const token = issueChallengeToken({ userId: 'user-1', audience: 'system', version: 1 }, SIGNING_SECRET);
     expect(readChallengeToken(token, 'another-secret')).toBeNull();
   });
 
   it('refuses a tampered payload', () => {
-    const token = issueChallengeToken({ userId: 'user-1', audience: 'system' }, SIGNING_SECRET);
+    const token = issueChallengeToken({ userId: 'user-1', audience: 'system', version: 1 }, SIGNING_SECRET);
     const forged = `${Buffer.from(
       JSON.stringify({ userId: 'someone-else', audience: 'system', expiresAt: 99999999999 }),
     ).toString('base64url')}.${token.split('.')[1]}`;
@@ -248,8 +249,18 @@ describe('The login challenge', () => {
   });
 
   it('expires', () => {
-    const token = issueChallengeToken({ userId: 'user-1', audience: 'system' }, SIGNING_SECRET, 0);
+    const token = issueChallengeToken({ userId: 'user-1', audience: 'system', version: 1 }, SIGNING_SECRET, 0);
     expect(readChallengeToken(token, SIGNING_SECRET, 10 * 60 * 1000)).toBeNull();
+  });
+
+  // Legacy access tokens are payload.hmac under the same secret.
+  it('refuses a payload signed the way an access token is', () => {
+    const encoded = Buffer.from(
+      JSON.stringify({ userId: 'user-1', audience: 'system', version: 1, expiresAt: 99999999999 }),
+    ).toString('base64url');
+    const signature = createHmac('sha256', SIGNING_SECRET).update(encoded).digest('base64url');
+
+    expect(readChallengeToken(`${encoded}.${signature}`, SIGNING_SECRET)).toBeNull();
   });
 
   it('refuses a malformed token', () => {
@@ -276,5 +287,17 @@ describe('Deciding whether a login needs a code', () => {
   it('lets everybody else straight through', () => {
     expect(twoFactorRequiredForLogin({ platformRequires: false, enrolmentConfirmed: false })).toBe(false);
     expect(loginChallengeKind({ platformRequires: false, enrolmentConfirmed: false })).toBe('none');
+  });
+});
+
+describe('Matching a code to its time step', () => {
+  it('names the step the code belongs to, within one step either side', () => {
+    const secret = generateTotpSecret();
+    const now = 1_700_000_000_000;
+    const step = Math.floor(now / 1000 / TOTP_PERIOD_SECONDS);
+
+    expect(matchTotpStep(secret, totpCodeAt(secret, now), now)).toBe(step);
+    expect(matchTotpStep(secret, totpCodeAt(secret, now - TOTP_PERIOD_SECONDS * 1000), now)).toBe(step - 1);
+    expect(matchTotpStep(secret, totpCodeAt(secret, now - 3 * TOTP_PERIOD_SECONDS * 1000), now)).toBeNull();
   });
 });

@@ -45,7 +45,6 @@ import {
   ValidateInviteUseCase,
   RegisterInvitedUseCase,
   VerifyResetUseCase,
-  LoginUseCase,
   UserNotFoundError,
   ChangeRoleUseCase,
   RefreshUseCase,
@@ -100,6 +99,11 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { IpBlockGuard } from './ip-block.guard';
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
+import { ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
+import { ApiLoginResponse, LoginSessionResponse } from './dto/login-response.dto';
+import { LoginTwoFactorDto } from './dto/two-factor.dto';
+import { LoginEvents, loginOrigin, type LoginOrigin } from './login-events';
+import { TwoFactorLogin, challengeBody, type SecondFactor, type Session } from './two-factor-login.use-case';
 
 @ApiTags('Auth')
 @Portals('tenant')
@@ -107,7 +111,8 @@ import { RecordAuthEventUseCase } from './record-auth-event.use-case';
 @Controller()
 export class AuthController extends BaseAuthController {
   constructor(
-    @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,
+    @Inject(TwoFactorLogin) private readonly twoFactorLogin: TwoFactorLogin,
+    @Inject(LoginEvents) private readonly loginEvents: LoginEvents,
     @Inject(RefreshUseCase) private readonly refreshUseCase: RefreshUseCase,
     @Inject(GetMeUseCase) private readonly getMeUseCase: GetMeUseCase,
     @Inject(InviteUserUseCase) private readonly inviteUserUseCase: InviteUserUseCase,
@@ -215,51 +220,76 @@ export class AuthController extends BaseAuthController {
   @Portals('public')
   @Post('login')
   @UseGuards(LoginRateLimitGuard, IpBlockGuard)
-  @ApiOkResponse({ type: AuthResponse })
+  @ApiOperation({
+    summary: 'Sign in to the tenant portal',
+    description:
+      'Answers with a session, or, for a user who turned two-factor on, with a challenge to finish at POST /auth/login/two-factor.',
+  })
+  @ApiLoginResponse()
+  @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
+  @ApiErrorResponse(401, '"Invalid credentials"')
+  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(404, 'Not a tenant account, or the account is disabled or unverified. Answered as a missing route.')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async login(
     @Body(BodyOrDataPipe) payload: LoginDto,
     @Req() req: { ip?: string },
     @Headers('user-agent') userAgent?: string,
-  ): Promise<AuthResponse> {
-    const ipAddress = resolveClientIp(req);
-    const result = await this.runAuthUseCase(async () => {
-      try {
-        return await this.loginUseCase.execute(payload);
-      } catch (error) {
-        await this.recordAuthEventUseCase.execute({
-          tenantId: null,
-          userId: null,
-          email: payload.email,
-          eventType: 'login',
-          status: 'failed',
-          failureReason: this.mapLoginFailureReason(error),
-          ipAddress,
-          userAgent: userAgent ?? null,
-        });
-        throw error;
-      }
-    });
-    await this.recordAuthEventUseCase.execute({
-      tenantId: result.user.tenantId,
-      userId: result.user.id,
-      email: result.user.email,
-      eventType: 'login',
-      status: 'success',
-      ipAddress,
-      userAgent: userAgent ?? null,
-    });
+  ) {
+    const origin = loginOrigin(req, userAgent);
+    const started = await this.runAuthUseCase(() =>
+      this.loginEvents.recordingFailure(origin, payload.email, () => this.twoFactorLogin.start('tenant', payload)),
+    );
+    if (started.kind !== 'session') return challengeBody(started);
+    await this.signedIn(started.session, origin);
+    return started.session;
+  }
+
+  @Portals('public')
+  @Post('login/two-factor')
+  @UseGuards(LoginRateLimitGuard, IpBlockGuard)
+  @ApiOperation({
+    summary: 'Finish tenant sign-in with a code',
+    description:
+      'Takes the challenge from POST /auth/login and a code from the authenticator, or a recovery code. Each challenge and each recovery code works once.',
+  })
+  @ApiCreatedResponse({ description: 'Signed in', type: LoginSessionResponse })
+  @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
+  @ApiErrorResponse(
+    401,
+    '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
+  )
+  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  async loginTwoFactor(
+    @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const origin = loginOrigin(req, userAgent);
+    const { session, secondFactor } = await this.runAuthUseCase(() =>
+      this.loginEvents.recordingFailure(origin, null, () =>
+        this.twoFactorLogin.complete('tenant', payload.challengeToken, payload.code),
+      ),
+    );
+    await this.signedIn(session, origin, secondFactor);
+    return session;
+  }
+
+  private async signedIn(session: Session, origin: LoginOrigin, secondFactor?: SecondFactor) {
+    const { user } = session;
+    await this.loginEvents.succeeded(user, origin);
     await this.tryRecordActivity({
-      tenantId: result.user.tenantId,
+      tenantId: user.tenantId,
       service: 'auth',
       action: 'user.logged_in',
       entityType: 'user',
-      entityId: result.user.id,
+      entityId: user.id,
       summary: 'User signed in',
-      actorId: result.user.id,
-      actorRole: result.user.role,
-      metadata: { email: result.user.email },
+      actorId: user.id,
+      actorRole: user.role,
+      metadata: { email: user.email, ...(secondFactor && { secondFactor }) },
     });
-    return result as unknown as AuthResponse;
   }
 
   /** Authenticate a system account with email and password */

@@ -6,6 +6,10 @@ export type StoredTwoFactorEnrolment = {
   confirmedAt: Date | null;
   /** Hashed, single-use. Used when the authenticator is lost. */
   recoveryCodeHashes: string[];
+  /** The time step of the last code accepted at sign-in, so it is not accepted twice. */
+  lastUsedStep: number | null;
+  /** Moves on whenever the enrolment is used or replaced; a challenge names the version it expects. */
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -13,6 +17,8 @@ export type StoredTwoFactorEnrolment = {
 export interface TwoFactorRepository {
   findByUserId(userId: string): Promise<StoredTwoFactorEnrolment | null>;
   save(enrolment: StoredTwoFactorEnrolment): Promise<void>;
+  /** Writes only if the stored version is still `expectedVersion`. False when another use got there first. */
+  saveIfVersion(enrolment: StoredTwoFactorEnrolment, expectedVersion: number): Promise<boolean>;
   deleteByUserId(userId: string): Promise<void>;
 }
 

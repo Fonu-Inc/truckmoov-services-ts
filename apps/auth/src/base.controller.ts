@@ -1,6 +1,5 @@
 import { ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
 import { ActivityLogService } from './activity-log.service';
-import type { AuthFailureReason } from './auth-event.repository';
 import {
   EmailNotVerifiedError,
   ForbiddenError,
@@ -9,6 +8,8 @@ import {
   InvalidRefreshTokenError,
 } from './contexts/auth/session';
 import { SessionExpiredError } from './contexts/auth/session/domain/errors/session-expired.error';
+import { InvalidChallengeError } from './two-factor-login.use-case';
+import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
 
 export abstract class BaseAuthController {
   protected readonly logger = new Logger(this.constructor.name);
@@ -25,7 +26,9 @@ export abstract class BaseAuthController {
         // A timed-out session is a 401 like any other dead credential. The
         // message says why so the client can show "signed out for inactivity"
         // rather than implying the password was wrong.
-        error instanceof SessionExpiredError
+        error instanceof SessionExpiredError ||
+        error instanceof InvalidChallengeError ||
+        error instanceof InvalidTwoFactorCodeError
       ) {
         throw new UnauthorizedException(error.message);
       }
@@ -37,11 +40,6 @@ export abstract class BaseAuthController {
       }
       throw error;
     }
-  }
-
-  protected mapLoginFailureReason(error: unknown): AuthFailureReason {
-    if (error instanceof EmailNotVerifiedError || error instanceof ForbiddenError) return 'account_locked';
-    return 'invalid_password';
   }
 
   protected rethrowInvalidAccessToken(error: unknown): void {

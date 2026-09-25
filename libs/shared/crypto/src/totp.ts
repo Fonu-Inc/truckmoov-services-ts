@@ -38,21 +38,30 @@ export function totpCodeAt(secret: string, atMs: number): string {
  * leaking position information matters.
  */
 export function verifyTotp(secret: string, code: string, atMs = Date.now()): boolean {
+  return matchTotpStep(secret, code, atMs) !== null;
+}
+
+/**
+ * The time step a valid code belongs to, or null. A caller that remembers the
+ * last step it accepted can refuse the same code a second time.
+ */
+export function matchTotpStep(secret: string, code: string, atMs = Date.now()): number | null {
   const cleaned = code.replace(/\D/g, '');
-  if (cleaned.length !== TOTP_DIGITS) return false;
+  if (cleaned.length !== TOTP_DIGITS) return null;
 
   let key: Buffer;
   try {
     key = base32Decode(secret);
   } catch {
-    return false;
+    return null;
   }
 
   const counter = Math.floor(atMs / 1000 / TOTP_PERIOD_SECONDS);
+  let matched: number | null = null;
   for (let offset = -TOTP_WINDOW_STEPS; offset <= TOTP_WINDOW_STEPS; offset += 1) {
-    if (constantTimeEquals(hotp(key, counter + offset), cleaned)) return true;
+    if (constantTimeEquals(hotp(key, counter + offset), cleaned)) matched = counter + offset;
   }
-  return false;
+  return matched;
 }
 
 /**

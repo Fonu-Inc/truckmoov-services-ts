@@ -12,6 +12,7 @@ export {
   base32Decode,
   base32Encode,
   generateTotpSecret,
+  matchTotpStep,
   totpCodeAt,
   totpEnrolmentUri,
   verifyTotp,

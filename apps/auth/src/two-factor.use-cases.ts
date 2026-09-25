@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { SecretCipherService } from '@shared/crypto';
-import { generateTotpSecret, totpEnrolmentUri, verifyTotp } from '@shared/crypto';
+import { SecretCipherService, generateTotpSecret, matchTotpStep, totpEnrolmentUri, verifyTotp } from '@shared/crypto';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -16,8 +15,8 @@ import {
   type SystemSettingsRepository,
 } from './system-settings.repository';
 
-const RECOVERY_CODE_COUNT = 8;
-const ISSUER = 'TruckMoov';
+export const RECOVERY_CODE_COUNT = 8;
+export const TOTP_ISSUER = 'TruckMoov';
 
 export class TwoFactorAlreadyEnrolledError extends Error {
   constructor() {
@@ -76,6 +75,8 @@ export class BeginTwoFactorEnrolmentUseCase {
       // Issued at confirmation, not now: codes shown before the app is proven
       // to work would be written down for an enrolment that never completed.
       recoveryCodeHashes: [],
+      lastUsedStep: null,
+      version: (existing?.version ?? 0) + 1,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     });
@@ -86,7 +87,7 @@ export class BeginTwoFactorEnrolmentUseCase {
       data: {
         // The only time either is readable. Neither is stored in the clear.
         secret,
-        otpauthUri: totpEnrolmentUri({ secret, accountName: actor.email, issuer: ISSUER }),
+        otpauthUri: totpEnrolmentUri({ secret, accountName: actor.email, issuer: TOTP_ISSUER }),
       },
     };
   }
@@ -108,16 +109,19 @@ export class ConfirmTwoFactorEnrolmentUseCase {
     if (!enrolment) throw new TwoFactorNotEnrolledError();
     if (enrolment.confirmedAt !== null) throw new TwoFactorAlreadyEnrolledError();
 
-    const secret = this.cipher.decrypt(enrolment.secretCiphertext);
-    if (!verifyTotp(secret, code)) throw new InvalidTwoFactorCodeError();
+    const step = matchTotpStep(this.cipher.decrypt(enrolment.secretCiphertext), code);
+    if (step === null) throw new InvalidTwoFactorCodeError();
 
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, mintRecoveryCode);
-    await this.repository.save({
+    const saved = await this.repository.saveIfVersion({
       ...enrolment,
       confirmedAt: new Date(),
       recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode),
+      lastUsedStep: step,
+      version: enrolment.version + 1,
       updatedAt: new Date(),
-    });
+    }, enrolment.version);
+    if (!saved) throw new TwoFactorAlreadyEnrolledError();
 
     return {
       status: true,

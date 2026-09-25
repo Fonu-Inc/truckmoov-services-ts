@@ -1,19 +1,18 @@
 import { Body, Controller, Headers, Inject, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { resolveClientIp } from '@shared/http';
+import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Portals } from '@shared/access';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { InstallerLoginUseCase } from './contexts/installation/application/use-cases/installer-login.use-case';
-import { AuthResponse } from './dto/auth.schema';
+import { ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
+import { ApiLoginResponse, LoginSessionResponse } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginTwoFactorDto } from './dto/two-factor.dto';
 import { IpBlockGuard } from './ip-block.guard';
+import { LoginEvents, loginOrigin, type LoginOrigin } from './login-events';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
-import { RecordAuthEventUseCase } from './record-auth-event.use-case';
-
-type Session = Awaited<ReturnType<InstallerLoginUseCase['execute']>>;
-type Origin = { ipAddress: string; userAgent: string | null };
+import { challengeBody, type SecondFactor, type Session } from './two-factor-login.use-case';
 
 @ApiTags('Installer')
 @Portals('public')
@@ -21,7 +20,7 @@ type Origin = { ipAddress: string; userAgent: string | null };
 export class InstallerAuthController extends BaseAuthController {
   constructor(
     @Inject(InstallerLoginUseCase) private readonly installerLogin: InstallerLoginUseCase,
-    @Inject(RecordAuthEventUseCase) private readonly authEvents: RecordAuthEventUseCase,
+    @Inject(LoginEvents) private readonly loginEvents: LoginEvents,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
   ) {
     super(activityLogService);
@@ -30,48 +29,65 @@ export class InstallerAuthController extends BaseAuthController {
   // Rate limiter first, as on the tenant login: cheaper than the block guard's read.
   @Post('login')
   @UseGuards(LoginRateLimitGuard, IpBlockGuard)
-  @ApiOperation({ summary: 'Sign in to the installer portal' })
-  @ApiOkResponse({ type: AuthResponse })
+  @ApiOperation({
+    summary: 'Sign in to the installer portal',
+    description:
+      'Answers with a session, or, for an installer who turned two-factor on, with a challenge to finish at POST /auth/installer/login/two-factor.',
+  })
+  @ApiLoginResponse()
+  @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
+  @ApiErrorResponse(401, '"Invalid credentials"')
+  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(404, 'Not an active installer, or the account is disabled or unverified. Answered as a missing route.')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async login(
     @Body(BodyOrDataPipe) payload: LoginDto,
     @Req() req: { ip?: string },
     @Headers('user-agent') userAgent?: string,
-  ): Promise<AuthResponse> {
-    const origin = { ipAddress: resolveClientIp(req), userAgent: userAgent ?? null };
-    const session = await this.runAuthUseCase(async () => {
-      try {
-        return await this.installerLogin.execute(payload);
-      } catch (error) {
-        await this.recordFailure(payload.email, error, origin);
-        throw error;
-      }
-    });
-    await this.recordSuccess(session, origin);
-    return session as unknown as AuthResponse;
+  ) {
+    const origin = loginOrigin(req, userAgent);
+    const started = await this.runAuthUseCase(() =>
+      this.loginEvents.recordingFailure(origin, payload.email, () => this.installerLogin.execute(payload)),
+    );
+    if (started.kind !== 'session') return challengeBody(started);
+    await this.signedIn(started.session, origin);
+    return started.session;
   }
 
-  private async recordFailure(email: string, error: unknown, origin: Origin) {
-    await this.authEvents.execute({
-      tenantId: null,
-      userId: null,
-      email,
-      eventType: 'login',
-      status: 'failed',
-      failureReason: this.mapLoginFailureReason(error),
-      ...origin,
-    });
+  @Post('login/two-factor')
+  @UseGuards(LoginRateLimitGuard, IpBlockGuard)
+  @ApiOperation({
+    summary: 'Finish installer sign-in with a code',
+    description:
+      'Takes the challenge from POST /auth/installer/login and a code from the authenticator, or a recovery code. Each challenge and each recovery code works once.',
+  })
+  @ApiCreatedResponse({ description: 'Signed in', type: LoginSessionResponse })
+  @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
+  @ApiErrorResponse(
+    401,
+    '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
+  )
+  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(404, 'The installer was suspended since the password step. Answered as a missing route.')
+  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  async loginTwoFactor(
+    @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const origin = loginOrigin(req, userAgent);
+    const { session, secondFactor } = await this.runAuthUseCase(() =>
+      this.loginEvents.recordingFailure(origin, null, () =>
+        this.installerLogin.completeTwoFactor(payload.challengeToken, payload.code),
+      ),
+    );
+    await this.signedIn(session, origin, secondFactor);
+    return session;
   }
 
-  private async recordSuccess(session: Session, origin: Origin) {
+  private async signedIn(session: Session, origin: LoginOrigin, secondFactor?: SecondFactor) {
     const { user } = session;
-    await this.authEvents.execute({
-      tenantId: user.tenantId,
-      userId: user.id,
-      email: user.email,
-      eventType: 'login',
-      status: 'success',
-      ...origin,
-    });
+    await this.loginEvents.succeeded(user, origin);
     await this.tryRecordActivity({
       tenantId: user.tenantId,
       service: 'auth',
@@ -81,7 +97,7 @@ export class InstallerAuthController extends BaseAuthController {
       summary: 'Installer signed in',
       actorId: user.id,
       actorRole: user.role,
-      metadata: { email: user.email },
+      metadata: { email: user.email, ...(secondFactor && { secondFactor }) },
     });
   }
 }
