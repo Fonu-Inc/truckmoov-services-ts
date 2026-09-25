@@ -55,7 +55,7 @@ export class UpdateSystemSupportTicketStatusUseCase {
 
     await this.ticketRepo.save(ticket);
     await this.notifier.notifyStatusChanged(ticket.tenantId, ticketId, status);
-    if (changed) await this.installerNotifier.notifyTicket(ticket, { status }, now);
+    if (changed) await this.installerNotifier.notifyTicket(ticket, { status, at: now }, now);
 
     return {
       status: true,

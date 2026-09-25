@@ -219,6 +219,7 @@ export class InstallerNotificationRecord {
   dedupeKey!: string;
   createdAt!: Date;
   readAt!: Date | null;
+  hidden!: boolean;
 }
 
 export const InstallerNotificationRecordSchema =
@@ -235,5 +236,6 @@ export const InstallerNotificationRecordSchema =
       dedupeKey: { fieldName: 'dedupe_key', type: 'string', length: 200, unique: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       readAt: { fieldName: 'read_at', type: 'datetime', nullable: true },
+      hidden: { type: 'boolean', default: false },
     },
   });

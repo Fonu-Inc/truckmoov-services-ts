@@ -108,7 +108,7 @@ function adaTicket() {
 }
 
 async function raise(h: Harness, type: InstallerNotificationType) {
-  if (type === "support_ticket_updated") await h.notifier.notifyTicket(adaTicket(), { status: "resolved" }, NOW);
+  if (type === "support_ticket_updated") await h.notifier.notifyTicket(adaTicket(), { status: "resolved", at: NOW }, NOW);
   else await h.notifier.notify(notice(type), NOW);
 }
 
@@ -177,6 +177,32 @@ describe("the notification preference matrix", () => {
     expect(h.publisher.notify).toHaveBeenCalledTimes(1);
   });
 
+  it("emails once for the same notice twice with inPlatformAlerts off, keeping the key in a hidden row", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { inPlatformAlerts: false } as never }));
+
+    await h.notifier.notify(notice("job_updated"), NOW);
+    await h.notifier.notify(notice("job_updated"), NOW);
+    await h.notifier.notifyTicket(adaTicket(), { messageId: "m1" }, NOW);
+    await h.notifier.notifyTicket(adaTicket(), { messageId: "m1" }, NOW);
+
+    expect(channelsSent(h)).toEqual(["email", "email"]);
+    expect(await rows(h)).toEqual([]);
+    expect(await h.notifications.list("user-ada", {})).toMatchObject({ unreadCount: 0, total: 0, items: [] });
+    expect(await h.notifications.markAllRead("user-ada")).toEqual({ updated: 0, unreadCount: 0 });
+  });
+
+  it("does not surface hidden rows once inPlatformAlerts is turned back on", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { inPlatformAlerts: false } as never }));
+    await h.notifier.notify(notice("job_updated"), NOW);
+    await h.installers.save(installer("ada"));
+
+    await h.notifier.notify(notice("job_updated"), NOW);
+    await h.notifier.notify(notice("job_cancelled"), NOW);
+
+    expect((await rows(h)).map((row) => row.type)).toEqual(["job_cancelled"]);
+    expect(channelsSent(h)).toEqual(["email", "email"]);
+  });
+
   it("does nothing for a job without an installer", async () => {
     await h.notifier.notify(notice("job_updated", { order: order("1024", { installerId: null }) }), NOW);
 
@@ -191,7 +217,7 @@ describe("the notification preference matrix", () => {
     vi.spyOn(h.inbox, "add").mockRejectedValueOnce(new Error("db down"));
     await expect(h.notifier.deliver(notice("job_cancelled"), NOW)).rejects.toThrow("db down");
     vi.spyOn(h.inbox, "add").mockRejectedValueOnce(new Error("db down"));
-    await expect(h.notifier.notifyTicket(adaTicket(), { status: "resolved" }, NOW)).resolves.toBeUndefined();
+    await expect(h.notifier.notifyTicket(adaTicket(), { status: "resolved", at: NOW }, NOW)).resolves.toBeUndefined();
   });
 });
 
@@ -329,23 +355,42 @@ describe("support ticket updates", () => {
     await reply.execute("staff", "tkt-1", "Vendor is slow", true);
     await reply.execute("staff", "tkt-1", "Fixed on our side", false);
 
-    expect((await rows(h)).map((row) => row.body)).toEqual([
+    expect((await rows(h)).map((row) => row.body).sort()).toEqual([
       "Support replied to your ticket #tkt-1042.",
       "Support replied to your ticket #tkt-1042.",
       "Your support ticket #tkt-1042 is now Escalated.",
     ]);
   });
 
-  it("is keyed per ticket and status: the same status set again adds nothing", async () => {
-    await status.execute("staff", "tkt-1", "resolved");
-    await status.execute("staff", "tkt-1", "resolved");
-    await status.execute("staff", "tkt-1", "open");
-    await h.notifier.notifyTicket((await tickets.findById("tkt-1"))!, { status: "open" }, NOW);
+  it("notifies each status change, a return to an earlier status included, but not the same status set again", async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    try {
+      await status.execute("staff", "tkt-1", "resolved");
+      vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+      await status.execute("staff", "tkt-1", "resolved");
+      await status.execute("staff", "tkt-1", "open");
+      vi.setSystemTime(new Date(NOW.getTime() + 120_000));
+      await status.execute("staff", "tkt-1", "resolved");
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect((await rows(h)).map((row) => row.body)).toEqual([
+      "Your support ticket #tkt-1042 is now Resolved.",
       "Your support ticket #tkt-1042 is now Open.",
       "Your support ticket #tkt-1042 is now Resolved.",
     ]);
+    expect(channelsSent(h)).toEqual(["email", "email", "email"]);
+  });
+
+  it("dedupes a repeated delivery of the same change", async () => {
+    const change = { status: "resolved", at: NOW };
+
+    await h.notifier.notifyTicket(adaTicket(), change, NOW);
+    await h.notifier.notifyTicket(adaTicket(), { ...change }, NOW);
+
+    expect(await rows(h)).toHaveLength(1);
+    expect(channelsSent(h)).toEqual(["email"]);
   });
 
   it("says nothing about a tenant's ticket", async () => {
@@ -578,6 +623,16 @@ describe("fleet verification events", () => {
     await emit(envelope("verified"));
 
     expect(await rows(h)).toHaveLength(1);
+    expect(h.publisher.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("emails a redelivered event once with inPlatformAlerts off", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { inPlatformAlerts: false } as never }));
+
+    await emit(envelope("verified"));
+    await emit(envelope("verified"));
+
+    expect(await rows(h)).toEqual([]);
     expect(h.publisher.notify).toHaveBeenCalledTimes(1);
   });
 

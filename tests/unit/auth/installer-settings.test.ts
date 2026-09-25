@@ -18,6 +18,7 @@ import {
   UpdateInstallerWorkPreferencesDto,
 } from "../../../apps/auth/src/dto/installer-portal.dto";
 import { Migration20260925160000 } from "../../../apps/auth/src/migrations/Migration20260925160000";
+import { Migration20260925170000 } from "../../../apps/auth/src/migrations/Migration20260925170000";
 
 const NOW = new Date("2026-09-25T10:00:00Z");
 
@@ -265,5 +266,23 @@ describe("the settings migration", () => {
     expect(down).not.toMatch(/supportTicketUpdates|inPlatformAlerts/);
     expect(down).toMatch(/drop column if exists "work_preferences"/);
     expect(down).toMatch(/drop column if exists "display_preferences"/);
+  });
+});
+
+describe("the hidden notification migration", () => {
+  function sql(direction: "up" | "down"): string {
+    const statements: string[] = [];
+    const migration = Object.create(Migration20260925170000.prototype) as Migration20260925170000;
+    Object.assign(migration, { addSql: (statement: string) => statements.push(statement) });
+    void migration[direction]();
+    return statements.join("\n");
+  }
+
+  it("adds the hidden flag, off for every existing row", () => {
+    expect(sql("up")).toMatch(/add column if not exists "hidden" boolean not null default false/);
+  });
+
+  it("drops hidden rows before the flag on the way down, so none surface", () => {
+    expect(sql("down")).toMatch(/delete from "installer_notifications" where "hidden";\s+alter table "installer_notifications" drop column if exists "hidden"/);
   });
 });

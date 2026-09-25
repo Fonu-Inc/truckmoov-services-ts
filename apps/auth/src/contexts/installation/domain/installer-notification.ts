@@ -109,11 +109,13 @@ export function notificationCopy(type: JobNotificationType, facts: NotificationF
   return COPY[type](facts);
 }
 
-/** What an admin did to an installer's ticket: moved it to a status, or replied with a message. */
-export type TicketChange = { status: string } | { messageId: string };
+/** What an admin did to an installer's ticket: moved it to a status at an instant, or replied with a message. */
+export type TicketChange = { status: string; at: Date } | { messageId: string };
 
+/** One key per change: a ticket back in a status it had before is a new change. */
 export function ticketChangeKey(ticketId: string, change: TicketChange): string {
-  return 'status' in change ? `${ticketId}:status:${change.status}` : `${ticketId}:message:${change.messageId}`;
+  if ('messageId' in change) return `${ticketId}:message:${change.messageId}`;
+  return `${ticketId}:status:${change.status}:${change.at.toISOString()}`;
 }
 
 export function ticketUpdateCopy(displayId: string, change: TicketChange): NotificationCopy {

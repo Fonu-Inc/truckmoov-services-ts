@@ -54,7 +54,7 @@ export class EscalateSystemSupportTicketUseCase {
 
     await this.ticketRepo.save(ticket);
     await this.notifier.notifyStatusChanged(ticket.tenantId, ticketId, 'escalated');
-    if (changed) await this.installerNotifier.notifyTicket(ticket, { status: 'escalated' }, now);
+    if (changed) await this.installerNotifier.notifyTicket(ticket, { status: 'escalated', at: now }, now);
 
     return {
       status: true,

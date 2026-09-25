@@ -49,7 +49,7 @@ function outbound(installer: StoredInstaller, copy: NotificationCopy): Pick<Tena
 
 /**
  * The inbox row and the email for one notice, as the installer's toggles allow:
- * nothing unless the type's toggle is on, the row only with inPlatformAlerts,
+ * nothing unless the type's toggle is on, the row shown only with inPlatformAlerts,
  * the email only with emailAlerts. Sent under the system tenant.
  */
 @Injectable()
@@ -97,16 +97,17 @@ export class InstallerNotifier {
     });
   }
 
+  /** The row is written either way, hidden without inPlatformAlerts, so its dedupe key also guards the email. */
   private async send(installer: StoredInstaller, message: Message, now: Date): Promise<void> {
     const preferences = preferencesOf(installer.notificationPreferences);
     if (!preferences[typeToggle(message.type)]) return;
-    if (preferences.inPlatformAlerts && !(await this.addRow(installer, message, now))) return;
+    if (!(await this.addRow(installer, message, !preferences.inPlatformAlerts, now))) return;
     if (!preferences.emailAlerts || !installer.email) return;
     await this.publisher.notify({ tenantId: SYSTEM_TENANT_ID, notificationType: message.type, ...outbound(installer, message.copy) });
   }
 
   /** False when the same notice was already written. */
-  private addRow(installer: StoredInstaller, message: Message, now: Date): Promise<boolean> {
+  private addRow(installer: StoredInstaller, message: Message, hidden: boolean, now: Date): Promise<boolean> {
     return this.notifications.add({
       id: randomUUID(),
       installerId: installer.id,
@@ -115,7 +116,8 @@ export class InstallerNotifier {
       orderId: message.orderId,
       dedupeKey: message.dedupeKey,
       createdAt: now,
-      readAt: null,
+      readAt: hidden ? now : null,
+      hidden,
     });
   }
 

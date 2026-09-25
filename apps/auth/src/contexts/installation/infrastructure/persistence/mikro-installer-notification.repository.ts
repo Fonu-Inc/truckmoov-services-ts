@@ -23,12 +23,13 @@ function toRow(row: Row): InstallerNotificationRow {
     dedupeKey: String(row.dedupe_key),
     createdAt: new Date(row.created_at as string),
     readAt: row.read_at ? new Date(row.read_at as string) : null,
+    hidden: Boolean(row.hidden),
     jobNumber: (row.order_number as string | null) ?? null,
   };
 }
 
 function inboxWhere(installerId: string, unreadOnly: boolean): { sql: string; params: unknown[] } {
-  return { sql: `n.installer_id = ?${unreadOnly ? ' and n.read_at is null' : ''}`, params: [installerId] };
+  return { sql: `n.installer_id = ? and not n.hidden${unreadOnly ? ' and n.read_at is null' : ''}`, params: [installerId] };
 }
 
 @Injectable()
@@ -37,11 +38,11 @@ export class MikroInstallerNotificationRepository implements InstallerNotificati
 
   async add(n: StoredInstallerNotification): Promise<boolean> {
     const rows = await (await this.connection()).execute(
-      `insert into installer_notifications (id, installer_id, type, title, body, order_id, dedupe_key, created_at, read_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `insert into installer_notifications (id, installer_id, type, title, body, order_id, dedupe_key, created_at, read_at, hidden)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        on conflict (dedupe_key) do nothing
        returning id`,
-      [n.id, n.installerId, n.type, n.title, n.body, n.orderId, n.dedupeKey, n.createdAt, n.readAt],
+      [n.id, n.installerId, n.type, n.title, n.body, n.orderId, n.dedupeKey, n.createdAt, n.readAt, n.hidden],
     );
     return rows.length > 0;
   }
@@ -67,18 +68,19 @@ export class MikroInstallerNotificationRepository implements InstallerNotificati
 
   async countUnread(installerId: string): Promise<number> {
     const em = await this.em();
-    return em.count(InstallerNotificationRecord, { installerId, readAt: null });
+    return em.count(InstallerNotificationRecord, { installerId, readAt: null, hidden: false });
   }
 
   async markRead(installerId: string, id: string, now: Date): Promise<boolean> {
     const em = await this.em();
-    const changed = await em.nativeUpdate(InstallerNotificationRecord, { id, installerId, readAt: null }, { readAt: now });
-    return changed > 0 || (await em.count(InstallerNotificationRecord, { id, installerId })) > 0;
+    const mine = { id, installerId, hidden: false };
+    const changed = await em.nativeUpdate(InstallerNotificationRecord, { ...mine, readAt: null }, { readAt: now });
+    return changed > 0 || (await em.count(InstallerNotificationRecord, mine)) > 0;
   }
 
   async markAllRead(installerId: string, now: Date): Promise<number> {
     const em = await this.em();
-    return em.nativeUpdate(InstallerNotificationRecord, { installerId, readAt: null }, { readAt: now });
+    return em.nativeUpdate(InstallerNotificationRecord, { installerId, readAt: null, hidden: false }, { readAt: now });
   }
 
   private async em() {

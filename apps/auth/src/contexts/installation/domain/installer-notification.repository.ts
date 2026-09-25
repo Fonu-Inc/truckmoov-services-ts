@@ -10,6 +10,8 @@ export type StoredInstallerNotification = {
   dedupeKey: string;
   createdAt: Date;
   readAt: Date | null;
+  /** Written with inPlatformAlerts off: keeps the dedupe key, never shown in the inbox. */
+  hidden: boolean;
 };
 
 export type InstallerNotificationRow = StoredInstallerNotification & { jobNumber: string | null };
@@ -20,7 +22,7 @@ export type NotificationPage = { items: InstallerNotificationRow[]; total: numbe
 export interface InstallerNotificationRepository {
   /** False when a row with the same dedupe key already exists. */
   add(notification: StoredInstallerNotification): Promise<boolean>;
-  /** Newest first. */
+  /** Newest first. Hidden rows are left out here and in every other read. */
   list(installerId: string, request: NotificationPageRequest): Promise<NotificationPage>;
   countUnread(installerId: string): Promise<number>;
   /** False when the installer has no such notification. */

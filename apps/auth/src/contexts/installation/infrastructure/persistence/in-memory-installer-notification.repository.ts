@@ -40,7 +40,7 @@ export class InMemoryInstallerNotificationRepository implements InstallerNotific
 
   async markRead(installerId: string, id: string, now: Date): Promise<boolean> {
     const row = this.rows.get(id);
-    if (row?.installerId !== installerId) return false;
+    if (row?.installerId !== installerId || row.hidden) return false;
     this.rows.set(id, { ...row, readAt: row.readAt ?? now });
     return true;
   }
@@ -57,7 +57,7 @@ export class InMemoryInstallerNotificationRepository implements InstallerNotific
   }
 
   private inbox(installerId: string): StoredInstallerNotification[] {
-    return this.all().filter((row) => row.installerId === installerId);
+    return this.all().filter((row) => row.installerId === installerId && !row.hidden);
   }
 
   private all(): StoredInstallerNotification[] {
