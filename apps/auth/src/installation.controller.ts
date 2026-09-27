@@ -16,6 +16,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { rethrowActorError } from './base.controller';
 import { ApiErrorResponse } from './dto/api-error.dto';
 import {
   InstallationConfirmationResponse,
@@ -33,10 +34,16 @@ import { Portals, OnResource } from '@shared/access';
 const MissingToken = () =>
   ApiErrorResponse(
     401,
-    '"Missing authorization" without a bearer token. Under PORTAL_ENFORCEMENT=enforce an invalid or expired token gets "missing or invalid authorization"; without enforcement it reaches the handler, which does not map it and answers { statusCode: 500, message: "Internal server error" }.',
+    '"Missing authorization" without a bearer token, "Invalid or expired access token" for a bad one, "User not found" when the account is gone. Under PORTAL_ENFORCEMENT=enforce the guard answers first with "missing or invalid authorization".',
   );
 
-const OTHER_PORTAL = 'a caller outside the tenant portal gets "Cannot <METHOD> <path>"';
+const Disabled = () =>
+  ApiErrorResponse(
+    403,
+    `"This account has been disabled". Under PORTAL_ENFORCEMENT or PERMISSION_ENFORCEMENT=enforce it is a 404 "Cannot <METHOD> <path>" instead.`,
+  );
+
+const OTHER_PORTAL = 'a caller outside the tenant portal, or a disabled account, gets "Cannot <METHOD> <path>"';
 
 /**
  * The customer's view of their own installation, once they have an account.
@@ -69,6 +76,7 @@ export class InstallationController {
     type: InstallationStatusResponse,
   })
   @MissingToken()
+  @Disabled()
   @ApiErrorResponse(404, `Only under access enforcement: ${OTHER_PORTAL}`)
   async status(@Headers('authorization') authorization?: string) {
     return this.run(() => this.getStatus.execute(this.token(authorization)));
@@ -87,6 +95,7 @@ export class InstallationController {
     type: InstallationConfirmationResponse,
   })
   @MissingToken()
+  @Disabled()
   @ApiErrorResponse(404, `"No installation is scheduled for this account". Under access enforcement: ${OTHER_PORTAL}`)
   @ApiErrorResponse(
     409,
@@ -108,6 +117,7 @@ export class InstallationController {
     try {
       return await fn();
     } catch (error) {
+      rethrowActorError(error);
       if (error instanceof NoInstallationOrderError) {
         throw new NotFoundException(error.message);
       }

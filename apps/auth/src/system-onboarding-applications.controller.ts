@@ -3,7 +3,6 @@ import {
   Body,
   ConflictException,
   Controller,
-  ForbiddenException,
   Get,
   Headers,
   Inject,
@@ -38,14 +37,14 @@ import {
   SetupLinkResentResponse,
 } from './dto/onboarding-review-response.dto';
 import { ActivityLogService } from './activity-log.service';
-import { BaseAuthController } from './base.controller';
+import { BaseAuthController, rethrowActorError } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
-import { ForbiddenError } from './contexts/auth/session';
 import {
   ApplicationDocumentNotFoundError,
   ApplicationDocumentsIncompleteError,
   ApplicationNotFoundError,
   ApplicationNotUnderReviewError,
+  ApplicationNotProvisionableError,
   ApproveOnboardingApplicationUseCase,
   BusinessEmailInUseError,
   DecisionReasonRequiredError,
@@ -69,7 +68,7 @@ const AdminErrors = (notFound?: string) =>
   applyDecorators(
     ApiErrorResponse(
       401,
-      '"Missing authorization" without a bearer token, "Invalid or expired access token" for a bad one. Under PORTAL_ENFORCEMENT=enforce the guard answers first with "missing or invalid authorization".',
+      '"Missing authorization" without a bearer token, "Invalid or expired access token" for a bad one, "User not found" when the signed-in admin no longer exists. Under PORTAL_ENFORCEMENT=enforce the guard answers first with "missing or invalid authorization".',
     ),
     ApiErrorResponse(
       403,
@@ -172,8 +171,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     try {
       return await this.getOnboardingReviewSummaryUseCase.execute(accessToken);
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      rethrowActorError(error);
       throw error;
     }
   }
@@ -204,10 +202,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
   })
   @ApiCreatedResponse({ description: 'Provisioning complete', type: ProvisionedResponse })
   @AdminErrors(NOT_FOUND)
-  @ApiErrorResponse(
-    500,
-    'Not at the provisioning stage. The stage error is not mapped to an HTTP status, so it answers { statusCode: 500, message: "Internal server error" }.',
-  )
+  @ApiErrorResponse(409, 'Not at the provisioning stage: "An onboarding at the <stage> stage cannot be marked provisioned"')
   async provisioned(
     @Param('applicationId') applicationId: string,
     @Headers('authorization') authorization?: string,
@@ -444,10 +439,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     try {
       return await fn();
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) {
-        throw new ForbiddenException(error.message);
-      }
+      rethrowActorError(error);
       if (
         error instanceof DecisionReasonRequiredError ||
         error instanceof ApplicationDocumentsIncompleteError
@@ -462,6 +454,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       }
       if (
         error instanceof ApplicationNotUnderReviewError ||
+        error instanceof ApplicationNotProvisionableError ||
         error instanceof BusinessEmailInUseError ||
         error instanceof SetupLinkNotResendableError
       ) {

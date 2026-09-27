@@ -6,10 +6,19 @@ import {
   InvalidAccessTokenError,
   InvalidCredentialsError,
   InvalidRefreshTokenError,
+  UserNotFoundError,
 } from './contexts/auth/session';
 import { SessionExpiredError } from './contexts/auth/session/domain/errors/session-expired.error';
 import { InvalidChallengeError } from './two-factor-login.use-case';
 import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
+
+/** A token naming no live account is a 401; a disabled account is refused like any forbidden call. */
+export function rethrowActorError(error: unknown): void {
+  if (error instanceof InvalidAccessTokenError || error instanceof UserNotFoundError) {
+    throw new UnauthorizedException(error.message);
+  }
+  if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+}
 
 export abstract class BaseAuthController {
   protected readonly logger = new Logger(this.constructor.name);

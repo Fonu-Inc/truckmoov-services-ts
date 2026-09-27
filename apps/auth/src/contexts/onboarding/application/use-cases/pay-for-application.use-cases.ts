@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   PAYMENT_GATEWAY,
+  PaymentGatewayError,
+  type ChargeRequest,
   type PaymentGateway,
 } from '../../../payments';
 import {
@@ -45,6 +47,13 @@ export class PaymentProviderUnavailableError extends Error {
   constructor() {
     super('No payment provider is configured');
     this.name = 'PaymentProviderUnavailableError';
+  }
+}
+
+export class ChargeRefusedError extends Error {
+  constructor() {
+    super('The payment provider refused to start this payment. Try again shortly.');
+    this.name = 'ChargeRefusedError';
   }
 }
 
@@ -155,7 +164,7 @@ export class CreateApplicationPaymentUseCase {
     // the callback has to find its way back to an application.
     const reference = `FPA-${application.reference}-${now.getTime()}`;
 
-    const charge = await this.gateway.initiateCharge({
+    const charge = await this.initiateCharge({
       reference,
       amountKobo: toKobo(summary.totalNgn),
       customerEmail: application.billingEmail,
@@ -192,6 +201,16 @@ export class CreateApplicationPaymentUseCase {
         order: summary,
       },
     };
+  }
+
+  private async initiateCharge(request: ChargeRequest) {
+    try {
+      return await this.gateway.initiateCharge(request);
+    } catch (error) {
+      if (!(error instanceof PaymentGatewayError)) throw error;
+      this.logger.warn(`onboarding_payment_refused:${request.reference}:${error.provider}:${error.message}`);
+      throw new ChargeRefusedError();
+    }
   }
 }
 

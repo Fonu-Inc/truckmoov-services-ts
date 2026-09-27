@@ -180,14 +180,18 @@ describe('Onboarding applications HTTP contract', () => {
     vi.resetModules();
   });
 
+  // Signed in once: the per-IP login limit allows only a handful of sign-ins.
+  let adminToken: string | undefined;
   async function systemToken(): Promise<string> {
+    if (adminToken) return adminToken;
     const res = await request(app.getHttpServer())
       .post('/auth/system/login')
       .send({
         email: 'superadmin@truckmoov.com',
         password: 'SuperAdmin123!',
       });
-    return res.body.accessToken as string;
+    adminToken = res.body.accessToken as string;
+    return adminToken;
   }
 
   async function startApplication(email: string) {
@@ -728,4 +732,52 @@ describe('Onboarding applications HTTP contract', () => {
     expect(resent.body.data.setupLinkEmail).toBe('resend@arne.com');
     expect(resent.body.data.setupLinkExpiresAt).toBeTypeOf('string');
   });
+
+  it('refuses to mark provisioned before the provisioning stage with a 409', async () => {
+    const { id } = await startApplication('early-provision@arne.com');
+
+    const res = await request(app.getHttpServer())
+      .post(`/auth/system/onboarding/applications/${id}/provisioned`)
+      .set('Authorization', `Bearer ${await systemToken()}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe(
+      'An onboarding at the application stage cannot be marked provisioned',
+    );
+  });
+
+  it('answers 401 when the signed-in admin no longer exists', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/auth/system/onboarding/applications')
+      .set('Authorization', `Bearer ${await ghostToken('system', 'SUPER_ADMIN')}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('answers 401 on the installation routes for a bad token or a missing account', async () => {
+    const ghost = await ghostToken('tenant-ghost', 'FLEET_ADMIN');
+    for (const [method, path] of [
+      ['get', '/auth/installation/status'],
+      ['post', '/auth/installation/confirm'],
+    ] as const) {
+      for (const token of ['not-a-token', ghost]) {
+        const res = await request(app.getHttpServer())
+          [method](path)
+          .set('Authorization', `Bearer ${token}`);
+        expect(res.status).toBe(401);
+      }
+    }
+  });
+
+  async function ghostToken(tenantId: string, role: string): Promise<string> {
+    const { TOKEN_SERVICE } = await import('../../../apps/auth/src/contexts/auth/session');
+    const { AuthUser } = await import(
+      '../../../apps/auth/src/contexts/auth/session/domain/entities/auth-user.entity'
+    );
+    const tokens = app.get<{ issueAccessToken(user: unknown): string }>(TOKEN_SERVICE);
+    return tokens.issueAccessToken(
+      AuthUser.create({ id: 'ghost-user', email: 'ghost@truckmoov.com', role, tenantId }),
+    );
+  }
 });
+

@@ -81,6 +81,7 @@ import {
   RequestApplicationDevicesUseCase,
   ResumeOnboardingApplicationUseCase,
   PaymentProviderUnavailableError,
+  ChargeRefusedError,
   SendOnboardingVerificationCodeUseCase,
   SetBillingEmailUseCase,
   SignIndemnityAgreementUseCase,
@@ -706,11 +707,11 @@ export class OnboardingApplicationsController extends BaseAuthController {
     409,
     '"An application at the <stage> stage cannot be paid for", "This application is already paid", "No M2M licence plan was chosen", "The chosen M2M licence plan is no longer available", or "No devices were requested"',
   )
-  @ApiErrorResponse(503, '"No payment provider is configured"')
   @ApiErrorResponse(
-    500,
-    'The provider refused to initialise the charge. That error is not mapped, so it answers { statusCode: 500, message: "Internal server error" }.',
+    402,
+    'The provider refused to initialise the charge: "The payment provider refused to start this payment. Try again shortly."',
   )
+  @ApiErrorResponse(503, '"No payment provider is configured"')
   @ApplicationTokenHeader()
   async pay(
     @Param('applicationId') applicationId: string,
@@ -1167,6 +1168,9 @@ export class OnboardingApplicationsController extends BaseAuthController {
       }
       if (error instanceof PaymentProviderUnavailableError) {
         throw new ServiceUnavailableException(error.message);
+      }
+      if (error instanceof ChargeRefusedError) {
+        throw new HttpException(error.message, HttpStatus.PAYMENT_REQUIRED);
       }
       if (
         error instanceof ApplicationNotPayableError ||

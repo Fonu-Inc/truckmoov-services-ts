@@ -78,6 +78,24 @@ describe("Onboarding and installation OpenAPI contract", () => {
     },
   );
 
+  it.each(ROUTES)("%s.%s documents no 500", (_, __, handler) => {
+    expect(responses(handler)["500"]).toBeUndefined();
+  });
+
+  it("documents the refused charge as a 402 and the missing provider as a 503", () => {
+    expect(hasBody(responseOf(OnboardingApplicationsController, "pay", "402"))).toBe(true);
+    expect(hasBody(responseOf(OnboardingApplicationsController, "pay", "503"))).toBe(true);
+  });
+
+  it("documents marking provisioned at the wrong stage as a 409", () => {
+    expect(hasBody(responseOf(SystemOnboardingApplicationsController, "provisioned", "409"))).toBe(true);
+  });
+
+  it.each(["status", "confirmInstallation"])("installation %s documents the 401 and the disabled account", (name) => {
+    expect(hasBody(responseOf(InstallationController, name, "401"))).toBe(true);
+    expect(hasBody(responseOf(InstallationController, name, "403"))).toBe(true);
+  });
+
   it("documents the submit incomplete body", () => {
     expect(responseOf(OnboardingApplicationsController, "submit", "400")?.type).toBe(
       OnboardingIncompleteErrorBody,

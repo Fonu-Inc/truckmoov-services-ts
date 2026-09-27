@@ -3,7 +3,12 @@ import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infras
 import { InMemoryOnboardingPaymentRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-payment.repository";
 import { InMemoryM2mLicensePlanRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-m2m-license-plan.repository";
 import { GetOnboardingApplicationUseCase } from "@auth/onboarding/application/use-cases/get-onboarding-application.use-case";
-import { GetApplicationOrderUseCase } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import {
+  ChargeRefusedError,
+  CreateApplicationPaymentUseCase,
+  GetApplicationOrderUseCase,
+} from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import { PaymentGatewayError, type PaymentGateway } from "../../../apps/auth/src/contexts/payments";
 import { SetBillingEmailUseCase } from "@auth/onboarding/application/use-cases/set-billing-email.use-case";
 import { GetOnboardingApplicationStatusUseCase } from "@auth/onboarding/application/use-cases/submit-onboarding-application.use-case";
 import {
@@ -280,5 +285,27 @@ describe("Payment step", () => {
     const result = await status.execute("app-1", TOKEN);
 
     expect(result.data.stage).toBe("installation_scheduling");
+  });
+
+  it("answers a charge the provider refuses as refused, recording no payment", async () => {
+    await seed({ billingEmailVerifiedAt: new Date() });
+    const gateway = {
+      name: "paystack",
+      isConfigured: () => true,
+      initiateCharge: async () => {
+        throw new PaymentGatewayError("paystack", "Invalid key");
+      },
+    } as unknown as PaymentGateway;
+    const pay = new CreateApplicationPaymentUseCase(
+      applications,
+      plans,
+      payments,
+      gateway,
+      getView,
+      { generate: () => "pay-1" },
+    );
+
+    await expect(pay.execute(billing)).rejects.toBeInstanceOf(ChargeRefusedError);
+    expect(await payments.findLatestForApplication("app-1")).toBeNull();
   });
 });

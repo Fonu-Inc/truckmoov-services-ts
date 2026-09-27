@@ -8,7 +8,13 @@ import {
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { ApplicationNotFoundError } from '@auth/onboarding/domain/onboarding-application.support';
-import { assertStageAdvance } from '@auth/onboarding/domain/onboarding-stage';
+
+export class ApplicationNotProvisionableError extends Error {
+  constructor(stage: string) {
+    super(`An onboarding at the ${stage} stage cannot be marked provisioned`);
+    this.name = 'ApplicationNotProvisionableError';
+  }
+}
 
 @Injectable()
 export class CompleteProvisioningUseCase {
@@ -38,8 +44,9 @@ export class CompleteProvisioningUseCase {
 
     const application = await this.applications.findById(input.applicationId);
     if (!application) throw new ApplicationNotFoundError();
-
-    assertStageAdvance(application.stage, 'payment');
+    if (application.stage !== 'provisioning') {
+      throw new ApplicationNotProvisionableError(application.stage);
+    }
 
     await this.applications.save({
       ...application,

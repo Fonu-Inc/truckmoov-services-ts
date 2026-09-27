@@ -172,11 +172,15 @@ export { DuplicateIdentityError } from "./application/use-cases/support/enforce-
 export { VerifyApplicationAutomaticallyUseCase } from "./application/use-cases/verify-application-automatically.use-case";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
 export { GetOnboardingApplicationTimelineUseCase } from "./application/use-cases/get-application-timeline.use-case";
-export { CompleteProvisioningUseCase } from "./application/use-cases/complete-provisioning.use-case";
+export {
+  ApplicationNotProvisionableError,
+  CompleteProvisioningUseCase,
+} from "./application/use-cases/complete-provisioning.use-case";
 export { SetBillingEmailUseCase } from "./application/use-cases/set-billing-email.use-case";
 export {
   ApplicationNotPayableError,
   BillingEmailNotVerifiedError,
+  ChargeRefusedError,
   ConfirmApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
   GetApplicationOrderUseCase,
