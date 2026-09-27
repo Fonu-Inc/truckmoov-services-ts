@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateTotpSecret, matchTotpStep, TOTP_PERIOD_SECONDS, totpCodeAt } from '@shared/crypto';
 import {
   BeginTwoFactorEnrolmentUseCase,
@@ -14,6 +14,8 @@ import {
   TwoFactorRequiredError,
 } from '../../../apps/auth/src/two-factor.use-cases';
 import { InMemoryTwoFactorRepository } from '../../../apps/auth/src/mikro-two-factor.repository';
+import { TwoFactorCooldownError } from '../../../apps/auth/src/two-factor-attempts';
+import { Migration20260927120000 } from '../../../apps/auth/src/migrations/Migration20260927120000';
 import {
   issueChallengeToken,
   loginChallengeKind,
@@ -301,3 +303,66 @@ describe('Matching a code to its time step', () => {
     expect(matchTotpStep(secret, totpCodeAt(secret, now - 3 * TOTP_PERIOD_SECONDS * 1000), now)).toBeNull();
   });
 });
+
+describe('The wrong-code cooldown on enrolment and turning off', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-27T10:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function refuseThrice(attempt: (code: string) => Promise<unknown>) {
+    for (let i = 0; i < 3; i += 1) {
+      await expect(attempt('000000')).rejects.toBeInstanceOf(InvalidTwoFactorCodeError);
+    }
+  }
+
+  it('refuses the confirming code for 60 seconds after three wrong ones', async () => {
+    const kit = build();
+    const { data } = await kit.begin.execute(TOKEN);
+    await refuseThrice((code) => kit.confirm.execute(TOKEN, code));
+
+    await expect(kit.confirm.execute(TOKEN, totpCodeAt(data.secret, Date.now()))).rejects.toBeInstanceOf(TwoFactorCooldownError);
+    vi.advanceTimersByTime(60_000);
+
+    await expect(kit.confirm.execute(TOKEN, totpCodeAt(data.secret, Date.now()))).resolves.toBeTruthy();
+  });
+
+  it('keeps the cooldown when the enrolment is restarted', async () => {
+    const kit = build();
+    await kit.begin.execute(TOKEN);
+    await refuseThrice((code) => kit.confirm.execute(TOKEN, code));
+    const { data } = await kit.begin.execute(TOKEN);
+
+    await expect(kit.confirm.execute(TOKEN, totpCodeAt(data.secret, Date.now()))).rejects.toBeInstanceOf(TwoFactorCooldownError);
+  });
+
+  it('refuses the code that turns it off for 60 seconds after three wrong ones', async () => {
+    const kit = build();
+    const { secret } = await enrol(kit);
+    await refuseThrice((code) => kit.disable.execute(TOKEN, code));
+
+    await expect(kit.disable.execute(TOKEN, totpCodeAt(secret, Date.now()))).rejects.toMatchObject({
+      message: 'Too many wrong codes, try again in 60 seconds',
+      retryAfterSeconds: 60,
+    });
+    expect(await kit.repository.findByUserId('user-1')).not.toBeNull();
+
+    vi.advanceTimersByTime(60_000);
+    await kit.disable.execute(TOKEN, totpCodeAt(secret, Date.now()));
+    expect(await kit.repository.findByUserId('user-1')).toBeNull();
+  });
+
+  it('adds the count and the block to the enrolment table, nothing else', () => {
+    const statements: string[] = [];
+    const migration = Object.create(Migration20260927120000.prototype) as Migration20260927120000;
+    Object.assign(migration, { addSql: (statement: string) => statements.push(statement) });
+    void migration.up();
+
+    expect(statements).toEqual([
+      'alter table "auth_two_factor_enrolments" add column if not exists "failed_code_count" integer not null default 0;',
+      'alter table "auth_two_factor_enrolments" add column if not exists "codes_blocked_until" timestamptz null;',
+    ]);
+  });
+});
+

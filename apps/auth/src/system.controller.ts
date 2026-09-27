@@ -32,6 +32,7 @@ import {
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
+import { ApiErrorResponse, CodeAttemptsLimited } from './dto/api-error.dto';
 import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use-case';
 import {
   UpdateSystemAdminStatusUseCase,
@@ -173,10 +174,16 @@ export class SystemController extends BaseAuthController {
       'Takes the challenge from the password step and a code from the authenticator, or a recovery code. On first enrolment it also returns the recovery codes, shown once.',
   })
   @ApiOkResponse({ type: AuthResponse })
+  @ApiErrorResponse(
+    401,
+    '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
+  )
+  @CodeAttemptsLimited()
   async systemLoginTwoFactor(@Body(BodyOrDataPipe) payload: LoginTwoFactorDto) {
     try {
       return await this.signedIn((await this.twoFactorLogin.complete('system', payload.challengeToken, payload.code)).session);
     } catch (error) {
+      this.rethrowCodeCooldown(error);
       if (error instanceof InvalidChallengeError || error instanceof InvalidTwoFactorCodeError) {
         throw new UnauthorizedException(error.message);
       }

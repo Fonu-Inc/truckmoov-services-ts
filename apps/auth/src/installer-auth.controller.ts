@@ -5,7 +5,7 @@ import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { InstallerLoginUseCase } from './contexts/installation/application/use-cases/installer-login.use-case';
-import { ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
+import { ApiErrorResponse, ApiValidationErrorBody, CodeAttemptsLimited } from './dto/api-error.dto';
 import { ApiLoginResponse, LoginSessionResponse } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginTwoFactorDto } from './dto/two-factor.dto';
@@ -69,7 +69,7 @@ export class InstallerAuthController extends BaseAuthController {
   )
   @ApiErrorResponse(403, '"This IP address is blocked"')
   @ApiErrorResponse(404, 'The installer was suspended since the password step. Answered as a missing route.')
-  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  @CodeAttemptsLimited()
   async loginTwoFactor(
     @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
     @Req() req: { ip?: string },

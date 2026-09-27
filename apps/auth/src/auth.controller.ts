@@ -99,7 +99,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { IpBlockGuard } from './ip-block.guard';
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
-import { ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
+import { ApiErrorResponse, ApiValidationErrorBody, CodeAttemptsLimited } from './dto/api-error.dto';
 import { ApiLoginResponse, LoginSessionResponse } from './dto/login-response.dto';
 import { LoginTwoFactorDto } from './dto/two-factor.dto';
 import { LoginEvents, loginOrigin, type LoginOrigin } from './login-events';
@@ -260,7 +260,7 @@ export class AuthController extends BaseAuthController {
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
   )
   @ApiErrorResponse(403, '"This IP address is blocked"')
-  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  @CodeAttemptsLimited()
   async loginTwoFactor(
     @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
     @Req() req: { ip?: string },

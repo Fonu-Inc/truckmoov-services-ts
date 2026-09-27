@@ -17,7 +17,7 @@ import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
-import { ApiErrorBody, ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
+import { ApiErrorBody, ApiErrorResponse, ApiValidationErrorBody, CodeAttemptsLimited } from './dto/api-error.dto';
 import { TwoFactorCodeDto } from './dto/two-factor.dto';
 import {
   TwoFactorDisabledResponse,
@@ -89,7 +89,7 @@ export class TwoFactorController extends BaseAuthController {
   @ApiErrorResponse(401, 'Missing or invalid bearer token')
   @ApiErrorResponse(404, 'Not open to the caller\'s portal')
   @ApiErrorResponse(409, '"Two-factor is already set up for this account"')
-  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  @CodeAttemptsLimited()
   async confirmEnrolment(
     @Body(BodyOrDataPipe) payload: TwoFactorCodeDto,
     @Headers('authorization') authorization?: string,
@@ -117,7 +117,7 @@ export class TwoFactorController extends BaseAuthController {
   @ApiErrorResponse(400, '"That code is not valid", "Two-factor has not been set up for this account", or a validation error', ApiErrorBody, ApiValidationErrorBody)
   @ApiErrorResponse(401, 'Missing or invalid bearer token')
   @ApiErrorResponse(404, 'Not open to the caller\'s portal, or refused while the platform requires two-factor')
-  @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
+  @CodeAttemptsLimited()
   async disableTwoFactor(
     @Body(BodyOrDataPipe) payload: TwoFactorCodeDto,
     @Headers('authorization') authorization?: string,
@@ -145,6 +145,7 @@ export class TwoFactorController extends BaseAuthController {
       return await fn();
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
+      this.rethrowCodeCooldown(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof TwoFactorAlreadyEnrolledError) {
         throw new ConflictException(error.message);

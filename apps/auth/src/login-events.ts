@@ -5,6 +5,7 @@ import { EmailNotVerifiedError, ForbiddenError } from './contexts/auth/session';
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
 import { InvalidChallengeError, LoginCodeRefusedError } from './two-factor-login.use-case';
 import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
+import { TwoFactorCooldownError } from './two-factor-attempts';
 
 export type LoginOrigin = { ipAddress: string; userAgent: string | null };
 
@@ -17,7 +18,11 @@ export function loginOrigin(req: { ip?: string }, userAgent?: string): LoginOrig
  * A disabled or wrong-portal account does not: it is not a guessing signal.
  */
 export function loginFailureReason(error: unknown): AuthFailureReason {
-  if (error instanceof InvalidChallengeError || error instanceof InvalidTwoFactorCodeError) return 'mfa_failed';
+  if (
+    error instanceof InvalidChallengeError
+    || error instanceof InvalidTwoFactorCodeError
+    || error instanceof TwoFactorCooldownError
+  ) return 'mfa_failed';
   if (error instanceof EmailNotVerifiedError || error instanceof ForbiddenError) return 'account_locked';
   return 'invalid_password';
 }

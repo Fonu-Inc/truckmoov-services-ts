@@ -10,6 +10,7 @@ import {
 } from './contexts/auth/session/application/use-cases/login.use-case';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { issueChallengeToken, readChallengeToken } from './two-factor-login';
+import { checkCodeAttempt } from './two-factor-attempts';
 import {
   TWO_FACTOR_REPOSITORY,
   isTwoFactorActive,
@@ -53,6 +54,7 @@ export type LoginStart =
   | { kind: 'code'; challengeToken: string }
   | { kind: 'enrolment'; challengeToken: string; secret: string; otpauthUri: string };
 
+type AcceptedCode = { changes: Partial<StoredTwoFactorEnrolment>; secondFactor: SecondFactor };
 export type VerifiedLogin = { user: AuthUser; secondFactor: SecondFactor; recoveryCodes?: string[] };
 export type CompletedLogin = { session: Session & { recoveryCodes?: string[] }; secondFactor: SecondFactor };
 
@@ -115,17 +117,23 @@ export class TwoFactorLogin {
   }
 
   private async checkCode(user: AuthUser, enrolment: StoredTwoFactorEnrolment, code: string): Promise<VerifiedLogin> {
+    const accepted = await checkCodeAttempt(this.enrolments, user.id, () => this.acceptCode(enrolment, code));
+    if (!accepted) throw new LoginCodeRefusedError(user);
+    return this.spend(user, enrolment, accepted.changes, accepted.secondFactor);
+  }
+
+  private acceptCode(enrolment: StoredTwoFactorEnrolment, code: string): AcceptedCode | null {
     const step = matchTotpStep(this.cipher.decrypt(enrolment.secretCiphertext), code);
     if (step !== null && step > (enrolment.lastUsedStep ?? -1)) {
-      return this.spend(user, enrolment, { lastUsedStep: step }, 'authenticator');
+      return { changes: { lastUsedStep: step }, secondFactor: 'authenticator' };
     }
     const remaining = consumeRecoveryCode(code, enrolment.recoveryCodeHashes);
-    if (!remaining) throw new LoginCodeRefusedError(user);
-    return this.spend(user, enrolment, { recoveryCodeHashes: remaining }, 'recovery_code');
+    return remaining ? { changes: { recoveryCodeHashes: remaining }, secondFactor: 'recovery_code' } : null;
   }
 
   private async confirmAtSignIn(user: AuthUser, enrolment: StoredTwoFactorEnrolment, code: string): Promise<VerifiedLogin> {
-    const step = matchTotpStep(this.cipher.decrypt(enrolment.secretCiphertext), code);
+    const secret = this.cipher.decrypt(enrolment.secretCiphertext);
+    const step = await checkCodeAttempt(this.enrolments, user.id, () => matchTotpStep(secret, code));
     if (step === null) throw new LoginCodeRefusedError(user);
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, mintRecoveryCode);
     const changes = { confirmedAt: new Date(), recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode), lastUsedStep: step };

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DECORATORS } from '@nestjs/swagger/dist/constants';
 import { AuthController } from '../../../apps/auth/src/auth.controller';
 import { InstallerAuthController } from '../../../apps/auth/src/installer-auth.controller';
+import { SystemController } from '../../../apps/auth/src/system.controller';
+import { TwoFactorController } from '../../../apps/auth/src/two-factor.controller';
 
 type Documented = { type?: unknown; schema?: { oneOf?: Array<{ $ref: string }> } };
 
@@ -27,6 +29,18 @@ describe('Login OpenAPI contract', () => {
     const documented = responses(prototype, name);
 
     expect(documented['201']?.type).toBeTruthy();
-    for (const status of ['400', '401', '403', '429']) expect(documented[status]?.type).toBeTruthy();
+    for (const status of ['400', '401', '403']) expect(documented[status]?.type).toBeTruthy();
+  });
+
+  it.each([
+    ['AuthController.loginTwoFactor', AuthController.prototype, 'loginTwoFactor'],
+    ['InstallerAuthController.loginTwoFactor', InstallerAuthController.prototype, 'loginTwoFactor'],
+    ['SystemController.systemLoginTwoFactor', SystemController.prototype, 'systemLoginTwoFactor'],
+    ['TwoFactorController.confirmEnrolment', TwoFactorController.prototype, 'confirmEnrolment'],
+    ['TwoFactorController.disableTwoFactor', TwoFactorController.prototype, 'disableTwoFactor'],
+  ])('%s documents the per-IP limit and the wrong-code cooldown', (_, prototype, name) => {
+    const refs = responses(prototype, name)['429']?.schema?.oneOf?.map((entry) => entry.$ref) ?? [];
+
+    expect(refs).toEqual(['#/components/schemas/CodeCooldownErrorBody', '#/components/schemas/ApiErrorBody']);
   });
 });

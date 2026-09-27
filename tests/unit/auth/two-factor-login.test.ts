@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateTotpSecret, TOTP_PERIOD_SECONDS, totpCodeAt } from '@shared/crypto';
 import { AuthUser } from '../../../apps/auth/src/contexts/auth/session/domain/entities/auth-user.entity';
 import { LoginUseCase, type LoginAudience } from '../../../apps/auth/src/contexts/auth/session/application/use-cases/login.use-case';
@@ -13,6 +13,7 @@ import {
   type LoginStart,
 } from '../../../apps/auth/src/two-factor-login.use-case';
 import { hashRecoveryCode, InvalidTwoFactorCodeError } from '../../../apps/auth/src/two-factor.use-cases';
+import { TwoFactorCooldownError } from '../../../apps/auth/src/two-factor-attempts';
 
 const SECRET = 'challenge-secret';
 const PEOPLE: Record<LoginAudience, { id: string; email: string; role: string; tenantId: string }> = {
@@ -250,5 +251,105 @@ describe('admin sign-in when the platform requires two-factor', () => {
     const h = await build(true);
     await enrol(h, PEOPLE.system.id);
     expect((await h.flow.start('system', credentials)).kind).toBe('code');
+  });
+});
+
+describe.each(AUDIENCES)('the wrong-code cooldown on the %s portal', (audience) => {
+  const person = PEOPLE[audience];
+  const credentials = { email: person.email, password };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-27T10:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function refuseThrice(h: Harness, challenge: string) {
+    for (let i = 0; i < 3; i += 1) {
+      await expect(h.flow.complete(audience, challenge, '000000')).rejects.toBeInstanceOf(LoginCodeRefusedError);
+    }
+  }
+
+  it('refuses every code for 60 seconds after three wrong ones, a correct one too', async () => {
+    const h = await build();
+    const { secret } = await enrol(h, person.id);
+    const challenge = challengeOf(await h.flow.start(audience, credentials));
+    await refuseThrice(h, challenge);
+
+    const refused = await h.flow.complete(audience, challenge, totpCodeAt(secret, Date.now())).catch((error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(TwoFactorCooldownError);
+    expect((refused as TwoFactorCooldownError).retryAfterSeconds).toBe(60);
+    expect((refused as Error).message).toBe('Too many wrong codes, try again in 60 seconds');
+  });
+
+  it('takes codes again once the cooldown ends, on the same challenge', async () => {
+    const h = await build();
+    const { secret } = await enrol(h, person.id);
+    const challenge = challengeOf(await h.flow.start(audience, credentials));
+    await refuseThrice(h, challenge);
+
+    vi.advanceTimersByTime(45_000);
+    await expect(h.flow.complete(audience, challenge, totpCodeAt(secret, Date.now()))).rejects.toMatchObject({ retryAfterSeconds: 15 });
+    vi.advanceTimersByTime(15_000);
+
+    const done = await h.flow.complete(audience, challenge, totpCodeAt(secret, Date.now()));
+    expect(done.session.user).toMatchObject({ id: person.id });
+  });
+
+  it('counts from zero again after a cooldown', async () => {
+    const h = await build();
+    await enrol(h, person.id);
+    const challenge = challengeOf(await h.flow.start(audience, credentials));
+    await refuseThrice(h, challenge);
+    vi.advanceTimersByTime(60_000);
+
+    await refuseThrice(h, challenge);
+    await expect(h.flow.complete(audience, challenge, '000000')).rejects.toBeInstanceOf(TwoFactorCooldownError);
+  });
+
+  it('starts the count again after a correct code', async () => {
+    const h = await build();
+    const { secret } = await enrol(h, person.id);
+    for (let i = 0; i < 2; i += 1) {
+      await expect(h.flow.complete(audience, challengeOf(await h.flow.start(audience, credentials)), '000000')).rejects.toBeInstanceOf(LoginCodeRefusedError);
+    }
+    await h.flow.complete(audience, challengeOf(await h.flow.start(audience, credentials)), totpCodeAt(secret, Date.now()));
+
+    await refuseThrice(h, challengeOf(await h.flow.start(audience, credentials)));
+  });
+
+  it('keeps the count per account', async () => {
+    const h = await build();
+    await enrol(h, person.id);
+    const other = AUDIENCES.find((a) => a !== audience)!;
+    const { secret } = await enrol(h, PEOPLE[other].id);
+    await refuseThrice(h, challengeOf(await h.flow.start(audience, credentials)));
+
+    const challenge = challengeOf(await h.flow.start(other, { email: PEOPLE[other].email, password }));
+    await expect(h.flow.complete(other, challenge, totpCodeAt(secret, Date.now()))).resolves.toBeTruthy();
+  });
+});
+
+describe('the wrong-code cooldown on an admin\'s first enrolment', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-27T10:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('refuses the correct code during the cooldown and takes it after, on the same challenge', async () => {
+    const h = await build(true);
+    const started = await h.flow.start('system', { email: PEOPLE.system.email, password });
+    if (started.kind !== 'enrolment') throw new Error(`expected enrolment, got ${started.kind}`);
+    for (let i = 0; i < 3; i += 1) {
+      await expect(h.flow.complete('system', started.challengeToken, '000000')).rejects.toBeInstanceOf(LoginCodeRefusedError);
+    }
+
+    await expect(h.flow.complete('system', started.challengeToken, totpCodeAt(started.secret, Date.now()))).rejects.toBeInstanceOf(TwoFactorCooldownError);
+    vi.advanceTimersByTime(60_000);
+
+    const done = await h.flow.complete('system', started.challengeToken, totpCodeAt(started.secret, Date.now()));
+    expect(done.secondFactor).toBe('enrolment');
   });
 });

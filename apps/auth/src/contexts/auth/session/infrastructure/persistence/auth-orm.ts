@@ -112,6 +112,8 @@ export class TwoFactorEnrolmentRecord {
   recoveryCodeHashes!: string[];
   lastUsedStep?: number | null;
   version!: number;
+  failedCodeCount?: number;
+  codesBlockedUntil?: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -126,6 +128,8 @@ export const TwoFactorEnrolmentRecordSchema = new EntitySchema<TwoFactorEnrolmen
     recoveryCodeHashes: { fieldName: 'recovery_code_hashes', type: 'json', defaultRaw: "'[]'" },
     lastUsedStep: { fieldName: 'last_used_step', type: 'integer', nullable: true },
     version: { fieldName: 'version', type: 'integer', defaultRaw: '0' },
+    failedCodeCount: { fieldName: 'failed_code_count', type: 'integer', defaultRaw: '0' },
+    codesBlockedUntil: { fieldName: 'codes_blocked_until', type: 'datetime', nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
   },

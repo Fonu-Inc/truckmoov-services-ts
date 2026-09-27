@@ -149,6 +149,7 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
     });
 
     it('refuses a bad code, and counts it toward the IP block', async () => {
+      await enrolments.clearCodeAttempts(enrolled[portal].userId);
       const ip = freshIp();
       const wrong = codeAt(enrolled[portal].secret, 20);
       const refusals = [];
@@ -160,6 +161,27 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
       expect(refusals.map((r) => r.status)).toEqual([401, 401, 401]);
       expect(blocked.status).toBe(403);
       expect(blocked.body.message).toBe('This IP address is blocked');
+      // Three wrong codes also cooled the account down; the tests after this one sign in.
+      await enrolments.clearCodeAttempts(enrolled[portal].userId);
+    });
+
+    it('cools the account down after three wrong codes, without spending the challenge', async () => {
+      const { userId, secret } = enrolled[portal];
+      const token = await challenge(portal);
+      for (let i = 0; i < 3; i += 1) {
+        expect((await post(portals[portal].code).send({ challengeToken: token, code: codeAt(secret, 20) })).status).toBe(401);
+      }
+
+      const cooling = await post(portals[portal].code).send({ challengeToken: token, code: codeAt(secret, 0) });
+      expect(cooling.status).toBe(429);
+      expect(cooling.body).toEqual({
+        message: expect.stringMatching(/^Too many wrong codes, try again in \d+ seconds$/),
+        retryAfterSeconds: expect.any(Number),
+      });
+
+      await enrolments.clearCodeAttempts(userId);
+      const code = enrolled[portal].recoveryCodes[2];
+      expect((await post(portals[portal].code).send({ challengeToken: token, code })).status).toBe(201);
     });
 
     it('refuses an expired challenge that is otherwise current', async () => {
@@ -185,6 +207,18 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
       }
       expect((await post(portals[portal].code).send({ challengeToken: token, code: enrolled[portal].recoveryCodes[1] })).status).toBe(201);
     });
+  });
+
+  it('cools the account down on the turn-off step too', async () => {
+    const { token, userId } = enrolled.installer;
+    const disable = (code: string) => post('/auth/two-factor/disable').set('Authorization', `Bearer ${token}`).send({ code });
+    for (let i = 0; i < 3; i += 1) expect((await disable('000000')).status).toBe(400);
+
+    const cooling = await disable(codeAt(enrolled.installer.secret, 0));
+
+    expect(cooling.status).toBe(429);
+    expect(cooling.body.retryAfterSeconds).toEqual(expect.any(Number));
+    await enrolments.clearCodeAttempts(userId);
   });
 
   it('turns two-factor off from the installer portal with a current code', async () => {

@@ -14,6 +14,7 @@ import {
   SYSTEM_SETTINGS_REPOSITORY,
   type SystemSettingsRepository,
 } from './system-settings.repository';
+import { checkCodeAttempt } from './two-factor-attempts';
 
 export const RECOVERY_CODE_COUNT = 8;
 export const TOTP_ISSUER = 'TruckMoov';
@@ -109,7 +110,8 @@ export class ConfirmTwoFactorEnrolmentUseCase {
     if (!enrolment) throw new TwoFactorNotEnrolledError();
     if (enrolment.confirmedAt !== null) throw new TwoFactorAlreadyEnrolledError();
 
-    const step = matchTotpStep(this.cipher.decrypt(enrolment.secretCiphertext), code);
+    const secret = this.cipher.decrypt(enrolment.secretCiphertext);
+    const step = await checkCodeAttempt(this.repository, actor.id, () => matchTotpStep(secret, code));
     if (step === null) throw new InvalidTwoFactorCodeError();
 
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, mintRecoveryCode);
@@ -153,7 +155,8 @@ export class DisableTwoFactorUseCase {
     // A current code is required to turn it off. Otherwise a stolen session is
     // enough to remove the control that exists to contain a stolen session.
     const secret = this.cipher.decrypt(enrolment.secretCiphertext);
-    if (!verifyTotp(secret, code)) throw new InvalidTwoFactorCodeError();
+    const valid = await checkCodeAttempt(this.repository, actor.id, () => verifyTotp(secret, code) || null);
+    if (!valid) throw new InvalidTwoFactorCodeError();
 
     const platform = await this.settings.get();
     if (platform?.security?.requireTwoFactor) throw new TwoFactorRequiredError();

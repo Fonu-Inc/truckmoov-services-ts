@@ -14,12 +14,23 @@ export type StoredTwoFactorEnrolment = {
   updatedAt: Date;
 };
 
+export type CodeAttemptPolicy = { limit: number; cooldownMs: number };
+
 export interface TwoFactorRepository {
   findByUserId(userId: string): Promise<StoredTwoFactorEnrolment | null>;
   save(enrolment: StoredTwoFactorEnrolment): Promise<void>;
   /** Writes only if the stored version is still `expectedVersion`. False when another use got there first. */
   saveIfVersion(enrolment: StoredTwoFactorEnrolment, expectedVersion: number): Promise<boolean>;
   deleteByUserId(userId: string): Promise<void>;
+  /**
+   * Claims one code attempt atomically, leaving the version alone so a
+   * challenge outlives it. The attempt that reaches the limit blocks codes for
+   * the cooldown and starts the count again. Null when claimed, otherwise when
+   * codes are accepted again.
+   */
+  claimCodeAttempt(userId: string, now: Date, policy: CodeAttemptPolicy): Promise<Date | null>;
+  /** A correct code: nothing counted, nothing blocked. */
+  clearCodeAttempts(userId: string): Promise<void>;
 }
 
 export const TWO_FACTOR_REPOSITORY = Symbol('TWO_FACTOR_REPOSITORY');

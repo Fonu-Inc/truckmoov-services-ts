@@ -82,3 +82,17 @@ export function ApiErrorResponse(
     }),
   );
 }
+
+export class CodeCooldownErrorBody {
+  @ApiProperty({ example: 'Too many wrong codes, try again in 42 seconds' }) message!: string;
+  @ApiProperty({ example: 42, description: 'Seconds until a code is checked again.' })
+  retryAfterSeconds!: number;
+}
+
+export const CodeAttemptsLimited = () =>
+  ApiErrorResponse(
+    429,
+    'Per-IP limit: { statusCode: 429, message: "Too many login attempts, please try again later" }. After 3 wrong codes in a row on the account, every code is refused unchecked for 60 seconds: { message: "Too many wrong codes, try again in <n> seconds", retryAfterSeconds }. A sign-in challenge refused this way stays usable until it expires.',
+    CodeCooldownErrorBody,
+    ApiErrorBody,
+  );

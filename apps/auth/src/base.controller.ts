@@ -1,4 +1,4 @@
-import { ForbiddenException, Logger, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, HttpException, HttpStatus, Logger, UnauthorizedException } from '@nestjs/common';
 import { ActivityLogService } from './activity-log.service';
 import {
   EmailNotVerifiedError,
@@ -11,6 +11,7 @@ import {
 import { SessionExpiredError } from './contexts/auth/session/domain/errors/session-expired.error';
 import { InvalidChallengeError } from './two-factor-login.use-case';
 import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
+import { TwoFactorCooldownError } from './two-factor-attempts';
 
 /** A token naming no live account is a 401; a disabled account is refused like any forbidden call. */
 export function rethrowActorError(error: unknown): void {
@@ -29,6 +30,7 @@ export abstract class BaseAuthController {
     try {
       return await fn();
     } catch (error) {
+      this.rethrowCodeCooldown(error);
       if (
         error instanceof InvalidCredentialsError ||
         error instanceof InvalidRefreshTokenError ||
@@ -48,6 +50,15 @@ export abstract class BaseAuthController {
         throw new ForbiddenException(error.message);
       }
       throw error;
+    }
+  }
+
+  protected rethrowCodeCooldown(error: unknown): void {
+    if (error instanceof TwoFactorCooldownError) {
+      throw new HttpException(
+        { message: error.message, retryAfterSeconds: error.retryAfterSeconds },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
   }
 
