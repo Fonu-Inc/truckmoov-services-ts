@@ -130,6 +130,7 @@ export class OnboardingDeviceRequestRecord {
   quantity!: number;
   useCase!: string;
   notes!: string | null;
+  confirmedAvailableQuantity!: number | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -144,6 +145,7 @@ export const OnboardingDeviceRequestRecordSchema =
       quantity: { type: 'number', default: 1 },
       useCase: { fieldName: 'use_case', type: 'text' },
       notes: { type: 'text', nullable: true },
+      confirmedAvailableQuantity: { fieldName: 'confirmed_available_quantity', type: 'number', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },

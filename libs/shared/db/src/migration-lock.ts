@@ -9,6 +9,20 @@ import type { MikroORM } from "@mikro-orm/core";
  */
 const MIGRATION_LOCK_ID = 8_246_113_070_001;
 
+interface LockedClient {
+  __knex__disposed?: unknown;
+}
+
+interface MigrationKnex {
+  raw(sql: string, bindings?: readonly unknown[]): {
+    connection(conn: LockedClient): Promise<unknown>;
+  };
+  client: {
+    acquireConnection(): Promise<LockedClient>;
+    releaseConnection(conn: LockedClient): Promise<unknown>;
+  };
+}
+
 /**
  * Runs migrations with only one process doing so at a time.
  *
@@ -18,23 +32,38 @@ const MIGRATION_LOCK_ID = 8_246_113_070_001;
  * on anything the migration itself did wrong. With five replicas starting
  * together, four crash and restart until one wins.
  *
- * pg_advisory_lock blocks the others until the first finishes. They then find
- * the migrations already recorded and do nothing, which is the intended
- * outcome. The lock is session-scoped and released explicitly, so a crash
- * mid-migration frees it when the connection drops.
+ * pg_advisory_lock is session-scoped. A pooled execute checks a connection out
+ * and returns it as soon as the statement finishes, so the lock stayed on
+ * whichever session happened to run it, and the unlock usually ran on a
+ * different one. The lock then lived until that idle session was destroyed.
+ * Every other replica blocked inside its own lock call, holding a database
+ * connection the whole time. Enough of those filled Postgres, and the next
+ * boot waited on the Knex pool until acquire timed out.
+ *
+ * The lock and the unlock therefore run on one connection that stays checked
+ * out for the whole migration. A crash still drops the session and frees the
+ * lock. If the unlock itself fails, the connection is marked disposed so the
+ * pool destroys it instead of handing the still-locked session out again.
  */
 export async function runMigrationsExclusively(orm: MikroORM): Promise<void> {
-  const connection = orm.em.getConnection();
+  const knex = (
+    orm.em.getConnection() as unknown as { getKnex(): MigrationKnex }
+  ).getKnex();
+  const client = await knex.client.acquireConnection();
 
-  await connection.execute("select pg_advisory_lock(?)", [MIGRATION_LOCK_ID]);
   try {
-    await orm.getMigrator().up();
+    await knex.raw("select pg_advisory_lock(?)", [MIGRATION_LOCK_ID]).connection(client);
+    try {
+      await orm.getMigrator().up();
+    } finally {
+      await knex
+        .raw("select pg_advisory_unlock(?)", [MIGRATION_LOCK_ID])
+        .connection(client)
+        .catch((error: unknown) => {
+          client.__knex__disposed = error;
+        });
+    }
   } finally {
-    await connection
-      .execute("select pg_advisory_unlock(?)", [MIGRATION_LOCK_ID])
-      .catch(() => {
-        // The lock dies with the session, so a failure to release it here
-        // delays the next starter rather than deadlocking it.
-      });
+    await knex.client.releaseConnection(client);
   }
 }

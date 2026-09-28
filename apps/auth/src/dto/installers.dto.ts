@@ -40,6 +40,17 @@ export class CreateInstallerDto {
   @MaxLength(20)
   phoneNumber!: string;
 
+  @ApiPropertyOptional({ enum: NIGERIAN_STATES, example: 'Lagos' })
+  @IsOptional()
+  @IsString()
+  state!: string;
+
+  @ApiPropertyOptional({ example: 'Ikeja', maxLength: 80 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  city!: string;
+
   @ApiProperty({ type: [String], enum: NIGERIAN_STATES, description: 'States the installer works in' })
   @IsArray()
   @ArrayMaxSize(NIGERIAN_STATES.length)

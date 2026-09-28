@@ -9,11 +9,7 @@ import {
   InvalidAccessTokenError,
   UserNotFoundError,
 } from "../../../apps/auth/src/contexts/auth/session";
-import {
-  ApplicationNotProvisionableError,
-  ChargeRefusedError,
-  PaymentProviderUnavailableError,
-} from "@auth/onboarding";
+import { ChargeRefusedError, PaymentProviderUnavailableError } from "@auth/onboarding";
 
 const failing = (error: Error) => ({
   execute: async () => {
@@ -54,21 +50,6 @@ describe("Onboarding and installation error statuses", () => {
       status,
       message: error.message,
     });
-  });
-
-  it.each([
-    [new UserNotFoundError(), 401, "User not found"],
-    [
-      new ApplicationNotProvisionableError("payment"),
-      409,
-      "An onboarding at the payment stage cannot be marked provisioned",
-    ],
-  ])("marking provisioned answers %s with %i", async (error, status, message) => {
-    const controller = withDeps(SystemOnboardingApplicationsController, {
-      completeProvisioning: failing(error),
-    });
-
-    expect(await statusOf(controller.provisioned("app-1", "Bearer token"))).toEqual({ status, message });
   });
 
   it("answers a missing admin with 401 on the review routes", async () => {

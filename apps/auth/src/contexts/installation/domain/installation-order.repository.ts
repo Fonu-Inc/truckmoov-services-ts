@@ -3,6 +3,7 @@ import type {
   InstallationTimeSlot,
 } from './installation-order';
 import type { EvidenceCategory } from './installation-evidence';
+import type { InstallerCapability } from './installer';
 
 export type StoredInstallationOrder = {
   id: string;
@@ -14,6 +15,8 @@ export type StoredInstallationOrder = {
   addressLine: string;
   city: string;
   state: string;
+  /** Closed capability catalogue required to carry out this booking. */
+  requiredCapabilities?: InstallerCapability[];
   siteContactName: string;
   siteContactPhone: string;
   notes: string | null;
@@ -93,10 +96,11 @@ export type InstallerJobCount = {
 export type UnassignedCursor = Pick<StoredInstallationOrder, 'scheduledDate' | 'createdAt' | 'id'>;
 
 /**
- * assigned; full: the installer has no room left; taken: the order is no longer
+ * assigned; full: the installer has no room left; conflict: the installer is
+ * already booked in the requested slot; taken: the order is no longer
  * unassigned; declined: the installer rejected this order before.
  */
-export type AssignmentOutcome = 'assigned' | 'full' | 'taken' | 'declined';
+export type AssignmentOutcome = 'assigned' | 'full' | 'conflict' | 'taken' | 'declined';
 
 export interface InstallationOrderRepository {
   save(order: StoredInstallationOrder): Promise<void>;
@@ -109,8 +113,9 @@ export interface InstallationOrderRepository {
   findUnassigned(limit: number, after?: UnassignedCursor): Promise<StoredInstallationOrder[]>;
   /**
    * Writes an assignment while the order is still unassigned, its installer never
-   * rejected it and has fewer than `maxActiveJobs` active jobs, holding the
-   * installer so two writers cannot both take the last place.
+   * rejected it, has fewer than `maxActiveJobs` active jobs, and has no active
+   * booking in the same date/time slot. The installer is held so concurrent
+   * workers cannot consume the last place or double-book the slot.
    */
   assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome>;
   /**

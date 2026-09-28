@@ -29,7 +29,6 @@ import {
   ApprovedApplicationResponse,
   ChangesRequestedResponse,
   DocumentDecisionResponse,
-  ProvisionedResponse,
   RejectedApplicationResponse,
   ReviewApplicationResponse,
   ReviewCountersResponse,
@@ -44,12 +43,10 @@ import {
   ApplicationDocumentsIncompleteError,
   ApplicationNotFoundError,
   ApplicationNotUnderReviewError,
-  ApplicationNotProvisionableError,
   ApproveOnboardingApplicationUseCase,
   BusinessEmailInUseError,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
-  CompleteProvisioningUseCase,
   GetOnboardingApplicationTimelineUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
@@ -86,7 +83,14 @@ const ReasonBody = () =>
     required: false,
     schema: {
       type: 'object',
-      properties: { reason: { type: 'string', example: 'The CAC certificate is unreadable' } },
+      properties: {
+        reason: { type: 'string', example: 'The CAC certificate is unreadable' },
+        section: {
+          type: 'string',
+          enum: ['business_details', 'fleet_requirements', 'submitted_documents'],
+          example: 'submitted_documents',
+        },
+      },
       description: 'May also be sent wrapped as { data: { reason } }.',
     },
   });
@@ -107,8 +111,6 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly getApplication: GetOnboardingApplicationForReviewUseCase,
     @Inject(GetOnboardingApplicationTimelineUseCase)
     private readonly getTimeline: GetOnboardingApplicationTimelineUseCase,
-    @Inject(CompleteProvisioningUseCase)
-    private readonly completeProvisioning: CompleteProvisioningUseCase,
     @Inject(ReviewOnboardingApplicationDocumentUseCase)
     private readonly reviewDocument: ReviewOnboardingApplicationDocumentUseCase,
     @Inject(ApproveOnboardingApplicationUseCase)
@@ -194,27 +196,6 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     );
   }
 
-  @Post(':applicationId/provisioned')
-  @ApiOperation({
-    summary: 'Mark provisioning complete',
-    description:
-      'Says the devices and SIMs are allocated, which is what opens payment for the applicant.',
-  })
-  @ApiCreatedResponse({ description: 'Provisioning complete', type: ProvisionedResponse })
-  @AdminErrors(NOT_FOUND)
-  @ApiErrorResponse(409, 'Not at the provisioning stage: "An onboarding at the <stage> stage cannot be marked provisioned"')
-  async provisioned(
-    @Param('applicationId') applicationId: string,
-    @Headers('authorization') authorization?: string,
-  ) {
-    const accessToken = this.requireAccessToken(authorization);
-    const result = await this.run(() =>
-      this.completeProvisioning.execute({ accessToken, applicationId }),
-    );
-    await this.recordDecision(accessToken, applicationId, 'provisioned');
-    return result;
-  }
-
   @Get(':applicationId/timeline')
   @ApiOperation({
     summary: 'Get an application timeline',
@@ -268,7 +249,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
   async rejectDocument(
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
-    @Body(BodyOrDataPipe) payload: { reason?: string },
+    @Body(BodyOrDataPipe) payload: { reason?: string; section?: string },
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.requireAccessToken(authorization);
@@ -357,7 +338,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
   @ApiErrorResponse(409, NOT_REVIEWABLE)
   async changes(
     @Param('applicationId') applicationId: string,
-    @Body(BodyOrDataPipe) payload: { reason?: string },
+    @Body(BodyOrDataPipe) payload: { reason?: string; section?: string },
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.requireAccessToken(authorization);
@@ -366,11 +347,13 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         accessToken,
         applicationId,
         reason: payload?.reason,
+        section: payload?.section,
       });
       await this.recordDecision(
         accessToken,
         applicationId,
         'application.changes_requested',
+        { section: payload?.section ?? 'submitted_documents' },
       );
       return result;
     });
@@ -421,6 +404,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     accessToken: string,
     applicationId: string,
     action: string,
+    metadata: Record<string, unknown> = {},
   ): Promise<void> {
     await this.tryRecordActivity({
       tenantId: 'system',
@@ -431,7 +415,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       summary: `Onboarding ${action.replace(/[._]/g, ' ')}`,
       actorId: null,
       actorRole: null,
-      metadata: { applicationId },
+      metadata: { applicationId, ...metadata },
     });
   }
 
@@ -454,7 +438,6 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       }
       if (
         error instanceof ApplicationNotUnderReviewError ||
-        error instanceof ApplicationNotProvisionableError ||
         error instanceof BusinessEmailInUseError ||
         error instanceof SetupLinkNotResendableError
       ) {

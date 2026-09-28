@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Allow } from 'class-validator';
-import { INSTALLATION_TIME_SLOTS } from '@auth/installation';
+import { INSTALLATION_TIME_SLOTS, INSTALLER_CAPABILITIES } from '@auth/installation';
 
 export class DeviceAssignmentDto {
   @Allow()
@@ -46,6 +46,14 @@ export class ScheduleInstallationDto {
   @Allow()
   @ApiPropertyOptional({ maxLength: 1000 })
   notes?: string;
+
+  @Allow()
+  @ApiPropertyOptional({
+    enum: Object.keys(INSTALLER_CAPABILITIES),
+    isArray: true,
+    description: 'Closed capability catalogue needed for this installation. Defaults to device installation.',
+  })
+  requiredCapabilities?: string[];
 
   @Allow()
   @ApiProperty({

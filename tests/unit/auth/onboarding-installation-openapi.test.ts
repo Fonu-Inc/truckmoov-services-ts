@@ -87,10 +87,6 @@ describe("Onboarding and installation OpenAPI contract", () => {
     expect(hasBody(responseOf(OnboardingApplicationsController, "pay", "503"))).toBe(true);
   });
 
-  it("documents marking provisioned at the wrong stage as a 409", () => {
-    expect(hasBody(responseOf(SystemOnboardingApplicationsController, "provisioned", "409"))).toBe(true);
-  });
-
   it.each(["status", "confirmInstallation"])("installation %s documents the 401 and the disabled account", (name) => {
     expect(hasBody(responseOf(InstallationController, name, "401"))).toBe(true);
     expect(hasBody(responseOf(InstallationController, name, "403"))).toBe(true);

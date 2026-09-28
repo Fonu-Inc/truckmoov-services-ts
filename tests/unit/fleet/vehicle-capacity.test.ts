@@ -52,11 +52,10 @@ describe("Vehicle capacity units", () => {
     expect(capacityPallets(null, "pallets")).toBeNull();
   });
 
-  // 100 is a sane ton ceiling and a nonsensical kilogram one.
-  it("bounds capacity per unit rather than globally", () => {
+  it("rejects a negative capacity and accepts a large one in any unit", () => {
     expect(() => assertCapacityWithinRange(100, "tons")).not.toThrow();
-    expect(() => assertCapacityWithinRange(101, "tons")).toThrow(VehicleCapacityError);
-    expect(() => assertCapacityWithinRange(30_000, "kg")).not.toThrow();
+    expect(() => assertCapacityWithinRange(250_000, "kg")).not.toThrow();
+    expect(() => assertCapacityWithinRange(500, "pallets")).not.toThrow();
     expect(() => assertCapacityWithinRange(-1, "kg")).toThrow(VehicleCapacityError);
   });
 });

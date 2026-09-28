@@ -548,6 +548,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
         quantity: payload.quantity,
         useCase: payload.useCase,
         notes: payload.notes,
+        confirmAvailableQuantity: payload.confirmAvailableQuantity,
       }),
     );
   }
@@ -770,6 +771,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
         siteContactName: payload.siteContactName,
         siteContactPhone: payload.siteContactPhone,
         notes: payload.notes,
+        requiredCapabilities: payload.requiredCapabilities,
         assignments: payload.assignments ?? [],
       }),
     );

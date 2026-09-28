@@ -77,4 +77,10 @@ export class OnboardingDeviceRequestDto {
   @Allow()
   @ApiPropertyOptional({ maxLength: 1000 })
   notes?: string;
+
+  @Allow()
+  @ApiPropertyOptional({
+    description: 'Required only after the API reports a stock shortfall. Must confirm the exact available quantity returned by that response.',
+  })
+  confirmAvailableQuantity?: boolean;
 }

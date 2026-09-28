@@ -100,6 +100,7 @@ function toStoredDeviceRequest(
     quantity: r.quantity,
     useCase: r.useCase,
     notes: r.notes ?? null,
+    confirmedAvailableQuantity: r.confirmedAvailableQuantity ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };

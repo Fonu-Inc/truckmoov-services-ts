@@ -99,6 +99,8 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
         lastName: 'Factor',
         email: portals.installer.email,
         phoneNumber: '08031234568',
+        state: 'Lagos',
+        city: 'Ikeja',
         serviceAreas: ['Lagos'],
         capabilities: ['device_installation'],
       });

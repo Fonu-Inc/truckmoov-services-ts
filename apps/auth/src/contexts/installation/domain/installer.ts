@@ -4,11 +4,21 @@ export const INSTALLER_STATUSES = ['invited', 'active', 'suspended'] as const;
 export type InstallerStatus = (typeof INSTALLER_STATUSES)[number];
 
 export const INSTALLER_CAPABILITIES = {
+  // Legacy keys remain supported for existing installer records. New writes
+  // use the explicit service names below so the API is a closed catalogue.
   device_installation: 'Device installation',
   sim_activation: 'SIM activation',
   device_configuration: 'Device configuration',
   diagnostics_troubleshooting: 'Diagnostics & troubleshooting',
   fuel_sensor_calibration: 'Fuel sensor calibration',
+  tracker_installation_wiring: 'Tracker installation & wiring',
+  sim_installation_activation: 'SIM installation & activation',
+  device_configuration_provisioning: 'Device configuration & provisioning',
+  fuel_sensor_installation_calibration: 'Fuel sensor installation & calibration',
+  camera_accessory_installation: 'Camera & accessory installation',
+  diagnostics_repairs_troubleshooting: 'Diagnostics, repairs & troubleshooting',
+  device_replacement_deinstallation: 'Device replacement & de-installation',
+  onsite_customer_training_handover: 'On-site customer training & handover',
 } as const;
 export type InstallerCapability = keyof typeof INSTALLER_CAPABILITIES;
 

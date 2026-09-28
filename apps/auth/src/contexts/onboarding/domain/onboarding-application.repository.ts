@@ -202,6 +202,8 @@ export type StoredOnboardingDeviceRequest = {
   quantity: number;
   useCase: string;
   notes: string | null;
+  /** The stock amount the applicant explicitly accepted when inventory was short. */
+  confirmedAvailableQuantity?: number | null;
   createdAt: Date;
   updatedAt: Date;
 };

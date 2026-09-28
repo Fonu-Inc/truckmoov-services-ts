@@ -68,6 +68,7 @@ export class InstallationOrderRecord {
   addressLine!: string;
   city!: string;
   state!: string;
+  requiredCapabilities!: string[];
   siteContactName!: string;
   siteContactPhone!: string;
   notes!: string | null;
@@ -100,6 +101,7 @@ export const InstallationOrderRecordSchema =
       addressLine: { fieldName: 'address_line', type: 'string', length: 200 },
       city: { type: 'string', length: 80 },
       state: { type: 'string', length: 64 },
+      requiredCapabilities: { fieldName: 'required_capabilities', type: 'string[]', defaultRaw: "'{device_installation}'" },
       siteContactName: { fieldName: 'site_contact_name', type: 'string', length: 80 },
       siteContactPhone: { fieldName: 'site_contact_phone', type: 'string', length: 20 },
       notes: { type: 'text', nullable: true },

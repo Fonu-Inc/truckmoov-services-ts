@@ -103,6 +103,7 @@ function toStoredOrder(r: InstallationOrderRecord): StoredInstallationOrder {
     addressLine: r.addressLine,
     city: r.city,
     state: r.state,
+    requiredCapabilities: (r.requiredCapabilities?.length ? r.requiredCapabilities : ['device_installation']) as StoredInstallationOrder['requiredCapabilities'],
     siteContactName: r.siteContactName,
     siteContactPhone: r.siteContactPhone,
     notes: r.notes ?? null,
@@ -300,6 +301,21 @@ export class MikroInstallationOrderRepository
         [order.installerId, [...ACTIVE_JOB_STATUSES]],
       );
       if (Number(row?.count ?? 0) >= maxActiveJobs) return 'full';
+      const [slot] = await tx.execute<Array<{ count: number }>>(
+        `select count(*)::int as count
+         from installation_orders
+         where installer_id = ?
+           and scheduled_date = ?
+           and time_slot = ?
+           and status in (?)`,
+        [
+          order.installerId,
+          order.scheduledDate,
+          order.timeSlot,
+          [...ACTIVE_JOB_STATUSES],
+        ],
+      );
+      if (Number(slot?.count ?? 0) > 0) return 'conflict';
       const { id, ...fields } = order;
       const changed = await tx.nativeUpdate(InstallationOrderRecord, { id, status: 'unassigned' }, fields);
       return changed > 0 ? 'assigned' : 'taken';

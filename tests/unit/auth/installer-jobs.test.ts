@@ -286,6 +286,30 @@ describe("the installation sweep", () => {
     expect(assigned[0]).toMatchObject({ status: "assigned", assignedAt: NOW });
   });
 
+  it("only offers an order to an installer with every required capability", async () => {
+    await h.installers.save(installer("ada", { capabilities: ["camera_accessory_installation"] }));
+    await h.installers.save(installer("bola", { capabilities: ["tracker_installation_wiring"] }));
+    await h.orders.save(
+      order("tracker", {
+        scheduledDate: day("2026-09-30"),
+        requiredCapabilities: ["tracker_installation_wiring"],
+      }),
+    );
+
+    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0, reminded: 0 });
+    expect((await h.orders.findById("tracker"))?.installerId).toBe("bola");
+  });
+
+  it("does not double-book an installer into the same date and time slot", async () => {
+    await h.installers.save(installer("ada"));
+    await h.orders.save(order("first", { scheduledDate: day("2026-09-30"), timeSlot: "morning" }));
+    await h.orders.save(order("second", { scheduledDate: day("2026-09-30"), timeSlot: "morning" }));
+
+    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0, reminded: 0 });
+    expect((await h.orders.findById("first"))?.installerId).toBe("ada");
+    expect((await h.orders.findById("second"))?.status).toBe("unassigned");
+  });
+
   it("does not assign an order another replica already took", async () => {
     await h.installers.save(installer("ada"));
     await h.orders.save(order("o1"));

@@ -31,6 +31,10 @@ import {
   type DeviceAssignmentInput,
   type InstallationTimeSlot,
 } from '@auth/installation/domain/installation-order';
+import {
+  isInstallerCapability,
+  type InstallerCapability,
+} from '@auth/installation/domain/installer';
 import { IssueSetupLinkUseCase } from './issue-setup-link.use-case';
 import { InstallerAssignmentService } from '../services/installer-assignment.service';
 import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
@@ -72,6 +76,7 @@ export class ScheduleInstallationUseCase {
     siteContactName: unknown;
     siteContactPhone: unknown;
     notes?: unknown;
+    requiredCapabilities?: unknown;
     assignments: DeviceAssignmentInput[];
   }) {
     const application = await this.getApplication.resolve(
@@ -120,6 +125,7 @@ export class ScheduleInstallationUseCase {
       addressLine: validateStreetAddress(input.addressLine),
       city: validateCity(input.city),
       state,
+      requiredCapabilities: validateRequiredCapabilities(input.requiredCapabilities),
       siteContactName: validateContactFullName(input.siteContactName),
       siteContactPhone: validateNigerianPhone(
         input.siteContactPhone,
@@ -206,6 +212,19 @@ export class ScheduleInstallationUseCase {
       updatedAt: now,
     });
   }
+}
+
+function validateRequiredCapabilities(value: unknown): InstallerCapability[] {
+  if (value === undefined) return ['device_installation'];
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new OnboardingValidationError('requiredCapabilities', 'At least one required capability is needed');
+  }
+  const capabilities = value.map((item) => (typeof item === 'string' ? item.trim() : ''));
+  const unknown = capabilities.filter((capability) => !isInstallerCapability(capability));
+  if (unknown.length) {
+    throw new OnboardingValidationError('requiredCapabilities', `Unknown capabilities: ${unknown.join(', ')}`);
+  }
+  return [...new Set(capabilities)] as InstallerCapability[];
 }
 
 export function validateTimeSlot(value: unknown): InstallationTimeSlot {

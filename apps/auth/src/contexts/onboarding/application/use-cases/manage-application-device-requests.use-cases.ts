@@ -17,6 +17,7 @@ import {
 import { loadApplicationView } from './support/load-application-view';
 import { touchApplication } from './support/touch-application';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
+import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
 
 export class DeviceRequestNotFoundError extends Error {
   constructor() {
@@ -32,6 +33,8 @@ export class RequestApplicationDevicesUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
+    @Inject(OnboardingDeviceInventoryService)
+    private readonly inventory: OnboardingDeviceInventoryService,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
   ) {}
 
@@ -41,6 +44,7 @@ export class RequestApplicationDevicesUseCase {
     quantity: unknown;
     useCase: unknown;
     notes?: unknown;
+    confirmAvailableQuantity?: unknown;
   }) {
     const application = await this.getApplication.resolve(
       input.applicationId,
@@ -55,13 +59,43 @@ export class RequestApplicationDevicesUseCase {
     ]);
 
     // Each device is fitted to one vehicle, so the fleet on the application is
-    // the ceiling. Checked here as well as at submit so the applicant is told
-    // at the point of asking rather than at the end of the flow.
+    // the ceiling. Device quantity and SIM allocation are one plan: a device
+    // never reaches the workflow without its matching SIM count.
     const total = requestedDeviceCount(requests) + quantity;
     if (total > vehicles.length) {
       throw new OnboardingValidationError(
         'quantity',
         `Only ${vehicles.length} vehicle(s) have been added, so at most ${vehicles.length} device(s) can be requested`,
+      );
+    }
+
+    const stock = await this.inventory.availability();
+    const requestedForFleet = vehicles.length;
+    const stockShort = stock.tracked && stock.availableQuantity < requestedForFleet;
+    const confirmed = input.confirmAvailableQuantity === true;
+
+    if (stockShort) {
+      // Do not silently rewrite the customer's order. The follow-up must use
+      // precisely the count disclosed here, so clients cannot claim approval
+      // for an arbitrary smaller request.
+      if (!confirmed || total !== stock.availableQuantity) {
+        return {
+          status: true,
+          message: 'Requested quantity is not currently available',
+          data: {
+            requestSaved: false,
+            requiresConfirmation: true,
+            requestedQuantity: requestedForFleet,
+            availableQuantity: stock.availableQuantity,
+            simAllocationQuantity: stock.availableQuantity,
+            message: `Only ${stock.availableQuantity} device(s) and SIM allocation(s) are currently available. Confirm this quantity to continue.`,
+          },
+        };
+      }
+    } else if (total !== requestedForFleet) {
+      throw new OnboardingValidationError(
+        'quantity',
+        `Device and SIM allocation must equal the ${requestedForFleet} vehicle(s) on this application`,
       );
     }
 
@@ -72,6 +106,7 @@ export class RequestApplicationDevicesUseCase {
       quantity,
       useCase: validateDeviceUseCase(input.useCase),
       notes: validateDeviceNotes(input.notes),
+      confirmedAvailableQuantity: stockShort ? stock.availableQuantity : null,
       createdAt: now,
       updatedAt: now,
     });
@@ -81,7 +116,14 @@ export class RequestApplicationDevicesUseCase {
     return {
       status: true,
       message: 'Device request submitted',
-      data: await loadApplicationView(this.applications, application),
+      data: {
+        ...(await loadApplicationView(this.applications, application)),
+        requestSaved: true,
+        requiresConfirmation: false,
+        requestedQuantity: total,
+        availableQuantity: stock.tracked ? stock.availableQuantity : null,
+        simAllocationQuantity: total,
+      },
     };
   }
 }

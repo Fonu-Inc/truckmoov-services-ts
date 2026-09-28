@@ -1,6 +1,7 @@
 import {
   OnboardingValidationError,
   validateBusinessEmail,
+  validateCity,
   validateNigerianPhone,
   validateState,
 } from '@auth/onboarding/domain/onboarding-application.validation';
@@ -20,6 +21,8 @@ export type InstallerDetailsInput = {
   firstName?: unknown;
   lastName?: unknown;
   phoneNumber?: unknown;
+  state?: unknown;
+  city?: unknown;
   serviceAreas?: unknown;
   capabilities?: unknown;
   maxActiveJobs?: unknown;
@@ -27,7 +30,7 @@ export type InstallerDetailsInput = {
 
 type InstallerDetails = Pick<
   StoredInstaller,
-  'firstName' | 'lastName' | 'fullName' | 'phoneNumber' | 'serviceAreas' | 'capabilities' | 'maxActiveJobs'
+  'firstName' | 'lastName' | 'fullName' | 'phoneNumber' | 'state' | 'city' | 'serviceAreas' | 'capabilities' | 'maxActiveJobs'
 >;
 
 export type JobTally = { active: number; completed: number };
@@ -84,12 +87,18 @@ export function installerEmail(value: unknown): string {
 export function newInstallerDetails(input: InstallerDetailsInput): InstallerDetails {
   const firstName = personName('firstName', input.firstName);
   const lastName = personName('lastName', input.lastName);
+  const areas = serviceAreas(input.serviceAreas);
   return {
     firstName,
     lastName,
     fullName: installerFullName(firstName, lastName),
     phoneNumber: validateNigerianPhone(input.phoneNumber, 'phoneNumber'),
-    serviceAreas: serviceAreas(input.serviceAreas),
+    // State/city were introduced after installer records already existed.
+    // When supplied they are strictly validated; older calls derive the home
+    // state from the (also validated) first service area.
+    state: input.state === undefined ? areas[0] : validateState(input.state),
+    city: input.city === undefined ? null : validateCity(input.city),
+    serviceAreas: areas,
     capabilities: capabilities(input.capabilities),
     maxActiveJobs: input.maxActiveJobs === undefined ? DEFAULT_MAX_ACTIVE_JOBS : maxActiveJobs(input.maxActiveJobs),
   };
@@ -106,6 +115,8 @@ export function editedInstaller(installer: StoredInstaller, input: InstallerDeta
     fullName: installerFullName(firstName, lastName),
     phoneNumber:
       input.phoneNumber === undefined ? installer.phoneNumber : validateNigerianPhone(input.phoneNumber, 'phoneNumber'),
+    state: input.state === undefined ? installer.state : validateState(input.state),
+    city: input.city === undefined ? installer.city : validateCity(input.city),
     serviceAreas: input.serviceAreas === undefined ? installer.serviceAreas : serviceAreas(input.serviceAreas),
     capabilities: input.capabilities === undefined ? installer.capabilities : capabilities(input.capabilities),
     maxActiveJobs: input.maxActiveJobs === undefined ? installer.maxActiveJobs : maxActiveJobs(input.maxActiveJobs),
@@ -123,7 +134,11 @@ export function tallyJobs(rows: InstallerJobCount[]): Map<string, JobTally> {
   return tallies;
 }
 
-export function toInstallerView(installer: StoredInstaller, jobs: JobTally = NO_JOBS) {
+export function toInstallerView(
+  installer: StoredInstaller,
+  jobs: JobTally = NO_JOBS,
+  maxActiveJobs: number = installer.maxActiveJobs,
+) {
   return {
     id: installer.id,
     code: installer.code,
@@ -132,12 +147,14 @@ export function toInstallerView(installer: StoredInstaller, jobs: JobTally = NO_
     fullName: installer.fullName,
     email: installer.email,
     phoneNumber: installer.phoneNumber,
+    state: installer.state,
+    city: installer.city,
     serviceAreas: installer.serviceAreas,
     capabilities: installer.capabilities,
-    availability: availabilityOf(installer, jobs.active),
+    availability: availabilityOf({ ...installer, maxActiveJobs }, jobs.active),
     status: installer.status,
     activeJobs: jobs.active,
-    maxActiveJobs: installer.maxActiveJobs,
+    maxActiveJobs,
     jobsCompleted: jobs.completed,
     createdAt: installer.createdAt.toISOString(),
     lastActivityAt: installer.lastActivityAt?.toISOString() ?? null,

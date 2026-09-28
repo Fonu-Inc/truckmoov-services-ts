@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { PermissionKey } from '@shared/access';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
+import { AppConfigService } from '@shared/config';
 import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
@@ -18,6 +19,7 @@ import type { SessionStore } from '@auth/session/domain/ports/session-store.port
 import type { TokenService } from '@auth/session/domain/ports/token-service.port';
 import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
 import {
+  DEFAULT_MAX_ACTIVE_JOBS,
   InstallerNotFoundError,
   InstallerStateError,
   type InstallerStatus,
@@ -71,6 +73,8 @@ export class ManageInstallersUseCases {
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenService,
     @Inject(AccessResolver) private readonly access: AccessResolver,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
+    // Optional preserves direct use-case tests; Nest always supplies it.
+    @Inject(AppConfigService) private readonly config?: AppConfigService,
   ) {}
 
   async list(accessToken: string, query: ListInstallersQuery) {
@@ -87,7 +91,7 @@ export class ManageInstallersUseCases {
         invited: counts.invited,
         suspended: counts.suspended,
       },
-      items: found.items.map((installer) => toInstallerView(installer, jobs.get(installer.id))),
+      items: found.items.map((installer) => toInstallerView(installer, jobs.get(installer.id), this.capacity(installer.maxActiveJobs))),
       page,
       limit,
       total: found.total,
@@ -113,8 +117,6 @@ export class ManageInstallersUseCases {
       ...details,
       email,
       team: '',
-      state: null,
-      city: null,
       photoKey: null,
       notificationPreferences: null,
       displayPreferences: null,
@@ -186,7 +188,11 @@ export class ManageInstallersUseCases {
 
   private async view(installer: StoredInstaller) {
     const jobs = tallyJobs(await this.orders.countByInstaller([installer.id]));
-    return toInstallerView(installer, jobs.get(installer.id));
+    return toInstallerView(installer, jobs.get(installer.id), this.capacity(installer.maxActiveJobs));
+  }
+
+  private capacity(fallback: number = DEFAULT_MAX_ACTIVE_JOBS): number {
+    return this.config?.fleet.installerMaxScheduledJobs ?? fallback;
   }
 
   private async assertEmailFree(email: string): Promise<void> {

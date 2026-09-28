@@ -32,6 +32,8 @@ const NEW_INSTALLER = {
   lastName: 'Akinwale',
   email: 'Tunde@Example.com',
   phoneNumber: '08031234567',
+  state: 'Lagos',
+  city: 'Ikeja',
   serviceAreas: ['lagos', 'Ogun'],
   capabilities: ['device_installation'],
 };

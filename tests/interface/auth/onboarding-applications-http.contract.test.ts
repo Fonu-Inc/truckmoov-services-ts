@@ -279,6 +279,11 @@ describe('Onboarding applications HTTP contract', () => {
       .field('vehicle_id', vehicleId)
       .attach('file', fileFor(id, 'vehicle_license', false), 'licence.png');
     expect(res.status).toBe(201);
+    const devices = await request(app.getHttpServer())
+      .post(`/auth/onboarding/applications/${id}/device-requests`)
+      .set('x-application-token', token)
+      .send({ quantity: 1, useCase: 'Tracking the distribution fleet.' });
+    expect(devices.status).toBe(201);
     return vehicleId;
   }
 
@@ -569,7 +574,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(401);
   });
 
-  it('approves a submitted application, creating a tenant and opening provisioning', async () => {
+  it('approves a submitted application, creating a tenant and automatically opening payment when inventory is available', async () => {
     const { id, token } = await startApplication('approve@arne.com');
     await uploadAll(id, token);
     await addVehicleWithLicence(id, token);
@@ -608,7 +613,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(approved.body.data.bootstrapRole).toBe('FLEET_ADMIN');
     // No setup link yet. The account is created when an installation is
     // booked, which is the first moment there is anything to log in and see.
-    expect(approved.body.data.stage).toBe('provisioning');
+    expect(approved.body.data.stage).toBe('payment');
     expect(approved.body.data.setupLinkEmail).toBeUndefined();
   });
 
@@ -733,17 +738,14 @@ describe('Onboarding applications HTTP contract', () => {
     expect(resent.body.data.setupLinkExpiresAt).toBeTypeOf('string');
   });
 
-  it('refuses to mark provisioned before the provisioning stage with a 409', async () => {
+  it('does not expose a manual provisioning transition', async () => {
     const { id } = await startApplication('early-provision@arne.com');
 
     const res = await request(app.getHttpServer())
       .post(`/auth/system/onboarding/applications/${id}/provisioned`)
       .set('Authorization', `Bearer ${await systemToken()}`);
 
-    expect(res.status).toBe(409);
-    expect(res.body.message).toBe(
-      'An onboarding at the application stage cannot be marked provisioned',
-    );
+    expect(res.status).toBe(404);
   });
 
   it('answers 401 when the signed-in admin no longer exists', async () => {
@@ -780,4 +782,3 @@ describe('Onboarding applications HTTP contract', () => {
     );
   }
 });
-

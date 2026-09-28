@@ -7,6 +7,7 @@ export { OnboardingValidationError } from "./domain/onboarding-application.valid
 
 // Domain ports and types
 export { ONBOARDING_APPLICATION_REPOSITORY } from "./domain/onboarding-application.repository";
+export { OnboardingDeviceInventoryService } from './application/services/onboarding-device-inventory.service';
 export { DRAFT_LIFETIME_MS } from "./domain/onboarding-application.support";
 export {
   KYB_VERIFICATION,
@@ -172,10 +173,6 @@ export { DuplicateIdentityError } from "./application/use-cases/support/enforce-
 export { VerifyApplicationAutomaticallyUseCase } from "./application/use-cases/verify-application-automatically.use-case";
 export { GetM2mLicensePlansUseCase } from "./application/use-cases/get-m2m-license-plans.use-case";
 export { GetOnboardingApplicationTimelineUseCase } from "./application/use-cases/get-application-timeline.use-case";
-export {
-  ApplicationNotProvisionableError,
-  CompleteProvisioningUseCase,
-} from "./application/use-cases/complete-provisioning.use-case";
 export { SetBillingEmailUseCase } from "./application/use-cases/set-billing-email.use-case";
 export {
   ApplicationNotPayableError,

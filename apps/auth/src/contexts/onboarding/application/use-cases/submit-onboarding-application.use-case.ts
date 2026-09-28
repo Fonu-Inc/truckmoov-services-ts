@@ -21,6 +21,7 @@ import {
 import { ApplyAutomatedDecisionUseCase } from './apply-automated-decision.use-case';
 import { loadApplicationView } from './support/load-application-view';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
+import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
 
 export class ApplicationIncompleteError extends Error {
   constructor(
@@ -54,6 +55,8 @@ export class SubmitOnboardingApplicationUseCase {
     private readonly automatedDecision: ApplyAutomatedDecisionUseCase,
     @Inject(ONBOARDING_ADMIN_NOTIFIER)
     private readonly adminNotifier: OnboardingAdminNotifier,
+    @Inject(OnboardingDeviceInventoryService)
+    private readonly inventory: OnboardingDeviceInventoryService,
   ) {}
 
   async execute(applicationId: string, applicationToken: string) {
@@ -69,6 +72,7 @@ export class SubmitOnboardingApplicationUseCase {
       this.applications.findDeviceRequestsByApplicationId(application.id),
       this.agreements.findSignatureByApplicationId(application.id),
     ]);
+    const stock = await this.inventory.availability();
     this.assertComplete(application, {
       missingDocuments: missingDocumentTypes(
         application.applicantType,
@@ -81,8 +85,11 @@ export class SubmitOnboardingApplicationUseCase {
       ),
       vehicleCount: vehicles.length,
       requestedDevices: requestedDeviceCount(deviceRequests),
+      confirmedAvailableQuantity: deviceRequests.length === 1 ? deviceRequests[0]?.confirmedAvailableQuantity ?? null : null,
       indemnitySigned: signature !== null,
       planSelected: application.m2mPlanCode !== null,
+      inventoryTracked: stock.tracked,
+      availableDevices: stock.availableQuantity,
     });
 
     const now = new Date();
@@ -135,8 +142,11 @@ export class SubmitOnboardingApplicationUseCase {
       }[];
       vehicleCount: number;
       requestedDevices: number;
+      confirmedAvailableQuantity: number | null;
       indemnitySigned: boolean;
       planSelected: boolean;
+      inventoryTracked: boolean;
+      availableDevices: number;
     },
   ): void {
     const emailVerified = application.emailVerifiedAt !== null;
@@ -166,6 +176,17 @@ export class SubmitOnboardingApplicationUseCase {
       reasons.push(
         `${fleet.requestedDevices} devices were requested for ${fleet.vehicleCount} vehicle(s)`,
       );
+    }
+    if (fleet.requestedDevices < fleet.vehicleCount) {
+      const acceptedShortfall =
+        fleet.inventoryTracked &&
+        fleet.confirmedAvailableQuantity !== null &&
+        fleet.requestedDevices === fleet.confirmedAvailableQuantity;
+      if (!acceptedShortfall) {
+        reasons.push(
+          `device and SIM allocation must equal ${fleet.vehicleCount} vehicle(s) unless the disclosed inventory shortfall was explicitly accepted`,
+        );
+      }
     }
     if (reasons.length === 0) return;
 

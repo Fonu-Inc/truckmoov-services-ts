@@ -68,6 +68,12 @@ export class AppConfigService {
 
   get fleet() {
     return {
+      // Assignment capacity is owned by platform operations. An installer
+      // profile must never be able to raise its own workload ceiling.
+      installerMaxScheduledJobs: Math.max(
+        1,
+        this.config.get<number>('INSTALLER_MAX_SCHEDULED_JOBS', 5),
+      ),
       // How often the maintenance reminder sweep runs. A reminder is a standing
       // schedule, not a button: this is what actually fires it.
       maintenanceReminderSweepHours: this.config.get<number>("MAINTENANCE_REMINDER_SWEEP_HOURS", 24),

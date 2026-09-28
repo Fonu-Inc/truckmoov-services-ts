@@ -133,6 +133,14 @@ export class InMemoryInstallationOrderRepository
       (o) => o.installerId === order.installerId && ACTIVE_JOB_STATUSES.includes(o.status),
     ).length;
     if (active >= maxActiveJobs) return 'full';
+    const slotTaken = this.all().some(
+      (o) =>
+        o.installerId === order.installerId &&
+        o.scheduledDate.getTime() === order.scheduledDate.getTime() &&
+        o.timeSlot === order.timeSlot &&
+        ACTIVE_JOB_STATUSES.includes(o.status),
+    );
+    if (slotTaken) return 'conflict';
     await this.save(order);
     return 'assigned';
   }

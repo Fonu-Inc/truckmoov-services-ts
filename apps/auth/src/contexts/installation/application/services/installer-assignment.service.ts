@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { AppConfigService } from '@shared/config';
+import { DEFAULT_MAX_ACTIVE_JOBS } from '@auth/installation/domain/installer';
 import { chooseInstaller } from '@auth/installation/domain/assign-installer';
 import { assignOrder } from '@auth/installation/domain/installation-order';
 import {
@@ -41,6 +43,9 @@ export class InstallerAssignmentService {
   constructor(
     @Inject(INSTALLER_REPOSITORY) private readonly installers: InstallerRepository,
     @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
+    // Optional only for direct domain/unit construction. Nest always supplies
+    // this provider in the running application.
+    @Inject(AppConfigService) private readonly config?: AppConfigService,
   ) {}
 
   /**
@@ -51,8 +56,9 @@ export class InstallerAssignmentService {
     const candidates = await this.installers.findActive();
     const tallies = tallyJobs(await this.orders.countByInstaller(candidates.map((c) => c.id)));
     const load = new Map([...tallies].map(([id, tally]) => [id, tally.active]));
+    const maxActiveJobs = this.config?.fleet.installerMaxScheduledJobs ?? DEFAULT_MAX_ACTIVE_JOBS;
 
-    return (order, now, excluded = new Set()) => this.assign(order, now, candidates, load, new Set(excluded));
+    return (order, now, excluded = new Set()) => this.assign(order, now, candidates, load, maxActiveJobs, new Set(excluded));
   }
 
   /**
@@ -64,20 +70,21 @@ export class InstallerAssignmentService {
     now: Date,
     candidates: StoredInstaller[],
     load: Map<string, number>,
+    maxActiveJobs: number,
     excluded: Set<string>,
   ): Promise<Assignment | null> {
-    let installer = chooseInstaller(candidates, order, load, excluded);
+    let installer = chooseInstaller(candidates, order, load, excluded, maxActiveJobs);
     while (installer) {
       const assigned = assignOrder(order, installer.id, now);
-      const outcome = await this.orders.assignIfRoom(assigned, installer.maxActiveJobs);
+      const outcome = await this.orders.assignIfRoom(assigned, maxActiveJobs);
       if (outcome === 'taken') return null;
       if (outcome === 'assigned') {
         load.set(installer.id, (load.get(installer.id) ?? 0) + 1);
         return { order: assigned, installer };
       }
-      if (outcome === 'declined') excluded.add(installer.id);
-      else load.set(installer.id, installer.maxActiveJobs);
-      installer = chooseInstaller(candidates, order, load, excluded);
+      if (outcome === 'declined' || outcome === 'conflict') excluded.add(installer.id);
+      else load.set(installer.id, maxActiveJobs);
+      installer = chooseInstaller(candidates, order, load, excluded, maxActiveJobs);
     }
     return null;
   }

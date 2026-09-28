@@ -43,7 +43,7 @@ function installer(
     state,
     city: null,
     serviceAreas: [state],
-    capabilities: [],
+    capabilities: ["device_installation"],
     photoKey: null,
     notificationPreferences: null,
     displayPreferences: null,

@@ -48,6 +48,8 @@ import {
   type OnboardingDecisionNotifier,
 } from '@auth/onboarding/domain/ports/onboarding-decision-notifier.port';
 import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
+import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
+import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
 
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;
@@ -75,6 +77,26 @@ export class SetupLinkNotResendableError extends Error {
   }
 }
 
+export const INFORMATION_REQUEST_SECTIONS = [
+  'business_details',
+  'fleet_requirements',
+  'submitted_documents',
+] as const;
+export type InformationRequestSection = (typeof INFORMATION_REQUEST_SECTIONS)[number];
+
+function informationRequestSection(value: unknown): InformationRequestSection {
+  if (!(INFORMATION_REQUEST_SECTIONS as readonly unknown[]).includes(value)) {
+    throw new DecisionReasonRequiredError();
+  }
+  return value as InformationRequestSection;
+}
+
+const INFORMATION_REQUEST_SECTION_LABEL: Record<InformationRequestSection, string> = {
+  business_details: 'Business details',
+  fleet_requirements: 'Fleet requirements',
+  submitted_documents: 'Submitted documents',
+};
+
 @Injectable()
 export class ApproveOnboardingApplicationUseCase {
   constructor(
@@ -89,6 +111,8 @@ export class ApproveOnboardingApplicationUseCase {
     private readonly tenantOnboarding: TenantOnboardingRepository,
     @Inject(AUTH_NOTIFIER) private readonly notifier: AuthNotifier,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(OnboardingDeviceInventoryService)
+    private readonly inventory: OnboardingDeviceInventoryService,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -193,12 +217,17 @@ export class ApproveOnboardingApplicationUseCase {
     // the platform's storage prefix for life.
     await this.applications.assignDocumentsToTenant(application.id, tenantId);
 
+    const deviceRequests = await this.applications.findDeviceRequestsByApplicationId(application.id);
+    const stock = await this.inventory.availability();
+    const allocationCanProceed =
+      !stock.tracked || requestedDeviceCount(deviceRequests) <= stock.availableQuantity;
     const approved: StoredOnboardingApplication = {
       ...application,
       status: 'approved',
-      // Approval is no longer the end of the journey, it is the point the
-      // tenant exists and provisioning can start.
-      stage: 'provisioning',
+      // A provisioned request moves itself forward. When stock changed after
+      // the customer accepted the disclosed amount, it remains at Provisioning
+      // for the inventory sweep rather than allowing a manual UI switch.
+      stage: allocationCanProceed ? 'payment' : 'provisioning',
       tenantId,
       reviewedBy: actorId,
       reviewedAt: now,
@@ -211,7 +240,9 @@ export class ApproveOnboardingApplicationUseCase {
       status: true,
       // No setup link yet: the account is created when an installation is
       // booked, which is the first moment there is anything to log in and see.
-      message: 'Application approved, provisioning can begin',
+      message: allocationCanProceed
+        ? 'Application approved, awaiting payment'
+        : 'Application approved, awaiting inventory availability',
       data: {
         applicationId: approved.id,
         reference: approved.reference,
@@ -335,6 +366,7 @@ export class RequestOnboardingApplicationChangesUseCase {
     accessToken: string;
     applicationId: string;
     reason?: string;
+    section?: unknown;
   }) {
     const actor = await ensureSystemActor(
       input.accessToken,
@@ -345,6 +377,8 @@ export class RequestOnboardingApplicationChangesUseCase {
 
     const reason = input.reason?.trim();
     if (!reason) throw new DecisionReasonRequiredError();
+    const section = informationRequestSection(input.section ?? 'submitted_documents');
+    const sectionedReason = `${INFORMATION_REQUEST_SECTION_LABEL[section]}: ${reason}`;
 
     const application = await this.applications.findById(input.applicationId);
     if (!application) throw new ApplicationNotFoundError();
@@ -361,7 +395,7 @@ export class RequestOnboardingApplicationChangesUseCase {
       ...application,
       status: 'changes_requested',
       tokenHash: hashApplicationToken(applicationToken),
-      decisionReason: reason,
+      decisionReason: sectionedReason,
       reviewedBy: actor.id,
       reviewedAt: now,
       updatedAt: now,
@@ -371,7 +405,7 @@ export class RequestOnboardingApplicationChangesUseCase {
       email: application.businessEmail,
       organizationName: application.organizationName,
       reference: application.reference,
-      reason,
+      reason: sectionedReason,
       applicationId: application.id,
       applicationToken,
     });
@@ -383,7 +417,8 @@ export class RequestOnboardingApplicationChangesUseCase {
         applicationId: application.id,
         reference: application.reference,
         status: 'changes_requested',
-        decisionReason: reason,
+        decisionReason: sectionedReason,
+        section,
       },
     };
   }

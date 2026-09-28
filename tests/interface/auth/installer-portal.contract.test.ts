@@ -47,6 +47,8 @@ describe('Installer portal over HTTP (auth)', () => {
         lastName: 'Installer',
         email,
         phoneNumber: '08031234567',
+        state: 'Lagos',
+        city: 'Ikeja',
         serviceAreas: ['Lagos'],
         capabilities: ['device_installation'],
       });
