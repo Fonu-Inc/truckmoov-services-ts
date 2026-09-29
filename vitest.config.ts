@@ -43,5 +43,9 @@ export default defineConfig({
     // stopped being enough once the onboarding context was added, for the same
     // reason rather than a new one.
     hookTimeout: 120_000,
+    // The 5 second default is shorter than the slowest contract tests take on an
+    // idle machine (the login rate limit test runs 3 to 4 seconds), so any load
+    // turns them red without anything being wrong. Same starvation as above.
+    testTimeout: 30_000,
   },
 });

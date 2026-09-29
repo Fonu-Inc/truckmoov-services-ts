@@ -60,7 +60,6 @@ export const PER_VEHICLE_DOCUMENT_TYPES: readonly OnboardingDocumentType[] = [
 export const ONBOARDING_IDENTIFICATION_TYPES = [
   'nin',
   'drivers_licence',
-  'voters_card',
   'passport',
 ] as const;
 export type OnboardingIdentificationType =

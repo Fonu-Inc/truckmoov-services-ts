@@ -123,6 +123,29 @@ describe("Automated decision", () => {
     expect(decision.outcome).toBe("reject");
   });
 
+  // A fleet has one vehicle check per licence; a reviewer needs the plate.
+  it("names the plate whose registration was contradicted", () => {
+    const decision = decideAutomatically("owner_operator", [
+      result("identity", "match"),
+      { ...result("vehicle_registration", "match"), reference: "LAG-111-AA" },
+      { ...result("vehicle_registration", "not_found", "No vehicle is registered under this plate."), reference: "LAG-222-BB" },
+    ]);
+
+    expect(decision.outcome).toBe("reject");
+    expect(decision.reason).toContain("vehicle registration (LAG-222-BB)");
+    expect(decision.reason).not.toContain("LAG-111-AA");
+  });
+
+  it("keeps identification numbers out of the reason", () => {
+    const decision = decideAutomatically("owner_operator", [
+      { ...result("identity", "mismatch", "Name differs."), reference: "A10000001" },
+      result("vehicle_registration", "match"),
+    ]);
+
+    expect(decision.reason).toContain("identity");
+    expect(decision.reason).not.toContain("A10000001");
+  });
+
   it("does not let an extra passing check stand in for a required one", () => {
     const decision = decideAutomatically("owner_operator", [
       result("identity", "match"),

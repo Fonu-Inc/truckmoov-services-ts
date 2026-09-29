@@ -123,12 +123,10 @@ export class VerifyApplicationAutomaticallyUseCase {
       );
     }
 
-    const vehicle = await this.firstVehicle(application.id);
-    if (vehicle) {
-      // One vehicle, not all of them: the plate lookup is metered per call and
-      // the question being answered is whether this fleet belongs to this
-      // applicant, which one registered vehicle answers. Whole-fleet
-      // verification belongs at installation, against the devices fitted.
+    const vehicles = await this.licensedVehicles(application.id);
+    // Each licence is checked against the registry under its own plate, so a
+    // fleet cannot pass on the strength of one vehicle that is genuinely theirs.
+    for (const vehicle of vehicles) {
       checks.push(
         this.registries.verifyVehicleRegistration({
           registrationNumber: vehicle.registrationNumber,
@@ -144,9 +142,21 @@ export class VerifyApplicationAutomaticallyUseCase {
     return Promise.all(checks);
   }
 
-  private async firstVehicle(applicationId: string) {
-    const vehicles =
-      await this.applications.findVehiclesByApplicationId(applicationId);
-    return vehicles[0] ?? null;
+  /**
+   * Vehicles the applicant has filed a licence for. A vehicle with no licence
+   * has nothing to check yet, and the submit gate already refuses an
+   * application with one missing.
+   */
+  private async licensedVehicles(applicationId: string) {
+    const [vehicles, documents] = await Promise.all([
+      this.applications.findVehiclesByApplicationId(applicationId),
+      this.applications.findDocumentsByApplicationId(applicationId),
+    ]);
+    const licensed = new Set(
+      documents
+        .filter((document) => document.documentType === 'vehicle_license')
+        .map((document) => document.vehicleId),
+    );
+    return vehicles.filter((vehicle) => licensed.has(vehicle.id));
   }
 }

@@ -58,5 +58,5 @@ describe("Portal enforcement over HTTP", () => {
   it("keeps public routes open", async () => {
     const res = await request(app.getHttpServer()).get("/fleet/health/ready");
     expect(res.status).not.toBe(404);
-  }, 20_000);
+  }, 120_000);
 });

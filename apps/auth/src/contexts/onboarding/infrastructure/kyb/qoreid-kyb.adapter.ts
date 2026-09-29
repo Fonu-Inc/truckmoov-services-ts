@@ -21,7 +21,19 @@ import {
 const PROVIDER = 'qoreid';
 
 /**
- * QoreID: CAC, NIN and the FRSC licence plate record.
+ * The three identification types the platform accepts, each with its QoreID
+ * path segment and the key its record sits under in the response. Adding a type
+ * is one row here and one entry in ONBOARDING_IDENTIFICATION_TYPES.
+ */
+const IDENTITY_ENDPOINTS: Record<string, { path: string; record: string }> = {
+  nin: { path: 'nin', record: 'nin' },
+  drivers_licence: { path: 'driver-license', record: 'drivers_license' },
+  passport: { path: 'passport', record: 'passport' },
+};
+
+/**
+ * QoreID: CAC, NIN, driver's licence, international passport and the FRSC
+ * licence plate record.
  *
  * QoreID publishes no TIN endpoint, so tax identification is not answered here
  * and falls to whichever adapter is configured for it.
@@ -92,18 +104,19 @@ export class QoreIdKybAdapter implements KybVerification {
   }
 
   async verifyIdentity(query: IdentityQuery): Promise<KybCheckResult> {
-    if (query.identificationType !== 'nin') {
+    const endpoint = IDENTITY_ENDPOINTS[query.identificationType];
+    if (!endpoint) {
       return unavailable(
         'identity',
         query.identificationNumber,
         PROVIDER,
-        `QoreID is only configured for NIN, not ${query.identificationType}.`,
+        `QoreID does not answer ${query.identificationType} identification.`,
       );
     }
 
     const [firstname = '', ...rest] = query.contactFullName.split(' ');
     const body = await this.call(
-      `identities/nin/${encodeURIComponent(query.identificationNumber)}`,
+      `identities/${endpoint.path}/${encodeURIComponent(query.identificationNumber)}`,
       { firstname, lastname: rest.join(' ') },
     );
     if (!body) {
@@ -115,7 +128,7 @@ export class QoreIdKybAdapter implements KybVerification {
       );
     }
 
-    const registryFirst = readString(body, 'nin', 'firstname');
+    const registryFirst = readString(body, endpoint.record, 'firstname');
     if (registryFirst === null) {
       return {
         check: 'identity',
@@ -132,7 +145,7 @@ export class QoreIdKybAdapter implements KybVerification {
       compareName(
         'Name on the identification',
         query.contactFullName,
-        `${registryFirst} ${readString(body, 'nin', 'lastname') ?? ''}`.trim(),
+        `${registryFirst} ${readString(body, endpoint.record, 'lastname') ?? ''}`.trim(),
       ),
     ];
     return this.resultOf('identity', query.identificationNumber, fields);

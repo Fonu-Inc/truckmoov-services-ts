@@ -69,7 +69,7 @@ export function decideAutomatically(
     return {
       outcome: 'reject',
       reason: contradicted
-        .map((result) => `${checkLabel(result.check)}: ${result.summary}`)
+        .map((result) => `${describeCheck(result)}: ${result.summary}`)
         .join(' '),
     };
   }
@@ -81,7 +81,7 @@ export function decideAutomatically(
     return {
       outcome: 'manual_review',
       reason: `Could not check ${unavailable
-        .map((result) => checkLabel(result.check))
+        .map(describeCheck)
         .join(', ')}.`,
     };
   }
@@ -110,6 +110,15 @@ export function decideAutomatically(
       .map(checkLabel)
       .join(', ')}.`,
   };
+}
+
+// A fleet has one vehicle check per licence, so a reviewer has to be told which
+// plate the answer is about. Other references are identification numbers and
+// stay out of a reason that can be shown to the applicant.
+function describeCheck(result: KybCheckResult): string {
+  return result.check === 'vehicle_registration'
+    ? `${checkLabel(result.check)} (${result.reference})`
+    : checkLabel(result.check);
 }
 
 function checkLabel(check: KybVerificationCheck): string {
