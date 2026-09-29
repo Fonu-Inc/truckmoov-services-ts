@@ -38,10 +38,17 @@ export class FuelBudgetUseCase {
     return orm.em.fork();
   }
 
-  async list(tenantId: string): Promise<FuelBudgetView[]> {
+  /**
+   * allowedVehicleIds limits the answer to those vehicles' budgets. The
+   * fleet-wide budget covers every vehicle on the account, so a limited caller
+   * does not see it.
+   */
+  async list(tenantId: string, allowedVehicleIds?: ReadonlySet<string> | null): Promise<FuelBudgetView[]> {
     const em = await this.em();
     const records = await em.find(FleetFuelBudgetRecord, { tenantId });
-    return records.map((r) => this.toView(r));
+    const views = records.map((r) => this.toView(r));
+    if (!allowedVehicleIds) return views;
+    return views.filter((view) => view.scope === "vehicle" && allowedVehicleIds.has(view.vehicleId));
   }
 
   async upsert(
@@ -62,19 +69,26 @@ export class FuelBudgetUseCase {
     return this.toView(record);
   }
 
-  async budgetVsActual(tenantId: string, opts: { from?: string; to?: string }) {
+  async budgetVsActual(
+    tenantId: string,
+    opts: { from?: string; to?: string },
+    allowedVehicleIds?: ReadonlySet<string> | null,
+  ) {
     const windowEnd = opts.to ? new Date(opts.to) : new Date();
     const windowStart = opts.from
       ? new Date(opts.from)
       : new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
     const windowDays = Math.max(1, (windowEnd.getTime() - windowStart.getTime()) / DAY_MS);
 
-    const [budgets, records] = await Promise.all([
-      this.list(tenantId),
+    const [budgets, allRecords] = await Promise.all([
+      this.list(tenantId, allowedVehicleIds),
       this.fuelRepo
         .findAll({ tenantId, from: windowStart.toISOString(), to: windowEnd.toISOString() })
         .then((rs) => rs.map((r) => r.toPrimitives())),
     ]);
+    const records = allowedVehicleIds
+      ? allRecords.filter((record) => allowedVehicleIds.has(record.vehicleId))
+      : allRecords;
 
     const actualByVehicle = new Map<string, number>();
     let actualTotal = 0;

@@ -238,7 +238,7 @@ export class VehiclesController extends BaseFleetController {
         status: true,
         message: "success",
         tab,
-        data: await this.buildTabPayload(tab, tenantId, query),
+        data: await this.buildTabPayload(tab, tenantId, query, await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req)),
       } as unknown as VehicleListResponse;
     }
 
@@ -290,6 +290,7 @@ export class VehiclesController extends BaseFleetController {
     tab: Exclude<VehicleTab, "vehicles">,
     tenantId: string,
     query: VehicleListQueryDto,
+    ownedVehicleIds: ReadonlySet<string> | null,
   ): Promise<Record<string, unknown>> {
     switch (tab) {
       case "maintenance": {
@@ -301,7 +302,12 @@ export class VehiclesController extends BaseFleetController {
       }
       case "fuel": {
         const records = await this.listFuelRecordsUseCase.execute({ tenantId });
-        const filtered = applyFuelFilters(records as unknown as FuelRecordView[], {
+        const visible = ownedVehicleIds
+          ? (records as unknown as Array<FuelRecordView & { vehicleId: string }>).filter((record) =>
+              ownedVehicleIds.has(record.vehicleId),
+            )
+          : (records as unknown as FuelRecordView[]);
+        const filtered = applyFuelFilters(visible, {
           query: query.query,
         });
         const totalLitres = filtered.reduce((sum, record) => sum + record.liters, 0);
@@ -590,6 +596,7 @@ export class VehiclesController extends BaseFleetController {
   @ApiOkResponse({ type: VehicleResponse })
   async getVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
     const tenantId = this.tenantIdFromRequest(req);
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, id, req);
     const vehicle = await this.runFleetUseCase(() => this.getVehicleUseCase.execute(id, tenantId));
     const [devices, maintenanceRecords, trips] = await Promise.all([
       this.listDevicesUseCase.execute({ tenantId, vehicleId: id }).catch(() => []),

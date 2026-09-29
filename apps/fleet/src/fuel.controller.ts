@@ -119,11 +119,11 @@ export class FuelController extends BaseFleetController {
     @Query() query: FuelListQueryDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordListResponse> {
-    const data = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query);
+    const data = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query, req);
     return { status: true, message: "success", data } as unknown as FuelRecordListResponse;
   }
 
-  private async filteredFuelRecords(tenantId: string, query: FuelListQueryDto) {
+  private async filteredFuelRecords(tenantId: string, query: FuelListQueryDto, req: FleetRequestContext) {
     const records = await this.listFuelRecordsUseCase.execute({
       tenantId,
       vehicleId: query.vehicleId,
@@ -132,7 +132,21 @@ export class FuelController extends BaseFleetController {
       from: query.from,
       to: query.to,
     });
-    return applyFuelFilters(records as unknown as FuelListRow[], query);
+    const visible = await this.onlyOwnersVehicles(records as unknown as FuelListRow[], tenantId, req);
+    return applyFuelFilters(visible, query);
+  }
+
+  /**
+   * An owner operator sees fuel for their own vehicles and no others; every
+   * other role sees the whole account, as before.
+   */
+  private async onlyOwnersVehicles<T extends { vehicleId: string }>(
+    rows: T[],
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<T[]> {
+    const owned = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
+    return owned ? rows.filter((row) => owned.has(row.vehicleId)) : rows;
   }
 
   @Get("summary")
@@ -140,7 +154,8 @@ export class FuelController extends BaseFleetController {
   @ApiOperation({ summary: "Fuel summary stats" })
   @ApiOkResponse({ description: "Fuel summary", type: FuelSummaryResponse })
   async getFuelSummary(@Req() req: FleetRequestContext) {
-    const primitives = await this.listFuelRecordsUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
+    const tenantId = this.tenantIdFromRequest(req);
+    const primitives = await this.onlyOwnersVehicles(await this.listFuelRecordsUseCase.execute({ tenantId }), tenantId, req);
     const totalLitres = primitives.reduce((s, r) => s + r.liters, 0);
     const totalCostNgn = primitives.reduce((s, r) => s + r.totalCost, 0);
     const avgPrice = totalLitres > 0 ? totalCostNgn / totalLitres : 0;
@@ -160,7 +175,11 @@ export class FuelController extends BaseFleetController {
   @ApiOperation({ summary: "List fuel budgets (fleet-wide + per-vehicle) — N09" })
   @ApiOkResponse({ type: FuelBudgetListResponse })
   async listFuelBudgets(@Req() req: FleetRequestContext): Promise<FuelBudgetListResponse> {
-    const data = await this.fuelBudgetUseCase.list(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fuelBudgetUseCase.list(
+      tenantId,
+      await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req),
+    );
     return { status: true, message: "success", data };
   }
 
@@ -171,7 +190,12 @@ export class FuelController extends BaseFleetController {
   @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ type: FuelBudgetVsActualResponse })
   async fuelBudgetVsActual(@Query() query: BudgetVsActualQueryDto, @Req() req: FleetRequestContext): Promise<FuelBudgetVsActualResponse> {
-    const data = await this.fuelBudgetUseCase.budgetVsActual(this.tenantIdFromRequest(req), query);
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fuelBudgetUseCase.budgetVsActual(
+      tenantId,
+      query,
+      await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req),
+    );
     return { status: true, message: "success", data } as unknown as FuelBudgetVsActualResponse;
   }
 
@@ -184,7 +208,11 @@ export class FuelController extends BaseFleetController {
     @Body() body: UpsertFuelBudgetDto,
     @Req() req: FleetRequestContext,
   ): Promise<FuelBudgetResponse> {
-    const data = await this.fuelBudgetUseCase.upsert(this.tenantIdFromRequest(req), vehicleId, body);
+    const tenantId = this.tenantIdFromRequest(req);
+    // "all" is the fleet-wide budget, which is not one vehicle's, so an owner
+    // operator is refused it as they would be any vehicle they do not own.
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
+    const data = await this.fuelBudgetUseCase.upsert(tenantId, vehicleId, body);
     return { status: true, message: "success", data };
   }
 
@@ -322,15 +350,17 @@ export class FuelController extends BaseFleetController {
     @Query("to") to: string,
     @Req() req: FleetRequestContext,
   ) {
-    const records = await this.listFuelRecordsUseCase.execute({
-      tenantId: this.tenantIdFromRequest(req),
-      from,
-      to,
-    });
+    const tenantId = this.tenantIdFromRequest(req);
+    const records = await this.listFuelRecordsUseCase.execute({ tenantId, from, to });
+    const visible = await this.onlyOwnersVehicles(
+      records as unknown as Array<FuelRecordView & { vehicleId: string }>,
+      tenantId,
+      req,
+    );
     return {
       status: true,
       message: "success",
-      data: buildWeeklyFuelSeries(records as unknown as FuelRecordView[]),
+      data: buildWeeklyFuelSeries(visible),
     };
   }
 
@@ -388,7 +418,7 @@ export class FuelController extends BaseFleetController {
     @Req() req: FleetRequestContext,
     @Res() res: any,
   ): Promise<void> {
-    const records = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query);
+    const records = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query, req);
     const csv = toCsv(records.map((record) => ({ ...record, auditTrail: JSON.stringify(record.auditTrail) })));
     res.setHeader("Content-Disposition", `attachment; filename="fuel.csv"`);
     res.send(csv);
