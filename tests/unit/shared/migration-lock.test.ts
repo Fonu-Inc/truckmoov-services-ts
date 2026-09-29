@@ -1,6 +1,6 @@
 import type { MikroORM } from "@mikro-orm/core";
 import { describe, expect, it } from "vitest";
-import { runMigrationsExclusively } from "../../../libs/shared/db/src/migration-lock";
+import { runMigrationsExclusively } from "@shared/db";
 
 type Held = { id: string; __knex__disposed?: unknown };
 
