@@ -744,7 +744,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   })
   @ApiErrorResponse(
     400,
-    'An address, contact, timeSlot or notes field: { message, field }. An unknown property: the ValidationPipe array body. The date ("The installation date is not a date", "An installation must be booked at least one day ahead", "An installation cannot be booked more than 90 days ahead") or the assignments ("<n> device(s) were paid for but <m> were assigned", "Device <i> is not on this order", "Device <i> was assigned twice", "A device was assigned to a vehicle that is not on this application", "<vehicleId> already has a device assigned to it"): { statusCode, message, error }.',
+    'Every field error is { message, field }. The date errors ("The installation date is not a date", "An installation must be booked at least one day ahead", "An installation cannot be booked more than 90 days ahead") name field "scheduledDate". The assignment errors ("<n> device(s) were paid for but <m> were assigned", "Device <i> is not on this order", "Device <i> was assigned twice", "A device was assigned to a vehicle that is not on this application", "<vehicleId> already has a device assigned to it") name field "assignments", and add deviceIndex when the error is about one device. An unknown property gives the ValidationPipe array body. The body is validated before the stage is checked, so a bad body is a 400 at any stage.',
     OnboardingFieldErrorBody,
     ApiValidationErrorBody,
     ApiErrorBody,
@@ -1190,7 +1190,13 @@ export class OnboardingApplicationsController extends BaseAuthController {
         error instanceof DeviceAssignmentMismatchError ||
         error instanceof VehicleAlreadyAssignedError
       ) {
-        throw new BadRequestException(error.message);
+        throw new BadRequestException({
+          message: error.message,
+          field: error.field,
+          ...('deviceIndex' in error && error.deviceIndex !== undefined
+            ? { deviceIndex: error.deviceIndex }
+            : {}),
+        });
       }
       if (error instanceof BillingEmailNotVerifiedError) {
         throw new BadRequestException(error.message);

@@ -84,54 +84,20 @@ export class ScheduleInstallationUseCase {
       input.applicationToken,
     );
 
-    if (application.stage !== 'installation_scheduling') {
-      throw new InstallationNotSchedulableError(
-        `An onboarding at the ${application.stage} stage cannot be scheduled`,
-      );
-    }
-    if (!application.tenantId) {
-      throw new InstallationNotSchedulableError(
-        'This application has no tenant yet',
-      );
-    }
-    if (await this.orders.findByApplicationId(application.id)) {
-      throw new InstallationNotSchedulableError(
-        'An installation is already scheduled',
-      );
-    }
+    // The body is checked before the stage, so a malformed request is a 400 at
+    // any stage. Checked the other way round, every body, good or bad, got the
+    // same 409 until the application reached this step, which hid all of them.
+    const fields = await this.validate(input, application);
+    await this.assertBookable(application);
+    const tenantId = application.tenantId as string;
 
-    const scheduledDate = bookingDay(input.scheduledDate);
-    assertSchedulable(scheduledDate);
-
-    const [deviceRequests, vehicles] = await Promise.all([
-      this.applications.findDeviceRequestsByApplicationId(application.id),
-      this.applications.findVehiclesByApplicationId(application.id),
-    ]);
-    assertAssignments(
-      input.assignments,
-      requestedDeviceCount(deviceRequests),
-      new Set(vehicles.map((vehicle) => vehicle.id)),
-    );
-
-    const state = validateState(input.state);
     const now = new Date();
     const booked: StoredInstallationOrder = {
       id: this.idGenerator.generate(),
       orderNumber: await this.orders.nextOrderNumber(),
       applicationId: application.id,
-      tenantId: application.tenantId,
-      scheduledDate,
-      timeSlot: validateTimeSlot(input.timeSlot),
-      addressLine: validateStreetAddress(input.addressLine),
-      city: validateCity(input.city),
-      state,
-      requiredCapabilities: validateRequiredCapabilities(input.requiredCapabilities),
-      siteContactName: validateContactFullName(input.siteContactName),
-      siteContactPhone: validateNigerianPhone(
-        input.siteContactPhone,
-        'siteContactPhone',
-      ),
-      notes: validateNotes(input.notes),
+      tenantId,
+      ...fields,
       installerNotes: null,
       installerId: null,
       status: 'unassigned',
@@ -184,7 +150,7 @@ export class ScheduleInstallationUseCase {
         : 'Installation scheduled, an installer will be assigned shortly',
       data: {
         orderNumber: order.orderNumber,
-        scheduledDate: scheduledDate.toISOString().slice(0, 10),
+        scheduledDate: fields.scheduledDate.toISOString().slice(0, 10),
         timeSlot: order.timeSlot,
         timeSlotLabel: INSTALLATION_SLOT_LABELS[order.timeSlot],
         status: order.status,
@@ -199,6 +165,51 @@ export class ScheduleInstallationUseCase {
         setupLinkSent: setupLink.delivered,
       },
     };
+  }
+
+  /** Everything in the request that can be wrong, in the order a form shows it. */
+  private async validate(
+    input: Parameters<ScheduleInstallationUseCase['execute']>[0],
+    application: StoredOnboardingApplication,
+  ) {
+    const scheduledDate = bookingDay(input.scheduledDate);
+    assertSchedulable(scheduledDate);
+
+    const [deviceRequests, vehicles] = await Promise.all([
+      this.applications.findDeviceRequestsByApplicationId(application.id),
+      this.applications.findVehiclesByApplicationId(application.id),
+    ]);
+    assertAssignments(
+      input.assignments,
+      requestedDeviceCount(deviceRequests),
+      new Set(vehicles.map((vehicle) => vehicle.id)),
+    );
+
+    return {
+      scheduledDate,
+      timeSlot: validateTimeSlot(input.timeSlot),
+      addressLine: validateStreetAddress(input.addressLine),
+      city: validateCity(input.city),
+      state: validateState(input.state),
+      requiredCapabilities: validateRequiredCapabilities(input.requiredCapabilities),
+      siteContactName: validateContactFullName(input.siteContactName),
+      siteContactPhone: validateNigerianPhone(input.siteContactPhone, 'siteContactPhone'),
+      notes: validateNotes(input.notes),
+    };
+  }
+
+  private async assertBookable(application: StoredOnboardingApplication): Promise<void> {
+    if (application.stage !== 'installation_scheduling') {
+      throw new InstallationNotSchedulableError(
+        `An onboarding at the ${application.stage} stage cannot be scheduled`,
+      );
+    }
+    if (!application.tenantId) {
+      throw new InstallationNotSchedulableError('This application has no tenant yet');
+    }
+    if (await this.orders.findByApplicationId(application.id)) {
+      throw new InstallationNotSchedulableError('An installation is already scheduled');
+    }
   }
 
   private async advance(

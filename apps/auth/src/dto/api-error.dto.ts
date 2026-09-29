@@ -2,6 +2,7 @@ import { applyDecorators, type Type } from '@nestjs/common';
 import {
   ApiExtraModels,
   ApiProperty,
+  ApiPropertyOptional,
   ApiResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -35,6 +36,11 @@ export class OnboardingFieldErrorBody {
   @ApiProperty({ example: 'Organization name is required' }) message!: string;
   @ApiProperty({ example: 'organizationName', description: 'The request field at fault.' })
   field!: string;
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Set on an installation assignment error about one device: its deviceIndex.',
+  })
+  deviceIndex?: number;
 }
 
 export class OnboardingIncompleteErrorBody {

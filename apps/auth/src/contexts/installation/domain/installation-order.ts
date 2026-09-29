@@ -168,7 +168,12 @@ export function transitionOrder<T extends Stamped>(
 export const MIN_LEAD_TIME_DAYS = 1;
 export const MAX_LEAD_TIME_DAYS = 90;
 
+// The request field each of these errors is about. The form binds an error to
+// an input by field, so a date or assignment error without one can only be
+// placed by reading its message.
 export class InvalidInstallationDateError extends Error {
+  readonly field = 'scheduledDate';
+
   constructor(message: string) {
     super(message);
     this.name = 'InvalidInstallationDateError';
@@ -176,14 +181,25 @@ export class InvalidInstallationDateError extends Error {
 }
 
 export class VehicleAlreadyAssignedError extends Error {
-  constructor(registrationNumber: string) {
+  readonly field = 'assignments';
+
+  constructor(
+    registrationNumber: string,
+    readonly deviceIndex?: number,
+  ) {
     super(`${registrationNumber} already has a device assigned to it`);
     this.name = 'VehicleAlreadyAssignedError';
   }
 }
 
 export class DeviceAssignmentMismatchError extends Error {
-  constructor(message: string) {
+  readonly field = 'assignments';
+
+  /** deviceIndex is set when the error is about one device, not the whole list. */
+  constructor(
+    message: string,
+    readonly deviceIndex?: number,
+  ) {
     super(message);
     this.name = 'DeviceAssignmentMismatchError';
   }
@@ -264,20 +280,23 @@ export function assertAssignments(
     ) {
       throw new DeviceAssignmentMismatchError(
         `Device ${assignment.deviceIndex} is not on this order`,
+        Number.isInteger(assignment.deviceIndex) ? assignment.deviceIndex : undefined,
       );
     }
     if (seenDevices.has(assignment.deviceIndex)) {
       throw new DeviceAssignmentMismatchError(
         `Device ${assignment.deviceIndex} was assigned twice`,
+        assignment.deviceIndex,
       );
     }
     if (!vehicleIds.has(assignment.vehicleId)) {
       throw new DeviceAssignmentMismatchError(
         'A device was assigned to a vehicle that is not on this application',
+        assignment.deviceIndex,
       );
     }
     if (seenVehicles.has(assignment.vehicleId)) {
-      throw new VehicleAlreadyAssignedError(assignment.vehicleId);
+      throw new VehicleAlreadyAssignedError(assignment.vehicleId, assignment.deviceIndex);
     }
 
     seenDevices.add(assignment.deviceIndex);
