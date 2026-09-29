@@ -1,6 +1,6 @@
 import { EntitySchema } from "@mikro-orm/core";
 import { MikroORM } from "@mikro-orm/postgresql";
-import { runMigrationsExclusively } from "@shared/db";
+import { retryDbConnect, runMigrationsExclusively } from "@shared/db";
 
 export type DbConfig = {
   host: string;
@@ -1234,7 +1234,16 @@ export async function getFleetOrm(cfg: DbConfig) {
     return ormPromise;
   }
 
-  ormPromise = MikroORM.init({
+  ormPromise = retryDbConnect(() => initFleetOrm(cfg), { label: "fleet-orm" }).catch((error) => {
+    ormPromise = null;
+    throw error;
+  });
+
+  return ormPromise;
+}
+
+async function initFleetOrm(cfg: DbConfig) {
+  const orm = await MikroORM.init({
     entities: [
       VehicleRecordSchema,
       DriverRecordSchema,
@@ -1280,10 +1289,13 @@ export async function getFleetOrm(cfg: DbConfig) {
       safe: true,
       glob: "!(*.d).{js,ts}",
     },
-  }).then(async (orm) => {
-    await runMigrationsExclusively(orm);
-    return orm;
   });
 
-  return ormPromise;
+  try {
+    await runMigrationsExclusively(orm);
+    return orm;
+  } catch (error) {
+    await orm.close().catch(() => undefined);
+    throw error;
+  }
 }

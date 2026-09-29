@@ -1,7 +1,7 @@
 import { EntitySchema } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { ROLE_SEED_ROWS, roleFromId, roleToId } from '@shared/rbac';
-import { runMigrationsExclusively } from "@shared/db";
+import { retryDbConnect, runMigrationsExclusively } from "@shared/db";
 import {
   InstallationChecklistTickRecordSchema,
   InstallationDeviceAssignmentRecordSchema,
@@ -2163,7 +2163,16 @@ export async function getAuthOrm(cfg: DbConfig) {
     return ormPromise;
   }
 
-  ormPromise = MikroORM.init({
+  ormPromise = retryDbConnect(() => initAuthOrm(cfg), { label: 'auth-orm' }).catch((error) => {
+    ormPromise = null;
+    throw error;
+  });
+
+  return ormPromise;
+}
+
+async function initAuthOrm(cfg: DbConfig) {
+  const orm = await MikroORM.init({
     entities: [
       AuthRoleRecordSchema,
       OrganisationUpgradeRequestRecordSchema,
@@ -2250,15 +2259,22 @@ export async function getAuthOrm(cfg: DbConfig) {
       safe: true,
       glob: '!(*.d).{js,ts}',
     },
-  }).then(async (orm) => {
-    await runMigrationsExclusively(orm);
-    const em = orm.em.fork();
-    for (const role of ROLE_SEED_ROWS) {
-      await em.upsert(AuthRoleRecord, role);
-    }
-    await backfillLegacyRoleColumns(orm);
-    return orm;
   });
 
-  return ormPromise;
+  try {
+    await prepareAuthSchema(orm);
+    return orm;
+  } catch (error) {
+    await orm.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function prepareAuthSchema(orm: MikroORM) {
+  await runMigrationsExclusively(orm);
+  const em = orm.em.fork();
+  for (const role of ROLE_SEED_ROWS) {
+    await em.upsert(AuthRoleRecord, role);
+  }
+  await backfillLegacyRoleColumns(orm);
 }
