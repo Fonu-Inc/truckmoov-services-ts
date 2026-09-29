@@ -47,6 +47,35 @@ export abstract class BaseFleetController {
    * vehicle — positions, geofence alerts, devices — so the lookup lives here
    * rather than being repeated per controller.
    */
+  /**
+   * The ids of the vehicles an owner operator owns, read through a vehicle
+   * lister, or null for every other role, who are not limited to their own.
+   */
+  protected async ownedVehicleIdsVia(
+    lister: { execute(query: { tenantId: string; ownerOperatorId?: string }): Promise<unknown[]> },
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<Set<string> | null> {
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId) return null;
+
+    const vehicles = (await lister.execute({ tenantId, ownerOperatorId })) as Array<{ id: string }>;
+    return new Set(vehicles.map((vehicle) => vehicle.id));
+  }
+
+  /** An owner operator may act only on their own vehicles; a stranger's reads as not found. */
+  protected async assertOwnsVehicle(
+    lister: { execute(query: { tenantId: string; ownerOperatorId?: string }): Promise<unknown[]> },
+    tenantId: string,
+    vehicleId: string,
+    req: FleetRequestContext,
+  ): Promise<void> {
+    const owned = await this.ownedVehicleIdsVia(lister, tenantId, req);
+    if (owned !== null && !owned.has(vehicleId)) {
+      throw new NotFoundException("Vehicle not found");
+    }
+  }
+
   protected async ownedVehicleIdsFor(
     repository: { findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Array<{ id: string }>> },
     tenantId: string,

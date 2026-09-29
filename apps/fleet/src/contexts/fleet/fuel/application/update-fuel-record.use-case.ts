@@ -33,6 +33,11 @@ export type UpdateFuelRecordCommand = {
   driverId?: string | null;
   vehicleType?: string | null;
   fuelType?: string | null;
+  /**
+   * When set, the record and any vehicle it is moved to must be one of these.
+   * An owner operator's edit is limited to their own vehicles; null means no limit.
+   */
+  allowedVehicleIds?: ReadonlySet<string> | null;
 };
 
 // An absent field means "leave it": spreading an undefined key would overwrite
@@ -56,6 +61,13 @@ export class UpdateFuelRecordUseCase {
   async execute(cmd: UpdateFuelRecordCommand) {
     const record = await this.repo.findById(cmd.id, cmd.tenantId);
     if (!record) throw new FuelRecordNotFoundError(cmd.id);
+    // Another owner's record reads as missing, not as forbidden.
+    if (cmd.allowedVehicleIds && !cmd.allowedVehicleIds.has(record.vehicleId)) {
+      throw new FuelRecordNotFoundError(cmd.id);
+    }
+    if (cmd.vehicleId && cmd.allowedVehicleIds && !cmd.allowedVehicleIds.has(cmd.vehicleId)) {
+      throw new VehicleNotFoundError(cmd.vehicleId);
+    }
 
     if (cmd.vehicleId && cmd.vehicleId !== record.vehicleId) {
       const vehicle = await this.vehicleRepo.findById(cmd.vehicleId, cmd.tenantId);

@@ -25,6 +25,8 @@ export type BulkImportVehicleItem = {
 
 export type BulkImportVehiclesCommand = {
   tenantId?: string;
+  /** Set when an owner operator imports, so the vehicles created are theirs. */
+  ownerOperatorId?: string;
   items: BulkImportVehicleItem[];
 };
 
@@ -81,7 +83,7 @@ export class BulkImportVehiclesUseCase {
         tenantId,
         status: item.status ?? "active",
         assignedDriverId: null,
-        ownerOperatorId: null,
+        ownerOperatorId: command.ownerOperatorId ?? null,
         gpsDevice: null,
       });
       await this.vehicleRepository.save(createdVehicle);

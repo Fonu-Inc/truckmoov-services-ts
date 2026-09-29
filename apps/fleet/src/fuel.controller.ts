@@ -189,7 +189,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Record fuel transaction — N01" })
   @ApiCreatedResponse({ type: FuelRecordResponse })
   async recordFuel(
@@ -198,7 +198,12 @@ export class FuelController extends BaseFleetController {
   ): Promise<FuelRecordResponse> {
     const tenantId = this.tenantIdFromRequest(req);
     // The modal collects a registration and a typed driver name, not ids.
-    const { vehicleId, driverId } = await this.resolveFuelSubjects(tenantId, dto);
+    const { vehicleId, driverId } = await this.resolveFuelSubjects(
+      tenantId,
+      dto,
+      this.ownerOperatorIdFromRequest(req),
+    );
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
     const data = await this.recordFuelUseCase.execute({
       ...dto,
       vehicleId,
@@ -230,8 +235,9 @@ export class FuelController extends BaseFleetController {
   private async resolveFuelSubjects(
     tenantId: string,
     dto: RecordFuelDto,
+    ownerOperatorId?: string,
   ): Promise<{ vehicleId: string; driverId: string | null }> {
-    const { vehicleId, driverId } = await this.resolveFuelUpdateSubjects(tenantId, dto);
+    const { vehicleId, driverId } = await this.resolveFuelUpdateSubjects(tenantId, dto, ownerOperatorId);
     if (!vehicleId) {
       throw new BadRequestException("Provide either vehicleId or vehicleRegistration");
     }
@@ -242,6 +248,7 @@ export class FuelController extends BaseFleetController {
   private async resolveFuelUpdateSubjects(
     tenantId: string,
     dto: UpdateFuelRecordDto,
+    ownerOperatorId?: string,
   ): Promise<{ vehicleId?: string; driverId?: string | null }> {
     const subjects: { vehicleId?: string; driverId?: string | null } = {};
 
@@ -250,7 +257,7 @@ export class FuelController extends BaseFleetController {
     if (vehicleId) {
       subjects.vehicleId = vehicleId;
     } else if (registration) {
-      subjects.vehicleId = await this.findVehicleIdByRegistration(tenantId, registration);
+      subjects.vehicleId = await this.findVehicleIdByRegistration(tenantId, registration, ownerOperatorId);
     }
 
     const driverId = dto.driverId?.trim();
@@ -266,8 +273,14 @@ export class FuelController extends BaseFleetController {
     return subjects;
   }
 
-  private async findVehicleIdByRegistration(tenantId: string, registration: string): Promise<string> {
-    const vehicles = await this.listVehiclesUseCase.execute({ tenantId, query: registration });
+  private async findVehicleIdByRegistration(
+    tenantId: string,
+    registration: string,
+    ownerOperatorId?: string,
+  ): Promise<string> {
+    // An owner operator can only name their own vehicles, so a stranger's
+    // registration reads as unknown rather than confirming it exists.
+    const vehicles = await this.listVehiclesUseCase.execute({ tenantId, query: registration, ownerOperatorId });
     const match = (vehicles as unknown as Array<Record<string, unknown>>).find(
       (vehicle) =>
         String(vehicle["registrationNumber"] ?? vehicle["plateNumber"] ?? "").toLowerCase() ===
@@ -354,7 +367,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({
     summary: "Export fuel transactions to CSV — N07",
@@ -396,7 +409,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Edit fuel transaction with audit trail — N03" })
   @ApiOkResponse({ type: FuelRecordResponse })
   async updateFuel(
@@ -406,7 +419,8 @@ export class FuelController extends BaseFleetController {
   ): Promise<FuelRecordResponse> {
     try {
       const tenantId = this.tenantIdFromRequest(req);
-      const subjects = await this.resolveFuelUpdateSubjects(tenantId, dto);
+      const subjects = await this.resolveFuelUpdateSubjects(tenantId, dto, this.ownerOperatorIdFromRequest(req));
+      const allowedVehicleIds = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
       const data = await this.runFleetUseCase(() =>
         this.updateFuelRecordUseCase.execute({
           id,
@@ -414,6 +428,7 @@ export class FuelController extends BaseFleetController {
           updatedBy: req.user?.userId ?? "system",
           ...dto,
           ...subjects,
+          allowedVehicleIds,
         }),
       );
       await this.recordActivity(req, {
@@ -437,7 +452,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Delete(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
   @ApiOkResponse({ description: "Deleted successfully", type: MessageResponse })
   async deleteFuel(
@@ -445,7 +460,9 @@ export class FuelController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ): Promise<{ status: boolean; message: string }> {
     try {
-      await this.deleteFuelRecordUseCase.execute(id, this.tenantIdFromRequest(req), req.user?.userId ?? "system");
+      const tenantId = this.tenantIdFromRequest(req);
+      const allowedVehicleIds = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
+      await this.deleteFuelRecordUseCase.execute(id, tenantId, req.user?.userId ?? "system", allowedVehicleIds);
       await this.recordActivity(req, {
         entityType: "fuel",
         entityId: id,

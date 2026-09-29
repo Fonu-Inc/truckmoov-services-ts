@@ -255,6 +255,37 @@ export class VehiclesController extends BaseFleetController {
     return { status: true, message: "success", tab, data: vehicles } as unknown as VehicleListResponse;
   }
 
+  /**
+   * An import matches existing vehicles by registration and updates them, so an
+   * owner operator's file must not name a vehicle that belongs to someone else on
+   * the account. Checked before anything is written, and refused as a whole.
+   */
+  private async assertImportTouchesOnlyOwnVehicles(
+    rows: Array<{ registrationNumber: string }>,
+    tenantId: string,
+    ownerOperatorId: string | undefined,
+  ): Promise<void> {
+    if (!ownerOperatorId) return;
+
+    const everyone = (await this.listVehiclesUseCase.execute({ tenantId })) as unknown as Array<{
+      registrationNumber?: string;
+      plateNumber?: string;
+      ownerOperatorId: string | null;
+    }>;
+    const notTheirs = new Set(
+      everyone
+        .filter((vehicle) => vehicle.ownerOperatorId !== ownerOperatorId)
+        .map((vehicle) => (vehicle.registrationNumber ?? vehicle.plateNumber ?? "").toUpperCase()),
+    );
+    const clash = rows.find((row) => notTheirs.has(row.registrationNumber.toUpperCase()));
+    if (clash) {
+      throw new ConflictException({
+        message: `${clash.registrationNumber} is already on this account and is not one of your vehicles`,
+        field: "file",
+      });
+    }
+  }
+
   private async buildTabPayload(
     tab: Exclude<VehicleTab, "vehicles">,
     tenantId: string,
@@ -382,7 +413,7 @@ export class VehiclesController extends BaseFleetController {
   /** Retrieve standalone device inventory for the fleet admin Devices page */
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -397,6 +428,7 @@ export class VehiclesController extends BaseFleetController {
         this.createVehicleUseCase.execute({
           ...payload,
           tenantId: this.tenantIdFromRequest(req),
+          ownerOperatorId: this.ownerOperatorIdFromRequest(req),
         }),
       );
     } catch (error) {
@@ -471,7 +503,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Post("import")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiConsumes("multipart/form-data")
@@ -513,7 +545,12 @@ export class VehiclesController extends BaseFleetController {
       );
     }
 
+    const tenantId = this.tenantIdFromRequest(req);
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    await this.assertImportTouchesOnlyOwnVehicles(parsed.rows, tenantId, ownerOperatorId);
+
     const result = await this.bulkImportVehiclesUseCase.execute({
+      ownerOperatorId,
       items: parsed.rows.map((row) => ({
         registrationNumber: row.registrationNumber,
         plateNumber: row.registrationNumber,
@@ -527,7 +564,7 @@ export class VehiclesController extends BaseFleetController {
         capacityUnit: row.capacityUnit,
         status: (row.status ?? undefined) as never,
       })),
-      tenantId: this.tenantIdFromRequest(req),
+      tenantId,
     });
     (result as unknown as Record<string, unknown>)["skipped"] = parsed.errors;
     await this.recordActivity(req, {
@@ -565,7 +602,7 @@ export class VehiclesController extends BaseFleetController {
   /** Partially update a vehicle's details */
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update vehicle" })
@@ -575,8 +612,10 @@ export class VehiclesController extends BaseFleetController {
     @Body() payload: UpdateVehicleDto,
     @Req() req: FleetRequestContext,
   ): Promise<VehicleResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, id, req);
     const result = await this.runFleetUseCase(() =>
-      this.updateVehicleUseCase.execute({ id, ...payload, tenantId: this.tenantIdFromRequest(req) }),
+      this.updateVehicleUseCase.execute({ id, ...payload, tenantId }),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",
@@ -718,14 +757,16 @@ export class VehiclesController extends BaseFleetController {
   /** Remove a vehicle from the fleet */
 
   @Delete(":id")
-  @Roles(Role.ENTERPRISE_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete vehicle" })
   @ApiOkResponse({ type: VehicleResponse })
   async deleteVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, id, req);
     const result = await this.runFleetUseCase(() =>
-      this.deleteVehicleUseCase.execute(id, this.tenantIdFromRequest(req)),
+      this.deleteVehicleUseCase.execute(id, tenantId),
     ) as unknown as VehicleResponse;
     await this.recordActivity(req, {
       entityType: "vehicle",

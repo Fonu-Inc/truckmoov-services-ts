@@ -1,4 +1,4 @@
-import { OmitType, PartialType } from "@nestjs/swagger";
+import { ApiPropertyOptional, OmitType, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsArray,
@@ -80,9 +80,14 @@ export class CreateVehicleDto {
   @Min(0)
   capacity?: number;
 
-  /** Unit the capacity is given in. Defaults to tons. */
+  /**
+   * Unit the capacity is given in. Defaults to tons. Only checked for being text
+   * here: the domain checks the unit itself and answers an unknown one with a 400
+   * naming the field, which the form binds to the Unit input.
+   */
   @IsOptional()
-  @IsIn(VEHICLE_CAPACITY_UNITS)
+  @IsString()
+  @ApiPropertyOptional({ enum: [...VEHICLE_CAPACITY_UNITS] })
   capacityUnit?: (typeof VEHICLE_CAPACITY_UNITS)[number];
 
   /** Operational availability status */

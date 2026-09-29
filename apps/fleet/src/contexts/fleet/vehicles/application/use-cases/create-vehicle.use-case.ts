@@ -28,6 +28,8 @@ export type CreateVehicleCommand = {
   capacityUnit?: VehicleCapacityUnit;
   tenantId?: string;
   status?: FleetAssetStatus;
+  /** Set when an owner operator adds the vehicle, so it appears in their own list. */
+  ownerOperatorId?: string;
 };
 
 @Injectable()
@@ -67,7 +69,7 @@ export class CreateVehicleUseCase {
       tenantId,
       status,
       assignedDriverId: null,
-      ownerOperatorId: null,
+      ownerOperatorId: command.ownerOperatorId ?? null,
       gpsDevice: null,
     });
 

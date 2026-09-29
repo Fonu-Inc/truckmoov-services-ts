@@ -6,9 +6,17 @@ import { FuelRecordNotFoundError } from "../domain/errors/fuel-record-not-found.
 export class DeleteFuelRecordUseCase {
   constructor(@Inject(FUEL_RECORD_REPOSITORY) private readonly repo: FuelRecordRepository) {}
 
-  async execute(id: string, tenantId: string, deletedBy: string): Promise<void> {
+  async execute(
+    id: string,
+    tenantId: string,
+    deletedBy: string,
+    allowedVehicleIds?: ReadonlySet<string> | null,
+  ): Promise<void> {
     const record = await this.repo.findById(id, tenantId);
-    if (!record) throw new FuelRecordNotFoundError(id);
+    // Another owner's record reads as missing, not as forbidden.
+    if (!record || (allowedVehicleIds && !allowedVehicleIds.has(record.vehicleId))) {
+      throw new FuelRecordNotFoundError(id);
+    }
     await this.repo.save(record.softDelete(deletedBy));
   }
 }
