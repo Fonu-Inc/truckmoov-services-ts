@@ -52,7 +52,11 @@ export class RequestApplicationDevicesUseCase {
     );
     assertApplicationEditable(application);
 
+    // The body is checked before stock is looked at: a malformed request must be
+    // a 400, not a stock answer that reads as though the request was well formed.
     const quantity = validateDeviceQuantity(input.quantity);
+    const useCase = validateDeviceUseCase(input.useCase);
+    const notes = validateDeviceNotes(input.notes);
     const [vehicles, requests] = await Promise.all([
       this.applications.findVehiclesByApplicationId(application.id),
       this.applications.findDeviceRequestsByApplicationId(application.id),
@@ -75,20 +79,23 @@ export class RequestApplicationDevicesUseCase {
     const confirmed = input.confirmAvailableQuantity === true;
 
     if (stockShort) {
-      // Do not silently rewrite the customer's order. The follow-up must use
-      // precisely the count disclosed here, so clients cannot claim approval
-      // for an arbitrary smaller request.
-      if (!confirmed || total !== stock.availableQuantity) {
+      // Do not save an order the customer has not been told about. The first
+      // answer discloses what is in stock; the same request repeated with
+      // confirmAvailableQuantity is the customer accepting that. The full
+      // request is then kept, not cut down to the stock: provisioning is manual
+      // and waits for stock, and with none on the shelf a reduced order would be
+      // an empty one that could never be priced or paid.
+      if (!confirmed) {
         return {
           status: true,
           message: 'Requested quantity is not currently available',
           data: {
             requestSaved: false,
             requiresConfirmation: true,
-            requestedQuantity: requestedForFleet,
+            requestedQuantity: total,
             availableQuantity: stock.availableQuantity,
             simAllocationQuantity: stock.availableQuantity,
-            message: `Only ${stock.availableQuantity} device(s) and SIM allocation(s) are currently available. Confirm this quantity to continue.`,
+            message: `Only ${stock.availableQuantity} device(s) and SIM allocation(s) are currently available. Send the request again with confirmAvailableQuantity set to true to place it anyway; devices are provisioned as stock arrives.`,
           },
         };
       }
@@ -104,8 +111,8 @@ export class RequestApplicationDevicesUseCase {
       id: this.idGenerator.generate(),
       applicationId: application.id,
       quantity,
-      useCase: validateDeviceUseCase(input.useCase),
-      notes: validateDeviceNotes(input.notes),
+      useCase,
+      notes,
       confirmedAvailableQuantity: stockShort ? stock.availableQuantity : null,
       createdAt: now,
       updatedAt: now,

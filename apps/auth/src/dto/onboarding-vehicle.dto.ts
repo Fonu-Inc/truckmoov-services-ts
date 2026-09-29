@@ -80,7 +80,7 @@ export class OnboardingDeviceRequestDto {
 
   @Allow()
   @ApiPropertyOptional({
-    description: 'Required only after the API reports a stock shortfall. Must confirm the exact available quantity returned by that response.',
+    description: 'Send true on a repeat of the same request after the API answered with requiresConfirmation. It means the customer has seen the available quantity and wants the request placed anyway; the full quantity requested is kept and devices are provisioned as stock arrives. It is ignored when stock covers the fleet.',
   })
   confirmAvailableQuantity?: boolean;
 }

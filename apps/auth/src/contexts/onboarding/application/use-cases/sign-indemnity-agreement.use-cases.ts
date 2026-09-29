@@ -19,7 +19,7 @@ import {
 import { assertApplicationEditable } from '@auth/onboarding/domain/onboarding-application.support';
 import {
   OnboardingValidationError,
-  validateContactFullName,
+  validateSignerName,
 } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
   SIGNED_AGREEMENT_RENDERER,
@@ -119,7 +119,7 @@ export class SignIndemnityAgreementUseCase {
       );
     }
 
-    const signerName = validateContactFullName(input.signerName);
+    const signerName = validateSignerName(input.signerName);
     const method = validateSignatureMethod(input.method);
     const inspected = inspectSignatureFile(input.file);
     const file = input.file as UploadedDocumentFile;

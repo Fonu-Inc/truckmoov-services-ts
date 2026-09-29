@@ -383,3 +383,33 @@ function assertLength(
     );
   }
 }
+
+/**
+ * The same address rules under the field the form actually has. Reporting a
+ * bad billing email as businessEmail puts the error on the wrong input, since
+ * the client binds messages by field.
+ */
+export function validateBillingEmail(value: unknown): string {
+  return underField(() => validateBusinessEmail(value), 'billingEmail', 'Business email', 'Billing email');
+}
+
+/** The signer's name follows the contact name rules, reported as signer_name. */
+export function validateSignerName(value: unknown): string {
+  return underField(() => validateContactFullName(value), 'signer_name', 'Contact full name', 'Signer name');
+}
+
+function underField(
+  validate: () => string,
+  field: string,
+  from: string,
+  to: string,
+): string {
+  try {
+    return validate();
+  } catch (error) {
+    if (error instanceof OnboardingValidationError) {
+      throw new OnboardingValidationError(field, error.message.replace(from, to));
+    }
+    throw error;
+  }
+}

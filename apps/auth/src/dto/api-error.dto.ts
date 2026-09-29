@@ -50,6 +50,16 @@ export class OnboardingIncompleteErrorBody {
   vehiclesMissingDocuments!: OnboardingVehicleMissingDocumentSchema[];
   @ApiProperty() vehicleCount!: number;
   @ApiProperty() requestedDevices!: number;
+  @ApiProperty({
+    description:
+      'False while the device gate fails. Devices must equal vehicles, unless the disclosed stock shortfall was accepted (inventoryShortfallAccepted).',
+  })
+  deviceAllocationComplete!: boolean;
+  @ApiProperty({
+    description:
+      'True when the customer confirmed a stock shortfall and the devices requested match the quantity that was available then.',
+  })
+  inventoryShortfallAccepted!: boolean;
   @ApiProperty() indemnitySigned!: boolean;
   @ApiProperty() planSelected!: boolean;
 }

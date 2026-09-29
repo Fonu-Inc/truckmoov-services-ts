@@ -93,6 +93,7 @@ import {
   VehicleCsvEmptyError,
   VehicleNotFoundError,
   VerificationDispatchError,
+  ChannelAlreadyVerifiedError,
   VerificationResendTooSoonError,
   VerificationSendLimitError,
 } from '@auth/onboarding';
@@ -520,10 +521,11 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiOperation({
     summary: 'Request tracking devices',
     description:
-      'Devices are fitted one per vehicle, so the total requested cannot exceed the vehicles on the application.',
+      'Devices are fitted one per vehicle, so the total requested cannot exceed the vehicles on the application, and submit needs one per vehicle unless a stock shortfall was accepted. The body is validated first. Both outcomes are a 201 with status true, so read data.requestSaved.',
   })
   @ApiCreatedResponse({
-    description: 'Device request submitted',
+    description:
+      'Saved: data is the application plus requestSaved: true, requiresConfirmation: false, requestedQuantity (all devices requested on the application, this request included), availableQuantity and simAllocationQuantity. Nothing saved because stock is short: data is only { requestSaved: false, requiresConfirmation: true, requestedQuantity, availableQuantity, simAllocationQuantity, message }. Send the same request again with confirmAvailableQuantity: true to place it anyway.',
     type: OnboardingApplicationResponse,
   })
   @ApiErrorResponse(
@@ -1051,7 +1053,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiOperation({
     summary: 'Submit the application for review',
     description:
-      'Locks the application, runs the automated checks and places it in the review queue. Requires: business email and phone verified, an M2M plan chosen, the indemnity agreement signed, at least one vehicle, every document required for the applicant type, a vehicle licence for each vehicle, and no more devices requested than vehicles. The response carries automatedDecision.',
+      'Locks the application, runs the automated checks and places it in the review queue. Requires: business email and phone verified, an M2M plan chosen, the indemnity agreement signed, at least one vehicle, every document required for the applicant type, a vehicle licence for each vehicle, and one device per vehicle: exactly as many devices as vehicles, unless the customer accepted a disclosed stock shortfall, and never more. The 400 body says which gate failed through deviceAllocationComplete and inventoryShortfallAccepted. The response carries automatedDecision.',
   })
   @ApiCreatedResponse({
     description:
@@ -1133,6 +1135,9 @@ export class OnboardingApplicationsController extends BaseAuthController {
           { message: error.message, retryAfterSeconds: error.secondsRemaining },
           HttpStatus.TOO_MANY_REQUESTS,
         );
+      }
+      if (error instanceof ChannelAlreadyVerifiedError) {
+        throw new ConflictException(error.message);
       }
       if (error instanceof VerificationSendLimitError) {
         throw new HttpException(error.message, HttpStatus.TOO_MANY_REQUESTS);

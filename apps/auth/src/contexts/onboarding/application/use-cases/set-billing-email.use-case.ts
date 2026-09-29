@@ -8,7 +8,7 @@ import {
   type OnboardingPaymentRepository,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
 import { assertBillingEmailChangeable } from '@auth/onboarding/domain/onboarding-application.support';
-import { validateBusinessEmail } from '@auth/onboarding/domain/onboarding-application.validation';
+import { validateBillingEmail } from '@auth/onboarding/domain/onboarding-application.validation';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
 
 @Injectable()
@@ -36,7 +36,7 @@ export class SetBillingEmailUseCase {
       await this.payments.findLatestForApplication(application.id),
     );
 
-    const billingEmail = validateBusinessEmail(input.billingEmail);
+    const billingEmail = validateBillingEmail(input.billingEmail);
     const unchanged = billingEmail === application.billingEmail;
 
     await this.applications.save({

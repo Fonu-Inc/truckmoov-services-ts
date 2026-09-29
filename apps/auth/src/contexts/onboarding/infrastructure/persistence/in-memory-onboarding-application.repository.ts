@@ -247,6 +247,21 @@ export class InMemoryOnboardingApplicationRepository
     this.codes.set(code.id, { ...code });
   }
 
+  async findLatestVerificationCode(
+    applicationId: string,
+    channel: OnboardingVerificationChannel,
+  ): Promise<StoredOnboardingVerificationCode | null> {
+    return (
+      [...this.codes.values()]
+        .filter(
+          (code) =>
+            code.applicationId === applicationId && code.channel === channel,
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ??
+      null
+    );
+  }
+
   async findActiveVerificationCode(
     applicationId: string,
     channel: OnboardingVerificationChannel,

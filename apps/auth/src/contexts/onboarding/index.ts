@@ -212,6 +212,7 @@ export {
   ConfirmOnboardingVerificationCodeUseCase,
   InvalidVerificationCodeError,
   SendOnboardingVerificationCodeUseCase,
+  ChannelAlreadyVerifiedError,
   VerificationResendTooSoonError,
   VerificationSendLimitError,
 } from "./application/use-cases/verify-onboarding-application-contact.use-cases";

@@ -36,6 +36,13 @@ export class VerificationResendTooSoonError extends Error {
   }
 }
 
+export class ChannelAlreadyVerifiedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ChannelAlreadyVerifiedError';
+  }
+}
+
 export class VerificationSendLimitError extends Error {
   constructor() {
     super('Too many codes requested for this application, try again later');
@@ -74,6 +81,7 @@ export class SendOnboardingVerificationCodeUseCase {
       input.applicationToken,
     );
     await assertChannelOpen(this.payments, application, input.channel);
+    assertNotAlreadyVerified(application, input.channel);
     await this.assertSendAllowed(application.id, input.channel);
 
     const destination = destinationFor(application, input.channel);
@@ -138,7 +146,10 @@ export class SendOnboardingVerificationCodeUseCase {
       throw new VerificationSendLimitError();
     }
 
-    const latest = await this.applications.findActiveVerificationCode(
+    // The newest code sent, not the newest live one: a code used up by wrong
+    // attempts is no longer live, and keying on it would let the sender ask
+    // again at once, which is the cooldown being skipped.
+    const latest = await this.applications.findLatestVerificationCode(
       applicationId,
       channel,
     );
@@ -236,6 +247,29 @@ export class ConfirmOnboardingVerificationCodeUseCase {
       message: VERIFIED_MESSAGES[input.channel],
       data: await loadApplicationView(this.applications, updated),
     };
+  }
+}
+
+const ALREADY_VERIFIED_MESSAGES: Record<OnboardingVerificationChannel, string> = {
+  email: 'The business email is already verified',
+  sms: 'The phone number is already verified',
+  billing_email: 'The billing email is already verified',
+};
+
+// A verified channel needs no code. Sending one anyway spends a message and
+// invalidates nothing useful, so it is refused rather than quietly repeated.
+function assertNotAlreadyVerified(
+  application: StoredOnboardingApplication,
+  channel: OnboardingVerificationChannel,
+): void {
+  const verifiedAt =
+    channel === 'email'
+      ? application.emailVerifiedAt
+      : channel === 'sms'
+        ? application.phoneVerifiedAt
+        : application.billingEmailVerifiedAt;
+  if (verifiedAt) {
+    throw new ChannelAlreadyVerifiedError(ALREADY_VERIFIED_MESSAGES[channel]);
   }
 }
 

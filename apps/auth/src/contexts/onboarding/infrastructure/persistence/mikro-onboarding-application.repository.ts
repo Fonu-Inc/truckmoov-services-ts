@@ -428,6 +428,19 @@ export class MikroOnboardingApplicationRepository
     return record ? toStoredCode(record) : null;
   }
 
+  async findLatestVerificationCode(
+    applicationId: string,
+    channel: OnboardingVerificationChannel,
+  ): Promise<StoredOnboardingVerificationCode | null> {
+    const em = await this.em();
+    const record = await em.findOne(
+      OnboardingVerificationCodeRecord,
+      { applicationId, channel },
+      { orderBy: { createdAt: 'desc' } },
+    );
+    return record ? toStoredCode(record) : null;
+  }
+
   async countRecentVerificationCodes(
     applicationId: string,
     channel: OnboardingVerificationChannel,

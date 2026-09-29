@@ -33,6 +33,8 @@ export class ApplicationIncompleteError extends Error {
       vehiclesMissingDocuments: { vehicleId: string; registrationNumber: string; documentType: string }[];
       vehicleCount: number;
       requestedDevices: number;
+      deviceAllocationComplete: boolean;
+      inventoryShortfallAccepted: boolean;
       indemnitySigned: boolean;
       planSelected: boolean;
     },
@@ -152,6 +154,18 @@ export class SubmitOnboardingApplicationUseCase {
     const emailVerified = application.emailVerifiedAt !== null;
     const phoneVerified = application.phoneVerifiedAt !== null;
 
+    // One device per vehicle is the rule: fewer is allowed only when the
+    // customer accepted the stock shortfall that was disclosed to them, and
+    // more is never allowed. These two flags let a client show that gate
+    // without working it out from requestedDevices and vehicleCount.
+    const inventoryShortfallAccepted =
+      fleet.inventoryTracked &&
+      fleet.confirmedAvailableQuantity !== null &&
+      fleet.requestedDevices === fleet.confirmedAvailableQuantity;
+    const deviceAllocationComplete =
+      fleet.requestedDevices === fleet.vehicleCount ||
+      (fleet.requestedDevices < fleet.vehicleCount && inventoryShortfallAccepted);
+
     const reasons: string[] = [];
     if (!emailVerified) reasons.push('the business email is not verified');
     if (!phoneVerified) reasons.push('the phone number is not verified');
@@ -177,16 +191,10 @@ export class SubmitOnboardingApplicationUseCase {
         `${fleet.requestedDevices} devices were requested for ${fleet.vehicleCount} vehicle(s)`,
       );
     }
-    if (fleet.requestedDevices < fleet.vehicleCount) {
-      const acceptedShortfall =
-        fleet.inventoryTracked &&
-        fleet.confirmedAvailableQuantity !== null &&
-        fleet.requestedDevices === fleet.confirmedAvailableQuantity;
-      if (!acceptedShortfall) {
-        reasons.push(
-          `device and SIM allocation must equal ${fleet.vehicleCount} vehicle(s) unless the disclosed inventory shortfall was explicitly accepted`,
-        );
-      }
+    if (fleet.requestedDevices < fleet.vehicleCount && !inventoryShortfallAccepted) {
+      reasons.push(
+        `device and SIM allocation must equal ${fleet.vehicleCount} vehicle(s) unless the disclosed inventory shortfall was explicitly accepted`,
+      );
     }
     if (reasons.length === 0) return;
 
@@ -199,6 +207,8 @@ export class SubmitOnboardingApplicationUseCase {
         vehiclesMissingDocuments: fleet.vehiclesMissing,
         vehicleCount: fleet.vehicleCount,
         requestedDevices: fleet.requestedDevices,
+        deviceAllocationComplete,
+        inventoryShortfallAccepted,
         indemnitySigned: fleet.indemnitySigned,
         planSelected: fleet.planSelected,
       },

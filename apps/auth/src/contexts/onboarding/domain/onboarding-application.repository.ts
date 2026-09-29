@@ -320,6 +320,11 @@ export interface OnboardingApplicationRepository {
     applicationId: string,
     channel: OnboardingVerificationChannel,
   ): Promise<StoredOnboardingVerificationCode | null>;
+  /** The newest code sent, whether or not it has since been used up. */
+  findLatestVerificationCode(
+    applicationId: string,
+    channel: OnboardingVerificationChannel,
+  ): Promise<StoredOnboardingVerificationCode | null>;
   countRecentVerificationCodes(
     applicationId: string,
     channel: OnboardingVerificationChannel,
