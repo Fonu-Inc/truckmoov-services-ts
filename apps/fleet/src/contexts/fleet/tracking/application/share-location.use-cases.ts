@@ -43,15 +43,20 @@ export class ShareVehicleLocationUseCase {
     const vehicle = await this.vehicles.findById(input.vehicleId, input.tenantId);
     if (!vehicle) throw new NotFoundException("Vehicle not found");
 
+    const jobs = await this.dispatchJobs.listJobs(input.tenantId).catch(() => [] as DispatchJob[]);
+    const job = activeJobByVehicle(jobs).get(input.vehicleId) ?? null;
+
     // One live link per vehicle. Minting a second would leave the first
     // working, and nobody can revoke a link they were never shown again.
     const existing = await this.links.findActiveForVehicle(input.tenantId, input.vehicleId);
     if (existing) {
-      return { url: null, alreadyShared: true, expiresAt: existing.expiresAt.toISOString() };
+      return {
+        url: null,
+        alreadyShared: true,
+        expiresAt: existing.expiresAt.toISOString(),
+        jobReference: job?.reference ?? null,
+      };
     }
-
-    const jobs = await this.dispatchJobs.listJobs(input.tenantId).catch(() => [] as DispatchJob[]);
-    const job = activeJobByVehicle(jobs).get(input.vehicleId) ?? null;
 
     const { token, tokenHash } = mintShareToken();
     const expiresAt = this.expiryFor(job);
@@ -80,14 +85,18 @@ export class ShareVehicleLocationUseCase {
     };
   }
 
-  private expiryFor(job: DispatchJob | null): Date {
+  private expiryFor(job: DispatchJob | null, now: Date = new Date()): Date {
+    const fallback = new Date(now.getTime() + FALLBACK_LINK_HOURS * 60 * 60 * 1000);
     const deadline = job?.deadline ? Date.parse(job.deadline) : Number.NaN;
-    if (!Number.isNaN(deadline)) {
-      // A little past the deadline: a late delivery is exactly when a customer
-      // is watching the link.
-      return new Date(deadline + 2 * 60 * 60 * 1000);
-    }
-    return new Date(Date.now() + FALLBACK_LINK_HOURS * 60 * 60 * 1000);
+    if (Number.isNaN(deadline)) return fallback;
+
+    // A little past the deadline: a late delivery is exactly when a customer
+    // is watching the link.
+    const graceEnds = new Date(deadline + 2 * 60 * 60 * 1000);
+    // A job already past its grace has no window left. A link minted expired
+    // was never live, so it could never be shown again and every click would
+    // mint another dead one; a late job gets the same lifetime as an undated one.
+    return graceEnds.getTime() > now.getTime() ? graceEnds : fallback;
   }
 }
 

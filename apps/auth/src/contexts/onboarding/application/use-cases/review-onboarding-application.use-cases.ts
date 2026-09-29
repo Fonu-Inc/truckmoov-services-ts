@@ -4,6 +4,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from '@auth/session';
 import type { TokenService } from '@auth/session/domain/ports/token-service.port';
 import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from '../../../../system-authz';
+import { positiveInt } from './support/queue-paging';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   ONBOARDING_APPLICATION_STATUSES,
@@ -118,8 +119,8 @@ export class ListOnboardingApplicationsUseCase {
       status: asStatus(filters.status),
       applicantType: asApplicantType(filters.applicantType),
       search: filters.search,
-      page: filters.page,
-      limit: filters.limit,
+      page: positiveInt(filters.page),
+      limit: positiveInt(filters.limit),
     };
     const { items, total } = await this.applications.findForReview(queueFilters);
 
