@@ -59,7 +59,7 @@ export class FuelRecord {
   get isDeleted() { return this.props.deletedAt !== null; }
 
   update(
-    changes: Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType" | "fuelType">>,
+    changes: Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "vehicleId" | "driverId" | "vehicleType" | "fuelType">>,
     by: string,
   ): FuelRecord {
     const liters = changes.liters ?? this.props.liters;

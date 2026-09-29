@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { Vehicle, type FleetVehicleType, type FleetFuelType } from "../../domain/entities/vehicle.entity";
+import type { VehicleCapacityUnit } from "../../domain/vehicle-capacity";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
@@ -17,6 +18,7 @@ export type BulkImportVehicleItem = {
   type?: FleetVehicleType;
   fuelType?: FleetFuelType;
   capacity?: number;
+  capacityUnit?: VehicleCapacityUnit;
   tenantId?: string;
   status?: FleetAssetStatus;
 };
@@ -55,6 +57,7 @@ export class BulkImportVehiclesUseCase {
           type: item.type,
           fuelType: item.fuelType,
           capacity: item.capacity,
+          capacityUnit: item.capacityUnit,
           tenantId,
           status: item.status ?? existingVehicle.status,
         });
@@ -74,6 +77,7 @@ export class BulkImportVehiclesUseCase {
         type: item.type ?? null,
         fuelType: item.fuelType ?? null,
         capacity: item.capacity ?? null,
+        capacityUnit: item.capacityUnit ?? null,
         tenantId,
         status: item.status ?? "active",
         assignedDriverId: null,

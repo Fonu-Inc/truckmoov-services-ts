@@ -231,44 +231,67 @@ export class FuelController extends BaseFleetController {
     tenantId: string,
     dto: RecordFuelDto,
   ): Promise<{ vehicleId: string; driverId: string | null }> {
-    let vehicleId = dto.vehicleId?.trim() ?? "";
-    const registration = dto.vehicleRegistration?.trim();
-
-    if (!vehicleId && registration) {
-      const vehicles = await this.listVehiclesUseCase.execute({ tenantId, query: registration });
-      const match = (vehicles as unknown as Array<Record<string, unknown>>).find(
-        (vehicle) =>
-          String(vehicle["registrationNumber"] ?? vehicle["plateNumber"] ?? "").toLowerCase() ===
-          registration.toLowerCase(),
-      );
-      if (!match) {
-        throw new BadRequestException({
-          statusCode: 400,
-          error: "Bad Request",
-          message: `No vehicle is registered as ${registration}`,
-          field: "vehicleRegistration",
-        });
-      }
-      vehicleId = String(match["id"]);
-    }
-
+    const { vehicleId, driverId } = await this.resolveFuelUpdateSubjects(tenantId, dto);
     if (!vehicleId) {
       throw new BadRequestException("Provide either vehicleId or vehicleRegistration");
     }
+    return { vehicleId, driverId: driverId ?? null };
+  }
 
-    let driverId = dto.driverId?.trim() ?? null;
-    const driverName = dto.driverName?.trim();
-    if (!driverId && driverName) {
-      const drivers = await this.listDriversUseCase.execute({ tenantId });
-      const match = (drivers as unknown as Array<Record<string, unknown>>).find(
-        (driver) => String(driver["name"] ?? "").toLowerCase() === driverName.toLowerCase(),
-      );
-      // A name that matches nobody is kept off the record rather than failing
-      // the purchase: the fuel was still bought.
-      driverId = match ? String(match["id"]) : null;
+  /** Only the subjects the caller named come back; an absent key means leave it unchanged. */
+  private async resolveFuelUpdateSubjects(
+    tenantId: string,
+    dto: UpdateFuelRecordDto,
+  ): Promise<{ vehicleId?: string; driverId?: string | null }> {
+    const subjects: { vehicleId?: string; driverId?: string | null } = {};
+
+    const vehicleId = dto.vehicleId?.trim();
+    const registration = dto.vehicleRegistration?.trim();
+    if (vehicleId) {
+      subjects.vehicleId = vehicleId;
+    } else if (registration) {
+      subjects.vehicleId = await this.findVehicleIdByRegistration(tenantId, registration);
     }
 
-    return { vehicleId, driverId };
+    const driverId = dto.driverId?.trim();
+    const driverName = dto.driverName?.trim();
+    if (driverId) {
+      subjects.driverId = driverId;
+    } else if (driverName) {
+      subjects.driverId = await this.findDriverIdByName(tenantId, driverName);
+    } else if (dto.driverId === null) {
+      subjects.driverId = null;
+    }
+
+    return subjects;
+  }
+
+  private async findVehicleIdByRegistration(tenantId: string, registration: string): Promise<string> {
+    const vehicles = await this.listVehiclesUseCase.execute({ tenantId, query: registration });
+    const match = (vehicles as unknown as Array<Record<string, unknown>>).find(
+      (vehicle) =>
+        String(vehicle["registrationNumber"] ?? vehicle["plateNumber"] ?? "").toLowerCase() ===
+        registration.toLowerCase(),
+    );
+    if (!match) {
+      throw new BadRequestException({
+        statusCode: 400,
+        error: "Bad Request",
+        message: `No vehicle is registered as ${registration}`,
+        field: "vehicleRegistration",
+      });
+    }
+    return String(match["id"]);
+  }
+
+  // A name that matches nobody is kept off the record rather than failing the
+  // purchase: the fuel was still bought.
+  private async findDriverIdByName(tenantId: string, driverName: string): Promise<string | null> {
+    const drivers = await this.listDriversUseCase.execute({ tenantId });
+    const match = (drivers as unknown as Array<Record<string, unknown>>).find(
+      (driver) => String(driver["name"] ?? "").toLowerCase() === driverName.toLowerCase(),
+    );
+    return match ? String(match["id"]) : null;
   }
 
   @Get("analytics/weekly")
@@ -382,12 +405,17 @@ export class FuelController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ): Promise<FuelRecordResponse> {
     try {
-      const data = await this.updateFuelRecordUseCase.execute({
-        id,
-        tenantId: this.tenantIdFromRequest(req),
-        updatedBy: req.user?.userId ?? "system",
-        ...dto,
-      });
+      const tenantId = this.tenantIdFromRequest(req);
+      const subjects = await this.resolveFuelUpdateSubjects(tenantId, dto);
+      const data = await this.runFleetUseCase(() =>
+        this.updateFuelRecordUseCase.execute({
+          id,
+          tenantId,
+          updatedBy: req.user?.userId ?? "system",
+          ...dto,
+          ...subjects,
+        }),
+      );
       await this.recordActivity(req, {
         entityType: "fuel",
         entityId: id,

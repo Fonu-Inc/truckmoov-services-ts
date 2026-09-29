@@ -20,8 +20,20 @@ const KG_PER_UNIT: Partial<Record<VehicleCapacityUnit, number>> = {
   tons: 1000,
 };
 
+// Upper bounds are per unit: 100 is a sane ton limit and a nonsensical kg one.
+const MAX_BY_UNIT: Record<VehicleCapacityUnit, number> = {
+  kg: 100_000,
+  lb: 220_000,
+  tons: 100,
+  m3: 200,
+  pallets: 100,
+};
+
 export class VehicleCapacityError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly field: "capacity" | "capacityUnit" = "capacity",
+  ) {
     super(message);
     this.name = "VehicleCapacityError";
   }
@@ -55,13 +67,17 @@ export function normalizeCapacityUnit(value: unknown): VehicleCapacityUnit {
   if (!resolved) {
     throw new VehicleCapacityError(
       `capacity unit must be one of: ${VEHICLE_CAPACITY_UNITS.join(", ")}`,
+      "capacityUnit",
     );
   }
   return resolved;
 }
 
-export function assertCapacityWithinRange(capacity: number, _unit: VehicleCapacityUnit): void {
+export function assertCapacityWithinRange(capacity: number, unit: VehicleCapacityUnit): void {
   if (capacity < 0) throw new VehicleCapacityError("capacity must be zero or greater");
+  if (capacity > MAX_BY_UNIT[unit]) {
+    throw new VehicleCapacityError(`capacity in ${unit} must be ${MAX_BY_UNIT[unit]} or less`);
+  }
 }
 
 /** Kilograms, for the mass units only. Volume and pallets return null. */

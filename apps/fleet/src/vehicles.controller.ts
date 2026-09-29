@@ -393,10 +393,12 @@ export class VehiclesController extends BaseFleetController {
   async createVehicle(@Body() payload: CreateVehicleDto, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
     let result;
     try {
-      result = await this.createVehicleUseCase.execute({
-        ...payload,
-        tenantId: this.tenantIdFromRequest(req),
-      });
+      result = await this.runFleetUseCase(() =>
+        this.createVehicleUseCase.execute({
+          ...payload,
+          tenantId: this.tenantIdFromRequest(req),
+        }),
+      );
     } catch (error) {
       if (error instanceof VehicleQuotaExceededError) {
         throw new ConflictException(error.message);

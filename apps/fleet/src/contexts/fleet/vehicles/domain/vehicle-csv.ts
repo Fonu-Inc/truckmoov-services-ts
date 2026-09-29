@@ -7,6 +7,7 @@ import {
 } from "@shared/csv";
 import { FLEET_ASSET_STATUSES } from "../../shared/domain/fleet-status";
 import {
+  assertCapacityWithinRange,
   DEFAULT_CAPACITY_UNIT,
   normalizeCapacityUnit,
   VEHICLE_CAPACITY_UNITS,
@@ -136,9 +137,7 @@ function toRow(record: Record<string, string>): VehicleCsvRow {
       error instanceof VehicleCapacityError ? error.message : "capacity_unit is invalid",
     );
   }
-  if (capacity !== null && capacity < 0) {
-    throw new VehicleCsvError("capacity must be zero or greater");
-  }
+  assertCsvCapacity(capacity, capacityUnit);
 
   return {
     registrationNumber,
@@ -152,6 +151,17 @@ function toRow(record: Record<string, string>): VehicleCsvRow {
     capacityUnit,
     status,
   };
+}
+
+// A row over its unit's ceiling is skipped and reported by line, the same as any
+// other bad row, instead of failing the whole import.
+function assertCsvCapacity(capacity: number | null, unit: VehicleCapacityUnit): void {
+  if (capacity === null) return;
+  try {
+    assertCapacityWithinRange(capacity, unit);
+  } catch (error) {
+    throw new VehicleCsvError(error instanceof Error ? error.message : "capacity is invalid");
+  }
 }
 
 function optionalNumber(raw: string | undefined, field: string): number | null {

@@ -3,7 +3,23 @@ import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "../domain/rep
 import { FuelRecordNotFoundError } from "../domain/errors/fuel-record-not-found.error";
 import type { FuelRecordProps } from "../domain/entities/fuel-record.entity";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
+import { VehicleNotFoundError } from "../../vehicles";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
+
+type FuelRecordChanges = Partial<
+  Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "vehicleId" | "driverId" | "vehicleType" | "fuelType">
+>;
+
+const CHANGEABLE_FIELDS = [
+  "liters",
+  "pricePerLiter",
+  "station",
+  "odometer",
+  "vehicleId",
+  "driverId",
+  "vehicleType",
+  "fuelType",
+] as const;
 
 export type UpdateFuelRecordCommand = {
   id: string;
@@ -13,10 +29,21 @@ export type UpdateFuelRecordCommand = {
   pricePerLiter?: number;
   station?: string | null;
   odometer?: number | null;
+  vehicleId?: string;
   driverId?: string | null;
   vehicleType?: string | null;
   fuelType?: string | null;
 };
+
+// An absent field means "leave it": spreading an undefined key would overwrite
+// the stored value with undefined.
+function definedChanges(cmd: UpdateFuelRecordCommand): FuelRecordChanges {
+  const changes: Record<string, unknown> = {};
+  for (const key of CHANGEABLE_FIELDS) {
+    if (cmd[key] !== undefined) changes[key] = cmd[key];
+  }
+  return changes as FuelRecordChanges;
+}
 
 @Injectable()
 export class UpdateFuelRecordUseCase {
@@ -30,18 +57,12 @@ export class UpdateFuelRecordUseCase {
     const record = await this.repo.findById(cmd.id, cmd.tenantId);
     if (!record) throw new FuelRecordNotFoundError(cmd.id);
 
-    const updated = record.update(
-      {
-        liters: cmd.liters,
-        pricePerLiter: cmd.pricePerLiter,
-        station: cmd.station,
-        odometer: cmd.odometer,
-        driverId: cmd.driverId,
-        vehicleType: cmd.vehicleType,
-        fuelType: cmd.fuelType,
-      } as Partial<Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "driverId" | "vehicleType" | "fuelType">>,
-      cmd.updatedBy,
-    );
+    if (cmd.vehicleId && cmd.vehicleId !== record.vehicleId) {
+      const vehicle = await this.vehicleRepo.findById(cmd.vehicleId, cmd.tenantId);
+      if (!vehicle) throw new VehicleNotFoundError(cmd.vehicleId);
+    }
+
+    const updated = record.update(definedChanges(cmd), cmd.updatedBy);
 
     await this.repo.save(updated);
 

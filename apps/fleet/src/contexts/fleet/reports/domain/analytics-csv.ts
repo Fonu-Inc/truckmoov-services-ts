@@ -16,7 +16,7 @@ export function buildAnalyticsCsv(input: AnalyticsCsvInput): string {
   const lines: string[] = [`Analytics export,last ${input.periodDays} day(s)`, ""];
 
   lines.push("Summary");
-  lines.push(...flatten(input.summary).map(([key, value]) => `${escape(key)},${escape(value)}`));
+  lines.push(...renderRecord(input.summary));
   lines.push("");
 
   for (const [title, value] of [
@@ -34,29 +34,44 @@ export function buildAnalyticsCsv(input: AnalyticsCsvInput): string {
 }
 
 function renderSection(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    if (value.length === 0) return ["(none)"];
-    const headers = [...new Set(value.flatMap((row) => Object.keys(row as object)))];
-    return [
-      headers.map(escape).join(","),
-      ...value.map((row) =>
-        headers.map((header) => escape((row as Record<string, unknown>)[header])).join(","),
-      ),
-    ];
-  }
-
-  if (value && typeof value === "object") {
-    return flatten(value as Record<string, unknown>).map(([key, entry]) => `${escape(key)},${escape(entry)}`);
-  }
-
+  if (Array.isArray(value)) return renderTable(value);
+  if (isRecord(value)) return renderRecord(value);
   return [escape(value)];
+}
+
+function renderTable(rows: unknown[]): string[] {
+  if (rows.length === 0) return ["(none)"];
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row as object)))];
+  return [
+    headers.map(escape).join(","),
+    ...rows.map((row) =>
+      headers.map((header) => escape((row as Record<string, unknown>)[header])).join(","),
+    ),
+  ];
+}
+
+// Scalars stay as key,value lines. A list of objects is a table of its own: a
+// label row, then the keys as a header, then one row per item. Joining the
+// items into one cell would write "[object Object]" for every one of them.
+function renderRecord(record: Record<string, unknown>): string[] {
+  return flatten(record).flatMap(([key, entry]) =>
+    isRowList(entry) ? [escape(key), ...renderTable(entry)] : [`${escape(key)},${escape(entry)}`],
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRowList(value: unknown): value is Record<string, unknown>[] {
+  return Array.isArray(value) && value.every(isRecord);
 }
 
 function flatten(source: Record<string, unknown>, prefix = ""): Array<[string, unknown]> {
   return Object.entries(source).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? flatten(value as Record<string, unknown>, path)
+    return isRecord(value)
+      ? flatten(value, path)
       : [[path, value] as [string, unknown]];
   });
 }
@@ -69,7 +84,7 @@ const FORMULA_LEAD = /^[=+\-@\t\r]/;
 
 function escape(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const raw = Array.isArray(value) ? value.join(" | ") : String(value);
+  const raw = Array.isArray(value) ? value.join(" | ") : typeof value === "object" ? JSON.stringify(value) : String(value);
   const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

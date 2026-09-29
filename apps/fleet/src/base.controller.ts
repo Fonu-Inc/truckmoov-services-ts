@@ -10,6 +10,7 @@ import { DeviceNotFoundError } from "./contexts/fleet/devices";
 import { WaybillNotFoundError } from "./contexts/fleet/waybills/domain/errors/waybill.errors";
 import { DriverNotFoundError } from "./contexts/fleet/drivers";
 import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
+import { VehicleCapacityError } from "./contexts/fleet/vehicles/domain/vehicle-capacity";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 
 export type FleetRequestContext = {
@@ -155,6 +156,14 @@ export abstract class BaseFleetController {
       }
       if (error instanceof FleetRuleError) {
         throw new BadRequestException(error.message);
+      }
+      if (error instanceof VehicleCapacityError) {
+        throw new BadRequestException({
+          statusCode: 400,
+          error: "Bad Request",
+          message: error.message,
+          field: error.field,
+        });
       }
       throw error;
     }
