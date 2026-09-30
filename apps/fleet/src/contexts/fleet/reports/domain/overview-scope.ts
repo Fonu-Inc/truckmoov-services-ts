@@ -1,10 +1,12 @@
 import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
-import { Role } from "@shared/rbac";
+import { OWNER_OPERATOR_ORGANISATION_TYPE, Role } from "@shared/rbac";
 
 /**
  * Who the overview is being built for. tenantId is the outer boundary; an owner
  * operator is additionally pinned to its own records, because an owner operator
  * can hold a seat inside somebody else's tenant and must not see the rest of it.
+ * The exception is the owner of an owner-operator organisation, for whom the
+ * role is the organisation's own owner and the whole fleet is theirs.
  */
 export type OverviewScope = {
   tenantId: string;
@@ -20,6 +22,7 @@ type OverviewRequestUser = {
   userId?: string;
   role?: string;
   tenantId?: string;
+  organizationType?: string | null;
 };
 
 export function resolveOverviewScope(user?: OverviewRequestUser): OverviewScope {
@@ -33,7 +36,7 @@ export function resolveOverviewScope(user?: OverviewRequestUser): OverviewScope 
     throw new ForbiddenException("This overview is available to enterprise admins and owner operators only");
   }
 
-  if (role !== Role.OWNER_OPERATOR) {
+  if (role !== Role.OWNER_OPERATOR || user?.organizationType === OWNER_OPERATOR_ORGANISATION_TYPE) {
     return { tenantId, ownerOperatorId: null };
   }
 

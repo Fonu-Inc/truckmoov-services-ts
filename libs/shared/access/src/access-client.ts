@@ -11,6 +11,8 @@ export type RemoteAccess = {
   portal: Portal;
   active: boolean;
   permissions: PermissionKey[];
+  /** The kind of organisation the user belongs to; null when auth knows none. */
+  organizationType?: string | null;
 };
 
 const CACHE_TTL_MS = 30_000;

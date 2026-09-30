@@ -24,7 +24,7 @@ import { InstallerJobRecordsUseCases } from './contexts/installation/application
 import { RejectJobOfferUseCase } from './contexts/installation/application/use-cases/reject-job-offer.use-case';
 import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
 import { RejectJobOfferDto, SaveInstallerNotesDto, SetChecklistItemDto } from './dto/installer-portal.dto';
-import { InstallerJobDetailResponse, RejectedOfferResponse } from './dto/installer-job-response.dto';
+import { EvidenceLinkResponse, EvidenceUploadResponse, InstallerJobDetailResponse, RejectedOfferResponse } from './dto/installer-job-response.dto';
 import { ApiErrorResponse } from './dto/api-error.dto';
 import { bearer, mapped, ok } from './installation-http';
 import { InstallerErrors, InvalidInstallerBody, JOB_CHANGED, JOB_NOT_FOUND } from './installer-openapi';
@@ -123,6 +123,7 @@ export class InstallerJobWorkController {
 
   @Post('evidence')
   @ApiOperation({ summary: 'Upload an evidence photo: JPG, PNG or WebP, up to 10 MB' })
+  @ApiCreatedResponse({ description: 'The stored photo. message is "Evidence uploaded".', type: EvidenceUploadResponse })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -147,6 +148,7 @@ export class InstallerJobWorkController {
 
   @Get('evidence/:evidenceId')
   @ApiOperation({ summary: 'A short-lived download link for one evidence photo' })
+  @ApiOkResponse({ description: 'The photo with a download url', type: EvidenceLinkResponse })
   async evidenceLink(
     @Param('jobId') jobId: string,
     @Param('evidenceId') evidenceId: string,

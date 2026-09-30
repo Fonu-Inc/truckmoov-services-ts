@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ACCESS_CHANGED_SUBJECT, portalOfPermission, predefinedRole, type PermissionKey } from '@shared/access';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { SYSTEM_TENANT_ID, portalFor, type Portal } from '@shared/identity';
 import type { StoredUser, UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TENANT_ROLE_REPOSITORY, type TenantRoleRepository } from './tenant-role.repository';
 import { PERMISSION_REMOVAL_REPOSITORY, type PermissionRemovalRepository } from './permission-removal.repository';
+import { TENANT_ONBOARDING_REPOSITORY, type TenantOnboardingRepository } from './tenant-onboarding.repository';
 
 export type ResolvedAccess = {
   userId: string;
@@ -14,6 +15,13 @@ export type ResolvedAccess = {
   /** False for a disabled or deleted account: refused on its next request, everywhere. */
   active: boolean;
   permissions: PermissionKey[];
+  /**
+   * The kind of organisation the tenant is (fleet_provider, enterprise,
+   * aggregator or owner_operator), null for the system tenant or when unknown.
+   * The same role means different things in different kinds of organisation, so
+   * the services that limit a role to its own records need this.
+   */
+  organizationType: string | null;
 };
 
 const CACHE_TTL_MS = 30_000;
@@ -26,6 +34,9 @@ export class AccessResolver {
   constructor(
     @Inject(TENANT_ROLE_REPOSITORY) private readonly roles: TenantRoleRepository,
     @Inject(PERMISSION_REMOVAL_REPOSITORY) private readonly removals: PermissionRemovalRepository,
+    @Optional()
+    @Inject(TENANT_ONBOARDING_REPOSITORY)
+    private readonly onboarding?: TenantOnboardingRepository,
   ) {}
 
   async resolve(userRepository: Pick<UserRepository, 'findById'>, userId: string): Promise<ResolvedAccess | null> {
@@ -43,7 +54,11 @@ export class AccessResolver {
       for (const r of removals) {
         if (r.effectiveAt.getTime() > now) expiresAt = Math.min(expiresAt, r.effectiveAt.getTime());
       }
-      access = toAccess(user, (await this.permissionsOf(user)).filter((p) => !removed.has(p)));
+      access = toAccess(
+        user,
+        (await this.permissionsOf(user)).filter((p) => !removed.has(p)),
+        await this.organizationTypeOf(user.tenantId),
+      );
     }
     this.cache.set(userId, { access, expiresAt });
     return access;
@@ -64,13 +79,24 @@ export class AccessResolver {
     return bundle && bundle.portal === portal ? [...bundle.permissions] : [];
   }
 
+  /** Unknown is null, never a guess: callers treat an unknown type as the stricter case. */
+  private async organizationTypeOf(tenantId: string): Promise<string | null> {
+    if (!this.onboarding) return null;
+    try {
+      return (await this.onboarding.findByTenantId(tenantId))?.organizationType ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   forget(userId: string): void {
     this.cache.delete(userId);
   }
 }
 
-function toAccess(user: StoredUser, permissions: PermissionKey[]): ResolvedAccess {
+function toAccess(user: StoredUser, permissions: PermissionKey[], organizationType: string | null): ResolvedAccess {
   return {
+    organizationType,
     userId: user.id,
     tenantId: user.tenantId,
     portal: portalFor(user),

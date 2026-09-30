@@ -89,6 +89,13 @@ export function isTenantRole(role: string): boolean {
   return (TENANT_ROLES as readonly string[]).includes(role);
 }
 
+/**
+ * The organisation type whose first user is an OWNER_OPERATOR. There the role is
+ * the organisation's own owner. In every other organisation type it is held by
+ * an independent operator the organisation has invited in.
+ */
+export const OWNER_OPERATOR_ORGANISATION_TYPE = "owner_operator";
+
 export const MULTI_STAKEHOLDER_ROLES = [
   Role.ENTERPRISE_ADMIN,
   Role.AGGREGATOR_ADMIN,

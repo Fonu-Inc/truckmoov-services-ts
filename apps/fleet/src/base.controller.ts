@@ -3,7 +3,7 @@ import { Inject } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { clientIpFrom, type IncomingLike } from "@shared/http";
-import { Role } from "@shared/rbac";
+import { OWNER_OPERATOR_ORGANISATION_TYPE, Role } from "@shared/rbac";
 import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import { DeviceNotFoundError } from "./contexts/fleet/devices";
@@ -14,7 +14,14 @@ import { VehicleCapacityError } from "./contexts/fleet/vehicles/domain/vehicle-c
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 
 export type FleetRequestContext = {
-  user?: { tenantId?: string; userId?: string; role?: string; email?: string; service?: string };
+  user?: {
+    tenantId?: string;
+    userId?: string;
+    role?: string;
+    email?: string;
+    service?: string;
+    organizationType?: string | null;
+  };
   ip?: string;
   headers?: IncomingLike["headers"];
   socket?: IncomingLike["socket"];
@@ -36,8 +43,20 @@ export abstract class BaseFleetController {
    * boundary; this is the inner one, because an owner operator can hold a seat
    * inside an enterprise or aggregator tenant and must not see the rest of it.
    */
+  /**
+   * The owner operator whose vehicles this caller is limited to, or undefined
+   * when they are not limited to any.
+   *
+   * The role means two things. In an owner-operator organisation it is the
+   * organisation's own owner, who runs the whole fleet along with whoever they
+   * invite. In any other organisation it is an independent operator the
+   * organisation has brought in, who sees only their own vehicles. An unknown
+   * organisation type is treated as the second case, so a failure to find out
+   * narrows access rather than widening it.
+   */
   protected ownerOperatorIdFromRequest(req: FleetRequestContext): string | undefined {
     if (req.user?.role !== Role.OWNER_OPERATOR) return undefined;
+    if (req.user.organizationType === OWNER_OPERATOR_ORGANISATION_TYPE) return undefined;
     return req.user?.userId ?? "__no_owner_operator__";
   }
 

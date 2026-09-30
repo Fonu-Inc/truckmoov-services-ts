@@ -66,19 +66,20 @@ export class ComplianceController extends BaseFleetController {
   }
 
   /**
-   * An owner-operator only ever sees compliance documents for vehicles they
-   * own — derived from their own identity, never from a caller-supplied
-   * vehicleId. Returns undefined for every other role, meaning "no extra
-   * scoping beyond tenant."
+   * An independent owner operator only ever sees compliance documents for
+   * vehicles they own, derived from their own identity and never from a
+   * caller-supplied vehicleId. Returns undefined for every other caller,
+   * including the owner of an owner-operator organisation, meaning "no extra
+   * scoping beyond tenant." The rule is the base controller's, so it cannot
+   * drift from the rest of fleet.
    */
   private async ownerOperatorVehicleIds(
     tenantId: string,
     req: FleetRequestContext,
   ): Promise<string[] | undefined> {
-    if (req.user?.role !== Role.OWNER_OPERATOR) return undefined;
-    const userId = req.user?.userId;
-    if (!userId) return [];
-    const vehicles = await this.vehicleRepository.findAllByOwnerOperatorId(userId, tenantId);
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId) return undefined;
+    const vehicles = await this.vehicleRepository.findAllByOwnerOperatorId(ownerOperatorId, tenantId);
     return vehicles.map((v) => v.id);
   }
 

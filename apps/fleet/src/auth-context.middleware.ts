@@ -23,6 +23,11 @@ export type FleetAuthUser = {
   service?: string;
   /** What the user may do right now, from auth; absent when auth could not be asked. */
   permissions?: PermissionKey[];
+  /**
+   * The kind of organisation the user belongs to, from auth; absent when auth
+   * could not be asked. Anything that depends on it treats absent as unknown.
+   */
+  organizationType?: string | null;
 };
 
 /**
@@ -93,7 +98,7 @@ export class AuthContextMiddleware implements NestMiddleware {
     if (!user) return null;
     const access = await this.access.get(user.userId);
     if (access === null || access?.active === false) return null;
-    return access ? { ...user, permissions: access.permissions } : user;
+    return access ? { ...user, permissions: access.permissions, organizationType: access.organizationType ?? null } : user;
   }
 
   private userFromToken(authorization: string | string[] | undefined): FleetAuthUser | null {

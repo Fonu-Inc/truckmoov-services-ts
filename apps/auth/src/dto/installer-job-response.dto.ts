@@ -176,6 +176,18 @@ export class EvidenceViewSchema {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
+export class EvidenceLinkSchema extends EvidenceViewSchema {
+  @ApiProperty({ description: 'Short-lived download link' }) url!: string;
+}
+
+export class EvidenceUploadResponse extends StandardApiResponse<EvidenceViewSchema> {
+  @ApiProperty({ type: EvidenceViewSchema }) data!: EvidenceViewSchema;
+}
+
+export class EvidenceLinkResponse extends StandardApiResponse<EvidenceLinkSchema> {
+  @ApiProperty({ type: EvidenceLinkSchema }) data!: EvidenceLinkSchema;
+}
+
 export class CompletionViewSchema {
   @ApiProperty() customer!: string;
   @ApiProperty(NULLABLE_STRING) vehicle!: string | null;
