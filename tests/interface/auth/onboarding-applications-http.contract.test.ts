@@ -210,10 +210,16 @@ describe('Onboarding applications HTTP contract', () => {
     token: string,
     overrides: Record<string, string> = {},
   ) {
-    const res = await request(app.getHttpServer())
+    const details: Record<string, string> = { ...VEHICLE, ...overrides };
+    const pending = request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/vehicles`)
-      .set('x-application-token', token)
-      .send({ ...VEHICLE, ...overrides });
+      .set('x-application-token', token);
+    for (const [key, value] of Object.entries(details)) pending.field(key, value);
+    const res = await pending.attach(
+      'file',
+      fileFor(`${id}:${details.registrationNumber}`, 'vehicle_license', false),
+      'licence.png',
+    );
     expect(res.status).toBe(201);
     const vehicles = res.body.data.vehicles as Array<{
       id: string;
@@ -269,16 +275,9 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(201);
   }
 
-  /** A vehicle plus its licence, which is what the submit gate counts. */
+  /** A vehicle with its licence, which is what the submit gate counts, and a device for it. */
   async function addVehicleWithLicence(id: string, token: string) {
     const vehicleId = await addVehicle(id, token);
-    const res = await request(app.getHttpServer())
-      .post(`/auth/onboarding/applications/${id}/documents`)
-      .set('x-application-token', token)
-      .field('document_type', 'vehicle_license')
-      .field('vehicle_id', vehicleId)
-      .attach('file', fileFor(id, 'vehicle_license', false), 'licence.png');
-    expect(res.status).toBe(201);
     const devices = await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/device-requests`)
       .set('x-application-token', token)
@@ -375,6 +374,43 @@ describe('Onboarding applications HTTP contract', () => {
     expect(free.body.data).toEqual({ available: true });
     expect(invalid.status).toBe(400);
     expect(invalid.body.field).toBe('businessEmail');
+  });
+
+  it('refuses a vehicle without its licence and saves nothing', async () => {
+    const { id, token } = await startApplication('nolicence@arne.com');
+    const add = (attach?: Buffer, name = 'licence.png') => {
+      const pending = request(app.getHttpServer())
+        .post(`/auth/onboarding/applications/${id}/vehicles`)
+        .set('x-application-token', token);
+      for (const [key, value] of Object.entries(VEHICLE)) pending.field(key, value);
+      return attach ? pending.attach('file', attach, name) : pending;
+    };
+
+    const missing = await add();
+    const badFile = await add(Buffer.from('not a document'), 'licence.png');
+    const read = await request(app.getHttpServer())
+      .get(`/auth/onboarding/applications/${id}`)
+      .set('x-application-token', token);
+
+    expect(missing.status).toBe(400);
+    expect(missing.body.field).toBe('vehicleLicense');
+    expect(badFile.status).toBe(400);
+    expect(read.body.data.vehicles).toHaveLength(0);
+  });
+
+  it('files the licence against the vehicle it came with', async () => {
+    const { id, token } = await startApplication('withlicence@arne.com');
+    const vehicleId = await addVehicle(id, token);
+    const read = await request(app.getHttpServer())
+      .get(`/auth/onboarding/applications/${id}`)
+      .set('x-application-token', token);
+
+    expect(
+      read.body.data.documents.some(
+        (document: { vehicleId: string; documentType: string }) =>
+          document.vehicleId === vehicleId && document.documentType === 'vehicle_license',
+      ),
+    ).toBe(true);
   });
 
   it('refuses to read an application with the wrong token', async () => {

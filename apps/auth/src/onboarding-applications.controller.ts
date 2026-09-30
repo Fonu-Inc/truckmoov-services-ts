@@ -24,6 +24,8 @@ import {
   UseInterceptors,
   applyDecorators,
 } from '@nestjs/common';
+import { ONBOARDING_VEHICLE_PURCHASE_TYPES, ONBOARDING_VEHICLE_TYPES } from '@auth/onboarding';
+import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
 import { CheckEmailAvailabilityUseCase } from './contexts/onboarding/email-availability/check-email-availability.use-case';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
@@ -421,19 +423,50 @@ export class OnboardingApplicationsController extends BaseAuthController {
   }
 
   @Post(':applicationId/vehicles')
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Add a vehicle',
+    summary: 'Add a vehicle with its licence',
     description:
-      'Adds one vehicle to the application. A registration can only appear once per application.',
+      'Adds one vehicle to the application together with its vehicle licence (PDF, JPG or PNG up to 10MB). A vehicle cannot be added without the licence. A registration can only appear once per application.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['registrationNumber', 'vehicleType', 'make', 'model', 'file'],
+      properties: {
+        registrationNumber: { type: 'string', example: 'LAG-123-ABC' },
+        vehicleType: { type: 'string', enum: [...ONBOARDING_VEHICLE_TYPES] },
+        make: { type: 'string' },
+        model: { type: 'string' },
+        year: { type: 'integer' },
+        engineNumber: { type: 'string' },
+        chassisNumber: { type: 'string' },
+        color: { type: 'string' },
+        engineCapacity: { type: 'string' },
+        odometerReading: { type: 'integer' },
+        purchaseType: { type: 'string', enum: [...ONBOARDING_VEHICLE_PURCHASE_TYPES] },
+        purchaseTypeOther: { type: 'string' },
+        file: { type: 'string', format: 'binary', description: 'The vehicle licence.' },
+      },
+    },
   })
   @ApiCreatedResponse({ description: 'Vehicle added', type: OnboardingApplicationResponse })
-  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @ApiErrorResponse(
+    400,
+    'A field: { message, field }, with field "vehicleLicense" when the licence is missing. Or an unsupported or oversized file: { statusCode, message, error }.',
+    OnboardingFieldErrorBody,
+    ApiErrorBody,
+  )
   @TokenErrors()
   @ApiErrorResponse(409, `${NOT_EDITABLE}, or "<registration> has already been added to this application"`)
+  @TooLarge('10MB')
+  @ApiErrorResponse(503, '"File upload failed"')
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
   async addApplicationVehicle(
     @Param('applicationId') applicationId: string,
     @Body() payload: OnboardingVehicleDto,
+    @UploadedFile() licence?: UploadedDocumentFile,
     @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
   ) {
     const token = this.requireApplicationToken(applicationToken);
@@ -442,6 +475,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
         applicationId,
         applicationToken: token,
         vehicle: payload,
+        licence,
       }),
     );
   }

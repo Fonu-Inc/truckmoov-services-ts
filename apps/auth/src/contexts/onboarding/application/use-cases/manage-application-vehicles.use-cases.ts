@@ -19,9 +19,14 @@ import {
   parseOnboardingVehicleCsv,
   type OnboardingVehicleCsvRow,
 } from '@auth/onboarding/domain/onboarding-vehicle-csv';
+import {
+  inspectDocumentFile,
+  type UploadedDocumentFile,
+} from '@auth/onboarding/domain/onboarding-document-file';
 import { loadApplicationView } from './support/load-application-view';
 import { touchApplication } from './support/touch-application';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
+import { UploadOnboardingApplicationDocumentUseCase } from './upload-onboarding-application-document.use-case';
 
 export class VehicleNotFoundError extends Error {
   constructor() {
@@ -60,12 +65,20 @@ export class AddApplicationVehicleUseCase {
     @Inject(GetOnboardingApplicationUseCase)
     private readonly getApplication: GetOnboardingApplicationUseCase,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
+    @Inject(UploadOnboardingApplicationDocumentUseCase)
+    private readonly uploadDocument: UploadOnboardingApplicationDocumentUseCase,
   ) {}
 
+  /**
+   * A vehicle joins the application together with its licence. The file is
+   * checked before anything is saved, and the vehicle is taken back out if the
+   * upload still fails, so no vehicle is left without one.
+   */
   async execute(input: {
     applicationId: string;
     applicationToken: string;
     vehicle: VehicleCommand;
+    licence?: UploadedDocumentFile;
   }) {
     const application = await this.getApplication.resolve(
       input.applicationId,
@@ -74,6 +87,13 @@ export class AddApplicationVehicleUseCase {
     assertApplicationEditable(application);
 
     const details = validateVehicleDetails(input.vehicle);
+    if (!input.licence) {
+      throw new OnboardingValidationError(
+        'vehicleLicense',
+        'Vehicle licence document is required',
+      );
+    }
+    inspectDocumentFile('vehicle_license', input.licence);
     const clash = await this.applications.findVehicleByRegistration(
       application.id,
       details.registrationNumber,
@@ -81,21 +101,28 @@ export class AddApplicationVehicleUseCase {
     if (clash) throw new DuplicateVehicleError(details.registrationNumber);
 
     const now = new Date();
+    const vehicleId = this.idGenerator.generate();
     await this.applications.saveVehicle({
-      id: this.idGenerator.generate(),
+      id: vehicleId,
       applicationId: application.id,
       ...details,
       createdAt: now,
       updatedAt: now,
     });
 
-    await touchApplication(this.applications, application);
-
-    return {
-      status: true,
-      message: 'Vehicle added',
-      data: await loadApplicationView(this.applications, application),
-    };
+    try {
+      const stored = await this.uploadDocument.execute({
+        applicationId: application.id,
+        applicationToken: input.applicationToken,
+        documentType: 'vehicle_license',
+        vehicleId,
+        file: input.licence,
+      });
+      return { ...stored, message: 'Vehicle added' };
+    } catch (error) {
+      await this.applications.deleteVehicle(vehicleId);
+      throw error;
+    }
   }
 }
 
