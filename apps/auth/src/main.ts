@@ -76,6 +76,13 @@ async function bootstrap() {
   new JsonLogger("auth-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });
   const sentryEnabled = initializeSentry(cfg);
 
+  // Login failures and IP blocks key on req.ip. Without this it is the
+  // gateway pod, so three typos from anyone blocked every user. Express then
+  // takes the right-most forwarded address that is not one of these hops.
+  if (cfg.audit.trustedProxies.length) {
+    app.getHttpAdapter().getInstance().set("trust proxy", cfg.audit.trustedProxies);
+  }
+
   // This service owns the /auth namespace at the gateway. Keeping the
   // prefix on the URL is what stops two services claiming the same path: both
   // apps have a data-bundles controller, and only the prefix tells them apart.

@@ -59,6 +59,20 @@ describe('RecordAuthEventUseCase', () => {
     expect(raised).toHaveLength(1);
   });
 
+  it('records wrong second-factor codes without counting them toward the IP block', async () => {
+    const { useCase, authEvents, blockedIps } = harness();
+    for (let i = 0; i < 6; i++) {
+      await useCase.execute({
+        tenantId: null, userId: null, email: 'a@x.com',
+        eventType: 'login', status: 'failed', failureReason: 'mfa_failed',
+        ipAddress: '7.7.7.7', userAgent: null,
+      });
+    }
+    expect((await authEvents.search({})).total).toBe(6);
+    expect(await authEvents.countFailuresFromIp('7.7.7.7', new Date(0))).toBe(0);
+    expect(await blockedIps.findActiveByIp('7.7.7.7')).toBeNull();
+  });
+
   it('does not re-block an IP that already has an active block', async () => {
     const { useCase, blockedIps } = harness();
     for (let i = 0; i < 3; i++) {

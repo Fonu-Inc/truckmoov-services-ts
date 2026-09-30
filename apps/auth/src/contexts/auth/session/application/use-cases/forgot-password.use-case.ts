@@ -43,6 +43,7 @@ export class ForgotPasswordUseCase {
     await this.notifier.sendPasswordResetEmail({
       email: command.identifier,
       resetToken: token,
+      role: user.role,
     });
 
     return {

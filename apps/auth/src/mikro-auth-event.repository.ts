@@ -94,7 +94,7 @@ export class MikroAuthEventRepository implements AuthEventRepository {
   async countFailuresFromIp(ipAddress: string, since: Date): Promise<number> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ count: string }>>(
-      `select count(*)::int as count from auth_events where ip_address = ? and status = 'failed' and (event_type = 'access' or (event_type = 'login' and (failure_reason is null or failure_reason != 'account_locked'))) and occurred_at >= ?`,
+      `select count(*)::int as count from auth_events where ip_address = ? and status = 'failed' and (event_type = 'access' or (event_type = 'login' and (failure_reason is null or failure_reason not in ('account_locked', 'mfa_failed')))) and occurred_at >= ?`,
       [ipAddress, since],
     );
     return Number(rows[0]?.count ?? 0);

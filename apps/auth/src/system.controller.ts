@@ -67,6 +67,7 @@ import {
 import { ChangeSystemPasswordDto } from './dto/change-system-password.dto';
 import { CreateSystemAdminInviteDto } from './dto/create-system-admin-invite.dto';
 import { CreateSystemAdminDto } from './dto/create-system-admin.dto';
+import { ApiAdminLoginResponse, EnrolledSessionResponse } from './dto/login-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateOrganizationUserStatusDto } from './dto/update-organization-user-status.dto';
 import { UpdateSystemFeatureFlagDto } from './dto/update-system-feature-flag.dto';
@@ -156,7 +157,7 @@ export class SystemController extends BaseAuthController {
   @Portals('public')
   @Post('login')
   @UseGuards(LoginRateLimitGuard)
-  @ApiOkResponse({ type: AuthResponse })
+  @ApiAdminLoginResponse()
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
   ): Promise<AuthResponse | Record<string, unknown>> {
@@ -173,7 +174,7 @@ export class SystemController extends BaseAuthController {
     description:
       'Takes the challenge from the password step and a code from the authenticator, or a recovery code. On first enrolment it also returns the recovery codes, shown once.',
   })
-  @ApiOkResponse({ type: AuthResponse })
+  @ApiCreatedResponse({ description: 'Signed in', type: EnrolledSessionResponse })
   @ApiErrorResponse(
     401,
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',

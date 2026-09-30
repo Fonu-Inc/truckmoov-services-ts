@@ -14,8 +14,10 @@ export function loginOrigin(req: { ip?: string }, userAgent?: string): LoginOrig
 }
 
 /**
- * A wrong code counts toward the IP's automatic block like a wrong password.
- * A disabled or wrong-portal account does not: it is not a guessing signal.
+ * A wrong code is recorded but does not count toward the IP's automatic
+ * block: the account's own cooldown answers it, and a block at the third
+ * failure would pre-empt that cooldown. A disabled or wrong-portal account
+ * does not count either: it is not a guessing signal.
  */
 export function loginFailureReason(error: unknown): AuthFailureReason {
   if (

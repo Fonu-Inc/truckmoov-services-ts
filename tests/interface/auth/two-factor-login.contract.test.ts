@@ -150,7 +150,7 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
       expect(second.body.message).toBe('That code is not valid');
     });
 
-    it('refuses a bad code, and counts it toward the IP block', async () => {
+    it('refuses a bad code, and leaves the IP unblocked for the account cooldown to answer', async () => {
       await enrolments.clearCodeAttempts(enrolled[portal].userId);
       const ip = freshIp();
       const wrong = codeAt(enrolled[portal].secret, 20);
@@ -161,9 +161,9 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
       const blocked = await signIn(portal, ip);
 
       expect(refusals.map((r) => r.status)).toEqual([401, 401, 401]);
-      expect(blocked.status).toBe(403);
-      expect(blocked.body.message).toBe('This IP address is blocked');
-      // Three wrong codes also cooled the account down; the tests after this one sign in.
+      expect(blocked.status).toBe(201);
+      expect(blocked.body.twoFactorRequired).toBe(true);
+      // Three wrong codes cooled the account down; the tests after this one sign in.
       await enrolments.clearCodeAttempts(enrolled[portal].userId);
     });
 

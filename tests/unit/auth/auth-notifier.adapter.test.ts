@@ -112,4 +112,26 @@ describe("MailerAuthNotifier", () => {
     const inviteLink = new URL(mailer.sent[0]!.variables.inviteLink);
     expect(inviteLink.origin + inviteLink.pathname).toBe("https://installer.truckmoov.com/auth/invite");
   });
+
+  it("sends an installer's password reset to the installer app and everyone else's to the main app", async () => {
+    const mailer = new FakeMailerService();
+    const config = {
+      app: {
+        frontendUrl: "https://dev.truckmoov.com",
+        installerAppUrl: "https://installer.dev.truckmoov.com",
+        emailVerificationPath: "/auth/verify-email",
+      },
+    } as AppConfigService;
+    const notifier = new MailerAuthNotifier(mailer as unknown as MailerService, config);
+
+    await notifier.sendPasswordResetEmail({ email: "i@x.com", resetToken: "t1", role: "INSTALLER" });
+    await notifier.sendPasswordResetEmail({ email: "f@x.com", resetToken: "t2", role: "FLEET_ADMIN" });
+
+    expect(mailer.sent[0]?.variables.resetLink).toBe(
+      "https://installer.dev.truckmoov.com/auth/verify-email?token=t1&type=reset-password",
+    );
+    expect(mailer.sent[1]?.variables.resetLink).toBe(
+      "https://dev.truckmoov.com/auth/verify-email?token=t2&type=reset-password",
+    );
+  });
 });

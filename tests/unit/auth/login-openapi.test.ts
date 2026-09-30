@@ -43,4 +43,18 @@ describe('Login OpenAPI contract', () => {
 
     expect(refs).toEqual(['#/components/schemas/CodeCooldownErrorBody', '#/components/schemas/ApiErrorBody']);
   });
+
+  it('SystemController.systemLogin documents the session, the code challenge and the enrolment challenge', () => {
+    const refs = responses(SystemController.prototype, 'systemLogin')['201']?.schema?.oneOf?.map((entry) => entry.$ref) ?? [];
+
+    expect(refs).toEqual([
+      '#/components/schemas/LoginSessionResponse',
+      '#/components/schemas/TwoFactorChallengeResponse',
+      '#/components/schemas/EnrolmentChallengeResponse',
+    ]);
+  });
+
+  it('SystemController.systemLoginTwoFactor documents the session with its recovery codes', () => {
+    expect(responses(SystemController.prototype, 'systemLoginTwoFactor')['201']?.type).toBeTruthy();
+  });
 });

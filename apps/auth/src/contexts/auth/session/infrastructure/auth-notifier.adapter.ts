@@ -7,6 +7,7 @@ import type {
 } from "@auth/session/domain/ports/auth-notifier.port";
 import { AppConfigService } from "@shared/config";
 import { MailerService } from "@shared/mailer";
+import { Role } from "@shared/rbac";
 import { INVITE_USER_SUBJECT, INVITE_USER_TEMPLATE } from "@auth/templates/invite-user.template";
 import {
   FORGOT_PASSWORD_EMAIL_TEMPLATE,
@@ -58,7 +59,8 @@ export class MailerAuthNotifier implements AuthNotifier {
   }
 
   async sendPasswordResetEmail(input: PasswordResetEmail): Promise<void> {
-    const resetLink = `${this.config.app.frontendUrl}${this.config.app.emailVerificationPath}?token=${input.resetToken}&type=reset-password`;
+    const portalUrl = input.role === Role.INSTALLER ? this.config.app.installerAppUrl : this.config.app.frontendUrl;
+    const resetLink = `${portalUrl}${this.config.app.emailVerificationPath}?token=${input.resetToken}&type=reset-password`;
 
     await this.mailer.send({
       to: input.email,

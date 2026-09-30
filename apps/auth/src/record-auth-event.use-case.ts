@@ -37,11 +37,14 @@ export type RecordAuthEventCommand = {
 
 // account_locked covers both a disabled account and an audience mismatch
 // (e.g. a superadmin hitting the tenant login endpoint with their correct
-// password) — neither is a credential-guessing signal.
+// password) — neither is a credential-guessing signal. A wrong second-factor
+// code has its own per-account cooldown, which a block would pre-empt.
+const NON_BLOCKING_FAILURES: ReadonlyArray<AuthFailureReason | null | undefined> = ['account_locked', 'mfa_failed'];
+
 function countsTowardBlocking(command: RecordAuthEventCommand): boolean {
   if (command.status !== 'failed') return false;
   if (command.eventType === 'access') return true;
-  return command.eventType === 'login' && command.failureReason !== 'account_locked';
+  return command.eventType === 'login' && !NON_BLOCKING_FAILURES.includes(command.failureReason);
 }
 
 /**

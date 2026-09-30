@@ -1,5 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiExtraModels, ApiProperty, ApiResponse, getSchemaPath } from '@nestjs/swagger';
+import { ApiExtraModels, ApiProperty, ApiPropertyOptional, ApiResponse, getSchemaPath } from '@nestjs/swagger';
 import { StandardApiResponse } from '@shared/openapi';
 
 export class LoginSessionUserSchema {
@@ -42,6 +42,52 @@ export function ApiLoginResponse() {
       description: 'Signed in, or a code is owed: twoFactorRequired marks the challenge',
       schema: {
         oneOf: [{ $ref: getSchemaPath(LoginSessionResponse) }, { $ref: getSchemaPath(TwoFactorChallengeResponse) }],
+      },
+    }),
+  );
+}
+
+export class TwoFactorEnrolmentSchema {
+  @ApiProperty({ description: 'Shown once; the authenticator app is set up with it.' }) secret!: string;
+  @ApiProperty({ description: 'Render as a QR code.' }) otpauthUri!: string;
+}
+
+export class EnrolmentChallengeSchema {
+  @ApiProperty({ enum: [true] }) twoFactorRequired!: true;
+  @ApiProperty({ enum: ['enrolment'] }) step!: 'enrolment';
+  @ApiProperty({ description: 'Send back with the first code to POST /auth/system/login/two-factor.' }) challengeToken!: string;
+  @ApiProperty({ type: TwoFactorEnrolmentSchema }) enrolment!: TwoFactorEnrolmentSchema;
+}
+
+export class EnrolmentChallengeResponse extends StandardApiResponse<EnrolmentChallengeSchema> {
+  @ApiProperty({ type: EnrolmentChallengeSchema }) data!: EnrolmentChallengeSchema;
+}
+
+export class EnrolledSessionSchema extends LoginSessionSchema {
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Present only when the code finished the first enrolment at sign-in. Shown once.',
+  })
+  recoveryCodes?: string[];
+}
+
+export class EnrolledSessionResponse extends StandardApiResponse<EnrolledSessionSchema> {
+  @ApiProperty({ type: EnrolledSessionSchema }) data!: EnrolledSessionSchema;
+}
+
+/** The admin sign-in: a session, a code challenge, or, once the platform requires it, an enrolment challenge. */
+export function ApiAdminLoginResponse() {
+  return applyDecorators(
+    ApiExtraModels(LoginSessionResponse, TwoFactorChallengeResponse, EnrolmentChallengeResponse),
+    ApiResponse({
+      status: 201,
+      description: 'Signed in, or a code is owed: step is "code", or "enrolment" while the platform requires two-factor',
+      schema: {
+        oneOf: [
+          { $ref: getSchemaPath(LoginSessionResponse) },
+          { $ref: getSchemaPath(TwoFactorChallengeResponse) },
+          { $ref: getSchemaPath(EnrolmentChallengeResponse) },
+        ],
       },
     }),
   );

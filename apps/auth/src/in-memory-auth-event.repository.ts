@@ -49,7 +49,7 @@ export class InMemoryAuthEventRepository implements AuthEventRepository {
       (e) =>
         e.ipAddress === ipAddress &&
         e.status === 'failed' &&
-        (e.eventType === 'access' || (e.eventType === 'login' && e.failureReason !== 'account_locked')) &&
+        (e.eventType === 'access' || (e.eventType === 'login' && e.failureReason !== 'account_locked' && e.failureReason !== 'mfa_failed')) &&
         e.occurredAt >= since,
     ).length;
   }

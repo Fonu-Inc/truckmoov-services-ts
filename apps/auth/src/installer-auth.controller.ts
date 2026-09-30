@@ -1,9 +1,10 @@
-import { Body, Controller, Headers, Inject, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Headers, Inject, NotFoundException, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Portals } from '@shared/access';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
+import { EmailNotVerifiedError, ForbiddenError } from './contexts/auth/session';
 import { InstallerLoginUseCase } from './contexts/installation/application/use-cases/installer-login.use-case';
 import { ApiErrorResponse, ApiValidationErrorBody, CodeAttemptsLimited } from './dto/api-error.dto';
 import { ApiLoginResponse, LoginSessionResponse } from './dto/login-response.dto';
@@ -47,7 +48,9 @@ export class InstallerAuthController extends BaseAuthController {
   ) {
     const origin = loginOrigin(req, userAgent);
     const started = await this.runAuthUseCase(() =>
-      this.loginEvents.recordingFailure(origin, payload.email, () => this.installerLogin.execute(payload)),
+      this.asMissingRoute('/auth/installer/login', () =>
+        this.loginEvents.recordingFailure(origin, payload.email, () => this.installerLogin.execute(payload)),
+      ),
     );
     if (started.kind !== 'session') return challengeBody(started);
     await this.signedIn(started.session, origin);
@@ -77,12 +80,26 @@ export class InstallerAuthController extends BaseAuthController {
   ) {
     const origin = loginOrigin(req, userAgent);
     const { session, secondFactor } = await this.runAuthUseCase(() =>
-      this.loginEvents.recordingFailure(origin, null, () =>
-        this.installerLogin.completeTwoFactor(payload.challengeToken, payload.code),
+      this.asMissingRoute('/auth/installer/login/two-factor', () =>
+        this.loginEvents.recordingFailure(origin, null, () =>
+          this.installerLogin.completeTwoFactor(payload.challengeToken, payload.code),
+        ),
       ),
     );
     await this.signedIn(session, origin, secondFactor);
     return session;
+  }
+
+  // Refusing a correct password with a 403 would confirm it for any account.
+  private async asMissingRoute<T>(path: string, step: () => Promise<T>): Promise<T> {
+    try {
+      return await step();
+    } catch (error) {
+      if (error instanceof ForbiddenError || error instanceof EmailNotVerifiedError) {
+        throw new NotFoundException(`Cannot POST ${path}`);
+      }
+      throw error;
+    }
   }
 
   private async signedIn(session: Session, origin: LoginOrigin, secondFactor?: SecondFactor) {

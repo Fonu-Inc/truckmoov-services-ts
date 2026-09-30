@@ -7,6 +7,7 @@ export type InviteEmail = {
 export type PasswordResetEmail = {
   email: string;
   resetToken: string;
+  role?: string;
 };
 
 export type VerificationEmail = {
