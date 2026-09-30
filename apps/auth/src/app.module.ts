@@ -256,7 +256,6 @@ import { MikroSecurityEventRepository } from './mikro-security-event.repository'
 import { RecordAuthEventUseCase } from './record-auth-event.use-case';
 import { IpBlockGuard } from './ip-block.guard';
 import { ListSystemAuthEventsUseCase, ListSystemFailedLoginsUseCase } from './list-system-auth-events.use-case';
-import { ListBlockedIpsUseCase, ManuallyBlockIpUseCase, UnblockIpUseCase } from './blocked-ip.use-cases';
 import { ListAutoBlockRulesUseCase, UpdateAutoBlockRuleUseCase } from './auto-block-rule.use-cases';
 import { ListSecurityEventsUseCase } from './list-security-events.use-case';
 import { GetSecurityOverviewUseCase } from './get-security-overview.use-case';
@@ -1178,9 +1177,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     IpBlockGuard,
     ListSystemAuthEventsUseCase,
     ListSystemFailedLoginsUseCase,
-    ListBlockedIpsUseCase,
-    ManuallyBlockIpUseCase,
-    UnblockIpUseCase,
     ListAutoBlockRulesUseCase,
     UpdateAutoBlockRuleUseCase,
     ListSecurityEventsUseCase,

@@ -19,13 +19,6 @@ import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { ListSystemAuthEventsUseCase, ListSystemFailedLoginsUseCase } from './list-system-auth-events.use-case';
 import {
-  BlockedIpAlreadyUnblockedError,
-  BlockedIpNotFoundError,
-  ListBlockedIpsUseCase,
-  ManuallyBlockIpUseCase,
-  UnblockIpUseCase,
-} from './blocked-ip.use-cases';
-import {
   AutoBlockRuleNotFoundError,
   ListAutoBlockRulesUseCase,
   UpdateAutoBlockRuleUseCase,
@@ -33,7 +26,7 @@ import {
 import { isAutoBlockRuleId } from './auto-block-rule.repository';
 import { ListSecurityEventsUseCase } from './list-security-events.use-case';
 import { GetSecurityOverviewUseCase } from './get-security-overview.use-case';
-import { BlockIpDto, UpdateAutoBlockRuleDto } from './dto/security.dto';
+import { UpdateAutoBlockRuleDto } from './dto/security.dto';
 import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System Security')
@@ -46,9 +39,6 @@ export class SystemSecurityController extends BaseAuthController {
     @Inject(GetSecurityOverviewUseCase) private readonly getSecurityOverviewUseCase: GetSecurityOverviewUseCase,
     @Inject(ListSystemAuthEventsUseCase) private readonly listSystemAuthEventsUseCase: ListSystemAuthEventsUseCase,
     @Inject(ListSystemFailedLoginsUseCase) private readonly listSystemFailedLoginsUseCase: ListSystemFailedLoginsUseCase,
-    @Inject(ListBlockedIpsUseCase) private readonly listBlockedIpsUseCase: ListBlockedIpsUseCase,
-    @Inject(ManuallyBlockIpUseCase) private readonly manuallyBlockIpUseCase: ManuallyBlockIpUseCase,
-    @Inject(UnblockIpUseCase) private readonly unblockIpUseCase: UnblockIpUseCase,
     @Inject(ListAutoBlockRulesUseCase) private readonly listAutoBlockRulesUseCase: ListAutoBlockRulesUseCase,
     @Inject(UpdateAutoBlockRuleUseCase) private readonly updateAutoBlockRuleUseCase: UpdateAutoBlockRuleUseCase,
     @Inject(ListSecurityEventsUseCase) private readonly listSecurityEventsUseCase: ListSecurityEventsUseCase,
@@ -157,98 +147,6 @@ export class SystemSecurityController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      throw error;
-    }
-  }
-
-  @Get('blocked-ips')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'List blocked IPs' })
-  @ApiQuery({ name: 'activeOnly', required: false, type: Boolean })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'offset', required: false, type: Number })
-  @ApiOkResponse()
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Not a system actor' })
-  async listBlockedIps(
-    @Headers('authorization') authorization: string | undefined,
-    @Query('activeOnly') activeOnly: string | undefined,
-    @Query('search') search: string | undefined,
-    @Query('limit') limit: string | undefined,
-    @Query('offset') offset: string | undefined,
-  ) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      return await this.listBlockedIpsUseCase.execute(accessToken, {
-        activeOnly: activeOnly === 'true',
-        search,
-        limit: this.parseNumericQuery(limit),
-        offset: this.parseNumericQuery(offset),
-      });
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      throw error;
-    }
-  }
-
-  @Post('blocked-ips')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Manually block an IP address' })
-  @ApiOkResponse()
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Not a system mutator' })
-  async blockIp(@Body() body: BlockIpDto, @Headers('authorization') authorization?: string) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      const result = await this.manuallyBlockIpUseCase.execute(
-        accessToken,
-        body.ipAddress,
-        body.reason,
-        body.expiresAt ? new Date(body.expiresAt) : null,
-      );
-      await this.tryRecordActivityFromAccessToken(accessToken, {
-        service: 'auth',
-        action: 'system.security.ip_blocked',
-        entityType: 'blocked_ip',
-        entityId: body.ipAddress,
-        summary: `IP ${body.ipAddress} blocked`,
-      });
-      return result;
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      throw error;
-    }
-  }
-
-  @Patch('blocked-ips/:id/unblock')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Unblock an IP address' })
-  @ApiOkResponse()
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
-  @ApiForbiddenResponse({ description: 'Not a system mutator' })
-  async unblockIp(@Param('id') id: string, @Headers('authorization') authorization?: string) {
-    const accessToken = this.extractBearerToken(authorization);
-    if (!accessToken) throw new UnauthorizedException('Missing authorization');
-    try {
-      const result = await this.unblockIpUseCase.execute(accessToken, id);
-      await this.tryRecordActivityFromAccessToken(accessToken, {
-        service: 'auth',
-        action: 'system.security.ip_unblocked',
-        entityType: 'blocked_ip',
-        entityId: id,
-        summary: 'IP unblocked',
-      });
-      return result;
-    } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof BlockedIpNotFoundError) throw new NotFoundException(error.message);
-      if (error instanceof BlockedIpAlreadyUnblockedError) throw new BadRequestException(error.message);
       throw error;
     }
   }
