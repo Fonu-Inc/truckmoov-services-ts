@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/auth/**"
       - "apps/fleet/**"
+      - "apps/realtime/**"
       - "libs/shared/**"
       - "tests/**"
       - "Dockerfile.auth"
@@ -24,6 +25,7 @@ on:
     paths:
       - "apps/auth/**"
       - "apps/fleet/**"
+      - "apps/realtime/**"
       - "libs/shared/**"
       - "tests/**"
       - "Dockerfile.auth"
@@ -39,12 +41,107 @@ on:
       - "deploy/**"
   workflow_dispatch:
 
+# A run on main ships only the services it changed, so a newer push must not
+# cancel it: that would drop its deploy. Each main run gets its own group.
 concurrency:
-  group: services-cicd-${{ github.ref }}
-  cancel-in-progress: true
+  group: services-cicd-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      services: ${{ steps.services.outputs.services }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            auth:
+              - "apps/auth/**"
+              - "Dockerfile.auth"
+              - "tests/*/auth/**"
+            fleet:
+              - "apps/fleet/**"
+              - "Dockerfile.fleet"
+              - "tests/*/fleet/**"
+            realtime:
+              - "apps/realtime/**"
+              - "Dockerfile.realtime"
+              - "tests/*/realtime/**"
+            shared:
+              - "libs/**"
+              - "tests/unit/shared/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - "tsconfig*.json"
+              - "nest-cli.json"
+              - ".env.example"
+              - "deploy/**"
+              - ".github/workflows/auth-cicd.yml"
+
+      # Shared code, or a manual run, touches every service; otherwise only the
+      # services whose own files changed.
+      - name: Services to test and ship
+        id: services
+        env:
+          CHANGED: ${{ steps.filter.outputs.changes }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ] || echo "$CHANGED" | jq -e 'index("shared")' > /dev/null; then
+            services='["auth","fleet","realtime"]'
+          else
+            services=$(echo "$CHANGED" | jq -c '[.[] | select(. != "shared")]')
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "Services: $services"
+
   validate:
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint ${{ matrix.service }}
+        run: pnpm lint:${{ matrix.service }}
+
+      - name: Test ${{ matrix.service }}
+        run: pnpm test:${{ matrix.service }}
+
+      - name: Build ${{ matrix.service }}
+        run: pnpm build:${{ matrix.service }}
+
+  # Whole-repo checks no single service owns: the type check covers every app at
+  # once, and the shared tests load the auth and fleet modules together.
+  check:
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -63,14 +160,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
+      - name: Type check
+        run: pnpm typecheck
 
-      - name: Test services
-        run: pnpm test
-
-      - name: Build services
-        run: pnpm build
+      - name: Shared tests
+        run: pnpm test:shared
 
   security:
     runs-on: ubuntu-latest
@@ -143,21 +237,15 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    needs: validate
-    if: github.ref == 'refs/heads/main'
+    needs: [changes, validate, check]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.services != '[]'
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - service: auth
-            dockerfile: Dockerfile.auth
-          - service: fleet
-            dockerfile: Dockerfile.fleet
-          - service: realtime
-            dockerfile: Dockerfile.realtime
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -172,18 +260,21 @@ jobs:
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: Dockerfile.${{ matrix.service }}
           platforms: linux/amd64
           push: true
           tags: ghcr.io/fonu-inc/truckmoov-${{ matrix.service }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   update-gitops:
     runs-on: ubuntu-latest
-    needs: publish
+    needs: [changes, publish]
     permissions:
       contents: read
     env:
       GIT_SHA: ${{ github.sha }}
+      SERVICES: ${{ needs.changes.outputs.services }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -197,7 +288,8 @@ jobs:
       - name: Bump image tags
         run: |
           set -euo pipefail
-          for service in auth fleet realtime; do
+          # Only the services published in this run have an image at this tag.
+          for service in $(echo "$SERVICES" | jq -r '.[]'); do
             (cd gitops/manifests/$service && kustomize edit set image "ghcr.io/fonu-inc/truckmoov-${service}:sha-${GIT_SHA}")
           done
           cd gitops
@@ -205,4 +297,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git diff --quiet && exit 0
           git commit -am "chore: bump ts services to sha-${GIT_SHA}"
-          git push
+          # Runs on main no longer cancel each other, so another bump may land first.
+          for attempt in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep $((attempt * 2))
+          done
+          exit 1
