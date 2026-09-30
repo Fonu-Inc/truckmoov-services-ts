@@ -195,6 +195,15 @@ export class M2mPlansDataSchema {
   @ApiProperty({ type: [M2mPlanSchema] }) plans!: M2mPlanSchema[];
 }
 
+export class EmailAvailabilitySchema {
+  @ApiProperty({ description: 'False when an account or an open application already uses the address.' })
+  available!: boolean;
+}
+
+export class EmailAvailabilityResponse extends StandardApiResponse<EmailAvailabilitySchema> {
+  @ApiProperty({ type: EmailAvailabilitySchema }) data!: EmailAvailabilitySchema;
+}
+
 export class M2mPlansResponse extends StandardApiResponse<M2mPlansDataSchema> {
   @ApiProperty({ type: M2mPlansDataSchema }) data!: M2mPlansDataSchema;
 }

@@ -15,6 +15,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Res,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -23,6 +24,7 @@ import {
   UseInterceptors,
   applyDecorators,
 } from '@nestjs/common';
+import { CheckEmailAvailabilityUseCase } from './contexts/onboarding/email-availability/check-email-availability.use-case';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
 import {
@@ -31,6 +33,7 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiOkResponse,
+  ApiQuery,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -110,6 +113,7 @@ import {
   CreatedOnboardingApplicationResponse,
   IndemnityAgreementResponse,
   IndemnitySignatureResponse,
+  EmailAvailabilityResponse,
   M2mPlansResponse,
   OnboardingApplicationResponse,
   OnboardingApplicationStatusResponse,
@@ -248,6 +252,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly setBillingEmail: SetBillingEmailUseCase,
     @Inject(ScheduleInstallationUseCase)
     private readonly scheduleInstallation: ScheduleInstallationUseCase,
+    @Inject(CheckEmailAvailabilityUseCase)
+    private readonly emailAvailability: CheckEmailAvailabilityUseCase,
   ) {
     super(activityLogService);
   }
@@ -284,6 +290,21 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @RateLimited()
   async listM2mPlans() {
     return this.m2mPlans.execute();
+  }
+
+  @Get('email-availability')
+  @ApiOperation({
+    summary: 'Check whether a business email can still be used',
+    description:
+      'Called while the applicant types. available is false when an account or an open application already uses the address. The save still answers 409 if the address was taken in between. Pass applicationId while editing so the application does not count against itself.',
+  })
+  @ApiQuery({ name: 'email', required: true })
+  @ApiQuery({ name: 'applicationId', required: false })
+  @ApiOkResponse({ description: 'Availability returned', type: EmailAvailabilityResponse })
+  @ApiErrorResponse(400, 'The address is not a valid email: { message, field: "businessEmail" }', OnboardingFieldErrorBody)
+  @RateLimited()
+  async checkEmailAvailability(@Query('email') email?: string, @Query('applicationId') applicationId?: string) {
+    return this.run(() => this.emailAvailability.execute(email, applicationId));
   }
 
   @Post('resume')

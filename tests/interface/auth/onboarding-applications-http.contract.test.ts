@@ -357,6 +357,26 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(409);
   });
 
+  it('reports whether a business email is still free while it is typed', async () => {
+    const { id } = await startApplication('typing@arne.com');
+    const check = (email: string, applicationId?: string) =>
+      request(app.getHttpServer())
+        .get('/auth/onboarding/applications/email-availability')
+        .query({ email, ...(applicationId && { applicationId }) });
+
+    const taken = await check('Typing@Arne.com');
+    const own = await check('typing@arne.com', id);
+    const free = await check('nobody-uses-this@arne.com');
+    const invalid = await check('not-an-email');
+
+    expect(taken.status).toBe(200);
+    expect(taken.body.data).toEqual({ available: false });
+    expect(own.body.data).toEqual({ available: true });
+    expect(free.body.data).toEqual({ available: true });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.field).toBe('businessEmail');
+  });
+
   it('refuses to read an application with the wrong token', async () => {
     const { id } = await startApplication('wrongtoken@arne.com');
 

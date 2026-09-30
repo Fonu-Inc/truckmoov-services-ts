@@ -2,7 +2,12 @@ import { type MiddlewareConsumer, type NestModule, Module } from '@nestjs/common
 import { CryptoModule } from "@shared/crypto";
 import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
-import { IdempotencyGuard, RedisClientProvider } from '@shared/rbac';
+import { IdempotencyGuard, REDIS_CLIENT, RedisClientProvider } from '@shared/rbac';
+import { CheckEmailAvailabilityUseCase } from './contexts/onboarding/email-availability/check-email-availability.use-case';
+import { EMAIL_BITSET, InMemoryEmailBitset } from './contexts/onboarding/email-availability/email-bitset';
+import { EmailBloomService } from './contexts/onboarding/email-availability/email-bloom.service';
+import { RedisEmailBitset, type BitRedis } from './contexts/onboarding/email-availability/redis-email-bitset';
+import { MikroTakenEmailSource, TAKEN_EMAIL_SOURCE } from './contexts/onboarding/email-availability/taken-email-source';
 import { EventBusModule } from '@shared/eventbus';
 import { MetricsModule } from '@shared/metrics';
 import { ReadinessController } from './readiness.controller';
@@ -1776,6 +1781,15 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateOnboardingApplicationUseCase,
     InMemoryOnboardingApplicationRepository,
     MikroOnboardingApplicationRepository,
+    MikroTakenEmailSource,
+    { provide: TAKEN_EMAIL_SOURCE, useExisting: MikroTakenEmailSource },
+    {
+      provide: EMAIL_BITSET,
+      inject: [REDIS_CLIENT],
+      useFactory: (redis: unknown) => (redis ? new RedisEmailBitset(redis as BitRedis) : new InMemoryEmailBitset()),
+    },
+    EmailBloomService,
+    CheckEmailAvailabilityUseCase,
     {
       provide: ONBOARDING_APPLICATION_REPOSITORY,
       inject: [InMemoryOnboardingApplicationRepository, MikroOnboardingApplicationRepository, AppConfigService],
