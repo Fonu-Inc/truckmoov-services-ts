@@ -6,6 +6,7 @@ import { InMemoryPermissionRemovalRepository } from '../../../apps/auth/src/in-m
 import { EmailTakenError, ForbiddenError, InviteNotFoundError } from '../../../apps/auth/src/contexts/auth/session';
 import { AuthUser } from '../../../apps/auth/src/contexts/auth/session/domain/entities/auth-user.entity';
 import { LoginUseCase } from '../../../apps/auth/src/contexts/auth/session/application/use-cases/login.use-case';
+import { ValidateInviteUseCase } from '../../../apps/auth/src/contexts/auth/session/application/use-cases/validate-invite.use-case';
 import { RegisterInvitedUseCase } from '../../../apps/auth/src/contexts/auth/session/application/use-cases/register-invited.use-case';
 import { InMemoryInviteRepository } from '../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-invite.repository';
 import { InMemorySessionStore } from '../../../apps/auth/src/contexts/auth/session/infrastructure/in-memory-session.store';
@@ -201,6 +202,18 @@ describe('accepting an installer invite', () => {
     expect(result.user).toMatchObject({ role: 'INSTALLER', tenantId: 'system' });
     expect((await h.users.findById(result.user.id))?.profile?.fullName).toBe('Tunde Akinwale');
     expect(await h.installers.findById(view.id)).toMatchObject({ userId: result.user.id, status: 'active' });
+  });
+
+  it('needs no name from the installer: the invited one is used, and shown when the invite is checked', async () => {
+    const h = await harness();
+    await h.admin.create('platform', NEW_INSTALLER);
+    const invite = (await h.invites.findByEmail('tunde@example.com'))!;
+
+    const checked = await new ValidateInviteUseCase(h.invites, new InstallerAccountsAdapter(h.installers)).execute(invite.token);
+    const result = await h.register.execute({ inviteToken: invite.token, password: 'StrongPass123!' });
+
+    expect(checked).toMatchObject({ email: 'tunde@example.com', fullName: 'Tunde Akinwale' });
+    expect((await h.users.findById(result.user.id))?.profile?.fullName).toBe('Tunde Akinwale');
   });
 
   it('refuses an installer invite with no installer waiting on it', async () => {

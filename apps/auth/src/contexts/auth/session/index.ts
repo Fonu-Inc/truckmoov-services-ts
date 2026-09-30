@@ -4,6 +4,7 @@ export { InvalidRefreshTokenError } from "./domain/errors/invalid-refresh-token.
 export { InvalidAccessTokenError } from "./domain/errors/invalid-access-token.error";
 export { EmailTakenError } from "./domain/errors/email-taken.error";
 export { InviteNotFoundError } from "./domain/errors/invite-not-found.error";
+export { FullNameRequiredError } from "./domain/errors/full-name-required.error";
 export { InvalidResetTokenError } from "./domain/errors/invalid-reset-token.error";
 export { EmailNotVerifiedError } from "./domain/errors/email-not-verified.error";
 export { InvalidVerificationTokenError } from "./domain/errors/invalid-verification-token.error";

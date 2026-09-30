@@ -5,9 +5,11 @@ export class RegisterInvitedDto {
   @MinLength(10)
   inviteToken!: string;
 
+  // An installer's name comes from their installer record; everyone else must send one.
+  @IsOptional()
   @IsString()
   @MaxLength(160)
-  fullName!: string;
+  fullName?: string;
 
   // Legacy clients may still send email, but the invite token is the source of truth.
   @IsOptional()

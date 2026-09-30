@@ -16,6 +16,7 @@ import { UpdateOrganizationUserUseCase } from "../../../apps/auth/src/contexts/a
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
 import { InvalidAccessTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-access-token.error";
 import { InviteNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invite-not-found.error";
+import { FullNameRequiredError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/full-name-required.error";
 import { EmailTakenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/email-taken.error";
 import { UserNotFoundError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/user-not-found.error";
 import { InvalidResetTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-reset-token.error";
@@ -536,6 +537,12 @@ describe("RegisterInvitedUseCase", () => {
 
     const invite = inviteRepo.getByToken("good-token");
     expect(invite?.status).toBe("accepted");
+  });
+
+  it("asks anyone but an installer for a name", async () => {
+    await expect(
+      uc.execute({ inviteToken: "good-token", password: "Str0ngPass!" }),
+    ).rejects.toBeInstanceOf(FullNameRequiredError);
   });
 
   it("rejects registration with expired invite", async () => {

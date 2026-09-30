@@ -6,6 +6,7 @@ import { holdsMisplacedSystemRole } from "@shared/identity";
 import { AuthUser } from "../../domain/entities/auth-user.entity";
 import { EmailTakenError } from "../../domain/errors/email-taken.error";
 import { InviteNotFoundError } from "../../domain/errors/invite-not-found.error";
+import { FullNameRequiredError } from "../../domain/errors/full-name-required.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
@@ -15,7 +16,7 @@ import { INSTALLER_ACCOUNTS, type InstallerAccounts } from "../../domain/ports/i
 
 export type RegisterInvitedCommand = {
   inviteToken: string;
-  fullName: string;
+  fullName?: string;
   email?: string;
   password: string;
 };
@@ -99,8 +100,12 @@ export class RegisterInvitedUseCase {
   }
 
   /** An installer's name is the one on their installer record, which customers see. */
-  private async fullNameFor(role: string, email: string, given: string): Promise<string> {
-    if (role !== Role.INSTALLER) return given.trim();
+  private async fullNameFor(role: string, email: string, given?: string): Promise<string> {
+    if (role !== Role.INSTALLER) {
+      const name = given?.trim();
+      if (!name) throw new FullNameRequiredError();
+      return name;
+    }
     const installer = await this.installers.invited(email);
     if (!installer) throw new InviteNotFoundError();
     return installer.fullName;

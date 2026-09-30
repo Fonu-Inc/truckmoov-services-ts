@@ -54,6 +54,7 @@ import {
   TOKEN_SERVICE,
   ForbiddenError,
   InviteNotFoundError,
+  FullNameRequiredError,
   InviteUserUseCase,
   InvalidVerificationTokenError,
   TokenBelongsToInviteError,
@@ -447,6 +448,8 @@ export class AuthController extends BaseAuthController {
         throw new ConflictException(error.message);
       if (error instanceof ForbiddenError)
         throw new ForbiddenException(error.message);
+      if (error instanceof FullNameRequiredError)
+        throw new BadRequestException({ message: error.message, field: 'fullName' });
       throw error;
     }
   }
