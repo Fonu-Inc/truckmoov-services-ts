@@ -22,7 +22,7 @@ export type StatementVehicle = {
   profit: number;
   marginPercent: number;
   tier: string;
-  score: number;
+  score: number | null;
   costBreakdown: StatementCostBreakdown;
   jobCount: number;
 };
@@ -32,7 +32,7 @@ export type FinancialStatementSummary = {
   totalCost: number;
   totalProfit: number;
   avgMarginPercent: number;
-  avgScore: number;
+  avgScore: number | null;
   vehicleCount: number;
 };
 
@@ -83,16 +83,18 @@ function withDefaults(opts: StatementOptions): typeof DEFAULT_OPTIONS {
   return { ...DEFAULT_OPTIONS, ...set };
 }
 
-function plRow(v: StatementVehicle): (string | number)[] {
+type Cell = string | number | null;
+
+function plRow(v: StatementVehicle): Cell[] {
   return [v.vehicleId, v.plateNumber, v.revenue, v.totalCost, v.profit, v.marginPercent, v.score, v.tier, v.jobCount];
 }
 
-function costRow(v: StatementVehicle): (string | number)[] {
+function costRow(v: StatementVehicle): Cell[] {
   const c = v.costBreakdown;
   return [v.vehicleId, v.plateNumber, c.fuel, c.maintenance, c.wages, c.insurance, c.depreciation, c.other, v.totalCost];
 }
 
-function csvSection(headers: string[], rows: (string | number)[][]): string[] {
+function csvSection(headers: string[], rows: Cell[][]): string[] {
   return [headers.join(","), ...rows.map((row) => row.map(csvCell).join(","))];
 }
 
@@ -120,7 +122,7 @@ export function renderStatementCsv(s: FinancialStatement, opts: StatementOptions
       `Total Cost,${s.summary.totalCost}`,
       `Total Profit,${s.summary.totalProfit}`,
       `Avg Margin %,${s.summary.avgMarginPercent}`,
-      `Avg Score,${s.summary.avgScore}`,
+      `Avg Score,${csvCell(s.summary.avgScore)}`,
       `Vehicles,${s.summary.vehicleCount}`,
     );
   }
@@ -141,7 +143,7 @@ export async function renderStatementXlsx(s: FinancialStatement, opts: Statement
 
   if (o.includeSummary) {
     const summary = wb.addWorksheet("Summary");
-    const rows: (string | number)[][] = [[o.title, s.generatedAt]];
+    const rows: Cell[][] = [[o.title, s.generatedAt]];
     if (opts.companyName) rows.push(["Company", opts.companyName]);
     if (opts.preparedBy) rows.push(["Prepared By", opts.preparedBy]);
     rows.push(
@@ -179,6 +181,10 @@ function money(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
+function scoreText(score: number | null, suffix = ""): string {
+  return score === null ? "n/a" : `${score}${suffix}`;
+}
+
 export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions = {}): Buffer {
   const o = withDefaults(opts);
   const pdf = new SimplePdf();
@@ -202,7 +208,7 @@ export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions
     pdf.row(summaryRow("Total Cost (NGN)", money(s.summary.totalCost)));
     pdf.row(summaryRow("Total Profit (NGN)", money(s.summary.totalProfit)));
     pdf.row(summaryRow("Average Margin %", `${s.summary.avgMarginPercent}`));
-    pdf.row(summaryRow("Average Score", `${s.summary.avgScore}/100`));
+    pdf.row(summaryRow("Average Score", scoreText(s.summary.avgScore, "/100")));
     pdf.row(summaryRow("Vehicles", `${s.summary.vehicleCount}`));
     pdf.spacer();
   }
@@ -225,7 +231,7 @@ export function renderStatementPdf(s: FinancialStatement, opts: StatementOptions
         { text: money(v.totalCost), width: 90, align: "right" },
         { text: money(v.profit), width: 90, align: "right" },
         { text: `${v.marginPercent}`, width: 65, align: "right" },
-        { text: `${v.score}`, width: 55, align: "right" },
+        { text: scoreText(v.score), width: 55, align: "right" },
       ]);
     }
     pdf.spacer();

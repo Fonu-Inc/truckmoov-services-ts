@@ -638,4 +638,30 @@ describe("Fleet HTTP contract", () => {
     const bogus = await request(app.getHttpServer()).get("/fleet/track/not-a-real-token");
     expect(bogus.status).toBe(410);
   }, 120_000);
+
+  it("records and edits fuel with one record shape, and exports a header row with no transactions", async () => {
+    const server = app.getHttpServer();
+    const empty = await request(server).get("/fleet/fuel/export").set("Authorization", authToken("admin", "fuel-empty"));
+    expect(empty.status).toBe(200);
+    expect(empty.text.split("\n")).toEqual([expect.stringMatching(/^id,tenantId,vehicleId,.*,totalCost,.*,driverName$/)]);
+
+    const vehicle = await request(server)
+      .post("/fleet/vehicles")
+      .set("Authorization", authToken("admin"))
+      .send({ registrationNumber: "FUEL-1", make: "Volvo", model: "FH", year: 2025, type: "truck", capacity: 10 });
+    const created = await request(server)
+      .post("/fleet/fuel")
+      .set("Authorization", authToken("admin"))
+      .send({ vehicleId: vehicle.body.id, liters: 10, pricePerLiter: 5 });
+    expect(created.status).toBe(201);
+    expect(created.body.data.totalCost).toBe(50);
+
+    const edited = await request(server)
+      .patch(`/fleet/fuel/${created.body.data.id}`)
+      .set("Authorization", authToken("admin"))
+      .send({ liters: 11 });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.totalCost).toBe(55);
+    expect(Object.keys(created.body.data)).toEqual(Object.keys(edited.body.data));
+  }, 60_000);
 });

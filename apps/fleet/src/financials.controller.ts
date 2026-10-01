@@ -13,6 +13,7 @@ import {
   Query,
 } from "@nestjs/common";
 import {
+  ApiNotFoundResponse,
   ApiOperation,
   ApiQuery,
   ApiOkResponse,
@@ -125,10 +126,11 @@ export class FinancialsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Get financial config for a vehicle" })
   @ApiOkResponse({ description: "Financial config", type: FinancialConfigNullableResponse })
+  @ApiNotFoundResponse({ description: "Vehicle not found" })
   async getFinancialConfig(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
-    const data = await this.fleetFinancialsUseCase.getConfig(tenantId, vehicleId);
+    const data = await this.runFleetUseCase(() => this.fleetFinancialsUseCase.getConfig(tenantId, vehicleId));
     return { status: true, message: "success", data };
   }
 
@@ -136,6 +138,7 @@ export class FinancialsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Upsert financial config for a vehicle" })
   @ApiOkResponse({ description: "Config upserted", type: FinancialConfigResponse })
+  @ApiNotFoundResponse({ description: "Vehicle not found" })
   async upsertFinancialConfig(@Param("vehicleId") vehicleId: string, @Body() body: UpsertFinancialConfigDto, @Req() req: FleetRequestContext) {
     const fields = normalizeFinancialConfig(body);
     // An empty body would otherwise write a row of nulls that the UI then
@@ -145,7 +148,7 @@ export class FinancialsController extends BaseFleetController {
     }
     const tenantId = this.tenantIdFromRequest(req);
     await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
-    const data = await this.fleetFinancialsUseCase.upsertConfig(tenantId, vehicleId, fields);
+    const data = await this.runFleetUseCase(() => this.fleetFinancialsUseCase.upsertConfig(tenantId, vehicleId, fields));
     return { status: true, message: "success", data };
   }
 

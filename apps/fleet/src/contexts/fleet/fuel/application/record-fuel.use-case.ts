@@ -4,6 +4,7 @@ import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "../domain/rep
 import { FLEET_RUNTIME, type FleetRuntime } from "../../shared/domain/ports/fleet-runtime.port";
 import { TriggerAlertUseCase } from "../../alerts/application/trigger-alert.use-case";
 import { FuelThresholdService } from "./fuel-threshold.service";
+import { toFuelRecordOutput } from "./fuel-record-output";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 
@@ -25,8 +26,8 @@ export class RecordFuelUseCase {
   constructor(
     @Inject(FUEL_RECORD_REPOSITORY) private readonly repo: FuelRecordRepository,
     @Inject(FLEET_RUNTIME) private readonly runtime: FleetRuntime,
-    private readonly triggerAlert: TriggerAlertUseCase,
-    private readonly thresholds: FuelThresholdService,
+    @Inject(TriggerAlertUseCase) private readonly triggerAlert: TriggerAlertUseCase,
+    @Inject(FuelThresholdService) private readonly thresholds: FuelThresholdService,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
   ) {}
@@ -56,16 +57,7 @@ export class RecordFuelUseCase {
     await this.repo.save(record);
     await this.checkEfficiencyAlert(tenantId, cmd.vehicleId, cmd.vehicleType ?? null);
 
-    const [vehicle, driver] = await Promise.all([
-      this.vehicleRepo.findById(record.vehicleId, tenantId),
-      record.driverId ? this.driverRepo.findById(record.driverId, tenantId) : Promise.resolve(null),
-    ]);
-
-    return {
-      ...record.toPrimitives(),
-      vehiclePlateNumber: vehicle?.plateNumber ?? null,
-      driverName: driver?.name ?? null,
-    };
+    return toFuelRecordOutput(record, tenantId, this.vehicleRepo, this.driverRepo);
   }
 
   private async resolveVehicleFuelType(vehicleId: string, tenantId: string): Promise<string | null> {

@@ -5,7 +5,11 @@ import type {
   VehicleFilters,
   VehicleRepository,
 } from "../../domain/repositories/vehicle.repository";
-import { VehicleRecord, getFleetOrm } from "../../../shared/infrastructure/persistence/fleet-orm";
+import {
+  FleetFinancialConfigRecord,
+  VehicleRecord,
+  getFleetOrm,
+} from "../../../shared/infrastructure/persistence/fleet-orm";
 
 @Injectable()
 export class MikroVehicleRepository implements VehicleRepository {
@@ -96,10 +100,13 @@ export class MikroVehicleRepository implements VehicleRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  // The vehicle's cost settings go with it: they price nothing once it is gone.
   async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
-    const em = orm.em.fork();
-    await em.nativeDelete(VehicleRecord, { id, tenantId });
+    await orm.em.fork().transactional(async (tx) => {
+      await tx.nativeDelete(FleetFinancialConfigRecord, { vehicleId: id, tenantId });
+      await tx.nativeDelete(VehicleRecord, { id, tenantId });
+    });
   }
 
   async findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null> {

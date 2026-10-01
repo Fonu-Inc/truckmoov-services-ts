@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "./contexts/fleet/fuel/domain/repositories/fuel-record.repository";
 import { MAINTENANCE_RECORD_REPOSITORY, type MaintenanceRecordRepository } from "./maintenance-record.repository";
@@ -26,11 +27,12 @@ export type RenderedStatement = {
   filename: string;
 };
 
-type ProfitTier = "excellent" | "good" | "marginal" | "loss_making";
+type ScoredTier = "excellent" | "good" | "marginal" | "loss_making";
+type ProfitTier = ScoredTier | "unscored";
 
 // With no revenue the margin reads 0, so the sign of the profit decides first:
 // a vehicle that only costs money is loss-making, not marginal.
-export function profitTier(profit: number, margin: number): ProfitTier {
+export function profitTier(profit: number, margin: number): ScoredTier {
   if (profit < 0) return "loss_making";
   if (margin >= 30) return "excellent";
   if (margin >= 10) return "good";
@@ -38,9 +40,30 @@ export function profitTier(profit: number, margin: number): ProfitTier {
   return "loss_making";
 }
 
-function healthScore(revenue: number, totalCost: number, marginPercent: number): number {
-  if (revenue <= 0) return totalCost > 0 ? 0 : 50;
+function healthScore(revenue: number, marginPercent: number): number {
+  if (revenue <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round(marginPercent + 50)));
+}
+
+// A vehicle that earned and cost nothing in the period has no figures to judge,
+// so it is unscored rather than a middling "marginal" 50.
+export function scoreVehicle(
+  revenue: number,
+  totalCost: number,
+  marginPercent: number,
+): { tier: ProfitTier; score: number | null } {
+  if (revenue === 0 && totalCost === 0) return { tier: "unscored", score: null };
+  return { tier: profitTier(revenue - totalCost, marginPercent), score: healthScore(revenue, marginPercent) };
+}
+
+function scoreInRange(score: number | null, from?: number, to?: number): boolean {
+  if (from === undefined && to === undefined) return true;
+  if (score === null) return false;
+  return (from === undefined || score >= from) && (to === undefined || score <= to);
+}
+
+function average(values: number[]): number | null {
+  return values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : null;
 }
 
 function round2(n: number): number {
@@ -96,14 +119,24 @@ export class FleetFinancialsUseCase {
     await em.flush();
   }
 
-  async getConfig(tenantId: string, vehicleId: string): Promise<FleetFinancialConfigRecord | null> {
+  private async findConfig(tenantId: string, vehicleId: string): Promise<FleetFinancialConfigRecord | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     return em.findOne(FleetFinancialConfigRecord, { tenantId, vehicleId });
   }
 
+  private async assertVehicleExists(tenantId: string, vehicleId: string): Promise<void> {
+    if (!(await this.vehicleRepo.findById(vehicleId, tenantId))) throw new VehicleNotFoundError(vehicleId);
+  }
+
+  async getConfig(tenantId: string, vehicleId: string): Promise<FleetFinancialConfigRecord | null> {
+    await this.assertVehicleExists(tenantId, vehicleId);
+    return this.findConfig(tenantId, vehicleId);
+  }
+
   async upsertConfig(tenantId: string, vehicleId: string, data: Record<string, unknown>) {
-    const existing = await this.getConfig(tenantId, vehicleId);
+    await this.assertVehicleExists(tenantId, vehicleId);
+    const existing = await this.findConfig(tenantId, vehicleId);
     const cfg: FleetFinancialConfigRecord = {
       ...(existing ?? { id: randomUUID(), tenantId, vehicleId, createdAt: new Date() }),
       ...data,
@@ -111,12 +144,15 @@ export class FleetFinancialsUseCase {
     } as FleetFinancialConfigRecord;
     await this.saveConfig(cfg);
     // Read back so the caller sees what was stored rather than what was sent.
-    return (await this.getConfig(tenantId, vehicleId)) ?? cfg;
+    return (await this.findConfig(tenantId, vehicleId)) ?? cfg;
   }
 
+  // Only configs whose vehicle still exists: rows left by vehicles deleted
+  // before deletion took the config with it would otherwise still list.
   async listConfigs(tenantId: string, allowedVehicleIds?: AllowedVehicleIds) {
-    const configs = await this.getConfigs(tenantId);
-    return allowedVehicleIds ? configs.filter((c) => allowedVehicleIds.has(c.vehicleId)) : configs;
+    const [configs, vehicles] = await Promise.all([this.getConfigs(tenantId), this.vehiclesIn(tenantId, allowedVehicleIds)]);
+    const known = new Set(vehicles.map((v) => v.id));
+    return configs.filter((c) => known.has(c.vehicleId));
   }
 
   // Every figure is a per-vehicle row, so limiting the vehicles limits the
@@ -172,7 +208,7 @@ export class FleetFinancialsUseCase {
       const totalCost = fuelCost + maintCost + fixedCosts;
       const profit = revenue - totalCost;
       const marginPercent = revenue > 0 ? (profit / revenue) * 100 : 0;
-      const tier = profitTier(profit, marginPercent);
+      const { tier, score } = scoreVehicle(revenue, totalCost, marginPercent);
       const sortedOdo = vehicleFuelRecords
         .filter((f) => f.odometer !== null && f.odometer !== undefined)
         .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
@@ -192,7 +228,7 @@ export class FleetFinancialsUseCase {
         marginPercent: Math.round(marginPercent * 10) / 10,
         tier,
         status: tier,
-        score: healthScore(revenue, totalCost, marginPercent),
+        score,
         costBreakdown: {
           fuel: round2(fuelCost),
           maintenance: round2(maintCost),
@@ -214,9 +250,7 @@ export class FleetFinancialsUseCase {
       if (filters.revenueTo !== undefined && v.revenue > filters.revenueTo) return false;
       if (filters.netProfitFrom !== undefined && v.profit < filters.netProfitFrom) return false;
       if (filters.netProfitTo !== undefined && v.profit > filters.netProfitTo) return false;
-      if (filters.scoreFrom !== undefined && v.score < filters.scoreFrom) return false;
-      if (filters.scoreTo !== undefined && v.score > filters.scoreTo) return false;
-      return true;
+      return scoreInRange(v.score, filters.scoreFrom, filters.scoreTo);
     });
   }
 
@@ -225,7 +259,7 @@ export class FleetFinancialsUseCase {
     const totalCost = round2(pl.reduce((s, v) => s + v.totalCost, 0));
     const totalProfit = round2(totalRevenue - totalCost);
     const avgMargin = pl.length > 0 ? pl.reduce((s, v) => s + v.marginPercent, 0) / pl.length : 0;
-    const avgScore = pl.length > 0 ? pl.reduce((s, v) => s + v.score, 0) / pl.length : 0;
+    const avgScore = average(pl.flatMap((v) => (v.score === null ? [] : [v.score])));
     const costBreakdown = {
       fuel: round2(pl.reduce((s, v) => s + v.costBreakdown.fuel, 0)),
       maintenance: round2(pl.reduce((s, v) => s + v.costBreakdown.maintenance, 0)),
@@ -239,13 +273,14 @@ export class FleetFinancialsUseCase {
       good: pl.filter((v) => v.tier === "good").length,
       marginal: pl.filter((v) => v.tier === "marginal").length,
       loss_making: pl.filter((v) => v.tier === "loss_making").length,
+      unscored: pl.filter((v) => v.tier === "unscored").length,
     };
     return {
       totalRevenue,
       totalCost,
       totalProfit,
       avgMarginPercent: Math.round(avgMargin * 10) / 10,
-      avgScore: Math.round(avgScore),
+      avgScore: avgScore === null ? null : Math.round(avgScore),
       vehicleCount: pl.length,
       costBreakdown,
       tierDistribution,

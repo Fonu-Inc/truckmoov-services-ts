@@ -5,6 +5,7 @@ import type { FuelRecordProps } from "../domain/entities/fuel-record.entity";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { VehicleNotFoundError } from "../../vehicles";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
+import { toFuelRecordOutput } from "./fuel-record-output";
 
 type FuelRecordChanges = Partial<
   Pick<FuelRecordProps, "liters" | "pricePerLiter" | "station" | "odometer" | "vehicleId" | "driverId" | "vehicleType" | "fuelType">
@@ -78,15 +79,6 @@ export class UpdateFuelRecordUseCase {
 
     await this.repo.save(updated);
 
-    const [vehicle, driver] = await Promise.all([
-      this.vehicleRepo.findById(updated.vehicleId, cmd.tenantId),
-      updated.driverId ? this.driverRepo.findById(updated.driverId, cmd.tenantId) : Promise.resolve(null),
-    ]);
-
-    return {
-      ...updated.toPrimitives(),
-      vehiclePlateNumber: vehicle?.plateNumber ?? null,
-      driverName: driver?.name ?? null,
-    };
+    return toFuelRecordOutput(updated, cmd.tenantId, this.vehicleRepo, this.driverRepo);
   }
 }

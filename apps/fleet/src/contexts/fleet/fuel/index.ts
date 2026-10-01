@@ -10,6 +10,8 @@ export type { RecordFuelCommand } from "./application/record-fuel.use-case";
 export { ListFuelRecordsUseCase } from "./application/list-fuel-records.use-case";
 export { UpdateFuelRecordUseCase } from "./application/update-fuel-record.use-case";
 export { DeleteFuelRecordUseCase } from "./application/delete-fuel-record.use-case";
+export { FUEL_RECORD_FIELDS, toFuelRecordOutput } from "./application/fuel-record-output";
+export type { FuelRecordOutput } from "./application/fuel-record-output";
 export { FuelMetricsUseCase } from "./application/fuel-metrics.use-case";
 export type { MetricsPeriod, ConsumptionBucket, FuelTypeBreakdown, VehicleEfficiency } from "./application/fuel-metrics.use-case";
 export { FuelBudgetUseCase } from "./application/fuel-budget.use-case";

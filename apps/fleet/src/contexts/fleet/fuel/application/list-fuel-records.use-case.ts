@@ -3,6 +3,7 @@ import { FUEL_RECORD_REPOSITORY, type FuelRecordFilters, type FuelRecordReposito
 import { FLEET_RUNTIME, type FleetRuntime } from "../../shared/domain/ports/fleet-runtime.port";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
+import { toFuelRecordOutput } from "./fuel-record-output";
 
 @Injectable()
 export class ListFuelRecordsUseCase {
@@ -20,18 +21,6 @@ export class ListFuelRecordsUseCase {
       tenantId,
     });
 
-    return Promise.all(
-      records.map(async (record) => {
-        const [vehicle, driver] = await Promise.all([
-          this.vehicleRepo.findById(record.vehicleId, tenantId),
-          record.driverId ? this.driverRepo.findById(record.driverId, tenantId) : Promise.resolve(null),
-        ]);
-        return {
-          ...record.toPrimitives(),
-          vehiclePlateNumber: vehicle?.plateNumber ?? null,
-          driverName: driver?.name ?? null,
-        };
-      }),
-    );
+    return Promise.all(records.map((record) => toFuelRecordOutput(record, tenantId, this.vehicleRepo, this.driverRepo)));
   }
 }

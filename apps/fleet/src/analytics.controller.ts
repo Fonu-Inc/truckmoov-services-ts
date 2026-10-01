@@ -160,7 +160,7 @@ export class AnalyticsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet safety radar", description: "Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
-  @ApiOkResponse({ description: "Average behavior scores per dimension (0-100)", type: VehicleSafetyRadarResponse })
+  @ApiOkResponse({ description: "Average behavior scores per dimension (0-100), null when no driver event was scored in the period", type: VehicleSafetyRadarResponse })
   async getVehicleSafetyRadar(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.fleetAnalyticsUseCase.vehicleSafetyRadar(

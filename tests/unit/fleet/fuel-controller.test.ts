@@ -79,4 +79,15 @@ describe("fuel export", () => {
     expect(lines[1]).toContain(`"'=HYPERLINK(""x"")"`);
     expect(csv).not.toContain("petrol");
   });
+
+  it("sends the header row when no transaction matches, not an empty file", async () => {
+    const controller = controllerWith({ listFuel: { execute: vi.fn(async () => []) } });
+    const res = { setHeader: vi.fn(), send: vi.fn() };
+
+    await controller.exportFuel({} as never, req, res);
+
+    expect(res.send).toHaveBeenCalledWith(
+      "id,tenantId,vehicleId,driverId,vehicleType,fuelType,liters,pricePerLiter,totalCost,station,odometer,recordedAt,recordedBy,deletedAt,auditTrail,vehiclePlateNumber,driverName",
+    );
+  });
 });

@@ -1,14 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { FleetFinancialsUseCase, profitTier } from "../../../apps/fleet/src/fleet-financials.use-case";
+import { FleetFinancialsUseCase, profitTier, scoreVehicle } from "../../../apps/fleet/src/fleet-financials.use-case";
+import { renderStatementCsv, renderStatementPdf } from "../../../apps/fleet/src/financial-statement.renderer";
 import { monthlyDepreciation, monthlyWages } from "../../../apps/fleet/src/financial-costs";
 import { FuelRecord } from "../../../apps/fleet/src/contexts/fleet/fuel/domain/entities/fuel-record.entity";
 
 const NOW = new Date("2026-09-24T10:00:00.000Z");
 
-function useCaseWith(
-  opts: { configs?: Record<string, unknown>[]; jobs?: unknown[]; fuel?: FuelRecord[]; maint?: unknown[] } = {},
-) {
-  const vehicles = [{ id: "v1", plateNumber: "ABC-123", make: "Volvo", model: "FH" }];
+type Opts = {
+  configs?: Record<string, unknown>[];
+  jobs?: unknown[];
+  fuel?: FuelRecord[];
+  maint?: unknown[];
+  vehicles?: Array<{ id: string; plateNumber: string; make: string; model: string }>;
+};
+
+function useCaseWith(opts: Opts = {}) {
+  const vehicles = opts.vehicles ?? [{ id: "v1", plateNumber: "ABC-123", make: "Volvo", model: "FH" }];
   const useCase = new FleetFinancialsUseCase(
     { findAll: async () => vehicles } as never,
     { listJobs: async () => opts.jobs ?? [] } as never,
@@ -56,7 +63,7 @@ describe("profit tier", () => {
 
     const summary = await useCase.summary("tenant-a");
 
-    expect(summary.tierDistribution).toEqual({ excellent: 0, good: 0, marginal: 0, loss_making: 1 });
+    expect(summary.tierDistribution).toEqual({ excellent: 0, good: 0, marginal: 0, loss_making: 1, unscored: 0 });
   });
 });
 
@@ -152,5 +159,65 @@ describe("standalone financial exports", () => {
       "vehicleId,plateNumber,fuel,maintenance,wages,insurance,depreciation,other,totalCost",
       "v1,ABC-123,0,0,0,105000,0,0,105000",
     ]);
+  });
+});
+
+describe("a vehicle with no revenue and no cost in the period", () => {
+  const idle = (id: string) => ({ id, plateNumber: `IDLE-${id}`, make: "Volvo", model: "FH" });
+  const now = new Date().toISOString();
+  const delivered = (vehicleId: string, amountNgn: number) => ({ status: "delivered", assignedVehicleId: vehicleId, amountNgn, updatedAt: now });
+
+  it("is unscored with a null score, not marginal at 50", async () => {
+    const [row] = await useCaseWith().computeProfitability("tenant-a");
+
+    expect(row).toMatchObject({ revenue: 0, totalCost: 0, tier: "unscored", status: "unscored", score: null });
+  });
+
+  it("keeps the tiers for a vehicle with any figure", () => {
+    expect(scoreVehicle(0, 0, 0)).toEqual({ tier: "unscored", score: null });
+    expect(scoreVehicle(0, 500, 0)).toEqual({ tier: "loss_making", score: 0 });
+    expect(scoreVehicle(1000, 0, 100)).toEqual({ tier: "excellent", score: 100 });
+  });
+
+  it("leaves the summary's average score null and counts them as unscored when nothing was scored", async () => {
+    const summary = await useCaseWith({ vehicles: [idle("a"), idle("b"), idle("c")] }).summary("tenant-a");
+
+    expect(summary.avgScore).toBeNull();
+    expect(summary.vehicleCount).toBe(3);
+    expect(summary.tierDistribution).toEqual({ excellent: 0, good: 0, marginal: 0, loss_making: 0, unscored: 3 });
+  });
+
+  it("averages the score over scored vehicles only", async () => {
+    const useCase = useCaseWith({ vehicles: [idle("a"), idle("b")], jobs: [delivered("a", 1000)] });
+
+    const summary = await useCase.summary("tenant-a");
+
+    expect(summary.avgScore).toBe(100);
+    expect(summary.tierDistribution).toMatchObject({ excellent: 1, unscored: 1 });
+  });
+
+  it("drops unscored rows when a score filter is set, and keeps them otherwise", async () => {
+    const useCase = useCaseWith({ vehicles: [idle("a"), idle("b")], jobs: [delivered("a", 1000)] });
+
+    expect((await useCase.computeProfitability("tenant-a", 1, { scoreFrom: 0 })).map((r) => r.vehicleId)).toEqual(["a"]);
+    expect((await useCase.computeProfitability("tenant-a", 1, { scoreTo: 50 })).map((r) => r.vehicleId)).toEqual([]);
+    expect((await useCase.computeProfitability("tenant-a")).map((r) => r.vehicleId)).toEqual(["a", "b"]);
+  });
+
+  it("exports an empty score and the unscored tier in the P&L", async () => {
+    const csv = await useCaseWith().exportVehiclePL("tenant-a");
+
+    expect(csv.split("\n")[1]).toBe("v1,ABC-123,0,0,0,0,,unscored,0");
+  });
+
+  it("shows no average score in the statement rather than 50 or null", async () => {
+    const statement = await useCaseWith().buildStatement("tenant-a");
+
+    expect(statement.summary.avgScore).toBeNull();
+    expect(statement.vehicles[0].tier).toBe("unscored");
+    expect(renderStatementCsv(statement)).toContain("Avg Score,\n");
+    const pdf = renderStatementPdf(statement).toString("latin1");
+    expect(pdf).toContain("n/a");
+    expect(pdf).not.toContain("null");
   });
 });

@@ -950,17 +950,17 @@ export class FuelThresholdListResponse extends StandardApiResponse<FuelThreshold
 }
 
 export class VehicleSafetyRadarSchema {
-  @ApiProperty({ description: "Average braking score (0-100)" })
-  braking!: number;
+  @ApiProperty({ type: Number, nullable: true, description: "Average braking score (0-100); null when no driver event was scored in the period" })
+  braking!: number | null;
 
-  @ApiProperty({ description: "Average acceleration score (0-100)" })
-  acceleration!: number;
+  @ApiProperty({ type: Number, nullable: true, description: "Average acceleration score (0-100); null when no driver event was scored in the period" })
+  acceleration!: number | null;
 
-  @ApiProperty({ description: "Average speed-control score (0-100)" })
-  speedControl!: number;
+  @ApiProperty({ type: Number, nullable: true, description: "Average speed-control score (0-100); null when no driver event was scored in the period" })
+  speedControl!: number | null;
 
-  @ApiProperty({ description: "Average cornering score (0-100)" })
-  cornering!: number;
+  @ApiProperty({ type: Number, nullable: true, description: "Average cornering score (0-100); null when no driver event was scored in the period" })
+  cornering!: number | null;
 
   @ApiProperty()
   periodDays!: number;
@@ -1367,11 +1367,15 @@ export class VehicleProfitabilitySchema {
   @ApiProperty() totalCost!: number;
   @ApiProperty() profit!: number;
   @ApiProperty() marginPercent!: number;
-  @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
-  tier!: "excellent" | "good" | "marginal" | "loss_making";
-  @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making"] })
-  status!: "excellent" | "good" | "marginal" | "loss_making";
-  @ApiProperty() score!: number;
+  @ApiProperty({
+    enum: ["excellent", "good", "marginal", "loss_making", "unscored"],
+    description: "unscored when the vehicle had no revenue and no cost in the period",
+  })
+  tier!: "excellent" | "good" | "marginal" | "loss_making" | "unscored";
+  @ApiProperty({ enum: ["excellent", "good", "marginal", "loss_making", "unscored"], description: "Same value as tier" })
+  status!: "excellent" | "good" | "marginal" | "loss_making" | "unscored";
+  @ApiProperty({ type: Number, nullable: true, description: "0-100; null when the vehicle is unscored" })
+  score!: number | null;
   @ApiProperty({ type: CostBreakdownSchema }) costBreakdown!: CostBreakdownSchema;
   @ApiProperty() jobCount!: number;
   @ApiProperty() kmDriven!: number;
@@ -1387,6 +1391,7 @@ export class TierDistributionSchema {
   @ApiProperty() good!: number;
   @ApiProperty() marginal!: number;
   @ApiProperty() loss_making!: number;
+  @ApiProperty({ description: "Vehicles with no revenue and no cost in the period" }) unscored!: number;
 }
 
 export class FinancialSummarySchema {
@@ -1394,7 +1399,8 @@ export class FinancialSummarySchema {
   @ApiProperty() totalCost!: number;
   @ApiProperty() totalProfit!: number;
   @ApiProperty() avgMarginPercent!: number;
-  @ApiProperty() avgScore!: number;
+  @ApiProperty({ type: Number, nullable: true, description: "Average over scored vehicles only; null when none was scored" })
+  avgScore!: number | null;
   @ApiProperty() vehicleCount!: number;
   @ApiProperty({ type: CostBreakdownSchema }) costBreakdown!: CostBreakdownSchema;
   @ApiProperty({ type: TierDistributionSchema }) tierDistribution!: TierDistributionSchema;

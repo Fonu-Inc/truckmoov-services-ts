@@ -14,6 +14,29 @@ function cutoff(periodDays: number): Date {
   return d;
 }
 
+type RadarAxis = "braking" | "acceleration" | "speedControl" | "cornering";
+type RadarCounts = Record<RadarAxis, number>;
+const RADAR_AXES: readonly RadarAxis[] = ["braking", "acceleration", "speedControl", "cornering"];
+
+function emptyRadarCounts(): RadarCounts {
+  return { braking: 0, acceleration: 0, speedControl: 0, cornering: 0 };
+}
+
+function countRadarAlert(entry: RadarCounts, type: string): void {
+  if (type.includes("harsh_braking")) entry.braking++;
+  if (type.includes("harsh_acceleration")) entry.acceleration++;
+  if (type.includes("overspeeding") || type.includes("speeding")) entry.speedControl++;
+  if (type.includes("harsh_cornering") || type.includes("cornering")) entry.cornering++;
+}
+
+// A fleet with no driver event in the period has nothing to score; 100 would
+// read as a perfect record rather than an empty one.
+function radarAverages(entries: RadarCounts[], scored: boolean): Record<RadarAxis, number | null> {
+  const avg = (axis: RadarAxis) =>
+    Math.round(entries.reduce((sum, e) => sum + Math.max(0, 100 - e[axis] * 2), 0) / entries.length);
+  return Object.fromEntries(RADAR_AXES.map((axis) => [axis, scored ? avg(axis) : null])) as Record<RadarAxis, number | null>;
+}
+
 @Injectable()
 export class FleetAnalyticsUseCase {
   constructor(
@@ -176,40 +199,19 @@ export class FleetAnalyticsUseCase {
       this.driversIn(tenantId, allowed),
       this.alertsIn(tenantId, allowed),
     ]);
-    const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
     const vehicleToDriver = new Map(
       vehicles.filter((v) => v.assignedDriverId).map((v) => [v.id, v.assignedDriverId!]),
     );
-    const driverIds = new Set(drivers.map((d) => d.id));
-
-    const counts = new Map<string, { braking: number; acceleration: number; speedControl: number; cornering: number }>();
-    for (const driverId of driverIds) {
-      counts.set(driverId, { braking: 0, acceleration: 0, speedControl: 0, cornering: 0 });
+    const counts = new Map<string, RadarCounts>(drivers.map((d) => [d.id, emptyRadarCounts()]));
+    let scoredEvents = 0;
+    for (const alert of alerts.filter((a) => a.triggeredAt >= since)) {
+      const driverId = alert.vehicleId ? vehicleToDriver.get(alert.vehicleId) : undefined;
+      const entry = driverId ? counts.get(driverId) : undefined;
+      if (!entry) continue;
+      countRadarAlert(entry, alert.type);
+      scoredEvents++;
     }
-
-    for (const alert of recentAlerts) {
-      if (!alert.vehicleId) continue;
-      const driverId = vehicleToDriver.get(alert.vehicleId);
-      if (!driverId || !counts.has(driverId)) continue;
-      const entry = counts.get(driverId)!;
-      if (alert.type.includes("harsh_braking")) entry.braking++;
-      if (alert.type.includes("harsh_acceleration")) entry.acceleration++;
-      if (alert.type.includes("overspeeding") || alert.type.includes("speeding")) entry.speedControl++;
-      if (alert.type.includes("harsh_cornering") || alert.type.includes("cornering")) entry.cornering++;
-    }
-
-    const entries = [...counts.values()];
-    const total = entries.length || 1;
-    const avg = (key: keyof (typeof entries)[0]) =>
-      Math.round(entries.reduce((sum, e) => sum + Math.max(0, 100 - (e[key] as number) * 2), 0) / total);
-
-    return {
-      braking: avg("braking"),
-      acceleration: avg("acceleration"),
-      speedControl: avg("speedControl"),
-      cornering: avg("cornering"),
-      periodDays,
-    };
+    return { ...radarAverages([...counts.values()], scoredEvents > 0), periodDays };
   }
 
   async events(tenantId: string, periodDays = 30, limit = 50, severity?: string, allowed?: AllowedVehicleIds) {

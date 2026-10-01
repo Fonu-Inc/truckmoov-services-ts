@@ -43,6 +43,7 @@ import {
   DeleteFuelRecordUseCase,
   UpdateFuelRecordUseCase,
   RecordFuelUseCase,
+  FUEL_RECORD_FIELDS,
   type FuelRecordProps,
 } from "./contexts/fleet/fuel";
 import {
@@ -419,7 +420,10 @@ export class FuelController extends BaseFleetController {
     @Res() res: any,
   ): Promise<void> {
     const records = await this.filteredFuelRecords(this.tenantIdFromRequest(req), query, req);
-    const csv = toCsv(records.map((record) => ({ ...record, auditTrail: JSON.stringify(record.auditTrail) })));
+    const csv = toCsv(
+      records.map((record) => ({ ...record, auditTrail: JSON.stringify(record.auditTrail) })),
+      FUEL_RECORD_FIELDS,
+    );
     res.setHeader("Content-Disposition", `attachment; filename="fuel.csv"`);
     res.send(csv);
   }
