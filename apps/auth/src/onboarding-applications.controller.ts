@@ -139,6 +139,7 @@ import {
   OnboardingVehicleDto,
 } from './dto/onboarding-vehicle.dto';
 import { ScheduleInstallationDto } from './dto/schedule-installation.dto';
+import { OnboardingActivityInterceptor, RecordsApplicationActivity } from './onboarding-activity.interceptor';
 
 const APPLICATION_TOKEN_HEADER = 'x-application-token';
 
@@ -205,6 +206,7 @@ const MAX_SIGNATURE_UPLOAD_BYTES = 2 * 1024 * 1024;
 @Portals('public')
 @Controller('onboarding/applications')
 @UseGuards(OnboardingApplicationRateLimitGuard)
+@UseInterceptors(OnboardingActivityInterceptor)
 export class OnboardingApplicationsController extends BaseAuthController {
   constructor(
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
@@ -278,6 +280,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
     DuplicateIdentityErrorBody,
   )
   @RateLimited()
+  @RecordsApplicationActivity('created', 'Application started')
   async create(@Body() payload: OnboardingApplicationDto) {
     return this.run(() => this.createApplication.execute(payload));
   }
@@ -411,6 +414,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
     DuplicateIdentityErrorBody,
   )
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('details_updated', 'Application details updated')
   async update(
     @Param('applicationId') applicationId: string,
     @Body() payload: OnboardingApplicationDto,
@@ -463,6 +467,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiErrorResponse(503, '"File upload failed"')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('vehicle_added', 'Vehicle added')
   async addApplicationVehicle(
     @Param('applicationId') applicationId: string,
     @Body() payload: OnboardingVehicleDto,
@@ -487,6 +492,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors(`${NOT_FOUND}, or "Vehicle not found"`)
   @ApiErrorResponse(409, `${NOT_EDITABLE}, or "<registration> has already been added to this application"`)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('vehicle_updated', 'Vehicle updated')
   async updateApplicationVehicle(
     @Param('applicationId') applicationId: string,
     @Param('vehicleId') vehicleId: string,
@@ -513,6 +519,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors(`${NOT_FOUND}, or "Vehicle not found"`)
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('vehicle_removed', 'Vehicle removed')
   async removeApplicationVehicle(
     @Param('applicationId') applicationId: string,
     @Param('vehicleId') vehicleId: string,
@@ -556,6 +563,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TooLarge('2MB')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_VEHICLE_CSV_BYTES)))
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('vehicles_imported', 'Vehicles imported')
   async importApplicationVehicles(
     @Param('applicationId') applicationId: string,
     @UploadedFile() file?: { buffer: Buffer },
@@ -592,6 +600,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('devices_requested', 'Devices requested')
   async requestApplicationDevices(
     @Param('applicationId') applicationId: string,
     @Body() payload: OnboardingDeviceRequestDto,
@@ -619,6 +628,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors(`${NOT_FOUND}, or "Device request not found"`)
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('device_request_withdrawn', 'Device request withdrawn')
   async removeApplicationDeviceRequest(
     @Param('applicationId') applicationId: string,
     @Param('requestId') requestId: string,
@@ -670,6 +680,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, `Past the payment stage or already paid: ${NOT_EDITABLE}`)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('billing_email_set', 'Billing email set')
   async billingEmail(
     @Param('applicationId') applicationId: string,
     @Body('billingEmail') billingEmail?: string,
@@ -727,6 +738,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, `Past the payment stage or already paid: ${NOT_EDITABLE}`)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('billing_email_verified', 'Billing email verified')
   async verifyBillingEmail(
     @Param('applicationId') applicationId: string,
     @Body('code') code?: string,
@@ -771,6 +783,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   )
   @ApiErrorResponse(503, '"No payment provider is configured"')
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('payment_started', 'Payment started')
   async pay(
     @Param('applicationId') applicationId: string,
     @Body('redirectUrl') redirectUrl?: string,
@@ -810,6 +823,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
     '"An onboarding at the <stage> stage cannot be scheduled", "This application has no tenant yet", or "An installation is already scheduled"',
   )
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('installation_scheduled', 'Installation scheduled')
   async schedule(
     @Param('applicationId') applicationId: string,
     @Body() payload: ScheduleInstallationDto,
@@ -872,6 +886,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiErrorResponse(503, '"No indemnity agreement is published", or "Signature upload failed"')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_SIGNATURE_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('indemnity_signed', 'Indemnity agreement signed')
   async signIndemnityAgreement(
     @Param('applicationId') applicationId: string,
     @UploadedFile() file?: UploadedSignatureFile,
@@ -936,6 +951,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @ApiErrorResponse(503, '"File upload failed"')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('document_uploaded', 'Document uploaded')
   async upload(
     @Param('applicationId') applicationId: string,
     @UploadedFile()
@@ -975,6 +991,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
     DuplicateIdentityErrorBody,
   )
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('document_removed', 'Document removed')
   async remove(
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
@@ -1031,6 +1048,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('email_verified', 'Business email verified')
   async verifyEmail(
     @Param('applicationId') applicationId: string,
     @Body('code') code?: string,
@@ -1088,6 +1106,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('phone_verified', 'Phone number verified')
   async verifyPhone(
     @Param('applicationId') applicationId: string,
     @Body('code') code?: string,
@@ -1123,6 +1142,7 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @TokenErrors()
   @ApiErrorResponse(409, NOT_EDITABLE)
   @ApplicationTokenHeader()
+  @RecordsApplicationActivity('submitted', 'Application submitted')
   async submit(
     @Param('applicationId') applicationId: string,
     @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,

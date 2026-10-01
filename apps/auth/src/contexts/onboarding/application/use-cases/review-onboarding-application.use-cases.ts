@@ -24,6 +24,7 @@ import {
   stageProgress,
   stageStatusLabel,
 } from '@auth/onboarding/domain/onboarding-stage';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
   VERIFICATION_RESULT_REPOSITORY,
   type VerificationResultRepository,
@@ -316,19 +317,19 @@ export class ReviewOnboardingApplicationDocumentUseCase {
 }
 
 function asStatus(value?: string): OnboardingApplicationStatus | undefined {
-  const candidate = value?.trim();
-  return candidate &&
-    (ONBOARDING_APPLICATION_STATUSES as readonly string[]).includes(candidate)
-    ? (candidate as OnboardingApplicationStatus)
-    : undefined;
+  return oneOf(value, ONBOARDING_APPLICATION_STATUSES, 'status');
 }
 
 function asApplicantType(value?: string): OnboardingApplicantType | undefined {
+  return oneOf(value, ONBOARDING_APPLICANT_TYPES, 'applicantType');
+}
+
+/** A filter value outside the list is refused: ignoring it lists everything while reading as filtered. */
+function oneOf<T extends string>(value: string | undefined, allowed: readonly T[], field: string): T | undefined {
   const candidate = value?.trim();
-  return candidate &&
-    (ONBOARDING_APPLICANT_TYPES as readonly string[]).includes(candidate)
-    ? (candidate as OnboardingApplicantType)
-    : undefined;
+  if (!candidate) return undefined;
+  if ((allowed as readonly string[]).includes(candidate)) return candidate as T;
+  throw new OnboardingValidationError(field, `${field} must be one of: ${allowed.join(', ')}`);
 }
 
 /** The four cards above the KYC review queue. */

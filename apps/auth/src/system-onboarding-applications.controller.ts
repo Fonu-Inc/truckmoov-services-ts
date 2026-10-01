@@ -23,7 +23,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { ApiErrorResponse } from './dto/api-error.dto';
+import { ApiErrorResponse, OnboardingFieldErrorBody } from './dto/api-error.dto';
 import {
   ApplicationTimelineResponse,
   ApprovedApplicationResponse,
@@ -50,6 +50,9 @@ import {
   GetOnboardingApplicationTimelineUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,
+  OnboardingValidationError,
+  ONBOARDING_APPLICANT_TYPES,
+  ONBOARDING_APPLICATION_STATUSES,
   RejectOnboardingApplicationUseCase,
   RequestOnboardingApplicationChangesUseCase,
   ResendOnboardingSetupLinkUseCase,
@@ -131,13 +134,14 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the review queue of landing-page applications, oldest first.',
   })
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'applicantType', required: false })
+  @ApiQuery({ name: 'status', required: false, enum: [...ONBOARDING_APPLICATION_STATUSES] })
+  @ApiQuery({ name: 'applicantType', required: false, enum: [...ONBOARDING_APPLICANT_TYPES] })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiOkResponse({ description: 'Queue returned', type: ReviewQueueResponse })
   @AdminErrors()
+  @ApiErrorResponse(400, 'status or applicantType is not one of its values; field names which.', OnboardingFieldErrorBody)
   async list(
     @Headers('authorization') authorization?: string,
     @Query('status') status?: string,
@@ -424,6 +428,9 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       return await fn();
     } catch (error) {
       rethrowActorError(error);
+      if (error instanceof OnboardingValidationError) {
+        throw new BadRequestException({ message: error.message, field: error.field });
+      }
       if (
         error instanceof DecisionReasonRequiredError ||
         error instanceof ApplicationDocumentsIncompleteError

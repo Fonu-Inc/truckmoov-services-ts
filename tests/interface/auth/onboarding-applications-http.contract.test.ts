@@ -321,6 +321,38 @@ describe('Onboarding applications HTTP contract', () => {
     });
   });
 
+  // The admin timeline reads the audit trail, so what the applicant does has
+  // to be written there or the timeline stays empty.
+  it('puts what the applicant did on the admin timeline', async () => {
+    const { id, token } = await startApplication('timeline@arne.com');
+    await verifyBoth(id, token);
+    const accessToken = await systemToken();
+
+    await vi.waitFor(async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/auth/system/onboarding/applications/${id}/timeline`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.entries).toEqual([
+        expect.objectContaining({ action: 'onboarding.application.created', actor: 'Applicant' }),
+        expect.objectContaining({ action: 'onboarding.application.email_verified' }),
+        expect.objectContaining({ action: 'onboarding.application.phone_verified' }),
+      ]);
+    });
+  });
+
+  it('refuses a queue filter value outside its list', async () => {
+    const accessToken = await systemToken();
+
+    for (const [query, field] of [['status=bogus', 'status'], ['applicantType=fleet_provider', 'applicantType']]) {
+      const res = await request(app.getHttpServer())
+        .get(`/auth/system/onboarding/applications?${query}`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ status: false, field, statusCode: 400 });
+    }
+  });
+
   it('rejects a phone number containing letters', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/onboarding/applications')
