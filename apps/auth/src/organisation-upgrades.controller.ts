@@ -66,7 +66,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
   @Requires('tenant.upgrades.manage')
   @Post()
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Ask to be promoted to fleet provider' })
+  @ApiOperation({ summary: 'Ask to be promoted to enterprise' })
   @ApiOkResponse({ description: 'The request, awaiting review' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   async request(
@@ -83,7 +83,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
         action: 'organisation.upgrade.requested',
         entityType: 'organisation_upgrade',
         entityId: data.id,
-        summary: 'Promotion to fleet provider requested',
+        summary: 'Promotion to enterprise requested',
         metadata: { statedVehicleCount: data.statedVehicleCount },
       });
       return { status: true, message: 'success', data };
@@ -137,7 +137,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
         action: 'organisation.upgrade.approved',
         entityType: 'organisation_upgrade',
         entityId: data.id,
-        summary: 'Organisation promoted to fleet provider',
+        summary: 'Organisation promoted to enterprise',
         metadata: {
           vehicleCountAtReview: data.vehicleCountAtReview,
           notes: data.reviewerNotes,

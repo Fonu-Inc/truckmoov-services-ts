@@ -135,7 +135,7 @@ describe('reviewing', () => {
   it('promotes the organisation type', async () => {
     await h.review.approve('token', requestId, 'looks right', 'plan_pro');
 
-    expect(h.onboardingSaves[0]).toMatchObject({ organizationType: 'fleet_provider' });
+    expect(h.onboardingSaves[0]).toMatchObject({ organizationType: 'enterprise' });
   });
 
   it('changes the tenant plan to the reviewer-chosen target plan', async () => {
@@ -170,6 +170,16 @@ describe('reviewing', () => {
     await h.review.approve('token', requestId, null, 'plan_pro');
 
     expect(h.saved).toHaveLength(1);
+    expect(h.saved[0]).toMatchObject({ id: 'u1', role: 'ENTERPRISE_ADMIN' });
+  });
+
+  it('promotes a request raised for fleet provider to fleet provider', async () => {
+    const legacy = await h.requests.findById(requestId);
+    await h.requests.save({ ...legacy!, toOrganisationType: 'fleet_provider' });
+
+    await h.review.approve('token', requestId, null, 'plan_pro');
+
+    expect(h.onboardingSaves[0]).toMatchObject({ organizationType: 'fleet_provider' });
     expect(h.saved[0]).toMatchObject({ id: 'u1', role: 'FLEET_ADMIN' });
   });
 

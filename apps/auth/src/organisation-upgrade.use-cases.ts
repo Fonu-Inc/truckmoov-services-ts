@@ -18,6 +18,7 @@ import {
   type OrganisationUpgradeRequest,
 } from './organisation-upgrade.repository';
 import {
+  ORG_TYPE_TO_BOOTSTRAP_ROLE,
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
@@ -83,7 +84,7 @@ export class RequestOrganisationUpgradeUseCase {
       id: randomUUID(),
       tenantId: actor.tenantId,
       fromOrganisationType: 'owner_operator',
-      toOrganisationType: 'fleet_provider',
+      toOrganisationType: 'enterprise',
       reason: reason.trim(),
       statedVehicleCount,
       status: 'pending',
@@ -104,7 +105,7 @@ export class RequestOrganisationUpgradeUseCase {
       alertType: 'new_tenant_signup',
       severity: 'low',
       subject: 'Organisation upgrade requested',
-      body: `A tenant asked to be promoted to fleet provider with ${statedVehicleCount} active vehicle(s).`,
+      body: `A tenant asked to be promoted to enterprise with ${statedVehicleCount} active vehicle(s).`,
       context: { tenantId: actor.tenantId, requestId: request.id },
     });
 
@@ -167,7 +168,7 @@ export class ReviewOrganisationUpgradeUseCase {
     const onboarding = await this.onboarding.findByTenantId(request.tenantId);
     if (!onboarding) throw new UpgradeRequestNotFoundError();
 
-    // Promotion is a plan change, not just a label: fleet_provider carries
+    // Promotion is a plan change, not just a label: enterprise carries
     // different pricing and caps than owner_operator, so approving without a
     // target plan would promote the organisation onto a plan nothing chose.
     if (!targetPlanCode?.trim()) throw new TargetPlanRequiredError();
@@ -185,12 +186,15 @@ export class ReviewOrganisationUpgradeUseCase {
       updatedAt: new Date(),
     });
 
+    // Read from the request, not fixed: a request raised before the target
+    // moved to enterprise still promotes to what it asked for, consistently.
+    const promotedRole = ORG_TYPE_TO_BOOTSTRAP_ROLE[request.toOrganisationType];
     const members = await this.userRepository.findAllByTenant(request.tenantId);
     for (const member of members) {
       if (member.role !== Role.OWNER_OPERATOR) continue;
       // The role carries the permissions and the navigation. Leaving it behind
       // would promote the organisation and not the people in it.
-      await this.userRepository.save({ ...member, role: Role.FLEET_ADMIN });
+      await this.userRepository.save({ ...member, role: promotedRole });
     }
 
     const decided: OrganisationUpgradeRequest = {
@@ -204,7 +208,7 @@ export class ReviewOrganisationUpgradeUseCase {
     };
     await this.requests.save(decided);
 
-    await this.tellRequester(decided, 'Your organisation is now a fleet provider.');
+    await this.tellRequester(decided, 'Your organisation is now an enterprise.');
 
     this.logger.log(`organisation_promoted:${request.tenantId}:vehicles=${liveCount}`);
     return decided;
