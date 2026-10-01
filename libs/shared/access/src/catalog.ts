@@ -58,6 +58,7 @@ const ADMIN_RESOURCES = {
   audit: "The platform audit log",
   installers: "Field installers and their invites",
   installations: "Installation jobs and the devices bound to them",
+  messaging: "The platform WhatsApp Business number and its templates",
   dashboard: "Platform dashboard and health",
 } as const;
 

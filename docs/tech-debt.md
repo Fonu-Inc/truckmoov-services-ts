@@ -4,6 +4,50 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-9 — A tenant with no WhatsApp number of its own cannot message anyone
+
+**Status:** open, recorded 1 October 2026, waiting on a product decision.
+
+### The problem
+
+Platform admins can now connect the platform's own WhatsApp Business number
+(WhatsApp Setup in the admin app). It is held under the system tenant and stored
+encrypted like any tenant's. Nothing sends from it. Every send still looks up
+the calling tenant's own account, so a tenant that has not connected a number
+has no WhatsApp channel at all, and the platform number sits unused for
+tenant traffic.
+
+### What exists
+
+- One account per tenant, connected through Meta's embedded signup, token
+  encrypted with `WHATSAPP_ACCOUNT_ENCRYPTION_KEY`.
+- The platform account, under the system tenant, through
+  `/notify/system/whatsapp/*`, guarded by `admin.messaging`.
+- No rule that chooses between them.
+
+### Decision needed
+
+Whether a tenant without its own number may send from the platform number.
+
+- **Fall back to the platform number.** Tenants can message drivers on day one.
+  Meta bills conversations to the WABA that sends them, so the platform carries
+  that cost unless it is passed on through the wallet. Templates, the quality
+  rating and the sender name belong to the platform, so one tenant's misuse can
+  lower the rating for all of them. Replies all land on one number and have to
+  be routed back to the right tenant.
+- **Platform messages only (today).** Tenants must connect their own number.
+  Cleanest on cost and reputation, but a tenant cannot message before it has
+  been through Meta's signup.
+- **An entitlement.** The fallback is a plan feature, so it is priced and can be
+  withdrawn per tenant.
+
+### When this is picked up
+
+Once the choice is made. The fallback is a small change to how the sender is
+chosen plus routing of replies; the entitlement also needs the plan catalogue.
+
+---
+
 ## TD-8 — Tenant termination promises four things it does not do
 
 **Status:** open, recorded 7 September 2026. The lifecycle half ships; this

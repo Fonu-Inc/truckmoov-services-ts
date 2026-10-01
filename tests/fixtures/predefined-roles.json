@@ -38,6 +38,8 @@
       "admin.installers.manage",
       "admin.installations.read",
       "admin.installations.manage",
+      "admin.messaging.read",
+      "admin.messaging.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]
@@ -78,6 +80,8 @@
       "admin.installers.manage",
       "admin.installations.read",
       "admin.installations.manage",
+      "admin.messaging.read",
+      "admin.messaging.manage",
       "admin.dashboard.read",
       "admin.dashboard.manage"
     ]

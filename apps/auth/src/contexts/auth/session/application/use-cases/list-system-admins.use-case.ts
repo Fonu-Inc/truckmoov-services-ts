@@ -37,7 +37,7 @@ export class ListSystemAdminsUseCase {
     }
 
     const users = (await this.userRepo.findAllByTenant(SYSTEM_TENANT_ID))
-      .filter((user) => user.role === Role.SYSTEM_ADMIN);
+      .filter((user) => user.role === Role.SYSTEM_ADMIN || user.role === Role.SUPER_ADMIN);
     const userActivity = await this.sessionStore.listUserActivity(users.map((user) => user.id));
     const userActivityById = new Map(userActivity.map((activity) => [activity.userId, activity] as const));
 
