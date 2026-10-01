@@ -118,7 +118,7 @@ function application(id: string, organizationName: string): StoredOnboardingAppl
     id: `app-${id}`,
     reference: `APP-${id}`,
     tokenHash: "hash",
-    applicantType: "fleet_provider",
+    applicantType: "enterprise",
     organizationName,
     businessEmail: `ops@${id}.ng`,
     organizationPhone: "+2348000000000",

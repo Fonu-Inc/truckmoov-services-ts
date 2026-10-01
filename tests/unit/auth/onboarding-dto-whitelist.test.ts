@@ -23,7 +23,7 @@ const cases: Array<[string, new () => object, Record<string, unknown>]> = [
     "OnboardingApplicationDto",
     OnboardingApplicationDto,
     {
-      applicantType: "fleet_provider",
+      applicantType: "enterprise",
       organizationName: "Arne logistics Ltd",
       businessEmail: "jane@arne.com",
       organizationPhone: "+234 80 0000 0000",

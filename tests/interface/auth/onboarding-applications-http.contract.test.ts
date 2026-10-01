@@ -37,7 +37,7 @@ const VEHICLE = {
 
 function applicationPayload(overrides: Record<string, string> = {}) {
   return {
-    applicantType: 'fleet_provider',
+    applicantType: 'enterprise',
     organizationName: 'Arne logistics Ltd',
     businessEmail: 'jane@arne.com',
     organizationPhone: '+234 80 0000 0000',
@@ -666,7 +666,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(approved.status).toBe(201);
     expect(approved.body.data.status).toBe('approved');
     expect(approved.body.data.tenantId).toBeTypeOf('string');
-    expect(approved.body.data.bootstrapRole).toBe('FLEET_ADMIN');
+    expect(approved.body.data.bootstrapRole).toBe('ENTERPRISE_ADMIN');
     // No setup link yet. The account is created when an installation is
     // booked, which is the first moment there is anything to log in and see.
     expect(approved.body.data.stage).toBe('payment');

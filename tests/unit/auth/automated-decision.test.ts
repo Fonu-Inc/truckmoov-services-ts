@@ -30,7 +30,7 @@ const ENTERPRISE_PASS = [
 
 describe("Automated decision", () => {
   it("approves an enterprise applicant whose required checks all matched", () => {
-    expect(decideAutomatically("fleet_provider", ENTERPRISE_PASS).outcome).toBe(
+    expect(decideAutomatically("enterprise", ENTERPRISE_PASS).outcome).toBe(
       "approve",
     );
   });
@@ -45,7 +45,7 @@ describe("Automated decision", () => {
   });
 
   it("rejects when a registry contradicts the application", () => {
-    const decision = decideAutomatically("fleet_provider", [
+    const decision = decideAutomatically("enterprise", [
       ...ENTERPRISE_PASS.slice(1),
       result("cac_registration", "mismatch", "registered to another company"),
     ]);
@@ -55,7 +55,7 @@ describe("Automated decision", () => {
   });
 
   it("rejects when the registry has no such record", () => {
-    const decision = decideAutomatically("fleet_provider", [
+    const decision = decideAutomatically("enterprise", [
       ...ENTERPRISE_PASS.slice(1),
       result("cac_registration", "not_found"),
     ]);
@@ -64,7 +64,7 @@ describe("Automated decision", () => {
   });
 
   it("sends an unanswered check to a human rather than approving it", () => {
-    const decision = decideAutomatically("fleet_provider", [
+    const decision = decideAutomatically("enterprise", [
       result("cac_registration", "match"),
       result("tax_identification", "unavailable"),
       result("vehicle_registration", "match"),
@@ -75,7 +75,7 @@ describe("Automated decision", () => {
   });
 
   it("sends a missing required check to a human", () => {
-    const decision = decideAutomatically("fleet_provider", [
+    const decision = decideAutomatically("enterprise", [
       result("cac_registration", "match"),
       result("vehicle_registration", "match"),
     ]);
@@ -85,7 +85,7 @@ describe("Automated decision", () => {
   });
 
   it("never approves on no checks at all", () => {
-    expect(decideAutomatically("fleet_provider", []).outcome).toBe(
+    expect(decideAutomatically("enterprise", []).outcome).toBe(
       "manual_review",
     );
     expect(decideAutomatically("owner_operator", []).outcome).toBe(
@@ -94,7 +94,7 @@ describe("Automated decision", () => {
   });
 
   it("prefers a contradiction over an unanswered check", () => {
-    const decision = decideAutomatically("fleet_provider", [
+    const decision = decideAutomatically("enterprise", [
       result("cac_registration", "mismatch"),
       result("tax_identification", "unavailable"),
     ]);
@@ -103,7 +103,7 @@ describe("Automated decision", () => {
   });
 
   it("holds back an approval the documents disagree with", () => {
-    const decision = decideAutomatically("fleet_provider", ENTERPRISE_PASS, [
+    const decision = decideAutomatically("enterprise", ENTERPRISE_PASS, [
       "rc_number reads RC7654321 on the document, not RC1234567",
     ]);
 
@@ -115,7 +115,7 @@ describe("Automated decision", () => {
 
   it("ignores document disagreement when a registry already contradicted", () => {
     const decision = decideAutomatically(
-      "fleet_provider",
+      "enterprise",
       [...ENTERPRISE_PASS.slice(1), result("cac_registration", "mismatch")],
       ["rc_number reads something else"],
     );

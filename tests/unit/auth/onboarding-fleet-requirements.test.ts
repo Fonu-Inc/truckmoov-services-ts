@@ -79,7 +79,7 @@ function deviceRequest(quantity: number): StoredOnboardingDeviceRequest {
 
 describe("Required documents by applicant type", () => {
   it("asks an enterprise applicant for eight documents", () => {
-    expect(missingDocumentTypes("fleet_provider", [])).toHaveLength(8);
+    expect(missingDocumentTypes("enterprise", [])).toHaveLength(8);
   });
 
   it("asks an owner operator for two", () => {
@@ -90,7 +90,7 @@ describe("Required documents by applicant type", () => {
   });
 
   it("does not ask either type for the signed indemnity form", () => {
-    for (const applicantType of ["fleet_provider", "owner_operator"] as const) {
+    for (const applicantType of ["enterprise", "owner_operator"] as const) {
       expect(missingDocumentTypes(applicantType, [])).not.toContain(
         "signed_indemnity_form",
       );
@@ -176,7 +176,7 @@ function application(
     id: "app-1",
     reference: "APP-2026-ABCD",
     tokenHash: "hash",
-    applicantType: "fleet_provider",
+    applicantType: "enterprise",
     organizationName: "Arne logistics Ltd",
     businessEmail: "jane@arne.com",
     organizationPhone: "+2348000000000",

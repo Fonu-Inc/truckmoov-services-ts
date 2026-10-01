@@ -19,7 +19,7 @@ import { toActionsView, toChecklistView, toCompletionView, toEvidenceView } from
 export type DeviceIndex = Map<string, JobDevice>;
 
 const CUSTOMER_TYPES: Record<OnboardingApplicantType, string> = {
-  fleet_provider: 'Enterprise',
+  enterprise: 'Enterprise',
   owner_operator: 'Owner operator',
 };
 

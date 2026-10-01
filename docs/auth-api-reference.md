@@ -1725,7 +1725,7 @@ Start an onboarding application.
 
 ```
 {
-  applicantType: "fleet_provider" | "owner_operator"
+  applicantType: "enterprise" | "owner_operator"
   organizationName: string
   businessEmail: string
   organizationPhone: string

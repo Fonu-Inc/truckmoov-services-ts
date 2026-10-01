@@ -56,7 +56,7 @@ function order(id: string, overrides: Partial<StoredInstallationOrder> = {}): St
 
 function application(id: string, organizationName: string): StoredOnboardingApplication {
   return {
-    id: `app-${id}`, reference: `APP-${id}`, tokenHash: "hash", applicantType: "fleet_provider", organizationName,
+    id: `app-${id}`, reference: `APP-${id}`, tokenHash: "hash", applicantType: "enterprise", organizationName,
     businessEmail: `fleet@${id}.ng`, organizationPhone: "+2348000000000", contactFullName: "Jane Doe", contactRole: null,
     streetAddress: "Street", city: "Apapa", state: "Lagos", rcNumber: null, taxIdentificationNumber: null, identificationType: null,
     identificationNumber: null, m2mPlanCode: null, billingEmail: null, billingEmailVerifiedAt: null, stage: "installation",

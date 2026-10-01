@@ -20,7 +20,7 @@ function application(
     id,
     reference: `APP-2026-${id.toUpperCase()}`,
     tokenHash: `hash-${id}`,
-    applicantType: "fleet_provider",
+    applicantType: "enterprise",
     organizationName: "Arne logistics Ltd",
     businessEmail: `${id}@arne.com`,
     organizationPhone: "+2348000000000",

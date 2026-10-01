@@ -19,7 +19,7 @@ function application(stage: OnboardingStage): StoredOnboardingApplication {
     id: "app-1",
     reference: "APP-2026-ABCD",
     tokenHash: "hash",
-    applicantType: "fleet_provider",
+    applicantType: "enterprise",
     organizationName: "Arne Logistics Ltd",
     businessEmail: "jane@arne.com",
     organizationPhone: "+2348000000000",

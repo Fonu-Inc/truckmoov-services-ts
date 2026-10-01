@@ -128,7 +128,7 @@ describe("Onboarding document upload", () => {
   });
 
   it("refuses an upload of the generated indemnity form", async () => {
-    await applications.save(application("fleet_provider"));
+    await applications.save(application("enterprise"));
 
     await expect(
       upload.execute({
@@ -140,7 +140,7 @@ describe("Onboarding document upload", () => {
   });
 
   it("refuses to delete the generated indemnity form", async () => {
-    await applications.save(application("fleet_provider"));
+    await applications.save(application("enterprise"));
     await applications.saveDocument({
       id: "doc-indemnity",
       applicationId: "app-1",

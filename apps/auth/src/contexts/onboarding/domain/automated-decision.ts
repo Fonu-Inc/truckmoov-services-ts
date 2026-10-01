@@ -28,7 +28,7 @@ export const REQUIRED_CHECKS_BY_APPLICANT_TYPE: Record<
   OnboardingApplicantType,
   readonly KybVerificationCheck[]
 > = {
-  fleet_provider: [
+  enterprise: [
     'cac_registration',
     'tax_identification',
     'vehicle_registration',

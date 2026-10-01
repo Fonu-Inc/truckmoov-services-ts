@@ -54,7 +54,7 @@ function order(overrides: Partial<StoredInstallationOrder> = {}): StoredInstalla
 
 function application(stage: StoredOnboardingApplication["stage"] = "installation"): StoredOnboardingApplication {
   return {
-    id: "app-1", reference: "APP-1", tokenHash: "hash", applicantType: "fleet_provider", organizationName: "Lagos Express Logistics",
+    id: "app-1", reference: "APP-1", tokenHash: "hash", applicantType: "enterprise", organizationName: "Lagos Express Logistics",
     businessEmail: "ops@lex.ng", organizationPhone: "+2348000000000", contactFullName: "Jane Doe", contactRole: null,
     streetAddress: "Street", city: "Ikeja", state: "Lagos", rcNumber: null, taxIdentificationNumber: null, identificationType: null,
     identificationNumber: null, m2mPlanCode: null, billingEmail: null, billingEmailVerifiedAt: null, stage, emailVerifiedAt: NOW,

@@ -1,5 +1,5 @@
 export const ONBOARDING_APPLICANT_TYPES = [
-  'fleet_provider',
+  'enterprise',
   'owner_operator',
 ] as const;
 export type OnboardingApplicantType =
@@ -35,7 +35,7 @@ export const REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE: Record<
   OnboardingApplicantType,
   readonly OnboardingDocumentType[]
 > = {
-  fleet_provider: [
+  enterprise: [
     'customer_request_letter',
     'cac_document',
     'tax_certificate_or_tin',

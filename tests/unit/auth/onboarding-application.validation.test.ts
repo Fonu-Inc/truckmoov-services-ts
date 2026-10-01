@@ -66,12 +66,12 @@ describe("Nigerian phone validation", () => {
 
 describe("Applicant type", () => {
   it("accepts the two application types", () => {
-    expect(validateApplicantType("fleet_provider")).toBe("fleet_provider");
+    expect(validateApplicantType("enterprise")).toBe("enterprise");
     expect(validateApplicantType(" owner_operator ")).toBe("owner_operator");
   });
 
   it("rejects tenant organisation types that are not application types", () => {
-    for (const input of ["enterprise", "aggregator", "", null]) {
+    for (const input of ["fleet_provider", "aggregator", "", null]) {
       expect(() => validateApplicantType(input)).toThrow(OnboardingValidationError);
     }
   });

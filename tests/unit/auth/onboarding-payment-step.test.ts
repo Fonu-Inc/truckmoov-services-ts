@@ -34,7 +34,7 @@ function application(
     id: "app-1",
     reference: "APP-2026-AAAA",
     tokenHash: hashApplicationToken(TOKEN),
-    applicantType: "fleet_provider",
+    applicantType: "enterprise",
     organizationName: "Arne logistics Ltd",
     businessEmail: "jane@arne.com",
     organizationPhone: "+2348000000000",
