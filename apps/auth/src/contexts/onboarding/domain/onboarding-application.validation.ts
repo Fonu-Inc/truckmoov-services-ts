@@ -138,18 +138,18 @@ export function validateNigerianPhone(value: unknown, field: string): string {
   return `+234${national}`;
 }
 
-export function validateContactFullName(value: unknown): string {
+export function validateContactFullName(value: unknown, field = 'contactFullName'): string {
   const name = collapseSpaces(String(value ?? ''));
-  assertLength('contactFullName', 'Contact full name', name, 2, 80);
+  assertLength(field, 'Contact full name', name, 2, 80);
   if (!NAME_PATTERN.test(name)) {
     throw new OnboardingValidationError(
-      'contactFullName',
+      field,
       'Contact full name must not contain digits or symbols',
     );
   }
   if (name.split(' ').length < 2) {
     throw new OnboardingValidationError(
-      'contactFullName',
+      field,
       'Contact full name must include a first and last name',
     );
   }
@@ -322,9 +322,9 @@ export function validateDeviceNotes(value: unknown): string | null {
   return notes;
 }
 
-export function validateStreetAddress(value: unknown): string {
+export function validateStreetAddress(value: unknown, field = 'streetAddress'): string {
   const address = collapseSpaces(String(value ?? ''));
-  assertLength('streetAddress', 'Street address', address, 3, 200);
+  assertLength(field, 'Street address', address, 3, 200);
   return address;
 }
 

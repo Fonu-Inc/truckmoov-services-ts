@@ -188,11 +188,11 @@ export class ScheduleInstallationUseCase {
     return {
       scheduledDate,
       timeSlot: validateTimeSlot(input.timeSlot),
-      addressLine: validateStreetAddress(input.addressLine),
+      addressLine: validateStreetAddress(input.addressLine, 'addressLine'),
       city: validateCity(input.city),
       state: validateState(input.state),
       requiredCapabilities: validateRequiredCapabilities(input.requiredCapabilities),
-      siteContactName: validateContactFullName(input.siteContactName),
+      siteContactName: validateContactFullName(input.siteContactName, 'siteContactName'),
       siteContactPhone: validateNigerianPhone(input.siteContactPhone, 'siteContactPhone'),
       notes: validateNotes(input.notes),
     };

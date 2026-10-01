@@ -148,6 +148,18 @@ describe("scheduling checks the body before the stage", () => {
     expect(error.field).toBe("timeSlot");
   });
 
+  // The form maps an error to its input by the request property, so the
+  // business-details names these validators were written for would miss.
+  it.each([
+    ["addressLine", ""],
+    ["siteContactName", ""],
+  ])("names %s as its own field", async (field, value) => {
+    const error = (await useCaseAt("application").execute(body({ [field]: value })).catch((e: unknown) => e)) as OnboardingValidationError;
+
+    expect(error).toBeInstanceOf(OnboardingValidationError);
+    expect(error.field).toBe(field);
+  });
+
   it("still refuses a well formed body with the stage 409", async () => {
     const error = await useCaseAt("application").execute(body()).catch((e: unknown) => e);
 
