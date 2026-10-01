@@ -16,9 +16,10 @@ function row(organisationName: string | null) {
     tenant_id: 't1',
     organisation_name: organisationName,
     requesting_email: null,
-    manufacturer: 'Teltonika',
+    reference_number: 'DVR-401882',
+    manufacturer: null,
     model: null,
-    tracker_type: 'hardwired',
+    tracker_type: null,
     quantity: 1,
     sim_required: false,
     vehicle_id: null,
@@ -27,7 +28,7 @@ function row(organisationName: string | null) {
     preferred_date: null,
     use_case: 'Tracking',
     notes: null,
-    status: 'pending_review',
+    status: 'under_review',
     assigned_to: null,
     decided_by: null,
     decided_at: null,
@@ -79,5 +80,58 @@ describe('device setup request organisation name', () => {
     await repository().findById('req-1');
 
     expect(dataQueries()[0]).toMatch(TENANT_NAME_FALLBACK);
+  });
+
+  it('reads the reference and a request with no hardware chosen', async () => {
+    respondWith([row(null)]);
+
+    const [request] = await repository().findAll();
+
+    expect(request).toMatchObject({ referenceNumber: 'DVR-401882', manufacturer: null, trackerType: null, status: 'under_review' });
+    expect(dataQueries()[0]).toContain('r.reference_number');
+  });
+
+  it('searches by DVR reference and tolerates a missing manufacturer', async () => {
+    respondWith([]);
+
+    await repository().findAll({ search: 'DVR-4018' });
+
+    const [sql] = dataQueries();
+    expect(sql).toContain('lower(r.reference_number) like ?');
+    expect(sql).toContain("lower(coalesce(r.manufacturer, '')) like ?");
+    expect(execute.mock.calls.at(-1)?.[1]).toEqual(Array(6).fill('%dvr-4018%'));
+  });
+
+  it('counts the queue cards under the new statuses', async () => {
+    execute.mockImplementation(async (sql: string) =>
+      sql.includes('information_schema')
+        ? [{ exists: true }]
+        : [{ pending_approval: 2, awaiting_payment: 1, approved: 4, rejected: 1, devices_requested: 9 }],
+    );
+
+    const summary = await repository().summary();
+
+    expect(summary).toEqual({ pendingApproval: 2, awaitingPayment: 1, approved: 4, rejected: 1, devicesRequested: 9 });
+    expect(dataQueries()[0]).toContain("count(*) filter (where status = 'awaiting_payment')::int as awaiting_payment");
+    expect(execute.mock.calls.at(-1)?.[1]).toEqual([
+      'under_review',
+      'awaiting_payment',
+      'ready_for_installation',
+      'installation_in_progress',
+      'completed',
+    ]);
+  });
+
+  it('starts installation and confirms payment with the new statuses', async () => {
+    respondWith([]);
+    const timeline = [{ status: 'ready_for_installation', at: 'now', note: null }];
+
+    await repository().assign('req-1', 'admin-1', timeline);
+    await repository().advance({ id: 'req-1', status: 'ready_for_installation', timeline });
+
+    const [assign, advance] = dataQueries();
+    expect(assign).toContain("status = 'installation_in_progress'");
+    expect(advance).toContain('set status = ?, timeline = ?::jsonb');
+    expect(execute.mock.calls.at(-1)?.[1]).toEqual(['ready_for_installation', JSON.stringify(timeline), 'req-1']);
   });
 });

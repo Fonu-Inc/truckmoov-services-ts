@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import type { DeviceSetupRequest } from "../../domain/entities/device-setup-request.entity";
+import {
+  setupRequestSearchFields,
+  type DeviceSetupRequest,
+} from "../../domain/entities/device-setup-request.entity";
 import type {
   DeviceSetupRequestFilters,
   DeviceSetupRequestRepository,
@@ -22,9 +25,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
         if (filters?.status && request.status !== filters.status) return false;
         if (!query) return true;
         const p = request.toPrimitives();
-        return [p.manufacturer, p.model ?? "", p.useCase, p.status, p.vehicleId ?? ""].some(
-          (value) => value.toLowerCase().includes(query),
-        );
+        return setupRequestSearchFields(p).some((value) => value.toLowerCase().includes(query));
       })
       .sort((a, b) => b.toPrimitives().createdAt.localeCompare(a.toPrimitives().createdAt));
   }
@@ -33,6 +34,10 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     const request = this.data.get(id);
     if (!request || request.tenantId !== tenantId) return null;
     return request;
+  }
+
+  async referenceExists(referenceNumber: string): Promise<boolean> {
+    return Array.from(this.data.values()).some((request) => request.referenceNumber === referenceNumber);
   }
 
   async deleteById(id: string, tenantId: string): Promise<void> {

@@ -20,14 +20,14 @@ export class ExportSystemDeviceSetupRequestsUseCase {
     const result = await this.listUseCase.execute(accessToken, filters);
     const requests = result.data.requests;
     const headers = [
-      'id', 'tenantId', 'organisationName', 'requestingEmail',
+      'id', 'referenceNumber', 'tenantId', 'organisationName', 'requestingEmail',
       'manufacturer', 'model', 'trackerType', 'quantity', 'simRequired',
       'state', 'city', 'preferredInstallDate', 'useCase', 'notes',
       'status', 'kycStatus', 'assignedTo', 'decidedBy', 'decidedAt',
       'decisionReason', 'createdAt', 'updatedAt',
     ];
     const rows = requests.map((r) => [
-      r.id, r.tenantId, r.organisationName, r.requestingEmail,
+      r.id, r.referenceNumber, r.tenantId, r.organisationName, r.requestingEmail,
       r.manufacturer, r.model, r.trackerType, r.quantity, r.simRequired,
       r.state, r.city, r.preferredInstallDate, r.useCase, r.notes,
       r.status, r.kycStatus, r.assignedTo, r.decidedBy, r.decidedAt,

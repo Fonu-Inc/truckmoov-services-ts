@@ -9,6 +9,14 @@ export class ApproveDeviceSetupRequestDto {
   note?: string;
 }
 
+export class ConfirmDeviceSetupPaymentDto {
+  @ApiPropertyOptional({ description: 'Optional note recorded on the request timeline, such as the payment reference' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
+
 export class RejectDeviceSetupRequestDto {
   @ApiProperty({ description: 'Reason for rejecting the device setup request' })
   @IsString()

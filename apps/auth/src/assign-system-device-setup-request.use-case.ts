@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { canTransitionSetupRequest } from '@shared/devices';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -13,9 +14,9 @@ import {
   serializeDeviceSetupRequest,
 } from './get-system-device-setup-request.use-case';
 
-export class DeviceSetupRequestNotApprovedError extends Error {
+export class DeviceSetupRequestNotReadyError extends Error {
   constructor(readonly currentStatus: string) {
-    super(`A device request must be approved before it is assigned. This one is ${currentStatus}`);
+    super(`A device request must be ready for installation before it is assigned. This one is ${currentStatus}`);
   }
 }
 
@@ -42,13 +43,16 @@ export class AssignSystemDeviceSetupRequestUseCase {
     const request = await this.repo.findById(requestId);
     if (!request) throw new DeviceSetupRequestNotFoundError(requestId);
 
-    // Work starts once the platform has said yes. Assigning a request still
-    // waiting on a decision would put it in progress without one.
-    if (request.status !== 'approved') {
-      throw new DeviceSetupRequestNotApprovedError(request.status);
+    // Installation starts once the request is approved and paid for.
+    if (!canTransitionSetupRequest(request.status, 'installation_in_progress')) {
+      throw new DeviceSetupRequestNotReadyError(request.status);
     }
 
-    await this.repo.assign(requestId, actor.id, appendSetupRequestTimeline(request, 'in_progress', null));
+    await this.repo.assign(
+      requestId,
+      actor.id,
+      appendSetupRequestTimeline(request, 'installation_in_progress', null),
+    );
     const updated = await this.repo.findById(requestId);
     if (!updated) throw new DeviceSetupRequestNotFoundError(requestId);
 

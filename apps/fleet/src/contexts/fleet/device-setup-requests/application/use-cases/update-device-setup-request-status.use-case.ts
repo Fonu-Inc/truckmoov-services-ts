@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { SETUP_REQUEST_PLATFORM_STATUSES } from "@shared/devices";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import type { DeviceSetupRequestStatus } from "../../domain/entities/device-setup-request.entity";
 import {
@@ -21,6 +22,7 @@ export class UpdateDeviceSetupRequestStatusUseCase {
   ) {}
 
   async execute(command: UpdateDeviceSetupRequestStatusCommand) {
+    assertTenantSettable(command.status);
     const request = await this.repository.findById(command.id, command.tenantId);
     if (!request) {
       throw new FleetRuleError(`device setup request ${command.id} not found`);
@@ -32,5 +34,12 @@ export class UpdateDeviceSetupRequestStatusUseCase {
     } catch (err) {
       throw new FleetRuleError((err as Error).message);
     }
+  }
+}
+
+// Approval, rejection and payment are the platform's calls, made from its queue.
+function assertTenantSettable(status: DeviceSetupRequestStatus) {
+  if (SETUP_REQUEST_PLATFORM_STATUSES.includes(status)) {
+    throw new FleetRuleError(`${status} is set by the platform, not by the tenant`);
   }
 }

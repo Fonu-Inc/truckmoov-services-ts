@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import {
   DeviceSetupRequest,
+  setupRequestSearchFields,
   type DeviceSetupRequestStatus,
   type TrackerType,
 } from "../../domain/entities/device-setup-request.entity";
@@ -28,9 +29,10 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       requestedByUserId: p.requestedByUserId ?? null,
       organisationName: p.organisationName ?? null,
       requestingEmail: p.requestingEmail ?? null,
-      manufacturer: p.manufacturer,
+      referenceNumber: p.referenceNumber,
+      manufacturer: p.manufacturer ?? null,
       model: p.model ?? null,
-      trackerType: p.trackerType,
+      trackerType: p.trackerType ?? null,
       quantity: p.quantity,
       simRequired: p.simRequired,
       carrierId: p.carrierId ?? null,
@@ -66,20 +68,12 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       { orderBy: { createdAt: "desc" } },
     );
 
+    const requests = records.map((record) => this.toDomain(record));
     const query = filters?.query?.trim().toLowerCase();
-    const filtered = !query
-      ? records
-      : records.filter((record) =>
-          [
-            record.manufacturer,
-            record.model ?? "",
-            record.useCase,
-            record.status,
-            record.vehicleId ?? "",
-          ].some((value) => value.toLowerCase().includes(query)),
-        );
-
-    return filtered.map((record) => this.toDomain(record));
+    if (!query) return requests;
+    return requests.filter((request) =>
+      setupRequestSearchFields(request.toPrimitives()).some((value) => value.toLowerCase().includes(query)),
+    );
   }
 
   async findById(id: string, tenantId: string): Promise<DeviceSetupRequest | null> {
@@ -87,6 +81,11 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     const em = orm.em.fork();
     const record = await em.findOne(DeviceSetupRequestRecord, { id, tenantId });
     return record ? this.toDomain(record) : null;
+  }
+
+  async referenceExists(referenceNumber: string): Promise<boolean> {
+    const orm = await getFleetOrm(this.config.db);
+    return (await orm.em.fork().count(DeviceSetupRequestRecord, { referenceNumber })) > 0;
   }
 
   async deleteById(id: string, tenantId: string): Promise<void> {
@@ -102,9 +101,10 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       requestedByUserId: record.requestedByUserId ?? null,
       organisationName: record.organisationName ?? null,
       requestingEmail: record.requestingEmail ?? null,
-      manufacturer: record.manufacturer,
+      referenceNumber: record.referenceNumber,
+      manufacturer: record.manufacturer ?? null,
       model: record.model ?? null,
-      trackerType: record.trackerType as TrackerType,
+      trackerType: (record.trackerType as TrackerType | null) ?? null,
       quantity: record.quantity,
       simRequired: record.simRequired,
       carrierId: record.carrierId ?? null,

@@ -16,9 +16,10 @@ type Row = {
   tenant_id: string;
   organisation_name: string | null;
   requesting_email: string | null;
-  manufacturer: string;
+  reference_number: string;
+  manufacturer: string | null;
   model: string | null;
-  tracker_type: string;
+  tracker_type: string | null;
   quantity: number | string;
   sim_required: boolean | string;
   vehicle_id: string | null;
@@ -59,6 +60,7 @@ const SELECT_COLUMNS = `
   r.tenant_id,
   ${ORGANISATION_NAME} as organisation_name,
   r.requesting_email,
+  r.reference_number,
   r.manufacturer,
   r.model,
   r.tracker_type,
@@ -123,13 +125,14 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     if (filters?.search?.trim()) {
       const term = `%${filters.search.trim().toLowerCase()}%`;
       conditions.push(
-        `(lower(coalesce(${ORGANISATION_NAME}, '')) like ?
+        `(lower(r.reference_number) like ?
+          or lower(coalesce(${ORGANISATION_NAME}, '')) like ?
           or lower(coalesce(r.requesting_email, '')) like ?
-          or lower(r.manufacturer) like ?
+          or lower(coalesce(r.manufacturer, '')) like ?
           or lower(coalesce(r.model, '')) like ?
           or lower(r.tenant_id) like ?)`,
       );
-      params.push(term, term, term, term, term);
+      params.push(term, term, term, term, term, term);
     }
     if (filters?.dateFrom?.trim()) {
       conditions.push('r.created_at >= ?');
@@ -161,19 +164,21 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
   }
 
   async summary(): Promise<DeviceSetupRequestSummary> {
-    const empty = { pendingApproval: 0, approved: 0, rejected: 0, devicesRequested: 0 };
+    const empty = { pendingApproval: 0, awaitingPayment: 0, approved: 0, rejected: 0, devicesRequested: 0 };
     if (!(await this.tableExists())) return empty;
 
     const pending = SETUP_REQUEST_PENDING_STATUSES;
     const approved = SETUP_REQUEST_APPROVED_STATUSES;
     const rows = await this.query<{
       pending_approval: number | string;
+      awaiting_payment: number | string;
       approved: number | string;
       rejected: number | string;
       devices_requested: number | string | null;
     }>(
       `select
          count(*) filter (where status in (${placeholders(pending.length)}))::int as pending_approval,
+         count(*) filter (where status = 'awaiting_payment')::int as awaiting_payment,
          count(*) filter (where status in (${placeholders(approved.length)}))::int as approved,
          count(*) filter (where status = 'rejected')::int as rejected,
          -- The card counts devices, not requests: one request for eight
@@ -187,6 +192,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     if (!row) return empty;
     return {
       pendingApproval: Number(row.pending_approval ?? 0),
+      awaitingPayment: Number(row.awaiting_payment ?? 0),
       approved: Number(row.approved ?? 0),
       rejected: Number(row.rejected ?? 0),
       devicesRequested: Number(row.devices_requested ?? 0),
@@ -216,9 +222,22 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
   ): Promise<void> {
     await this.execute(
       `update fleet_device_setup_requests
-          set assigned_to = ?, status = 'in_progress', timeline = ?::jsonb, updated_at = now()
+          set assigned_to = ?, status = 'installation_in_progress', timeline = ?::jsonb, updated_at = now()
         where id = ?`,
       [assignedTo, JSON.stringify(timeline), id],
+    );
+  }
+
+  async advance(input: {
+    id: string;
+    status: DeviceSetupRequestStatus;
+    timeline: Array<{ status: string; at: string; note: string | null }>;
+  }): Promise<void> {
+    await this.execute(
+      `update fleet_device_setup_requests
+          set status = ?, timeline = ?::jsonb, updated_at = now()
+        where id = ?`,
+      [input.status, JSON.stringify(input.timeline), input.id],
     );
   }
 
@@ -253,6 +272,7 @@ function toStored(row: Row): StoredDeviceSetupRequest {
     tenantId: row.tenant_id,
     organisationName: row.organisation_name,
     requestingEmail: row.requesting_email,
+    referenceNumber: row.reference_number,
     manufacturer: row.manufacturer,
     model: row.model,
     trackerType: row.tracker_type,

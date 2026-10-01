@@ -27,7 +27,10 @@ import {
   CreateDeviceSetupRequestUseCase,
   UpdateDeviceSetupRequestStatusUseCase,
 } from "./contexts/fleet/device-setup-requests";
-import { TRACKER_TYPE_OPTIONS } from "./contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
+import {
+  DEVICE_SETUP_REQUEST_STATUSES,
+  TRACKER_TYPE_OPTIONS,
+} from "./contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { UpdateDeviceSetupRequestStatusDto, CreateDeviceSetupRequestDto, DeviceSetupRequestListQueryDto } from "./dto/device-setup-request.dto";
 import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
@@ -57,28 +60,28 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Request device setup",
-    description: "Submits a tracking-device provisioning request (manufacturer, tracker type, optional SIM carrier/data bundle, vehicle, location, use case).",
+    description: "Submits a device request (quantity, optional SIM carrier/data bundle, vehicle, location, use case). Manufacturer and tracker type are optional; the platform picks the hardware. Returns a DVR-NNNNNN reference and starts under_review.",
   })
   @ApiCreatedResponse({ type: DeviceSetupRequestResponse })
   async createDeviceSetupRequest(
     @Body() payload: CreateDeviceSetupRequestDto,
     @Req() req: FleetRequestContext,
   ): Promise<DeviceSetupRequestResponse> {
-    const result = await this.runFleetUseCase(() =>
+    const created = await this.runFleetUseCase(() =>
       this.createDeviceSetupRequestUseCase.execute({
         ...payload,
         ...requester(payload, req),
         tenantId: this.tenantIdFromRequest(req),
       }),
-    ) as unknown as DeviceSetupRequestResponse;
+    );
     await this.recordActivity(req, {
       entityType: "device_setup_request",
-      entityId: (result as unknown as { id: string }).id,
+      entityId: created.id,
       action: "device_setup_request.created",
       summary: "Device setup requested",
-      metadata: { manufacturer: payload.manufacturer, trackerType: payload.trackerType },
+      metadata: { referenceNumber: created.referenceNumber },
     });
-    return result;
+    return created as unknown as DeviceSetupRequestResponse;
   }
 
   @Get()
@@ -87,8 +90,8 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     summary: "List device setup requests",
     description: "Lists submitted device setup requests with their provisioning status timeline (My Device Requests).",
   })
-  @ApiQuery({ name: "query", required: false, type: String })
-  @ApiQuery({ name: "status", required: false, enum: ["pending_review", "in_progress", "provisioned", "assigned", "cancelled"] })
+  @ApiQuery({ name: "query", required: false, type: String, description: "Matches reference number, manufacturer, model, use case, status or vehicle" })
+  @ApiQuery({ name: "status", required: false, enum: DEVICE_SETUP_REQUEST_STATUSES })
   @ApiOkResponse({ type: DeviceSetupRequestListResponse })
   async listDeviceSetupRequests(
     @Query() query: DeviceSetupRequestListQueryDto,
@@ -133,7 +136,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Advance device setup request",
-    description: "Transitions a setup request through its provisioning lifecycle (pending_review → in_progress → provisioned → assigned, or cancelled).",
+    description: "Moves a request along its lifecycle (under_review → awaiting_payment → ready_for_installation → installation_in_progress → completed, or cancelled). awaiting_payment, ready_for_installation and rejected are the platform's to set and are refused here.",
   })
   @ApiOkResponse({ type: DeviceSetupRequestResponse })
   async updateDeviceSetupRequestStatus(

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DEVICE_SETUP_REQUEST_STATUSES } from '@shared/devices';
 import { StandardApiResponse } from '@shared/openapi';
 import {
   SYSTEM_DEVICE_CATALOG_STATUSES,
@@ -1625,22 +1626,37 @@ export class SystemHealthResponse extends StandardApiResponse<SystemHealthDataSc
 
 /* ── Device Setup Request Schemas ────────────────────── */
 
+export class SystemDeviceSetupRequestTimelineEntrySchema {
+  @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) at!: string;
+  @ApiProperty({ nullable: true }) note!: string | null;
+}
+
 export class SystemDeviceSetupRequestSchema {
   @ApiProperty() id!: string;
-  @ApiProperty() imei!: string;
-  @ApiProperty() manufacturer!: string;
-  @ApiProperty() model!: string;
-  @ApiProperty() connectionType!: string;
-  @ApiProperty() requesterName!: string;
-  @ApiProperty() needsSim!: boolean;
-  @ApiProperty({ nullable: true }) vehiclePlate!: string | null;
-  @ApiProperty({ nullable: true }) location!: string | null;
+  @ApiProperty({ example: 'DVR-401882' }) referenceNumber!: string;
   @ApiProperty() tenantId!: string;
-  @ApiProperty({ enum: ['pending_review', 'in_progress', 'assigned', 'rejected'] }) status!: string;
-  @ApiProperty({ nullable: true }) assignedTo!: string | null;
-  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty({ nullable: true }) organisationName!: string | null;
+  @ApiProperty({ nullable: true }) requestingEmail!: string | null;
+  @ApiProperty({ nullable: true, description: 'Null until the platform picks the hardware' }) manufacturer!: string | null;
+  @ApiProperty({ nullable: true }) model!: string | null;
+  @ApiProperty({ nullable: true, description: 'Null until the platform picks the hardware' }) trackerType!: string | null;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() simRequired!: boolean;
+  @ApiProperty({ nullable: true }) vehicleId!: string | null;
+  @ApiProperty({ nullable: true }) state!: string | null;
+  @ApiProperty({ nullable: true }) city!: string | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) preferredInstallDate!: string | null;
-  @ApiProperty({ nullable: true }) rejectedReason!: string | null;
+  @ApiProperty() useCase!: string;
+  @ApiProperty({ nullable: true }) notes!: string | null;
+  @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
+  @ApiProperty({ nullable: true, enum: ['verified', 'pending', 'rejected'] }) kycStatus!: string | null;
+  @ApiProperty({ nullable: true }) assignedTo!: string | null;
+  @ApiProperty({ nullable: true }) decidedBy!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) decidedAt!: string | null;
+  @ApiProperty({ nullable: true }) decisionReason!: string | null;
+  @ApiProperty({ type: SystemDeviceSetupRequestTimelineEntrySchema, isArray: true })
+  timeline!: SystemDeviceSetupRequestTimelineEntrySchema[];
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
 }

@@ -10,6 +10,8 @@ export interface DeviceSetupRequestRepository {
   save(request: DeviceSetupRequest): Promise<void>;
   findAll(filters?: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]>;
   findById(id: string, tenantId: string): Promise<DeviceSetupRequest | null>;
+  /** Across every tenant: references are globally unique. */
+  referenceExists(referenceNumber: string): Promise<boolean>;
   deleteById(id: string, tenantId: string): Promise<void>;
 }
 

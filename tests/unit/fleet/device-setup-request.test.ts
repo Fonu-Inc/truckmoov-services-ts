@@ -1,6 +1,14 @@
 import { ServiceUnavailableException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import { DeviceSetupRequest } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
+import {
+  DEVICE_SETUP_REQUEST_STATUSES,
+  DeviceSetupRequest,
+  type DeviceSetupRequestStatus,
+} from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
+import {
+  SETUP_REQUEST_REFERENCE_PATTERN,
+  nextSetupRequestReference,
+} from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/domain/device-setup-request-reference";
 import { InMemoryDeviceSetupRequestRepository } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/infrastructure/repositories/in-memory-device-setup-request.repository";
 import { CreateDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/create-device-setup-request.use-case";
 import { ListDeviceSetupRequestsUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/list-device-setup-requests.use-case";
@@ -23,18 +31,50 @@ const catalog = {
 const authCatalog = { read: vi.fn().mockResolvedValue(catalog) };
 
 function baseInput() {
-  return { id: "r1", tenantId: "t1", manufacturer: "Teltonika", trackerType: "hardwired" as const, useCase: "Long-haul GPS tracking" };
+  return { id: "r1", tenantId: "t1", referenceNumber: "DVR-100001", useCase: "Long-haul GPS tracking" };
 }
 
+function at(status: DeviceSetupRequestStatus) {
+  return DeviceSetupRequest.fromPrimitives({ ...DeviceSetupRequest.create(baseInput()).toPrimitives(), status });
+}
+
+const ALLOWED: Array<[DeviceSetupRequestStatus, DeviceSetupRequestStatus]> = [
+  ["under_review", "awaiting_payment"],
+  ["under_review", "rejected"],
+  ["under_review", "cancelled"],
+  ["awaiting_payment", "ready_for_installation"],
+  ["awaiting_payment", "cancelled"],
+  ["ready_for_installation", "installation_in_progress"],
+  ["ready_for_installation", "cancelled"],
+  ["installation_in_progress", "completed"],
+  ["installation_in_progress", "cancelled"],
+];
+
+const REFUSED = DEVICE_SETUP_REQUEST_STATUSES.flatMap((from) =>
+  DEVICE_SETUP_REQUEST_STATUSES.filter(
+    (to) => to !== from && !ALLOWED.some(([f, t]) => f === from && t === to),
+  ).map((to) => [from, to] as [DeviceSetupRequestStatus, DeviceSetupRequestStatus]),
+);
+
 describe("DeviceSetupRequest entity", () => {
-  it("creates with pending_review status and a seeded timeline", () => {
-    const req = DeviceSetupRequest.create(baseInput());
-    const p = req.toPrimitives();
-    expect(p.status).toBe("pending_review");
+  it("creates under review with a seeded timeline and no hardware choice", () => {
+    const p = DeviceSetupRequest.create(baseInput()).toPrimitives();
+    expect(p.status).toBe("under_review");
+    expect(p.referenceNumber).toBe("DVR-100001");
+    expect(p.manufacturer).toBeNull();
+    expect(p.trackerType).toBeNull();
     expect(p.quantity).toBe(1);
     expect(p.simRequired).toBe(false);
-    expect(p.timeline).toHaveLength(1);
-    expect(p.timeline[0].status).toBe("pending_review");
+    expect(p.timeline.map((t) => t.status)).toEqual(["under_review"]);
+  });
+
+  it("still keeps a manufacturer and tracker type when sent", () => {
+    const p = DeviceSetupRequest.create({ ...baseInput(), manufacturer: " Teltonika ", trackerType: "obd" }).toPrimitives();
+    expect(p).toMatchObject({ manufacturer: "Teltonika", trackerType: "obd" });
+  });
+
+  it("requires a reference number", () => {
+    expect(() => DeviceSetupRequest.create({ ...baseInput(), referenceNumber: "" })).toThrow(/referenceNumber/);
   });
 
   it("requires a carrier when a SIM is requested", () => {
@@ -45,36 +85,42 @@ describe("DeviceSetupRequest entity", () => {
     expect(() => DeviceSetupRequest.create({ ...baseInput(), trackerType: "rocket" as never })).toThrow(/trackerType/);
   });
 
-  it("follows the provisioning lifecycle and appends timeline entries", () => {
-    const req = DeviceSetupRequest.create(baseInput())
-      .decide("approved", "admin-1")
-      .transitionTo("in_progress")
-      .transitionTo("provisioned")
-      .transitionTo("assigned");
+  it("covers every pair of statuses as allowed or refused", () => {
+    expect(ALLOWED.length + REFUSED.length).toBe(DEVICE_SETUP_REQUEST_STATUSES.length * (DEVICE_SETUP_REQUEST_STATUSES.length - 1));
+  });
 
-    expect(req.status).toBe("assigned");
+  it.each(ALLOWED)("allows %s -> %s", (from, to) => {
+    const next = at(from).transitionTo(to, "step");
+    expect(next.status).toBe(to);
+    expect(next.toPrimitives().timeline.at(-1)).toMatchObject({ status: to, note: "step" });
+  });
+
+  it.each(REFUSED)("refuses %s -> %s", (from, to) => {
+    expect(() => at(from).transitionTo(to)).toThrow(/invalid setup-request transition/);
+  });
+
+  it("follows the design lifecycle end to end", () => {
+    const req = DeviceSetupRequest.create(baseInput())
+      .decide("awaiting_payment", "admin-1")
+      .transitionTo("ready_for_installation")
+      .transitionTo("installation_in_progress")
+      .transitionTo("completed");
+
     expect(req.toPrimitives().timeline.map((t) => t.status)).toEqual([
-      "pending_review",
-      "approved",
-      "in_progress",
-      "provisioned",
-      "assigned",
+      "under_review",
+      "awaiting_payment",
+      "ready_for_installation",
+      "installation_in_progress",
+      "completed",
     ]);
   });
 
-  // Provisioning cannot start on a request the platform has not accepted.
-  it("cannot start work before the platform has approved the request", () => {
-    expect(() => DeviceSetupRequest.create(baseInput()).transitionTo("in_progress")).toThrow(
-      /invalid setup-request transition/,
-    );
+  it("approval lands in awaiting_payment and records who decided", () => {
+    const approved = DeviceSetupRequest.create(baseInput()).decide("awaiting_payment", "admin-1", "ok");
+    expect(approved.toPrimitives()).toMatchObject({ status: "awaiting_payment", decidedBy: "admin-1" });
   });
 
-  it("rejects an illegal transition", () => {
-    const req = DeviceSetupRequest.create(baseInput());
-    expect(() => req.transitionTo("assigned")).toThrow(/invalid setup-request transition/);
-  });
-
-  it("records who decided, and refuses a rejection with no reason", () => {
+  it("records who rejected, and refuses a rejection with no reason", () => {
     const rejected = DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1", "Model deprecated");
     expect(rejected.toPrimitives()).toMatchObject({
       status: "rejected",
@@ -84,38 +130,95 @@ describe("DeviceSetupRequest entity", () => {
 
     expect(() => DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1")).toThrow(/reason/);
   });
+});
 
-  // A rejected request is not retried in place; the tenant submits a new one.
-  it("treats a rejection as final", () => {
-    const rejected = DeviceSetupRequest.create(baseInput()).decide("rejected", "admin-1", "No stock");
-    expect(() => rejected.transitionTo("in_progress")).toThrow(/invalid setup-request transition/);
+describe("DeviceSetupRequest reference", () => {
+  it("draws DVR- and six digits", async () => {
+    const reference = await nextSetupRequestReference(async () => false);
+    expect(reference).toMatch(SETUP_REQUEST_REFERENCE_PATTERN);
+  });
+
+  it("draws again when a reference is taken", async () => {
+    const draws = [401882, 401882, 512000];
+    const taken = new Set(["DVR-401882"]);
+    const reference = await nextSetupRequestReference(async (r) => taken.has(r), () => draws.shift()!);
+    expect(reference).toBe("DVR-512000");
+  });
+
+  it("gives up rather than loop forever", async () => {
+    await expect(nextSetupRequestReference(async () => true, () => 100001)).rejects.toThrow(/reference/);
+  });
+
+  it("gives each created request its own reference, unique across tenants", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const create = new CreateDeviceSetupRequestUseCase(repo, runtime, authCatalog);
+    const created = await Promise.all(
+      ["t1", "t2", "t1", "t3"].map((tenantId) => create.execute({ tenantId, useCase: "Telematics" })),
+    );
+    const references = created.map((r) => r.referenceNumber);
+    expect(new Set(references).size).toBe(references.length);
+    expect(references.every((r) => SETUP_REQUEST_REFERENCE_PATTERN.test(r))).toBe(true);
+    for (const r of references) expect(await repo.referenceExists(r)).toBe(true);
+    expect(await repo.referenceExists("DVR-000000")).toBe(false);
+  });
+
+  it("finds a request by its reference in the tenant's list search", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const list = new ListDeviceSetupRequestsUseCase(repo, runtime);
+    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "a", referenceNumber: "DVR-401882" }));
+    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "b", referenceNumber: "DVR-512000" }));
+
+    const found = await list.execute({ tenantId: "t1", query: "dvr-4018" });
+    expect(found.map((r) => r.id)).toEqual(["a"]);
   });
 });
 
 describe("DeviceSetupRequest use-cases", () => {
-  it("creates, lists (newest first), and advances status", async () => {
+  it("creates without manufacturer or tracker type, lists, and lets the tenant cancel", async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     const create = new CreateDeviceSetupRequestUseCase(repo, runtime, authCatalog);
     const list = new ListDeviceSetupRequestsUseCase(repo, runtime);
     const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
 
-    const created = await create.execute({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics" });
-    expect(created.status).toBe("pending_review");
+    const created = await create.execute({ useCase: "Telematics", quantity: 3 });
+    expect(created).toMatchObject({ status: "under_review", manufacturer: null, trackerType: null, quantity: 3 });
 
-    await update.execute({ id: created.id, tenantId: "t1", status: "approved" });
-    const advanced = await update.execute({ id: created.id, tenantId: "t1", status: "in_progress" });
-    expect(advanced.status).toBe("in_progress");
+    const cancelled = await update.execute({ id: created.id, tenantId: "t1", status: "cancelled" });
+    expect(cancelled.status).toBe("cancelled");
 
-    const all = await list.execute({ tenantId: "t1" });
-    expect(all).toHaveLength(1);
-    expect(all[0].status).toBe("in_progress");
+    const all = await list.execute({ tenantId: "t1", status: "cancelled" });
+    expect(all.map((r) => r.id)).toEqual([created.id]);
+  });
+
+  // A tenant approving, rejecting or confirming payment on its own request
+  // would skip the platform entirely.
+  it.each(["awaiting_payment", "ready_for_installation", "rejected"] as const)(
+    "refuses a tenant setting %s",
+    async (status) => {
+      const repo = new InMemoryDeviceSetupRequestRepository();
+      const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
+      await repo.save(at(status === "ready_for_installation" ? "awaiting_payment" : "under_review"));
+
+      await expect(update.execute({ id: "r1", tenantId: "t1", status })).rejects.toThrow(/set by the platform/);
+      expect((await repo.findById("r1", "t1"))!.status).not.toBe(status);
+    },
+  );
+
+  it("lets the tenant step installation along once the platform has handed it over", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
+    await repo.save(at("installation_in_progress"));
+
+    await expect(update.execute({ id: "r1", tenantId: "t1", status: "completed" })).resolves.toMatchObject({
+      status: "completed",
+    });
   });
 
   it("scopes listing by tenant", async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     const list = new ListDeviceSetupRequestsUseCase(repo, runtime);
     await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "a", tenantId: "t1" }));
-    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "b", tenantId: "t2" }));
+    await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "b", tenantId: "t2", referenceNumber: "DVR-100002" }));
     const t1 = await list.execute({ tenantId: "t1" });
     expect(t1).toHaveLength(1);
     expect(t1[0].tenantId).toBe("t1");
@@ -136,13 +239,13 @@ describe("DeviceSetupRequest use-cases", () => {
     await repo.save(DeviceSetupRequest.create({ ...baseInput(), id: "a", tenantId: "t1" }));
 
     await expect(() =>
-      update.execute({ id: "a", tenantId: "t2", status: "in_progress" }),
+      update.execute({ id: "a", tenantId: "t2", status: "cancelled" }),
     ).rejects.toThrow(/not found/);
   });
 });
 
 describe("DeviceSetupRequest SIM pick against the auth catalog", () => {
-  const command = { manufacturer: "Teltonika", trackerType: "hardwired" as const, useCase: "Telematics", simRequired: true };
+  const command = { useCase: "Telematics", simRequired: true };
 
   function harness(reader = { read: vi.fn().mockResolvedValue(catalog) }) {
     const repo = new InMemoryDeviceSetupRequestRepository();
@@ -173,7 +276,7 @@ describe("DeviceSetupRequest SIM pick against the auth catalog", () => {
 
   it("does not ask auth when no SIM is picked", async () => {
     const { create, reader } = harness();
-    await create.execute({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics" });
+    await create.execute({ useCase: "Telematics" });
     expect(reader.read).not.toHaveBeenCalled();
   });
 });

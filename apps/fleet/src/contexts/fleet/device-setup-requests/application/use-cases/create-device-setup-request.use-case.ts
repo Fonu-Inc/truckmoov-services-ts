@@ -12,6 +12,7 @@ import {
   DeviceSetupRequest,
   type TrackerType,
 } from "../../domain/entities/device-setup-request.entity";
+import { nextSetupRequestReference } from "../../domain/device-setup-request-reference";
 import {
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
@@ -22,9 +23,9 @@ export type CreateDeviceSetupRequestCommand = {
   requestedByUserId?: string | null;
   organisationName?: string | null;
   requestingEmail?: string | null;
-  manufacturer: string;
+  manufacturer?: string | null;
   model?: string | null;
-  trackerType: TrackerType;
+  trackerType?: TrackerType | null;
   quantity?: number;
   simRequired?: boolean;
   carrierId?: string | null;
@@ -53,6 +54,9 @@ export class CreateDeviceSetupRequestUseCase {
   async execute(command: CreateDeviceSetupRequestCommand) {
     await this.assertSimSelection(command);
     const tenantId = command.tenantId ?? this.runtime.getDefaultTenantId();
+    const referenceNumber = await nextSetupRequestReference((reference) =>
+      this.repository.referenceExists(reference),
+    );
     try {
       const request = DeviceSetupRequest.create({
         id: this.runtime.generateId(),
@@ -60,9 +64,10 @@ export class CreateDeviceSetupRequestUseCase {
         requestedByUserId: command.requestedByUserId ?? null,
         organisationName: command.organisationName ?? null,
         requestingEmail: command.requestingEmail ?? null,
-        manufacturer: command.manufacturer,
+        referenceNumber,
+        manufacturer: command.manufacturer ?? null,
         model: command.model ?? null,
-        trackerType: command.trackerType,
+        trackerType: command.trackerType ?? null,
         quantity: command.quantity,
         simRequired: command.simRequired,
         carrierId: command.carrierId ?? null,

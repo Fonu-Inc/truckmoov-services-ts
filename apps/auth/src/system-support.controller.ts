@@ -35,8 +35,12 @@ import {
 } from './assign-system-support-ticket.use-case';
 import {
   AssignSystemDeviceSetupRequestUseCase,
-  DeviceSetupRequestNotApprovedError,
+  DeviceSetupRequestNotReadyError,
 } from './assign-system-device-setup-request.use-case';
+import {
+  ConfirmSystemDeviceSetupPaymentUseCase,
+  DeviceSetupRequestNotAwaitingPaymentError,
+} from './confirm-system-device-setup-payment.use-case';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
@@ -51,7 +55,11 @@ import {
   SystemEscalatedTicketsResponse,
   SystemSupportTicketDetailResponse,
 } from './dto/auth.schema';
-import { ApproveDeviceSetupRequestDto, RejectDeviceSetupRequestDto } from './dto/device-setup.dto';
+import {
+  ApproveDeviceSetupRequestDto,
+  ConfirmDeviceSetupPaymentDto,
+  RejectDeviceSetupRequestDto,
+} from './dto/device-setup.dto';
 import {
   TICKET_CATEGORIES,
   AssignTicketDto,
@@ -79,6 +87,7 @@ import {
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { InvalidTicketStatusError, UpdateSystemSupportTicketStatusUseCase } from './update-system-support-ticket-status.use-case';
 import { Portals, OnResource } from '@shared/access';
+import { DEVICE_SETUP_REQUEST_STATUSES } from '@shared/devices';
 import { SUPPORT_TICKET_REPORTER_TYPES, type SupportTicketReporterType } from './support-ticket.repository';
 
 function reporterTypeFilter(value?: string): SupportTicketReporterType | undefined {
@@ -113,6 +122,7 @@ export class SystemSupportController extends BaseAuthController {
     @Inject(RejectSystemDeviceSetupRequestUseCase) private readonly rejectSystemDeviceSetupRequestUseCase: RejectSystemDeviceSetupRequestUseCase,
     @Inject(ApproveSystemDeviceSetupRequestUseCase) private readonly approveSystemDeviceSetupRequestUseCase: ApproveSystemDeviceSetupRequestUseCase,
     @Inject(GetSystemDeviceSetupSummaryUseCase) private readonly getSystemDeviceSetupSummaryUseCase: GetSystemDeviceSetupSummaryUseCase,
+    @Inject(ConfirmSystemDeviceSetupPaymentUseCase) private readonly confirmSystemDeviceSetupPaymentUseCase: ConfirmSystemDeviceSetupPaymentUseCase,
   ) {
     super(activityLogService);
   }
@@ -156,8 +166,8 @@ export class SystemSupportController extends BaseAuthController {
   @Get('device-setup')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List device setup requests' })
-  @ApiQuery({ name: 'status', required: false, enum: ['pending_review', 'in_progress', 'assigned', 'rejected'] })
-  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: DEVICE_SETUP_REQUEST_STATUSES })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Matches DVR reference, organisation, email, manufacturer, model or tenant' })
   @ApiQuery({ name: 'manufacturer', required: false, type: String })
   @ApiQuery({ name: 'dateFrom', required: false, type: String, description: 'ISO date lower bound on createdAt' })
   @ApiQuery({ name: 'dateTo', required: false, type: String, description: 'ISO date upper bound on createdAt' })
@@ -192,7 +202,7 @@ export class SystemSupportController extends BaseAuthController {
   @Get('device-setup/export')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export device setup requests as CSV' })
-  @ApiQuery({ name: 'status', required: false, enum: ['pending_review', 'in_progress', 'assigned', 'rejected'] })
+  @ApiQuery({ name: 'status', required: false, enum: DEVICE_SETUP_REQUEST_STATUSES })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'manufacturer', required: false, type: String })
   @ApiQuery({ name: 'dateFrom', required: false, type: String })
@@ -237,7 +247,7 @@ export class SystemSupportController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Device request approval counters',
-    description: 'Pending, approved and rejected request counts plus the number of devices requested.',
+    description: 'pendingApproval counts under_review; awaitingPayment counts awaiting_payment; approved counts awaiting_payment through completed; rejected; devicesRequested sums quantities.',
   })
   @ApiOkResponse({ description: 'Approval queue counters' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -276,11 +286,15 @@ export class SystemSupportController extends BaseAuthController {
 
   @Patch('device-setup/:requestId/assign')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Assign device setup request to current actor' })
+  @ApiOperation({
+    summary: 'Assign device setup request to current actor',
+    description: 'Starts installation: ready_for_installation → installation_in_progress.',
+  })
   @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to assign device setup requests' })
   @ApiNotFoundResponse({ description: 'Device setup request not found' })
+  @ApiBadRequestResponse({ description: 'The request is not ready for installation' })
   async assignSystemDeviceSetupRequest(
     @Param('requestId') requestId: string,
     @Headers('authorization') authorization?: string,
@@ -307,7 +321,7 @@ export class SystemSupportController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve a device setup request',
-    description: 'Accepts a tenant-submitted request so it can be assigned and provisioned.',
+    description: 'Accepts an under_review request and moves it to awaiting_payment.',
   })
   @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -333,6 +347,40 @@ export class SystemSupportController extends BaseAuthController {
         entityType: 'device_setup_request',
         entityId: requestId,
         summary: 'Device setup request approved',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceSetupError(error);
+      throw error;
+    }
+  }
+
+  @Patch('device-setup/:requestId/confirm-payment')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Confirm payment for a device setup request',
+    description: 'Records that the tenant has paid, confirmed manually by a platform admin: awaiting_payment → ready_for_installation.',
+  })
+  @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to confirm device request payments' })
+  @ApiNotFoundResponse({ description: 'Device setup request not found' })
+  @ApiBadRequestResponse({ description: 'The request is not awaiting payment' })
+  async confirmSystemDeviceSetupPayment(
+    @Param('requestId') requestId: string,
+    @Body(BodyOrDataPipe) payload: ConfirmDeviceSetupPaymentDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.confirmSystemDeviceSetupPaymentUseCase.execute(accessToken, requestId, payload?.note);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device_setup.payment_confirmed',
+        entityType: 'device_setup_request',
+        entityId: requestId,
+        summary: 'Device setup request payment confirmed',
       });
       return result;
     } catch (error) {
@@ -654,7 +702,8 @@ export class SystemSupportController extends BaseAuthController {
     if (
       error instanceof DeviceSetupRequestAlreadyDecidedError
       || error instanceof DeviceSetupRejectionReasonRequiredError
-      || error instanceof DeviceSetupRequestNotApprovedError
+      || error instanceof DeviceSetupRequestNotReadyError
+      || error instanceof DeviceSetupRequestNotAwaitingPaymentError
     ) {
       throw new BadRequestException(error.message);
     }

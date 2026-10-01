@@ -2703,39 +2703,81 @@ describe('Auth HTTP contract', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({
       pendingApproval: expect.any(Number),
+      awaitingPayment: expect.any(Number),
       approved: expect.any(Number),
       rejected: expect.any(Number),
       devicesRequested: expect.any(Number),
     });
   });
 
-  it('PATCH /system/support/device-setup/:requestId/approve then /assign moves it into progress', async () => {
+  it('PATCH /system/support/device-setup/:requestId approve, confirm-payment, then assign walks the lifecycle', async () => {
     const token = await systemToken();
-    const approve = await request(app.getHttpServer())
-      .patch('/auth/system/support/device-setup/dsr-001/approve')
-      .set('Authorization', `Bearer ${token}`)
-      .send({});
-    expect(approve.status).toBe(200);
-    expect(approve.body.data.status).toBe('approved');
-    expect(approve.body.data.decidedBy).toBeTruthy();
+    const patch = (path: string) =>
+      request(app.getHttpServer())
+        .patch(`/auth/system/support/device-setup/dsr-001/${path}`)
+        .set('Authorization', `Bearer ${token}`);
 
-    const assign = await request(app.getHttpServer())
-      .patch('/auth/system/support/device-setup/dsr-001/assign')
-      .set('Authorization', `Bearer ${token}`)
-      .send({});
+    const approve = await patch('approve').send({});
+    expect(approve.status).toBe(200);
+    expect(approve.body.data.status).toBe('awaiting_payment');
+    expect(approve.body.data.decidedBy).toBeTruthy();
+    expect(approve.body.data.referenceNumber).toMatch(/^DVR-\d{6}$/);
+
+    const early = await patch('assign').send({});
+    expect(early.status).toBe(400);
+
+    const paid = await patch('confirm-payment').send({ note: 'Bank transfer 991' });
+    expect(paid.status).toBe(200);
+    expect(paid.body.data.status).toBe('ready_for_installation');
+    expect(paid.body.data.timeline.at(-1)).toMatchObject({ status: 'ready_for_installation', note: 'Bank transfer 991' });
+
+    const again = await patch('confirm-payment').send({});
+    expect(again.status).toBe(400);
+    expect(again.body.status).toBe(false);
+
+    const assign = await patch('assign').send({});
     expect(assign.status).toBe(200);
-    expect(assign.body.data.status).toBe('in_progress');
+    expect(assign.body.data.status).toBe('installation_in_progress');
     expect(assign.body.data.assignedTo).toBeTruthy();
   });
 
-  // Work cannot start on a request the platform has not accepted.
-  it('PATCH /system/support/device-setup/:requestId/assign refuses an undecided request', async () => {
+  it('PATCH /system/support/device-setup/:requestId/confirm-payment requires a token and an existing request', async () => {
+    const anonymous = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-002/confirm-payment')
+      .send({});
+    expect(anonymous.status).toBe(401);
+
+    const token = await systemToken();
+    const missing = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/nope/confirm-payment')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(missing.status).toBe(404);
+  });
+
+  // Installation cannot start on a request that is not ready for it.
+  it('PATCH /system/support/device-setup/:requestId/assign refuses a request not ready for installation', async () => {
     const token = await systemToken();
     const res = await request(app.getHttpServer())
       .patch('/auth/system/support/device-setup/dsr-002/assign')
       .set('Authorization', `Bearer ${token}`)
       .send({});
     expect(res.status).toBe(400);
+  });
+
+  it('GET /system/support/device-setup filters by the new statuses and searches by reference', async () => {
+    const token = await systemToken();
+    const get = (query: string) =>
+      request(app.getHttpServer())
+        .get(`/auth/system/support/device-setup?${query}`)
+        .set('Authorization', `Bearer ${token}`);
+
+    const completed = await get('status=completed');
+    expect(completed.status).toBe(200);
+    expect(completed.body.data.requests.every((r: { status: string }) => r.status === 'completed')).toBe(true);
+
+    const byReference = await get('search=DVR-100003');
+    expect(byReference.body.data.requests.map((r: { id: string }) => r.id)).toEqual(['dsr-003']);
   });
 
   it('PATCH /system/support/device-setup/:requestId/reject requires a reason', async () => {

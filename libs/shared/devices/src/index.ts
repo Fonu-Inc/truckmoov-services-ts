@@ -37,3 +37,14 @@ export {
   lagosToday,
   nextCalendarDay,
 } from "./lagos-day";
+
+export {
+  DEVICE_SETUP_REQUEST_STATUSES,
+  DEVICE_SETUP_REQUEST_TRANSITIONS,
+  SETUP_REQUEST_APPROVED_STATUSES,
+  SETUP_REQUEST_PENDING_STATUSES,
+  SETUP_REQUEST_PLATFORM_STATUSES,
+  canTransitionSetupRequest,
+  isDeviceSetupRequestStatus,
+  type DeviceSetupRequestStatus,
+} from "./device-setup-request-status";

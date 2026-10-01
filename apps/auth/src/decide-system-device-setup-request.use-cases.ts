@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { canTransitionSetupRequest } from '@shared/devices';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -16,7 +17,7 @@ import {
 
 export class DeviceSetupRequestAlreadyDecidedError extends Error {
   constructor(readonly currentStatus: string) {
-    super(`This device request has already been ${currentStatus}`);
+    super(`This device request has already been decided. It is ${currentStatus}`);
   }
 }
 
@@ -34,7 +35,7 @@ export class DeviceSetupRejectionReasonRequiredError extends Error {
 abstract class DecideDeviceSetupRequestUseCase {
   protected abstract readonly decision: Extract<
     DeviceSetupRequestStatus,
-    'approved' | 'rejected'
+    'awaiting_payment' | 'rejected'
   >;
   protected abstract readonly message: string;
   protected abstract readonly forbiddenMessage: string;
@@ -55,7 +56,7 @@ abstract class DecideDeviceSetupRequestUseCase {
 
     const request = await this.repo.findById(requestId);
     if (!request) throw new DeviceSetupRequestNotFoundError(requestId);
-    if (request.status !== 'pending_review') {
+    if (!canTransitionSetupRequest(request.status, this.decision)) {
       throw new DeviceSetupRequestAlreadyDecidedError(request.status);
     }
 
@@ -85,7 +86,8 @@ abstract class DecideDeviceSetupRequestUseCase {
 
 @Injectable()
 export class ApproveSystemDeviceSetupRequestUseCase extends DecideDeviceSetupRequestUseCase {
-  protected readonly decision = 'approved' as const;
+  // Approval asks the tenant to pay; installation waits on payment.
+  protected readonly decision = 'awaiting_payment' as const;
   protected readonly message = 'Device setup request approved';
   protected readonly forbiddenMessage = 'You are not permitted to approve device setup requests';
 

@@ -16,9 +16,17 @@ import {
   SimBatchNotRetryableError,
 } from '../../../apps/auth/src/retry-system-sim-batch.use-case';
 import { GetSystemSimRequestsSummaryUseCase } from '../../../apps/auth/src/get-system-sim-requests-summary.use-case';
-import { AssignSystemDeviceSetupRequestUseCase } from '../../../apps/auth/src/assign-system-device-setup-request.use-case';
+import {
+  AssignSystemDeviceSetupRequestUseCase,
+  DeviceSetupRequestNotReadyError,
+} from '../../../apps/auth/src/assign-system-device-setup-request.use-case';
+import {
+  ConfirmSystemDeviceSetupPaymentUseCase,
+  DeviceSetupRequestNotAwaitingPaymentError,
+} from '../../../apps/auth/src/confirm-system-device-setup-payment.use-case';
 import {
   ApproveSystemDeviceSetupRequestUseCase,
+  DeviceSetupRequestAlreadyDecidedError,
   GetSystemDeviceSetupSummaryUseCase,
   RejectSystemDeviceSetupRequestUseCase,
 } from '../../../apps/auth/src/decide-system-device-setup-request.use-cases';
@@ -261,13 +269,23 @@ describe('Device setup request mutations', () => {
   function rejecter(repo: InMemoryDeviceSetupRequestRepository) {
     return new RejectSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
   }
+  function payment(repo: InMemoryDeviceSetupRequestRepository) {
+    return new ConfirmSystemDeviceSetupPaymentUseCase(systemActor() as never, systemUserRepo() as never, repo);
+  }
+  function assigner(repo: InMemoryDeviceSetupRequestRepository) {
+    return new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+  }
+  function summary(repo: InMemoryDeviceSetupRequestRepository) {
+    return new GetSystemDeviceSetupSummaryUseCase(systemActor() as never, systemUserRepo() as never, repo).execute(TOKEN);
+  }
 
-  it('approves and records who decided', async () => {
+  it('approves into awaiting_payment and records who decided', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    const result = await approver(repo).execute(TOKEN, 'dsr-001');
-    expect(result.data.status).toBe('approved');
+    const result = await approver(repo).execute(TOKEN, 'dsr-001', 'Looks good');
+    expect(result.data.status).toBe('awaiting_payment');
     expect(result.data.decidedBy).toBe('sys1');
     expect(result.data.decidedAt).not.toBeNull();
+    expect(result.data.timeline.at(-1)).toMatchObject({ status: 'awaiting_payment', note: 'Looks good' });
   });
 
   it('rejects with a reason', async () => {
@@ -288,38 +306,77 @@ describe('Device setup request mutations', () => {
   it('refuses to decide a request twice', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
-    await expect(approver(repo).execute(TOKEN, 'dsr-001')).rejects.toThrow(/already been approved/);
+    await expect(approver(repo).execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(DeviceSetupRequestAlreadyDecidedError);
+    await expect(rejecter(repo).execute(TOKEN, 'dsr-001', 'Too late')).rejects.toThrow(/already been decided/);
   });
 
-  it('assigns an approved request to the acting system user', async () => {
+  it('confirms payment into ready_for_installation', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
-    const useCase = new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
-    const result = await useCase.execute(TOKEN, 'dsr-001');
-    expect(result.data.assignedTo).toBe('sys1');
-    expect(result.data.status).toBe('in_progress');
+    const result = await payment(repo).execute(TOKEN, 'dsr-001', ' Transfer ref 991 ');
+    expect(result.data.status).toBe('ready_for_installation');
+    expect(result.data.timeline.map((t) => t.status)).toEqual(['under_review', 'awaiting_payment', 'ready_for_installation']);
+    expect(result.data.timeline.at(-1)?.note).toBe('Transfer ref 991');
   });
 
-  // Assigning before a decision would put work in progress without approval.
-  it('refuses to assign a request still waiting on a decision', async () => {
+  it.each(['dsr-001', 'dsr-002', 'dsr-003'])('refuses to confirm payment on %s, which is not awaiting payment', async (id) => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    const useCase = new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
-    await expect(useCase.execute(TOKEN, 'dsr-001')).rejects.toThrow(/must be approved/);
+    await expect(payment(repo).execute(TOKEN, id)).rejects.toBeInstanceOf(DeviceSetupRequestNotAwaitingPaymentError);
+  });
+
+  it('refuses a payment confirmation from a non-system user', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    const readOnly = new ConfirmSystemDeviceSetupPaymentUseCase(systemActor() as never, systemUserRepo('ENTERPRISE_ADMIN', 't1') as never, repo);
+    await expect(readOnly.execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('assigns a paid request to the acting system user and starts installation', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    await payment(repo).execute(TOKEN, 'dsr-001');
+    const result = await assigner(repo).execute(TOKEN, 'dsr-001');
+    expect(result.data.assignedTo).toBe('sys1');
+    expect(result.data.status).toBe('installation_in_progress');
+  });
+
+  // Installation waits on both the decision and the payment.
+  it('refuses to assign a request still under review or awaiting payment', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001')).rejects.toThrow(/ready for installation/);
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(DeviceSetupRequestNotReadyError);
   });
 
   it('counts devices requested, not requests, on the approval queue cards', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    const summary = await new GetSystemDeviceSetupSummaryUseCase(
-      systemActor() as never,
-      systemUserRepo() as never,
-      repo,
-    ).execute(TOKEN);
+    const { data } = await summary(repo);
 
-    expect(summary.data.pendingApproval).toBe(1);
-    expect(summary.data.approved).toBe(2);
-    expect(summary.data.rejected).toBe(0);
+    expect(data).toMatchObject({ pendingApproval: 1, awaitingPayment: 0, approved: 2, rejected: 0 });
     // dsr-002 asks for two trackers, the others one each.
-    expect(summary.data.devicesRequested).toBe(4);
+    expect(data.devicesRequested).toBe(4);
+  });
+
+  it('moves an approved request from pending into the awaiting payment and approved buckets', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    expect((await summary(repo)).data).toMatchObject({ pendingApproval: 0, awaitingPayment: 1, approved: 3 });
+
+    await payment(repo).execute(TOKEN, 'dsr-001');
+    expect((await summary(repo)).data).toMatchObject({ pendingApproval: 0, awaitingPayment: 0, approved: 3 });
+  });
+
+  it('filters the queue by the new statuses', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    expect((await repo.findAll({ status: 'under_review' })).map((r) => r.id)).toEqual(['dsr-001']);
+    expect((await repo.findAll({ status: 'installation_in_progress' })).map((r) => r.id)).toEqual(['dsr-002']);
+    expect((await repo.findAll({ status: 'completed' })).map((r) => r.id)).toEqual(['dsr-003']);
+    expect(await repo.findAll({ status: 'pending_review' })).toEqual([]);
+  });
+
+  it('searches the queue by DVR reference', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    expect((await repo.findAll({ search: 'dvr-100002' })).map((r) => r.id)).toEqual(['dsr-002']);
   });
 
   it('filters device setup requests by manufacturer', async () => {

@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { DEVICE_SETUP_REQUEST_STATUSES } from "@shared/devices";
 import { StandardApiResponse } from "@shared/openapi";
+import { TRACKER_TYPES } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
 import {
   DRIVER_SCORE_BANDS,
@@ -203,7 +205,7 @@ export class DeviceFiltersResponse extends StandardApiResponse<DeviceFiltersSche
 }
 
 export class DeviceSetupRequestTimelineEntrySchema {
-  @ApiProperty() status!: string;
+  @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
   @ApiProperty() at!: string;
   @ApiProperty({ nullable: true }) note!: string | null;
 }
@@ -214,9 +216,10 @@ export class DeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) requestedByUserId!: string | null;
   @ApiProperty({ nullable: true }) organisationName!: string | null;
   @ApiProperty({ nullable: true }) requestingEmail!: string | null;
-  @ApiProperty() manufacturer!: string;
+  @ApiProperty({ example: "DVR-401882" }) referenceNumber!: string;
+  @ApiProperty({ nullable: true }) manufacturer!: string | null;
   @ApiProperty({ nullable: true }) model!: string | null;
-  @ApiProperty() trackerType!: string;
+  @ApiProperty({ nullable: true, enum: TRACKER_TYPES }) trackerType!: string | null;
   @ApiProperty() quantity!: number;
   @ApiProperty() simRequired!: boolean;
   @ApiProperty({ nullable: true }) carrierId!: string | null;
@@ -229,7 +232,7 @@ export class DeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) preferredTime!: string | null;
   @ApiProperty() useCase!: string;
   @ApiProperty({ nullable: true }) notes!: string | null;
-  @ApiProperty() status!: string;
+  @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
   @ApiProperty({ type: DeviceSetupRequestTimelineEntrySchema, isArray: true })
   timeline!: DeviceSetupRequestTimelineEntrySchema[];
   @ApiProperty() createdAt!: string;

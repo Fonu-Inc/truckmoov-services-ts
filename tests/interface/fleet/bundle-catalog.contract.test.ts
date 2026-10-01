@@ -61,7 +61,7 @@ describe("Fleet carrier catalog read from auth", () => {
     request(app.getHttpServer())
       .post("/fleet/device-setup-requests")
       .set("Authorization", authToken())
-      .send({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics", simRequired: true, ...body });
+      .send({ useCase: "Telematics", simRequired: true, ...body });
 
   it("GET /fleet/carriers lists auth's carriers", async () => {
     const res = await get("/fleet/carriers");
@@ -107,5 +107,35 @@ describe("Fleet carrier catalog read from auth", () => {
     const res = await createRequest({ carrierId: "car-mtn" });
     expect(res.status).toBe(503);
     expect(res.body).toMatchObject({ status: false, statusCode: 503 });
+  });
+
+  it("POST /fleet/device-setup-requests takes no manufacturer or tracker type and returns a DVR reference", async () => {
+    const res = await createRequest({ simRequired: false, quantity: 2 });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ status: "under_review", manufacturer: null, trackerType: null, quantity: 2 });
+    expect(res.body.referenceNumber).toMatch(/^DVR-\d{6}$/);
+
+    const found = await get(`/fleet/device-setup-requests?query=${res.body.referenceNumber}`);
+    expect(found.status).toBe(200);
+    expect(JSON.stringify(found.body)).toContain(res.body.id);
+  });
+
+  it("PATCH /fleet/device-setup-requests/:id/status refuses the platform's steps", async () => {
+    const created = await createRequest({ simRequired: false });
+    const patch = (status: string) =>
+      request(app.getHttpServer())
+        .patch(`/fleet/device-setup-requests/${created.body.id}/status`)
+        .set("Authorization", authToken())
+        .send({ status });
+
+    const approve = await patch("awaiting_payment");
+    expect(approve.status).toBe(400);
+    expect(approve.body).toMatchObject({ status: false, message: "awaiting_payment is set by the platform, not by the tenant" });
+
+    const legacy = await patch("approved");
+    expect(legacy.status).toBe(400);
+
+    const cancel = await patch("cancelled");
+    expect(cancel.status).toBe(200);
   });
 });

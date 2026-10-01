@@ -1131,9 +1131,10 @@ export class DeviceSetupRequestRecord {
   requestedByUserId?: string | null;
   organisationName?: string | null;
   requestingEmail?: string | null;
-  manufacturer!: string;
+  referenceNumber!: string;
+  manufacturer?: string | null;
   model?: string | null;
-  trackerType!: string;
+  trackerType?: string | null;
   quantity!: number;
   simRequired!: boolean;
   carrierId?: string | null;
@@ -1165,9 +1166,10 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
     requestedByUserId: { type: "string", length: 64, nullable: true },
     organisationName: { type: "string", length: 255, nullable: true },
     requestingEmail: { type: "string", length: 255, nullable: true },
-    manufacturer: { type: "string", length: 64 },
+    referenceNumber: { type: "string", length: 16, unique: true },
+    manufacturer: { type: "string", length: 64, nullable: true },
     model: { type: "string", length: 64, nullable: true },
-    trackerType: { type: "string", length: 32 },
+    trackerType: { type: "string", length: 32, nullable: true },
     quantity: { type: "integer", defaultRaw: "1" },
     simRequired: { type: "boolean", defaultRaw: "false" },
     carrierId: { type: "string", length: 64, nullable: true },
@@ -1180,7 +1182,7 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
     preferredTime: { type: "string", length: 32, nullable: true },
     useCase: { type: "text" },
     notes: { type: "text", nullable: true },
-    status: { type: "string", length: 32, defaultRaw: "'pending_review'" },
+    status: { type: "string", length: 32, defaultRaw: "'under_review'" },
     timeline: { type: "json" },
     assignedTo: { type: "string", length: 64, nullable: true },
     decidedBy: { type: "string", length: 64, nullable: true },

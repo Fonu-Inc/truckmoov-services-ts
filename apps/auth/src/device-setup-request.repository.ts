@@ -1,22 +1,10 @@
-export type DeviceSetupRequestStatus =
-  | 'pending_review'
-  | 'approved'
-  | 'rejected'
-  | 'in_progress'
-  | 'provisioned'
-  | 'assigned'
-  | 'cancelled';
+import type { DeviceSetupRequestStatus } from '@shared/devices';
 
-export const SETUP_REQUEST_PENDING_STATUSES: DeviceSetupRequestStatus[] = [
-  'pending_review',
-];
-
-export const SETUP_REQUEST_APPROVED_STATUSES: DeviceSetupRequestStatus[] = [
-  'approved',
-  'in_progress',
-  'provisioned',
-  'assigned',
-];
+export {
+  SETUP_REQUEST_APPROVED_STATUSES,
+  SETUP_REQUEST_PENDING_STATUSES,
+  type DeviceSetupRequestStatus,
+} from '@shared/devices';
 
 /**
  * A device request as the platform approval queue reads it.
@@ -30,9 +18,11 @@ export type StoredDeviceSetupRequest = {
   tenantId: string;
   organisationName: string | null;
   requestingEmail: string | null;
-  manufacturer: string;
+  referenceNumber: string;
+  /** Null until the platform picks the hardware; the tenant no longer chooses it. */
+  manufacturer: string | null;
   model: string | null;
-  trackerType: string;
+  trackerType: string | null;
   quantity: number;
   simRequired: boolean;
   vehicleId: string | null;
@@ -64,6 +54,8 @@ export type DeviceSetupRequestFilters = {
 
 export type DeviceSetupRequestSummary = {
   pendingApproval: number;
+  /** Approved, waiting on the platform to confirm payment. Also counted in approved. */
+  awaitingPayment: number;
   approved: number;
   rejected: number;
   devicesRequested: number;
@@ -90,6 +82,12 @@ export interface DeviceSetupRequestRepository {
     assignedTo: string,
     timeline: Array<{ status: string; at: string; note: string | null }>,
   ): Promise<void>;
+  /** A plain step along the lifecycle, such as payment confirmed. */
+  advance(input: {
+    id: string;
+    status: DeviceSetupRequestStatus;
+    timeline: Array<{ status: string; at: string; note: string | null }>;
+  }): Promise<void>;
 }
 
 export const DEVICE_SETUP_REQUEST_REPOSITORY = Symbol('DEVICE_SETUP_REQUEST_REPOSITORY');

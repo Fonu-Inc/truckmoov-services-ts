@@ -573,6 +573,7 @@ import { ExportSystemSimBatchesUseCase } from './export-system-sim-batches.use-c
 import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
 import { GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-request.use-case';
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
+import { ConfirmSystemDeviceSetupPaymentUseCase } from './confirm-system-device-setup-payment.use-case';
 import {
   ReinstateSystemDeviceUseCase,
   DecommissionSystemDeviceUseCase,
@@ -1667,6 +1668,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AssignSystemDeviceSetupRequestUseCase,
     RejectSystemDeviceSetupRequestUseCase,
     ApproveSystemDeviceSetupRequestUseCase,
+    ConfirmSystemDeviceSetupPaymentUseCase,
     SuspendSystemDeviceUseCase,
     ReinstateSystemDeviceUseCase,
     DecommissionSystemDeviceUseCase,

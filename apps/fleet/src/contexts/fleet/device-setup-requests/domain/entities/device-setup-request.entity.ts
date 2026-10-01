@@ -1,39 +1,10 @@
-export const DEVICE_SETUP_REQUEST_STATUSES = [
-  "pending_review",
-  // The platform's decision on the request. Both are terminal for the tenant:
-  // a rejected request is not retried in place, a new one is submitted.
-  "approved",
-  "rejected",
-  "in_progress",
-  "provisioned",
-  "assigned",
-  "cancelled",
-] as const;
+import {
+  DEVICE_SETUP_REQUEST_STATUSES,
+  canTransitionSetupRequest,
+  type DeviceSetupRequestStatus,
+} from "@shared/devices";
 
-export type DeviceSetupRequestStatus = (typeof DEVICE_SETUP_REQUEST_STATUSES)[number];
-
-export const VALID_SETUP_REQUEST_TRANSITIONS: Record<DeviceSetupRequestStatus, DeviceSetupRequestStatus[]> = {
-  pending_review: ["approved", "rejected", "cancelled"],
-  approved: ["in_progress", "cancelled"],
-  rejected: [],
-  in_progress: ["provisioned", "cancelled"],
-  provisioned: ["assigned", "cancelled"],
-  assigned: [],
-  cancelled: [],
-};
-
-/** Requests waiting on a platform decision. */
-export const SETUP_REQUEST_PENDING_STATUSES: readonly DeviceSetupRequestStatus[] = [
-  "pending_review",
-];
-
-/** Requests the platform has said yes to, wherever provisioning has reached. */
-export const SETUP_REQUEST_APPROVED_STATUSES: readonly DeviceSetupRequestStatus[] = [
-  "approved",
-  "in_progress",
-  "provisioned",
-  "assigned",
-];
+export { DEVICE_SETUP_REQUEST_STATUSES, type DeviceSetupRequestStatus };
 
 export const TRACKER_TYPES = ["hardwired", "obd", "asset"] as const;
 export type TrackerType = (typeof TRACKER_TYPES)[number];
@@ -77,9 +48,11 @@ export type DeviceSetupRequestProps = {
   requestedByUserId?: string | null;
   organisationName?: string | null;
   requestingEmail?: string | null;
-  manufacturer: string;
+  referenceNumber: string;
+  /** Optional: the platform picks the hardware when it fulfils the request. */
+  manufacturer?: string | null;
   model?: string | null;
-  trackerType: TrackerType;
+  trackerType?: TrackerType | null;
   quantity: number;
   simRequired: boolean;
   carrierId?: string | null;
@@ -129,13 +102,12 @@ export class DeviceSetupRequest {
   private constructor(private readonly props: DeviceSetupRequestProps) {}
 
   static create(input: CreateDeviceSetupRequestInput): DeviceSetupRequest {
-    const manufacturer = input.manufacturer?.trim();
     const useCase = input.useCase?.trim();
     if (!input.id) throw new Error("setup request id is required");
     if (!input.tenantId) throw new Error("tenantId is required");
-    if (!manufacturer) throw new Error("manufacturer is required");
+    if (!input.referenceNumber) throw new Error("referenceNumber is required");
     if (!useCase) throw new Error("useCase is required");
-    if (!TRACKER_TYPES.includes(input.trackerType)) {
+    if (input.trackerType && !TRACKER_TYPES.includes(input.trackerType)) {
       throw new Error(`invalid trackerType: ${input.trackerType}`);
     }
     const quantity = input.quantity ?? 1;
@@ -154,9 +126,10 @@ export class DeviceSetupRequest {
       requestedByUserId: input.requestedByUserId ?? null,
       organisationName: input.organisationName ?? null,
       requestingEmail: input.requestingEmail ?? null,
-      manufacturer,
+      referenceNumber: input.referenceNumber,
+      manufacturer: input.manufacturer?.trim() || null,
       model: input.model?.trim() || null,
-      trackerType: input.trackerType,
+      trackerType: input.trackerType ?? null,
       quantity,
       simRequired,
       carrierId: input.carrierId ?? null,
@@ -169,8 +142,8 @@ export class DeviceSetupRequest {
       preferredTime: input.preferredTime ?? null,
       useCase,
       notes: input.notes?.trim() || null,
-      status: "pending_review",
-      timeline: [{ status: "pending_review", at }],
+      status: "under_review",
+      timeline: [{ status: "under_review", at }],
       assignedTo: null,
       decidedBy: null,
       decidedAt: null,
@@ -192,12 +165,16 @@ export class DeviceSetupRequest {
     return this.props.tenantId;
   }
 
+  get referenceNumber(): string {
+    return this.props.referenceNumber;
+  }
+
   get status(): DeviceSetupRequestStatus {
     return this.props.status;
   }
 
   canTransitionTo(next: DeviceSetupRequestStatus): boolean {
-    return VALID_SETUP_REQUEST_TRANSITIONS[this.props.status].includes(next);
+    return canTransitionSetupRequest(this.props.status, next);
   }
 
   get tenantIdValue(): string {
@@ -210,7 +187,7 @@ export class DeviceSetupRequest {
    * reason is not a decision the tenant can act on.
    */
   decide(
-    next: Extract<DeviceSetupRequestStatus, "approved" | "rejected">,
+    next: Extract<DeviceSetupRequestStatus, "awaiting_payment" | "rejected">,
     decidedBy: string,
     reason?: string | null,
   ): DeviceSetupRequest {
@@ -251,4 +228,10 @@ export class DeviceSetupRequest {
   toPrimitives(): DeviceSetupRequestProps {
     return { ...this.props, timeline: this.props.timeline.map((t) => ({ ...t })) };
   }
+}
+
+/** What the tenant's list search matches against. */
+export function setupRequestSearchFields(p: DeviceSetupRequestProps): string[] {
+  return [p.referenceNumber, p.manufacturer, p.model, p.useCase, p.status, p.vehicleId]
+    .filter((value): value is string => Boolean(value));
 }

@@ -7,17 +7,21 @@ import {
 } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 
 export class CreateDeviceSetupRequestDto {
+  /** Optional: the platform picks the hardware when it fulfils the request. */
+  @IsOptional()
   @IsString()
   @MaxLength(64)
-  manufacturer!: string;
+  manufacturer?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(64)
   model?: string;
 
+  /** Optional: the platform picks the hardware when it fulfils the request. */
+  @IsOptional()
   @IsIn(TRACKER_TYPES)
-  trackerType!: TrackerType;
+  trackerType?: TrackerType;
 
   @IsOptional()
   @IsInt()

@@ -17,6 +17,7 @@ function seed(
     tenantId: 'tenant-001',
     organisationName: 'Dangote Logistics',
     requestingEmail: 'fleet@dangote.example',
+    referenceNumber: 'DVR-100001',
     manufacturer: 'Teltonika',
     model: 'FMB920',
     trackerType: 'hardwired',
@@ -28,13 +29,13 @@ function seed(
     preferredInstallDate: new Date('2026-03-01'),
     useCase: 'Long-haul GPS tracking',
     notes: null,
-    status: 'pending_review',
+    status: 'under_review',
     kycStatus: 'verified',
     assignedTo: null,
     decidedBy: null,
     decidedAt: null,
     decisionReason: null,
-    timeline: [{ status: 'pending_review', at: at.toISOString(), note: null }],
+    timeline: [{ status: 'under_review', at: at.toISOString(), note: null }],
     createdAt: at,
     updatedAt: at,
     ...overrides,
@@ -47,19 +48,21 @@ const SEED: StoredDeviceSetupRequest[] = [
     id: 'dsr-002',
     tenantId: 'tenant-002',
     organisationName: 'Flour Mills Haulage',
+    referenceNumber: 'DVR-100002',
     manufacturer: 'Concox',
     model: 'JM-VL01',
     trackerType: 'obd',
-    status: 'in_progress',
+    status: 'installation_in_progress',
     quantity: 2,
   }),
   seed({
     id: 'dsr-003',
     tenantId: 'tenant-003',
     organisationName: 'Kano Freight',
+    referenceNumber: 'DVR-100003',
     manufacturer: 'Queclink',
     model: 'GV300',
-    status: 'assigned',
+    status: 'completed',
     assignedTo: 'tech-001',
     kycStatus: 'pending',
   }),
@@ -77,7 +80,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     if (filters?.tenantId) results = results.filter((r) => r.tenantId === filters.tenantId);
     if (filters?.manufacturer) {
       const manufacturer = filters.manufacturer.toLowerCase();
-      results = results.filter((r) => r.manufacturer.toLowerCase() === manufacturer);
+      results = results.filter((r) => r.manufacturer?.toLowerCase() === manufacturer);
     }
     if (filters?.dateFrom) {
       const from = new Date(filters.dateFrom).getTime();
@@ -90,7 +93,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     if (filters?.search) {
       const query = filters.search.toLowerCase();
       results = results.filter((r) =>
-        [r.organisationName, r.requestingEmail, r.manufacturer, r.model, r.tenantId].some(
+        [r.referenceNumber, r.organisationName, r.requestingEmail, r.manufacturer, r.model, r.tenantId].some(
           (value) => (value ?? '').toLowerCase().includes(query),
         ),
       );
@@ -106,6 +109,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     const all = [...this.store.values()];
     return {
       pendingApproval: all.filter((r) => SETUP_REQUEST_PENDING_STATUSES.includes(r.status)).length,
+      awaitingPayment: all.filter((r) => r.status === 'awaiting_payment').length,
       approved: all.filter((r) => SETUP_REQUEST_APPROVED_STATUSES.includes(r.status)).length,
       rejected: all.filter((r) => r.status === 'rejected').length,
       devicesRequested: all.reduce((total, r) => total + r.quantity, 0),
@@ -142,9 +146,19 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     this.store.set(id, {
       ...current,
       assignedTo,
-      status: 'in_progress',
+      status: 'installation_in_progress',
       timeline,
       updatedAt: new Date(),
     });
+  }
+
+  async advance(input: {
+    id: string;
+    status: DeviceSetupRequestStatus;
+    timeline: Array<{ status: string; at: string; note: string | null }>;
+  }): Promise<void> {
+    const current = this.store.get(input.id);
+    if (!current) return;
+    this.store.set(input.id, { ...current, status: input.status, timeline: input.timeline, updatedAt: new Date() });
   }
 }
