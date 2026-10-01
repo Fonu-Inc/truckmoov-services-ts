@@ -24,7 +24,7 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
-import { ComplianceReminderSweepService } from "./compliance-reminder-sweep.service";
+import { ComplianceReminderSendService, DEFAULT_COMPLIANCE_LEAD_DAYS } from "./compliance-reminder-send.service";
 import {
   ComplianceDocumentsUseCase,
   ComplianceDocumentNotFoundError,
@@ -37,6 +37,7 @@ import {
   CreateComplianceDocumentDto,
   UpdateComplianceDocumentDto,
   UploadComplianceDocumentDto,
+  SendComplianceRemindersDto,
 } from "./dto/compliance-document.dto";
 import {
   ComplianceSummaryResponse,
@@ -59,7 +60,7 @@ export class ComplianceController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(ComplianceDocumentsUseCase) private readonly complianceDocumentsUseCase: ComplianceDocumentsUseCase,
-    @Inject(ComplianceReminderSweepService) private readonly complianceReminderSweepService: ComplianceReminderSweepService,
+    @Inject(ComplianceReminderSendService) private readonly complianceReminderSendService: ComplianceReminderSendService,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepository: VehicleRepository,
   ) {
     super(auditLog, bus);
@@ -245,16 +246,28 @@ export class ComplianceController extends BaseFleetController {
 
   @Post("reminders/send")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
-  @ApiOperation({ summary: "Send compliance reminder emails" })
+  @ApiOperation({
+    summary: "Send compliance reminder emails",
+    description:
+      "Mails the address given a list of this account's documents that expire within leadDays (default 30) or already have. Nothing is sent when none are due; queued is then 0.",
+  })
   @ApiOkResponse({ description: "Reminders queued", type: ReminderQueuedResponse })
-  async sendComplianceReminders() {
-    const result = await this.complianceReminderSweepService.run();
+  async sendComplianceReminders(@Body() payload: SendComplianceRemindersDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const leadDays = payload.leadDays ?? DEFAULT_COMPLIANCE_LEAD_DAYS;
+    const result = await this.complianceReminderSendService.send(
+      tenantId,
+      payload.recipientEmail,
+      leadDays,
+      await this.ownerOperatorVehicleIds(tenantId, req),
+    );
     return {
       status: true,
       message: "success",
       data: {
-        queued: result.documents,
-        message: `Queued reminders for ${result.documents} document(s) across ${result.tenants} tenant(s)`,
+        queued: result.queued,
+        recipient: result.recipient,
+        message: `Sent a reminder for ${result.queued} document(s) to ${result.recipient}`,
       },
     };
   }

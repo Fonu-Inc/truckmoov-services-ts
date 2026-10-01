@@ -1172,6 +1172,7 @@ export class MaintenanceRecordsSummaryResponse extends StandardApiResponse<Maint
 export class ReminderQueuedSchema {
   @ApiProperty() queued!: number;
   @ApiProperty() message!: string;
+  @ApiPropertyOptional({ description: "Who the reminder was sent to." }) recipient?: string;
 }
 
 export class ReminderQueuedResponse extends StandardApiResponse<ReminderQueuedSchema> {

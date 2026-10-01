@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsISO8601, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsISO8601, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from "class-validator";
+import { REMINDER_LEAD_DAY_OPTIONS } from "../contexts/fleet/maintenance/domain/maintenance-reminder-schedule.repository";
 
 export class CreateComplianceDocumentDto {
   @ApiPropertyOptional({ nullable: true, description: "Vehicle the document belongs to, if any" })
@@ -97,4 +98,16 @@ export class SetComplianceReminderDto {
   @IsInt()
   @Min(0)
   reminderDays!: number;
+}
+
+export class SendComplianceRemindersDto {
+  @ApiProperty({ example: "manager@company.com" })
+  @IsEmail()
+  recipientEmail!: string;
+
+  @ApiPropertyOptional({ enum: REMINDER_LEAD_DAY_OPTIONS, default: 30, description: "Remind about documents expiring within this many days, and any already expired." })
+  @IsOptional()
+  @Type(() => Number)
+  @IsIn(REMINDER_LEAD_DAY_OPTIONS as unknown as number[])
+  leadDays?: number;
 }
