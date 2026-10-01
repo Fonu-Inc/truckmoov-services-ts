@@ -6,28 +6,30 @@ import type { StoredInstaller } from './installer.repository';
 
 export type Booking = Pick<StoredInstallationOrder, 'state' | 'scheduledDate' | 'timeSlot' | 'requiredCapabilities'>;
 
-const LEGACY_CAPABILITY_EQUIVALENTS: Partial<Record<InstallerCapability, readonly InstallerCapability[]>> = {
-  tracker_installation_wiring: ['device_installation'],
-  sim_installation_activation: ['sim_activation'],
-  device_configuration_provisioning: ['device_configuration'],
-  fuel_sensor_installation_calibration: ['fuel_sensor_calibration'],
-  diagnostics_repairs_troubleshooting: ['diagnostics_troubleshooting'],
+const CURRENT_FOR_LEGACY: Partial<Record<InstallerCapability, InstallerCapability>> = {
+  device_installation: 'tracker_installation_wiring',
+  sim_activation: 'sim_installation_activation',
+  device_configuration: 'device_configuration_provisioning',
+  fuel_sensor_calibration: 'fuel_sensor_installation_calibration',
+  diagnostics_troubleshooting: 'diagnostics_repairs_troubleshooting',
 };
 
+function canonical(capability: InstallerCapability): InstallerCapability {
+  return CURRENT_FOR_LEGACY[capability] ?? capability;
+}
+
 /**
- * Historic installer profiles used short capability keys. They remain valid
- * only as equivalents of their more precise catalogue entries; arbitrary
- * strings can never make an installer eligible.
+ * Historic records use short capability keys. A short key and its catalogue
+ * entry are the same skill whichever side holds which, so both the order and
+ * the installer are compared in canonical form. Arbitrary strings can never
+ * make an installer eligible.
  */
 function hasCapabilities(installer: StoredInstaller, booking: Booking): boolean {
   const required: InstallerCapability[] = booking.requiredCapabilities?.length
     ? booking.requiredCapabilities
     : ['device_installation'];
-  return required.every(
-    (capability) =>
-      installer.capabilities.includes(capability) ||
-      LEGACY_CAPABILITY_EQUIVALENTS[capability]?.some((legacy) => installer.capabilities.includes(legacy)),
-  );
+  const held = new Set(installer.capabilities.map(canonical));
+  return required.every((capability) => held.has(canonical(capability)));
 }
 
 function stateKey(value: string): string {

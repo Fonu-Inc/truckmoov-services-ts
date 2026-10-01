@@ -300,6 +300,22 @@ describe("the installation sweep", () => {
     expect((await h.orders.findById("tracker"))?.installerId).toBe("bola");
   });
 
+  it("offers a default-capability order to an installer holding only the catalogue name", async () => {
+    await h.installers.save(installer("bola", { capabilities: ["tracker_installation_wiring"] }));
+    await h.orders.save(order("default", { scheduledDate: day("2026-09-30"), requiredCapabilities: ["device_installation"] }));
+
+    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0, reminded: 0 });
+    expect((await h.orders.findById("default"))?.installerId).toBe("bola");
+  });
+
+  it("offers a catalogue-name order to an installer holding only the legacy name", async () => {
+    await h.installers.save(installer("ada", { capabilities: ["device_installation"] }));
+    await h.orders.save(order("tracker", { scheduledDate: day("2026-09-30"), requiredCapabilities: ["tracker_installation_wiring"] }));
+
+    expect(await sweep.run(NOW)).toEqual({ assigned: 1, overdue: 0, reminded: 0 });
+    expect((await h.orders.findById("tracker"))?.installerId).toBe("ada");
+  });
+
   it("does not double-book an installer into the same date and time slot", async () => {
     await h.installers.save(installer("ada"));
     await h.orders.save(order("first", { scheduledDate: day("2026-09-30"), timeSlot: "morning" }));
