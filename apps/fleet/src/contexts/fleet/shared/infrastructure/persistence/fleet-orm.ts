@@ -1178,58 +1178,6 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
   ],
 });
 
-// Unread since the catalogue moved to auth; still mapped so a schema diff does not drop the tables before the cleanup migration.
-export class CarrierRecord {
-  id!: string;
-  name!: string;
-  code!: string;
-  status!: string;
-  createdAt!: Date;
-  updatedAt!: Date;
-}
-
-export const CarrierRecordSchema = new EntitySchema<CarrierRecord>({
-  class: CarrierRecord,
-  tableName: "fleet_carriers",
-  properties: {
-    id: { type: "string", primary: true },
-    name: { type: "string", length: 128 },
-    code: { type: "string", length: 32, unique: true },
-    status: { type: "string", length: 16, defaultRaw: "'active'" },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
-    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
-  },
-});
-
-export class DataBundleRecord {
-  id!: string;
-  carrierId!: string;
-  name!: string;
-  planType!: string;
-  dataAllowanceMb!: number | null;
-  priceNgn!: number;
-  status!: string;
-  createdAt!: Date;
-  updatedAt!: Date;
-}
-
-export const DataBundleRecordSchema = new EntitySchema<DataBundleRecord>({
-  class: DataBundleRecord,
-  tableName: "fleet_data_bundles",
-  properties: {
-    id: { type: "string", primary: true },
-    carrierId: { type: "string", length: 64 },
-    name: { type: "string", length: 128 },
-    planType: { type: "string", length: 32 },
-    dataAllowanceMb: { type: "integer", nullable: true },
-    priceNgn: { type: "decimal", precision: 14, scale: 2 },
-    status: { type: "string", length: 16, defaultRaw: "'active'" },
-    createdAt: { type: "datetime", defaultRaw: "now()" },
-    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
-  },
-  indexes: [{ properties: ["carrierId"] }],
-});
-
 let ormPromise: Promise<MikroORM> | null = null;
 
 export async function getFleetOrm(cfg: DbConfig) {
@@ -1270,8 +1218,6 @@ async function initFleetOrm(cfg: DbConfig) {
       DeviceSetupRequestRecordSchema,
       ZoneOccupancyRecordSchema,
       ShareLinkRecordSchema,
-      CarrierRecordSchema,
-      DataBundleRecordSchema,
       DeviceVerificationFailureRecordSchema,
       WaybillRecordSchema,
       PricingRuleRecordSchema,
