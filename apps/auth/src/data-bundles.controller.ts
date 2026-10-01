@@ -19,6 +19,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { assertAnalyticsRange } from './analytics-range.validation';
 import {
   ApiOkResponse,
   ApiQuery,
@@ -449,6 +450,7 @@ export class DataBundlesController extends BaseAuthController {
   async getSpendTrend(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getSpendTrendUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {
@@ -465,6 +467,7 @@ export class DataBundlesController extends BaseAuthController {
   async getSpendBreakdown(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getSpendBreakdownUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {
@@ -481,6 +484,7 @@ export class DataBundlesController extends BaseAuthController {
   async getCarrierDistribution(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getCarrierDistributionUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {
@@ -500,6 +504,7 @@ export class DataBundlesController extends BaseAuthController {
   async getSubscriptionUsage(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getSubscriptionUsageUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {

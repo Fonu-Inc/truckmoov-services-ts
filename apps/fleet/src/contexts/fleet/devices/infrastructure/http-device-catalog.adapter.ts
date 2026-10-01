@@ -64,10 +64,14 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
       return this.cache?.models ?? [];
     }
 
-    this.cache = {
-      models,
-      expiresAt: now + this.config.fleet.deviceCatalogCacheSeconds * 1000,
-    };
+    // An empty catalogue is not cached: each replica holds its own copy, and one
+    // that cached "nothing" would keep hiding a freshly seeded catalogue.
+    if (models.length > 0) {
+      this.cache = {
+        models,
+        expiresAt: now + this.config.fleet.deviceCatalogCacheSeconds * 1000,
+      };
+    }
     return models;
   }
 

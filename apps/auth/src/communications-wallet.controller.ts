@@ -7,6 +7,7 @@ import {
   Query,
   UnauthorizedException,
 } from '@nestjs/common';
+import { assertAnalyticsRange } from './analytics-range.validation';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
@@ -69,6 +70,7 @@ export class CommunicationsWalletController extends BaseAuthController {
   async spendTrend(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getSpendTrendUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {
@@ -85,6 +87,7 @@ export class CommunicationsWalletController extends BaseAuthController {
   async spendBreakdown(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    assertAnalyticsRange(query);
     try {
       return await this.getSpendBreakdownUseCase.execute(
         accessToken,
