@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class ApproveDeviceSetupRequestDto {
   @ApiPropertyOptional({ description: 'Optional note recorded on the request timeline' })
@@ -7,6 +7,14 @@ export class ApproveDeviceSetupRequestDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+}
+
+export class AssignDeviceSetupRequestDto {
+  @ApiProperty({ description: 'Id of the active installer who will fit the devices' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  installerId!: string;
 }
 
 export class ConfirmDeviceSetupPaymentDto {

@@ -21,8 +21,8 @@ export class DeviceSetupRequestNotAwaitingPaymentError extends Error {
 }
 
 /**
- * A platform admin confirms the tenant has paid. Manual until charges are
- * built: nothing here checks an amount.
+ * A platform admin confirms the tenant has paid. Idle while approval settles
+ * payment itself (device-setup-payment-settlement); nothing here checks an amount.
  */
 @Injectable()
 export class ConfirmSystemDeviceSetupPaymentUseCase {

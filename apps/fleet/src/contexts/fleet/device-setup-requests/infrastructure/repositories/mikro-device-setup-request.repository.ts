@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
+import { readSetupRequestCharges } from "@shared/devices";
 import {
   DeviceSetupRequest,
   setupRequestSearchFields,
@@ -48,6 +49,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       status: p.status,
       timeline: p.timeline,
       assignedTo: p.assignedTo ?? null,
+      charges: p.charges ?? null,
       decidedBy: p.decidedBy ?? null,
       decidedAt: p.decidedAt ? new Date(p.decidedAt) : null,
       decisionReason: p.decisionReason ?? null,
@@ -119,6 +121,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       notes: record.notes ?? null,
       status: record.status as DeviceSetupRequestStatus,
       assignedTo: record.assignedTo ?? null,
+      charges: readSetupRequestCharges(record.charges),
       decidedBy: record.decidedBy ?? null,
       decidedAt: record.decidedAt?.toISOString() ?? null,
       decisionReason: record.decisionReason ?? null,

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
+import { setupRequestView } from "../../domain/entities/device-setup-request.entity";
 import {
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
@@ -17,6 +18,6 @@ export class GetDeviceSetupRequestUseCase {
     if (!request) {
       throw new FleetRuleError(`device setup request ${id} not found`);
     }
-    return request.toPrimitives();
+    return setupRequestView(request);
   }
 }

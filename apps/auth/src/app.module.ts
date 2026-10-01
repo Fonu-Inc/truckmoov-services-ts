@@ -238,6 +238,7 @@ import { InstallerAuthController } from './installer-auth.controller';
 import { SystemInstallersController } from './system-installers.controller';
 import { InstallerPortalController } from './installer-portal.controller';
 import { InstallerJobWorkController } from './installer-job-work.controller';
+import { InstallerDeviceRequestsController } from './installer-device-requests.controller';
 import { InstallerNotificationsController } from './installer-notifications.controller';
 import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
@@ -574,6 +575,8 @@ import { RetrySystemSimBatchUseCase } from './retry-system-sim-batch.use-case';
 import { GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-request.use-case';
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
 import { ConfirmSystemDeviceSetupPaymentUseCase } from './confirm-system-device-setup-payment.use-case';
+import { DeviceSetupRequestPricingService } from './device-setup-request-pricing.service';
+import { InstallerDeviceSetupRequestsUseCases } from './installer-device-setup-requests.use-cases';
 import {
   ReinstateSystemDeviceUseCase,
   DecommissionSystemDeviceUseCase,
@@ -851,6 +854,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerAuthController,
     InstallerPortalController,
     InstallerJobWorkController,
+    InstallerDeviceRequestsController,
     InstallerNotificationsController,
     InstallerSettingsController,
     InstallerSupportController,
@@ -1669,6 +1673,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     RejectSystemDeviceSetupRequestUseCase,
     ApproveSystemDeviceSetupRequestUseCase,
     ConfirmSystemDeviceSetupPaymentUseCase,
+    DeviceSetupRequestPricingService,
+    InstallerDeviceSetupRequestsUseCases,
     SuspendSystemDeviceUseCase,
     ReinstateSystemDeviceUseCase,
     DecommissionSystemDeviceUseCase,

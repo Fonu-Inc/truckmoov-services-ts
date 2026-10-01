@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { setupRequestChargesView } from '@shared/devices';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -18,6 +19,7 @@ export class DeviceSetupRequestNotFoundError extends Error {
 export function serializeDeviceSetupRequest(r: StoredDeviceSetupRequest) {
   return {
     ...r,
+    charges: setupRequestChargesView(r.charges),
     preferredInstallDate: r.preferredInstallDate?.toISOString() ?? null,
     decidedAt: r.decidedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),

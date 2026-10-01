@@ -14,6 +14,7 @@ import { CreateDeviceSetupRequestUseCase } from "../../../apps/fleet/src/context
 import { ListDeviceSetupRequestsUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/list-device-setup-requests.use-case";
 import { UpdateDeviceSetupRequestStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/update-device-setup-request-status.use-case";
 import { GetDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/get-device-setup-request.use-case";
+import { buildSetupRequestCharges } from "@shared/devices";
 
 let counter = 0;
 const runtime = {
@@ -212,6 +213,47 @@ describe("DeviceSetupRequest use-cases", () => {
     await expect(update.execute({ id: "r1", tenantId: "t1", status: "completed" })).resolves.toMatchObject({
       status: "completed",
     });
+  });
+
+  // Priced and handed to an installer by the platform; the tenant marking it
+  // done must keep both, since the save writes the whole row.
+  it("lets the tenant complete an assigned, priced request and keeps its charges", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
+    const charges = buildSetupRequestCharges({
+      planCode: "m2m_standard",
+      planName: "M2M Standard License",
+      quantity: 2,
+      licencePerDeviceKobo: 7_700_000,
+      installationPerDeviceKobo: 1_500_000,
+    });
+    await repo.save(DeviceSetupRequest.fromPrimitives({
+      ...at("installation_in_progress").toPrimitives(),
+      quantity: 2,
+      assignedTo: "inst-1",
+      charges,
+    }));
+
+    const completed = await update.execute({ id: "r1", tenantId: "t1", status: "completed" });
+
+    expect(completed).toMatchObject({ status: "completed", assignedTo: "inst-1" });
+    expect(completed.charges).toEqual({
+      currency: "NGN",
+      planCode: "m2m_standard",
+      planName: "M2M Standard License",
+      lines: [
+        { kind: "licence", quantity: 2, unitPriceNgn: 77_000, amountNgn: 154_000 },
+        { kind: "installation", quantity: 2, unitPriceNgn: 15_000, amountNgn: 30_000 },
+      ],
+      totalNgn: 184_000,
+    });
+    expect((await repo.findById("r1", "t1"))!.toPrimitives().charges).toEqual(charges);
+  });
+
+  it("answers charges as null before the platform approves", async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    const create = new CreateDeviceSetupRequestUseCase(repo, runtime, authCatalog);
+    await expect(create.execute({ useCase: "Telematics" })).resolves.toMatchObject({ charges: null });
   });
 
   it("scopes listing by tenant", async () => {

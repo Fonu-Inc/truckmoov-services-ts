@@ -5938,6 +5938,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "string"
+        },
+        "charges": {
+          "name": "charges",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
         }
       },
       "name": "fleet_device_setup_requests",

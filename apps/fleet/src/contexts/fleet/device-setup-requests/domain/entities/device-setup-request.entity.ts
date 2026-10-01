@@ -1,6 +1,8 @@
 import {
   DEVICE_SETUP_REQUEST_STATUSES,
   canTransitionSetupRequest,
+  setupRequestChargesView,
+  type DeviceSetupRequestCharges,
   type DeviceSetupRequestStatus,
 } from "@shared/devices";
 
@@ -67,8 +69,10 @@ export type DeviceSetupRequestProps = {
   notes?: string | null;
   status: DeviceSetupRequestStatus;
   timeline: SetupRequestTimelineEntry[];
-  /** Platform admin working the request, set from the platform queue. */
+  /** Installer fitting the devices, set from the platform queue. */
   assignedTo?: string | null;
+  /** Priced by the platform at approval; null before. */
+  charges?: DeviceSetupRequestCharges | null;
   /** Platform admin who approved or rejected, and why. */
   decidedBy?: string | null;
   decidedAt?: string | null;
@@ -86,6 +90,7 @@ export type CreateDeviceSetupRequestInput = Omit<
   | "quantity"
   | "simRequired"
   | "assignedTo"
+  | "charges"
   | "decidedBy"
   | "decidedAt"
   | "decisionReason"
@@ -145,6 +150,7 @@ export class DeviceSetupRequest {
       status: "under_review",
       timeline: [{ status: "under_review", at }],
       assignedTo: null,
+      charges: null,
       decidedBy: null,
       decidedAt: null,
       decisionReason: null,
@@ -228,6 +234,12 @@ export class DeviceSetupRequest {
   toPrimitives(): DeviceSetupRequestProps {
     return { ...this.props, timeline: this.props.timeline.map((t) => ({ ...t })) };
   }
+}
+
+/** The request as the tenant API answers it: charges in naira. */
+export function setupRequestView(request: DeviceSetupRequest) {
+  const props = request.toPrimitives();
+  return { ...props, charges: setupRequestChargesView(props.charges) };
 }
 
 /** What the tenant's list search matches against. */

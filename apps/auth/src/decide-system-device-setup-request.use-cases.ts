@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { canTransitionSetupRequest } from '@shared/devices';
+import { canTransitionSetupRequest, type DeviceSetupRequestCharges } from '@shared/devices';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -9,7 +9,10 @@ import {
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
   type DeviceSetupRequestStatus,
+  type StoredDeviceSetupRequest,
 } from './device-setup-request.repository';
+import { settleApprovedPayment } from './device-setup-payment-settlement';
+import { DeviceSetupRequestPricingService } from './device-setup-request-pricing.service';
 import {
   DeviceSetupRequestNotFoundError,
   serializeDeviceSetupRequest,
@@ -26,6 +29,12 @@ export class DeviceSetupRejectionReasonRequiredError extends Error {
     super('A rejection needs a reason the tenant can act on');
   }
 }
+
+type DecisionOutcome = {
+  status: DeviceSetupRequestStatus;
+  timeline: StoredDeviceSetupRequest['timeline'];
+  charges: DeviceSetupRequestCharges | null;
+};
 
 /**
  * Approve and reject share everything but the outcome, so they share a base.
@@ -46,6 +55,8 @@ abstract class DecideDeviceSetupRequestUseCase {
     private readonly repo: DeviceSetupRequestRepository,
   ) {}
 
+  protected abstract outcome(request: StoredDeviceSetupRequest, note: string | null): Promise<DecisionOutcome>;
+
   protected async decide(accessToken: string, requestId: string, reason: string | null) {
     const actor = await ensureSystemActor(
       accessToken,
@@ -61,16 +72,11 @@ abstract class DecideDeviceSetupRequestUseCase {
     }
 
     const trimmed = reason?.trim() || null;
-    if (this.decision === 'rejected' && !trimmed) {
-      throw new DeviceSetupRejectionReasonRequiredError();
-    }
-
     await this.repo.recordDecision({
       id: requestId,
-      status: this.decision,
       decidedBy: actor.id,
       reason: trimmed,
-      timeline: appendSetupRequestTimeline(request, this.decision, trimmed),
+      ...(await this.outcome(request, trimmed)),
     });
 
     const updated = await this.repo.findById(requestId);
@@ -84,9 +90,13 @@ abstract class DecideDeviceSetupRequestUseCase {
   }
 }
 
+function chargesNote(charges: DeviceSetupRequestCharges, note: string | null): string {
+  const total = `Charges: NGN ${(charges.totalKobo / 100).toFixed(2)}`;
+  return note ? `${note} · ${total}` : total;
+}
+
 @Injectable()
 export class ApproveSystemDeviceSetupRequestUseCase extends DecideDeviceSetupRequestUseCase {
-  // Approval asks the tenant to pay; installation waits on payment.
   protected readonly decision = 'awaiting_payment' as const;
   protected readonly message = 'Device setup request approved';
   protected readonly forbiddenMessage = 'You are not permitted to approve device setup requests';
@@ -95,12 +105,20 @@ export class ApproveSystemDeviceSetupRequestUseCase extends DecideDeviceSetupReq
     @Inject(TOKEN_SERVICE) tokenService: TokenService,
     @Inject(USER_REPOSITORY) userRepository: UserRepository,
     @Inject(DEVICE_SETUP_REQUEST_REPOSITORY) repo: DeviceSetupRequestRepository,
+    @Inject(DeviceSetupRequestPricingService) private readonly pricing: DeviceSetupRequestPricingService,
   ) {
     super(tokenService, userRepository, repo);
   }
 
   async execute(accessToken: string, requestId: string, note?: string) {
     return this.decide(accessToken, requestId, note ?? null);
+  }
+
+  // Priced before anything is written, so an unpriceable request stays under review.
+  protected async outcome(request: StoredDeviceSetupRequest, note: string | null): Promise<DecisionOutcome> {
+    const charges = await this.pricing.chargesFor(request.tenantId, request.quantity);
+    const priced = appendSetupRequestTimeline(request, 'awaiting_payment', chargesNote(charges, note));
+    return { ...settleApprovedPayment(priced), charges };
   }
 }
 
@@ -120,6 +138,11 @@ export class RejectSystemDeviceSetupRequestUseCase extends DecideDeviceSetupRequ
 
   async execute(accessToken: string, requestId: string, reason: string) {
     return this.decide(accessToken, requestId, reason);
+  }
+
+  protected async outcome(request: StoredDeviceSetupRequest, reason: string | null): Promise<DecisionOutcome> {
+    if (!reason) throw new DeviceSetupRejectionReasonRequiredError();
+    return { status: 'rejected', timeline: appendSetupRequestTimeline(request, 'rejected', reason), charges: null };
   }
 }
 

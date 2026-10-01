@@ -10,6 +10,7 @@ import {
 } from "../../../carriers";
 import {
   DeviceSetupRequest,
+  setupRequestView,
   type TrackerType,
 } from "../../domain/entities/device-setup-request.entity";
 import { nextSetupRequestReference } from "../../domain/device-setup-request-reference";
@@ -82,7 +83,7 @@ export class CreateDeviceSetupRequestUseCase {
         notes: command.notes ?? null,
       });
       await this.repository.save(request);
-      return request.toPrimitives();
+      return setupRequestView(request);
     } catch (err) {
       throw new FleetRuleError((err as Error).message);
     }

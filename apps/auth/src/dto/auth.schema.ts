@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { DEVICE_SETUP_REQUEST_STATUSES } from '@shared/devices';
+import { ApiProperty, ApiPropertyOptional, PickType } from '@nestjs/swagger';
+import { DEVICE_SETUP_REQUEST_STATUSES, SETUP_REQUEST_CHARGE_KINDS } from '@shared/devices';
 import { StandardApiResponse } from '@shared/openapi';
 import {
   SYSTEM_DEVICE_CATALOG_STATUSES,
@@ -1632,6 +1632,22 @@ export class SystemDeviceSetupRequestTimelineEntrySchema {
   @ApiProperty({ nullable: true }) note!: string | null;
 }
 
+export class SystemDeviceSetupRequestChargeLineSchema {
+  @ApiProperty({ enum: SETUP_REQUEST_CHARGE_KINDS }) kind!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty({ description: 'Naira' }) unitPriceNgn!: number;
+  @ApiProperty({ description: 'Naira, quantity × unitPriceNgn' }) amountNgn!: number;
+}
+
+export class SystemDeviceSetupRequestChargesSchema {
+  @ApiProperty({ enum: ['NGN'] }) currency!: string;
+  @ApiProperty({ example: 'm2m_standard' }) planCode!: string;
+  @ApiProperty() planName!: string;
+  @ApiProperty({ type: SystemDeviceSetupRequestChargeLineSchema, isArray: true })
+  lines!: SystemDeviceSetupRequestChargeLineSchema[];
+  @ApiProperty({ description: 'Naira' }) totalNgn!: number;
+}
+
 export class SystemDeviceSetupRequestSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 'DVR-401882' }) referenceNumber!: string;
@@ -1651,7 +1667,13 @@ export class SystemDeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) notes!: string | null;
   @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
   @ApiProperty({ nullable: true, enum: ['verified', 'pending', 'rejected'] }) kycStatus!: string | null;
-  @ApiProperty({ nullable: true }) assignedTo!: string | null;
+  @ApiProperty({ nullable: true, description: 'Id of the installer fitting the devices' }) assignedTo!: string | null;
+  @ApiProperty({
+    type: SystemDeviceSetupRequestChargesSchema,
+    nullable: true,
+    description: 'Licence (tenant plan year-1 price) and installation per device, priced and stored at approval. Null before approval.',
+  })
+  charges!: SystemDeviceSetupRequestChargesSchema | null;
   @ApiProperty({ nullable: true }) decidedBy!: string | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) decidedAt!: string | null;
   @ApiProperty({ nullable: true }) decisionReason!: string | null;
@@ -1674,6 +1696,21 @@ export class SystemDeviceSetupRequestsResponse extends StandardApiResponse<Syste
 export class SystemDeviceSetupRequestDetailResponse extends StandardApiResponse<SystemDeviceSetupRequestSchema> {
   @ApiProperty({ type: SystemDeviceSetupRequestSchema })
   data!: SystemDeviceSetupRequestSchema;
+}
+
+export class InstallerDeviceSetupRequestSchema extends PickType(SystemDeviceSetupRequestSchema, [
+  'id', 'referenceNumber', 'organisationName', 'manufacturer', 'model', 'trackerType', 'quantity', 'simRequired',
+  'vehicleId', 'state', 'city', 'preferredInstallDate', 'useCase', 'notes', 'status', 'timeline', 'createdAt', 'updatedAt',
+] as const) {}
+
+export class InstallerDeviceSetupRequestResponse extends StandardApiResponse<InstallerDeviceSetupRequestSchema> {
+  @ApiProperty({ type: InstallerDeviceSetupRequestSchema })
+  data!: InstallerDeviceSetupRequestSchema;
+}
+
+export class InstallerDeviceSetupRequestListResponse extends StandardApiResponse<InstallerDeviceSetupRequestSchema[]> {
+  @ApiProperty({ type: InstallerDeviceSetupRequestSchema, isArray: true })
+  data!: InstallerDeviceSetupRequestSchema[];
 }
 
 /* ── Onboarding: Business Info ──────────────────────────────────────────── */

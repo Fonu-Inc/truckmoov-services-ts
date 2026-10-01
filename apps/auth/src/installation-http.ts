@@ -29,6 +29,8 @@ import {
   InvalidRejectionReasonError,
   type InstallationOrderStatus,
 } from './contexts/installation/domain/installation-order';
+import { DeviceSetupRequestNotFoundError } from './get-system-device-setup-request.use-case';
+import { DeviceSetupRequestNotInProgressError } from './installer-device-setup-requests.use-cases';
 
 export function jobStatusFilter(value?: string): InstallationOrderStatus | undefined {
   if (!value) return undefined;
@@ -58,9 +60,11 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
   [InstallerNotificationNotFoundError, NotFoundException],
+  [DeviceSetupRequestNotFoundError, NotFoundException],
   [InstallationJobClosedError, ConflictException],
   [InstallationJobConflictError, ConflictException],
   [InvalidInstallationTransitionError, ConflictException],
+  [DeviceSetupRequestNotInProgressError, ConflictException],
   [InvalidStageTransitionError, ConflictException],
   [FleetUnavailableError, ServiceUnavailableException],
   [ForbiddenError, ForbiddenException],

@@ -2710,35 +2710,30 @@ describe('Auth HTTP contract', () => {
     });
   });
 
-  it('PATCH /system/support/device-setup/:requestId approve, confirm-payment, then assign walks the lifecycle', async () => {
+  // The approve-to-complete walk, with a priced tenant, is in installer-portal.contract.test.ts.
+  it('PATCH /system/support/device-setup/:requestId/approve refuses a tenant with no licence plan instead of approving at nothing', async () => {
     const token = await systemToken();
-    const patch = (path: string) =>
-      request(app.getHttpServer())
-        .patch(`/auth/system/support/device-setup/dsr-001/${path}`)
-        .set('Authorization', `Bearer ${token}`);
+    const approve = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-001/approve')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(approve.status).toBe(409);
+    expect(approve.body.status).toBe(false);
+    expect(approve.body.message).toMatch(/cannot be priced: the tenant has no active licence plan/);
 
-    const approve = await patch('approve').send({});
-    expect(approve.status).toBe(200);
-    expect(approve.body.data.status).toBe('awaiting_payment');
-    expect(approve.body.data.decidedBy).toBeTruthy();
-    expect(approve.body.data.referenceNumber).toMatch(/^DVR-\d{6}$/);
+    const detail = await request(app.getHttpServer())
+      .get('/auth/system/support/device-setup/dsr-001')
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.data).toMatchObject({ status: 'under_review', charges: null });
+  });
 
-    const early = await patch('assign').send({});
-    expect(early.status).toBe(400);
-
-    const paid = await patch('confirm-payment').send({ note: 'Bank transfer 991' });
-    expect(paid.status).toBe(200);
-    expect(paid.body.data.status).toBe('ready_for_installation');
-    expect(paid.body.data.timeline.at(-1)).toMatchObject({ status: 'ready_for_installation', note: 'Bank transfer 991' });
-
-    const again = await patch('confirm-payment').send({});
-    expect(again.status).toBe(400);
-    expect(again.body.status).toBe(false);
-
-    const assign = await patch('assign').send({});
-    expect(assign.status).toBe(200);
-    expect(assign.body.data.status).toBe('installation_in_progress');
-    expect(assign.body.data.assignedTo).toBeTruthy();
+  it('PATCH /system/support/device-setup/:requestId/assign needs an installerId', async () => {
+    const token = await systemToken();
+    const res = await request(app.getHttpServer())
+      .patch('/auth/system/support/device-setup/dsr-001/assign')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(400);
   });
 
   it('PATCH /system/support/device-setup/:requestId/confirm-payment requires a token and an existing request', async () => {
@@ -2761,7 +2756,7 @@ describe('Auth HTTP contract', () => {
     const res = await request(app.getHttpServer())
       .patch('/auth/system/support/device-setup/dsr-002/assign')
       .set('Authorization', `Bearer ${token}`)
-      .send({});
+      .send({ installerId: 'inst-1' });
     expect(res.status).toBe(400);
   });
 

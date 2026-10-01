@@ -1,6 +1,7 @@
 import { EntitySchema } from "@mikro-orm/core";
 import { MikroORM } from "@mikro-orm/postgresql";
 import { retryDbConnect, runMigrationsExclusively } from "@shared/db";
+import type { DeviceSetupRequestCharges } from "@shared/devices";
 
 export type DbConfig = {
   host: string;
@@ -1150,6 +1151,7 @@ export class DeviceSetupRequestRecord {
   status!: string;
   timeline!: { status: string; at: string; note?: string | null }[];
   assignedTo?: string | null;
+  charges?: DeviceSetupRequestCharges | null;
   decidedBy?: string | null;
   decidedAt?: Date | null;
   decisionReason?: string | null;
@@ -1185,6 +1187,7 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
     status: { type: "string", length: 32, defaultRaw: "'under_review'" },
     timeline: { type: "json" },
     assignedTo: { type: "string", length: 64, nullable: true },
+    charges: { type: "json", nullable: true },
     decidedBy: { type: "string", length: 64, nullable: true },
     decidedAt: { type: "datetime", nullable: true },
     decisionReason: { type: "string", length: 1000, nullable: true },

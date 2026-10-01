@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { DeviceSetupRequestCharges } from '@shared/devices';
 import {
   SETUP_REQUEST_APPROVED_STATUSES,
   SETUP_REQUEST_PENDING_STATUSES,
@@ -32,6 +33,7 @@ function seed(
     status: 'under_review',
     kycStatus: 'verified',
     assignedTo: null,
+    charges: null,
     decidedBy: null,
     decidedAt: null,
     decisionReason: null,
@@ -78,6 +80,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     let results = [...this.store.values()];
     if (filters?.status) results = results.filter((r) => r.status === filters.status);
     if (filters?.tenantId) results = results.filter((r) => r.tenantId === filters.tenantId);
+    if (filters?.assignedTo) results = results.filter((r) => r.assignedTo === filters.assignedTo);
     if (filters?.manufacturer) {
       const manufacturer = filters.manufacturer.toLowerCase();
       results = results.filter((r) => r.manufacturer?.toLowerCase() === manufacturer);
@@ -121,6 +124,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     status: DeviceSetupRequestStatus;
     decidedBy: string;
     reason: string | null;
+    charges: DeviceSetupRequestCharges | null;
     timeline: Array<{ status: string; at: string; note: string | null }>;
   }): Promise<void> {
     const current = this.store.get(input.id);
@@ -131,6 +135,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
       decidedBy: input.decidedBy,
       decidedAt: new Date(),
       decisionReason: input.reason,
+      charges: input.charges,
       timeline: input.timeline,
       updatedAt: new Date(),
     });

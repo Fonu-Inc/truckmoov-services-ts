@@ -1,7 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { SETUP_REQUEST_PLATFORM_STATUSES } from "@shared/devices";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
-import type { DeviceSetupRequestStatus } from "../../domain/entities/device-setup-request.entity";
+import {
+  setupRequestView,
+  type DeviceSetupRequestStatus,
+} from "../../domain/entities/device-setup-request.entity";
 import {
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
@@ -30,7 +33,7 @@ export class UpdateDeviceSetupRequestStatusUseCase {
     try {
       const updated = request.transitionTo(command.status, command.note ?? undefined);
       await this.repository.save(updated);
-      return updated.toPrimitives();
+      return setupRequestView(updated);
     } catch (err) {
       throw new FleetRuleError((err as Error).message);
     }

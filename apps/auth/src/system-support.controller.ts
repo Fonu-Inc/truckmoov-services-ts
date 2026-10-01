@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   BadRequestException,
+  ConflictException,
   Post,
   Inject,
   Headers,
@@ -24,6 +25,7 @@ import {
   ApiNotFoundResponse,
   ApiBearerAuth,
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiOperation,
   ApiQuery,
   ApiCreatedResponse,
@@ -57,6 +59,7 @@ import {
 } from './dto/auth.schema';
 import {
   ApproveDeviceSetupRequestDto,
+  AssignDeviceSetupRequestDto,
   ConfirmDeviceSetupPaymentDto,
   RejectDeviceSetupRequestDto,
 } from './dto/device-setup.dto';
@@ -68,6 +71,8 @@ import {
   SendSupportMessageDto,
 } from './dto/support.dto';
 import { InvalidEscalationTargetError, EscalateSystemSupportTicketUseCase } from './escalate-system-support-ticket.use-case';
+import { DeviceSetupRequestUnpricedError } from './device-setup-request-pricing.service';
+import { InstallerNotFoundError, InstallerStateError } from './contexts/installation/domain/installer';
 import { ExportSystemDeviceSetupRequestsUseCase } from './export-system-device-setup-requests.use-case';
 import { ExportSystemSupportTicketsUseCase } from './export-system-support-tickets.use-case';
 import { DeviceSetupRequestNotFoundError, GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-request.use-case';
@@ -287,28 +292,31 @@ export class SystemSupportController extends BaseAuthController {
   @Patch('device-setup/:requestId/assign')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Assign device setup request to current actor',
-    description: 'Starts installation: ready_for_installation → installation_in_progress.',
+    summary: 'Assign a device setup request to an installer',
+    description: 'Starts installation: ready_for_installation → installation_in_progress, assignedTo set to the installer. The installer completes it from the installer portal.',
   })
   @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to assign device setup requests' })
-  @ApiNotFoundResponse({ description: 'Device setup request not found' })
-  @ApiBadRequestResponse({ description: 'The request is not ready for installation' })
+  @ApiNotFoundResponse({ description: 'Device setup request not found, or "Installer not found"' })
+  @ApiBadRequestResponse({ description: 'installerId missing, or the request is not ready for installation' })
+  @ApiConflictResponse({ description: 'The installer is not active (invited or suspended)' })
   async assignSystemDeviceSetupRequest(
     @Param('requestId') requestId: string,
+    @Body(BodyOrDataPipe) payload: AssignDeviceSetupRequestDto,
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      const result = await this.assignSystemDeviceSetupRequestUseCase.execute(accessToken, requestId);
+      const result = await this.assignSystemDeviceSetupRequestUseCase.execute(accessToken, requestId, payload.installerId);
       await this.tryRecordActivityFromAccessToken(accessToken, {
         service: 'auth',
         action: 'system.device_setup.assigned',
         entityType: 'device_setup_request',
         entityId: requestId,
         summary: 'Device setup request assigned',
+        metadata: { installerId: payload.installerId },
       });
       return result;
     } catch (error) {
@@ -321,13 +329,14 @@ export class SystemSupportController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve a device setup request',
-    description: 'Accepts an under_review request and moves it to awaiting_payment.',
+    description: 'Prices an under_review request (quantity × (tenant licence plan year-1 price + installation fee for its customer type)), stores the charges and moves it to awaiting_payment. Payment is auto-approved for now, so it continues straight to ready_for_installation; the timeline records both steps.',
   })
   @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to approve device setup requests' })
   @ApiNotFoundResponse({ description: 'Device setup request not found' })
   @ApiBadRequestResponse({ description: 'The request has already been decided' })
+  @ApiConflictResponse({ description: '"This device request cannot be priced: <reason>", e.g. the tenant has no active licence plan. Nothing is approved.' })
   async approveSystemDeviceSetupRequest(
     @Param('requestId') requestId: string,
     @Body(BodyOrDataPipe) payload: ApproveDeviceSetupRequestDto,
@@ -359,7 +368,7 @@ export class SystemSupportController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Confirm payment for a device setup request',
-    description: 'Records that the tenant has paid, confirmed manually by a platform admin: awaiting_payment → ready_for_installation.',
+    description: 'Records that the tenant has paid, confirmed manually by a platform admin: awaiting_payment → ready_for_installation. Idle while approval auto-approves payment.',
   })
   @ApiOkResponse({ type: SystemDeviceSetupRequestDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -698,7 +707,12 @@ export class SystemSupportController extends BaseAuthController {
   private rethrowDeviceSetupError(error: unknown): void {
     this.rethrowInvalidAccessToken(error);
     if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-    if (error instanceof DeviceSetupRequestNotFoundError) throw new NotFoundException(error.message);
+    if (error instanceof DeviceSetupRequestNotFoundError || error instanceof InstallerNotFoundError) {
+      throw new NotFoundException(error.message);
+    }
+    if (error instanceof DeviceSetupRequestUnpricedError || error instanceof InstallerStateError) {
+      throw new ConflictException(error.message);
+    }
     if (
       error instanceof DeviceSetupRequestAlreadyDecidedError
       || error instanceof DeviceSetupRejectionReasonRequiredError

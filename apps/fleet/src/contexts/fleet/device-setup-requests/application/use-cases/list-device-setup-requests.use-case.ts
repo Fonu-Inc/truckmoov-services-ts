@@ -1,6 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
-import type { DeviceSetupRequestStatus } from "../../domain/entities/device-setup-request.entity";
+import {
+  setupRequestView,
+  type DeviceSetupRequestStatus,
+} from "../../domain/entities/device-setup-request.entity";
 import {
   DEVICE_SETUP_REQUEST_REPOSITORY,
   type DeviceSetupRequestRepository,
@@ -24,6 +27,6 @@ export class ListDeviceSetupRequestsUseCase {
   async execute(filters?: ListDeviceSetupRequestsFilters) {
     const tenantId = filters?.tenantId ?? this.runtime.getDefaultTenantId();
     const requests = await this.repository.findAll({ ...filters, tenantId });
-    return requests.map((request) => request.toPrimitives());
+    return requests.map(setupRequestView);
   }
 }

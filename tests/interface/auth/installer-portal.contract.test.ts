@@ -136,6 +136,49 @@ describe('Installer portal over HTTP (auth)', () => {
     expect(vague.status).toBe(400);
   });
 
+  it('completes a device request staff priced, approved and assigned to it, and nobody else\'s', async () => {
+    const { LICENCE_PERIOD_REPOSITORY, RENEWAL_FACTS_READER } = await import('@auth/onboarding/domain/licence-period.repository');
+    app.get(LICENCE_PERIOD_REPOSITORY).add({
+      tenantId: 'tenant-001', applicationId: 'app-tenant-001', planCode: 'm2m_standard', deviceCount: 1,
+      periodStart: '2026-01-01', periodEnd: '2026-12-31', origin: 'purchase',
+    });
+    app.get(RENEWAL_FACTS_READER).byTenant.set('tenant-001', {
+      applicationPlanCode: 'm2m_standard', customerName: 'Dangote Logistics', customerType: 'enterprise',
+      billingEmail: null, adminEmail: null, fleetDeviceCount: 0, hasUser: true, terminated: false,
+    });
+    const staff = { Authorization: `Bearer ${staffToken}` };
+    const installer = { Authorization: `Bearer ${installerToken}` };
+    const platform = (path: string) => http().patch(`/auth/system/support/device-setup/dsr-001/${path}`).set(staff);
+
+    const approved = await platform('approve').send({});
+    expect(approved.status).toBe(200);
+    expect(approved.body.data.status).toBe('ready_for_installation');
+    expect(approved.body.data.charges).toMatchObject({ currency: 'NGN', planCode: 'm2m_standard', totalNgn: 92_000 });
+    expect(approved.body.data.timeline.map((t: { status: string }) => t.status)).toEqual([
+      'under_review', 'awaiting_payment', 'ready_for_installation',
+    ]);
+
+    expect((await platform('assign').send({})).status).toBe(400);
+    expect((await platform('assign').send({ installerId: 'nobody' })).status).toBe(404);
+    const assigned = await platform('assign').send({ installerId });
+    expect(assigned.status).toBe(200);
+    expect(assigned.body.data).toMatchObject({ status: 'installation_in_progress', assignedTo: installerId });
+
+    const mine = await http().get('/auth/installer/device-requests').set(installer);
+    expect(mine.body.data.map((r: { id: string }) => r.id)).toEqual(['dsr-001']);
+    expect(mine.body.data[0]).not.toHaveProperty('charges');
+
+    const someoneElses = await http().post('/auth/installer/device-requests/dsr-002/complete').set(installer);
+    expect(someoneElses.status).toBe(404);
+
+    const completed = await http().post('/auth/installer/device-requests/dsr-001/complete').set(installer);
+    expect(completed.status).toBe(201);
+    expect(completed.body).toMatchObject({ status: true, message: 'Device request completed', data: { status: 'completed' } });
+
+    const again = await http().post('/auth/installer/device-requests/dsr-001/complete').set(installer);
+    expect(again.status).toBe(409);
+  });
+
   it('lists installation orders for platform staff', async () => {
     const staff = await http().get('/auth/system/installation-orders').set('Authorization', `Bearer ${staffToken}`);
 

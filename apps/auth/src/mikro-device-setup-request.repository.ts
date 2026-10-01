@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { readSetupRequestCharges, type DeviceSetupRequestCharges } from '@shared/devices';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
   SETUP_REQUEST_APPROVED_STATUSES,
@@ -30,6 +31,7 @@ type Row = {
   notes: string | null;
   status: string;
   assigned_to: string | null;
+  charges: unknown;
   decided_by: string | null;
   decided_at: Date | string | null;
   decision_reason: string | null;
@@ -74,6 +76,7 @@ const SELECT_COLUMNS = `
   r.notes,
   r.status,
   r.assigned_to,
+  r.charges,
   r.decided_by,
   r.decided_at,
   r.decision_reason,
@@ -117,6 +120,10 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     if (filters?.tenantId?.trim()) {
       conditions.push('r.tenant_id = ?');
       params.push(filters.tenantId.trim());
+    }
+    if (filters?.assignedTo?.trim()) {
+      conditions.push('r.assigned_to = ?');
+      params.push(filters.assignedTo.trim());
     }
     if (filters?.manufacturer?.trim()) {
       conditions.push('lower(r.manufacturer) = lower(?)');
@@ -204,14 +211,22 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     status: DeviceSetupRequestStatus;
     decidedBy: string;
     reason: string | null;
+    charges: DeviceSetupRequestCharges | null;
     timeline: Array<{ status: string; at: string; note: string | null }>;
   }): Promise<void> {
     await this.execute(
       `update fleet_device_setup_requests
           set status = ?, decided_by = ?, decided_at = now(), decision_reason = ?,
-              timeline = ?::jsonb, updated_at = now()
+              charges = ?::jsonb, timeline = ?::jsonb, updated_at = now()
         where id = ?`,
-      [input.status, input.decidedBy, input.reason, JSON.stringify(input.timeline), input.id],
+      [
+        input.status,
+        input.decidedBy,
+        input.reason,
+        input.charges ? JSON.stringify(input.charges) : null,
+        JSON.stringify(input.timeline),
+        input.id,
+      ],
     );
   }
 
@@ -287,6 +302,7 @@ function toStored(row: Row): StoredDeviceSetupRequest {
     status: row.status as DeviceSetupRequestStatus,
     kycStatus: (row.kyc_status as StoredDeviceSetupRequest['kycStatus']) ?? null,
     assignedTo: row.assigned_to,
+    charges: readSetupRequestCharges(row.charges),
     decidedBy: row.decided_by,
     decidedAt: row.decided_at ? new Date(row.decided_at) : null,
     decisionReason: row.decision_reason,

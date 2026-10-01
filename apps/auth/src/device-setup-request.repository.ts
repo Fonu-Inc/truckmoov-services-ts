@@ -1,4 +1,4 @@
-import type { DeviceSetupRequestStatus } from '@shared/devices';
+import type { DeviceSetupRequestCharges, DeviceSetupRequestStatus } from '@shared/devices';
 
 export {
   SETUP_REQUEST_APPROVED_STATUSES,
@@ -34,7 +34,10 @@ export type StoredDeviceSetupRequest = {
   status: DeviceSetupRequestStatus;
   /** Whether the tenant's onboarding was approved. Null when they never applied. */
   kycStatus: 'verified' | 'pending' | 'rejected' | null;
+  /** The installer fitting the devices. */
   assignedTo: string | null;
+  /** Priced at approval, kobo; null before. */
+  charges: DeviceSetupRequestCharges | null;
   decidedBy: string | null;
   decidedAt: Date | null;
   decisionReason: string | null;
@@ -48,6 +51,7 @@ export type DeviceSetupRequestFilters = {
   tenantId?: string;
   search?: string;
   manufacturer?: string;
+  assignedTo?: string;
   dateFrom?: string;
   dateTo?: string;
 };
@@ -75,6 +79,7 @@ export interface DeviceSetupRequestRepository {
     status: DeviceSetupRequestStatus;
     decidedBy: string;
     reason: string | null;
+    charges: DeviceSetupRequestCharges | null;
     timeline: Array<{ status: string; at: string; note: string | null }>;
   }): Promise<void>;
   assign(
@@ -82,7 +87,7 @@ export interface DeviceSetupRequestRepository {
     assignedTo: string,
     timeline: Array<{ status: string; at: string; note: string | null }>,
   ): Promise<void>;
-  /** A plain step along the lifecycle, such as payment confirmed. */
+  /** A plain step along the lifecycle, such as payment confirmed or installation completed. */
   advance(input: {
     id: string;
     status: DeviceSetupRequestStatus;

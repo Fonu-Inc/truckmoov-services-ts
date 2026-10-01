@@ -31,6 +31,17 @@ import {
   RejectSystemDeviceSetupRequestUseCase,
 } from '../../../apps/auth/src/decide-system-device-setup-request.use-cases';
 import { ForbiddenError } from '../../../apps/auth/src/contexts/auth/session';
+import { appendSetupRequestTimeline } from '../../../apps/auth/src/device-setup-request.repository';
+import {
+  DeviceSetupRequestPricingService,
+  DeviceSetupRequestUnpricedError,
+} from '../../../apps/auth/src/device-setup-request-pricing.service';
+import { DeviceSetupRequestNotFoundError } from '../../../apps/auth/src/get-system-device-setup-request.use-case';
+import {
+  DeviceSetupRequestNotInProgressError,
+  InstallerDeviceSetupRequestsUseCases,
+} from '../../../apps/auth/src/installer-device-setup-requests.use-cases';
+import { InstallerNotFoundError, InstallerStateError } from '../../../apps/auth/src/contexts/installation/domain/installer';
 import type { StoredSim } from '../../../apps/auth/src/sim.repository';
 import type { StoredSimActivationBatch } from '../../../apps/auth/src/sim-activation-batch.repository';
 import type { StoredSimProvisioningRequest } from '../../../apps/auth/src/sim-provisioning-request.repository';
@@ -262,9 +273,63 @@ describe('SIM requests summary', () => {
   });
 });
 
+const PLAN = { code: 'm2m_standard', name: 'M2M Standard License', perDeviceYear1Ngn: 77_000 };
+
+function pricing(opts: { period?: boolean; customerType?: 'enterprise' | 'owner_operator' } = {}) {
+  const period = opts.period === false ? null : { planCode: PLAN.code, applicationId: 'app-1' };
+  return new DeviceSetupRequestPricingService(
+    { findActiveByTenant: async () => period } as never,
+    { facts: async () => ({ customerType: opts.customerType ?? 'enterprise' }) } as never,
+    { findByCode: async (code: string) => (code === PLAN.code ? PLAN : null) } as never,
+    {
+      getAll: async () => ({
+        installation_fee_enterprise_ngn: { value: 20_000 },
+        installation_fee_owner_operator_ngn: { value: 12_500 },
+      }),
+    } as never,
+  );
+}
+
+const INSTALLERS = [
+  { id: 'inst-1', userId: 'inst-user-1', code: 'INS-001', status: 'active' },
+  { id: 'inst-2', userId: 'inst-user-2', code: 'INS-002', status: 'active' },
+  { id: 'inst-3', userId: 'inst-user-3', code: 'INS-003', status: 'suspended' },
+];
+const installers = {
+  findById: async (id: string) => INSTALLERS.find((i) => i.id === id) ?? null,
+  findByUserId: async (userId: string) => INSTALLERS.find((i) => i.userId === userId) ?? null,
+};
+const installerTokens = { resolveAccessToken: (token: string) => ({ id: token }) };
+
+describe('Device setup request charges', () => {
+  it('prices quantity × (plan year-1 licence + installation fee) in kobo', async () => {
+    const charges = await pricing().chargesFor('tenant-001', 3);
+    expect(charges).toEqual({
+      currency: 'NGN',
+      planCode: 'm2m_standard',
+      planName: 'M2M Standard License',
+      lines: [
+        { kind: 'licence', quantity: 3, unitPriceKobo: 7_700_000, amountKobo: 23_100_000 },
+        { kind: 'installation', quantity: 3, unitPriceKobo: 2_000_000, amountKobo: 6_000_000 },
+      ],
+      totalKobo: 29_100_000,
+    });
+  });
+
+  it('charges an owner operator the owner operator installation fee', async () => {
+    const charges = await pricing({ customerType: 'owner_operator' }).chargesFor('tenant-001', 2);
+    expect(charges.lines[1]).toEqual({ kind: 'installation', quantity: 2, unitPriceKobo: 1_250_000, amountKobo: 2_500_000 });
+    expect(charges.totalKobo).toBe(2 * 7_700_000 + 2_500_000);
+  });
+
+  it('refuses to price a tenant with no active licence plan', async () => {
+    await expect(pricing({ period: false }).chargesFor('tenant-001', 1)).rejects.toBeInstanceOf(DeviceSetupRequestUnpricedError);
+  });
+});
+
 describe('Device setup request mutations', () => {
-  function approver(repo: InMemoryDeviceSetupRequestRepository) {
-    return new ApproveSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+  function approver(repo: InMemoryDeviceSetupRequestRepository, prices = pricing()) {
+    return new ApproveSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo, prices);
   }
   function rejecter(repo: InMemoryDeviceSetupRequestRepository) {
     return new RejectSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
@@ -273,26 +338,67 @@ describe('Device setup request mutations', () => {
     return new ConfirmSystemDeviceSetupPaymentUseCase(systemActor() as never, systemUserRepo() as never, repo);
   }
   function assigner(repo: InMemoryDeviceSetupRequestRepository) {
-    return new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo);
+    return new AssignSystemDeviceSetupRequestUseCase(systemActor() as never, systemUserRepo() as never, repo, installers as never);
+  }
+  function installerPortal(repo: InMemoryDeviceSetupRequestRepository) {
+    return new InstallerDeviceSetupRequestsUseCases(installerTokens as never, installers as never, repo);
   }
   function summary(repo: InMemoryDeviceSetupRequestRepository) {
     return new GetSystemDeviceSetupSummaryUseCase(systemActor() as never, systemUserRepo() as never, repo).execute(TOKEN);
   }
+  async function awaitingPayment(repo: InMemoryDeviceSetupRequestRepository, id: string) {
+    const request = (await repo.findById(id))!;
+    await repo.recordDecision({
+      id,
+      status: 'awaiting_payment',
+      decidedBy: 'sys1',
+      reason: null,
+      charges: null,
+      timeline: appendSetupRequestTimeline(request, 'awaiting_payment', null),
+    });
+  }
 
-  it('approves into awaiting_payment and records who decided', async () => {
+  it('approves, stores the charges and auto-approves payment through to ready_for_installation', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     const result = await approver(repo).execute(TOKEN, 'dsr-001', 'Looks good');
-    expect(result.data.status).toBe('awaiting_payment');
+
+    expect(result.data.status).toBe('ready_for_installation');
     expect(result.data.decidedBy).toBe('sys1');
     expect(result.data.decidedAt).not.toBeNull();
-    expect(result.data.timeline.at(-1)).toMatchObject({ status: 'awaiting_payment', note: 'Looks good' });
+    expect(result.data.timeline.map((t) => t.status)).toEqual(['under_review', 'awaiting_payment', 'ready_for_installation']);
+    expect(result.data.timeline[1].note).toBe('Looks good · Charges: NGN 97000.00');
+    expect(result.data.timeline[2].note).toBe('payment auto-approved');
+    expect(result.data.charges).toMatchObject({ currency: 'NGN', totalNgn: 97_000 });
+    expect((await repo.findById('dsr-001'))!.charges).toEqual({
+      currency: 'NGN',
+      planCode: 'm2m_standard',
+      planName: 'M2M Standard License',
+      lines: [
+        { kind: 'licence', quantity: 1, unitPriceKobo: 7_700_000, amountKobo: 7_700_000 },
+        { kind: 'installation', quantity: 1, unitPriceKobo: 2_000_000, amountKobo: 2_000_000 },
+      ],
+      totalKobo: 9_700_000,
+    });
   });
 
-  it('rejects with a reason', async () => {
+  // Approving at nothing would hand out devices for free.
+  it('refuses to approve a tenant with no licence plan and leaves the request under review', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await expect(approver(repo, pricing({ period: false })).execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(
+      DeviceSetupRequestUnpricedError,
+    );
+    const request = (await repo.findById('dsr-001'))!;
+    expect(request.status).toBe('under_review');
+    expect(request.charges).toBeNull();
+    expect(request.timeline).toHaveLength(1);
+  });
+
+  it('rejects with a reason and no charges', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     const result = await rejecter(repo).execute(TOKEN, 'dsr-001', 'Model is deprecated');
     expect(result.data.status).toBe('rejected');
     expect(result.data.decisionReason).toBe('Model is deprecated');
+    expect(result.data.charges).toBeNull();
   });
 
   // A rejection the tenant cannot act on is not a decision.
@@ -310,9 +416,9 @@ describe('Device setup request mutations', () => {
     await expect(rejecter(repo).execute(TOKEN, 'dsr-001', 'Too late')).rejects.toThrow(/already been decided/);
   });
 
-  it('confirms payment into ready_for_installation', async () => {
+  it('still confirms payment by hand on a request awaiting payment', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    await approver(repo).execute(TOKEN, 'dsr-001');
+    await awaitingPayment(repo, 'dsr-001');
     const result = await payment(repo).execute(TOKEN, 'dsr-001', ' Transfer ref 991 ');
     expect(result.data.status).toBe('ready_for_installation');
     expect(result.data.timeline.map((t) => t.status)).toEqual(['under_review', 'awaiting_payment', 'ready_for_installation']);
@@ -324,28 +430,75 @@ describe('Device setup request mutations', () => {
     await expect(payment(repo).execute(TOKEN, id)).rejects.toBeInstanceOf(DeviceSetupRequestNotAwaitingPaymentError);
   });
 
-  it('refuses a payment confirmation from a non-system user', async () => {
+  it('refuses a payment confirmation on a request whose payment was auto-approved', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
+    await expect(payment(repo).execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(DeviceSetupRequestNotAwaitingPaymentError);
+  });
+
+  it('refuses a payment confirmation from a non-system user', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await awaitingPayment(repo, 'dsr-001');
     const readOnly = new ConfirmSystemDeviceSetupPaymentUseCase(systemActor() as never, systemUserRepo('ENTERPRISE_ADMIN', 't1') as never, repo);
     await expect(readOnly.execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
-  it('assigns a paid request to the acting system user and starts installation', async () => {
+  it('assigns a paid request to an active installer and starts installation', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
-    await payment(repo).execute(TOKEN, 'dsr-001');
-    const result = await assigner(repo).execute(TOKEN, 'dsr-001');
-    expect(result.data.assignedTo).toBe('sys1');
+    const result = await assigner(repo).execute(TOKEN, 'dsr-001', 'inst-1');
+    expect(result.data.assignedTo).toBe('inst-1');
     expect(result.data.status).toBe('installation_in_progress');
+  });
+
+  it('refuses to assign an unknown or inactive installer', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001', 'nobody')).rejects.toBeInstanceOf(InstallerNotFoundError);
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001', 'inst-3')).rejects.toBeInstanceOf(InstallerStateError);
+    expect((await repo.findById('dsr-001'))!.status).toBe('ready_for_installation');
   });
 
   // Installation waits on both the decision and the payment.
   it('refuses to assign a request still under review or awaiting payment', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    await expect(assigner(repo).execute(TOKEN, 'dsr-001')).rejects.toThrow(/ready for installation/);
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001', 'inst-1')).rejects.toThrow(/ready for installation/);
+    await awaitingPayment(repo, 'dsr-001');
+    await expect(assigner(repo).execute(TOKEN, 'dsr-001', 'inst-1')).rejects.toBeInstanceOf(DeviceSetupRequestNotReadyError);
+  });
+
+  it('lets the assigned installer complete the request', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
-    await expect(assigner(repo).execute(TOKEN, 'dsr-001')).rejects.toBeInstanceOf(DeviceSetupRequestNotReadyError);
+    await assigner(repo).execute(TOKEN, 'dsr-001', 'inst-1');
+
+    expect((await installerPortal(repo).list('inst-user-1')).map((r) => r.id)).toEqual(['dsr-001']);
+    const completed = await installerPortal(repo).complete('inst-user-1', 'dsr-001');
+
+    expect(completed.status).toBe('completed');
+    expect(completed.timeline.at(-1)).toMatchObject({ status: 'completed', note: 'Completed by installer INS-001' });
+    expect((await repo.findById('dsr-001'))!.status).toBe('completed');
+    await expect(installerPortal(repo).complete('inst-user-1', 'dsr-001')).rejects.toBeInstanceOf(
+      DeviceSetupRequestNotInProgressError,
+    );
+  });
+
+  // Another installer's request answers exactly like a missing one.
+  it('refuses an installer completing a request assigned to someone else', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await approver(repo).execute(TOKEN, 'dsr-001');
+    await assigner(repo).execute(TOKEN, 'dsr-001', 'inst-1');
+
+    await expect(installerPortal(repo).complete('inst-user-2', 'dsr-001')).rejects.toBeInstanceOf(DeviceSetupRequestNotFoundError);
+    await expect(installerPortal(repo).complete('inst-user-2', 'dsr-002')).rejects.toBeInstanceOf(DeviceSetupRequestNotFoundError);
+    await expect(installerPortal(repo).complete('inst-user-2', 'nope')).rejects.toBeInstanceOf(DeviceSetupRequestNotFoundError);
+    expect(await installerPortal(repo).list('inst-user-2')).toEqual([]);
+    expect((await repo.findById('dsr-001'))!.status).toBe('installation_in_progress');
+  });
+
+  it('shuts out a suspended installer', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await expect(installerPortal(repo).complete('inst-user-3', 'dsr-002')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('counts devices requested, not requests, on the approval queue cards', async () => {
@@ -357,9 +510,15 @@ describe('Device setup request mutations', () => {
     expect(data.devicesRequested).toBe(4);
   });
 
-  it('moves an approved request from pending into the awaiting payment and approved buckets', async () => {
+  it('moves an approved request from pending into the approved bucket, past awaiting payment', async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     await approver(repo).execute(TOKEN, 'dsr-001');
+    expect((await summary(repo)).data).toMatchObject({ pendingApproval: 0, awaitingPayment: 0, approved: 3 });
+  });
+
+  it('counts a request awaiting a manual payment confirmation in both buckets', async () => {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    await awaitingPayment(repo, 'dsr-001');
     expect((await summary(repo)).data).toMatchObject({ pendingApproval: 0, awaitingPayment: 1, approved: 3 });
 
     await payment(repo).execute(TOKEN, 'dsr-001');

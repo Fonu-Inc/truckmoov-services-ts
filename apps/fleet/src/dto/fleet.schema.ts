@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { DEVICE_SETUP_REQUEST_STATUSES } from "@shared/devices";
+import { DEVICE_SETUP_REQUEST_STATUSES, SETUP_REQUEST_CHARGE_KINDS } from "@shared/devices";
 import { StandardApiResponse } from "@shared/openapi";
 import { TRACKER_TYPES } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
@@ -210,6 +210,21 @@ export class DeviceSetupRequestTimelineEntrySchema {
   @ApiProperty({ nullable: true }) note!: string | null;
 }
 
+export class DeviceSetupRequestChargeLineSchema {
+  @ApiProperty({ enum: SETUP_REQUEST_CHARGE_KINDS }) kind!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty({ description: "Naira" }) unitPriceNgn!: number;
+  @ApiProperty({ description: "Naira, quantity × unitPriceNgn" }) amountNgn!: number;
+}
+
+export class DeviceSetupRequestChargesSchema {
+  @ApiProperty({ enum: ["NGN"] }) currency!: string;
+  @ApiProperty({ example: "m2m_standard" }) planCode!: string;
+  @ApiProperty() planName!: string;
+  @ApiProperty({ type: DeviceSetupRequestChargeLineSchema, isArray: true }) lines!: DeviceSetupRequestChargeLineSchema[];
+  @ApiProperty({ description: "Naira" }) totalNgn!: number;
+}
+
 export class DeviceSetupRequestSchema {
   @ApiProperty() id!: string;
   @ApiProperty() tenantId!: string;
@@ -235,6 +250,13 @@ export class DeviceSetupRequestSchema {
   @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
   @ApiProperty({ type: DeviceSetupRequestTimelineEntrySchema, isArray: true })
   timeline!: DeviceSetupRequestTimelineEntrySchema[];
+  @ApiProperty({ nullable: true, description: "Installer fitting the devices" }) assignedTo!: string | null;
+  @ApiProperty({
+    type: DeviceSetupRequestChargesSchema,
+    nullable: true,
+    description: "Licence (plan year-1 price) and installation per device, priced when the platform approves. Null before approval.",
+  })
+  charges!: DeviceSetupRequestChargesSchema | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }
