@@ -6,6 +6,7 @@ import { DriverNotFoundError } from "../../../apps/fleet/src/contexts/fleet/driv
 import { InMemoryDriverRepository } from "../../../apps/fleet/src/contexts/fleet/drivers/infrastructure/repositories/in-memory-driver.repository";
 import { CreateVehicleUseCase } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/create-vehicle.use-case";
 import { AssignDriverToVehicleUseCase } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/assign-driver-to-vehicle.use-case";
+import { UpdateDriverUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/update-driver.use-case";
 import { SetDriverStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/drivers/application/use-cases/set-driver-status.use-case";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
 
@@ -172,5 +173,31 @@ describe("Fleet driver and assignment use-cases", () => {
     expect(secondBatch.records[0]?.contactChannels.whatsappNumber).toBe(
       "+2348000000001",
     );
+  });
+});
+
+describe("a partial driver name update", () => {
+  async function driverNamed(firstName: string, lastName: string) {
+    const repository = new InMemoryDriverRepository();
+    const created = await new CreateDriverUseCase(repository, fakeRuntime as any, unlimitedQuota).execute({
+      firstName, lastName, phone: "+2348000000009", licenseNumber: "LIC-9", tenantId: "default",
+    } as never);
+    return { repository, id: created.id };
+  }
+
+  it("keeps the first name when only the last name is sent", async () => {
+    const { repository, id } = await driverNamed("QA", "Parity Driver");
+
+    const updated = await new UpdateDriverUseCase(repository).execute({ id, tenantId: "default", lastName: "Parity Driver 2" });
+
+    expect(updated).toMatchObject({ firstName: "QA", lastName: "Parity Driver 2", name: "QA Parity Driver 2" });
+  });
+
+  it("keeps the last name when only the first name is sent", async () => {
+    const { repository, id } = await driverNamed("John", "Doe");
+
+    const updated = await new UpdateDriverUseCase(repository).execute({ id, tenantId: "default", firstName: "Jon" });
+
+    expect(updated).toMatchObject({ firstName: "Jon", lastName: "Doe", name: "Jon Doe" });
   });
 });

@@ -49,7 +49,14 @@ export class UpdateDriverUseCase {
     const updatedDriver = existingDriver
       .update({
         // Preserve the legacy full-name field internally while accepting the UI's split-name payload.
-        name: shouldRebuildName ? composeDriverName(command) : undefined,
+        // A partial update keeps the half of the name it did not send.
+        name: shouldRebuildName
+          ? composeDriverName({
+            name: command.name,
+            firstName: command.firstName ?? existingDriver.firstName,
+            lastName: command.lastName ?? existingDriver.lastName,
+          })
+          : undefined,
         phone: command.phone,
         email: command.email,
         licenseNumber: command.licenseNumber,
