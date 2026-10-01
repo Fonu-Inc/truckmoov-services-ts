@@ -7,4 +7,5 @@ export type EventEnvelope<TData = Record<string, unknown>> = {
   correlation_id?: string;
   actor?: Record<string, unknown>;
   data: TData;
+  sig?: string;
 };

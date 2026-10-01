@@ -6,7 +6,8 @@ import {
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
-import { EVENT_BUS, type EventBus, type EventEnvelope } from '@shared/eventbus';
+import { AppConfigService } from '@shared/config';
+import { EVENT_BUS, signNotification, type EventBus, type EventEnvelope } from '@shared/eventbus';
 import { USER_REPOSITORY } from './contexts/auth/session';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 
@@ -38,6 +39,7 @@ export class ComplianceReminderListener
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -84,7 +86,9 @@ export class ComplianceReminderListener
 
     for (const recipient of recipients) {
       try {
-        await this.bus.publish(`tm.${tenantId}.notification.send`, {
+        const secret = this.config.eventSigningSecret;
+        if (!secret) throw new Error('EVENT_SIGNING_SECRET is not set');
+        const envelope = {
           id: randomUUID(),
           type: 'notification.send',
           version: 1,
@@ -95,7 +99,8 @@ export class ComplianceReminderListener
             recipient: recipient.email,
             content,
           },
-        });
+        };
+        await this.bus.publish(`tm.${tenantId}.notification.send`, signNotification(secret, envelope));
       } catch (error) {
         this.logger.warn(
           `compliance_reminder_send_failed:tenant=${tenantId}:${(error as Error).message}`,

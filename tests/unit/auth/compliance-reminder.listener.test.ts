@@ -48,7 +48,7 @@ describe('ComplianceReminderListener', () => {
 
   async function start(users: Array<Record<string, unknown>>) {
     const repo = userRepoWith(users);
-    const listener = new ComplianceReminderListener(bus as never, repo as never);
+    const listener = new ComplianceReminderListener(bus as never, repo as never, { eventSigningSecret: 'test-secret' } as never);
     await listener.onApplicationBootstrap();
     return { listener, repo };
   }

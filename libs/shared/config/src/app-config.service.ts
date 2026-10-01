@@ -445,6 +445,10 @@ export class AppConfigService {
     return this.config.get<string>("ADMIN_TWO_FACTOR", "optional") === "required";
   }
 
+  get eventSigningSecret(): string {
+    return this.config.get<string>("EVENT_SIGNING_SECRET", "");
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),
