@@ -11,6 +11,7 @@ import {
   type StoredMaintenanceProfile,
   computeLifecycleStatus,
 } from "./maintenance-profile.repository";
+import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
 
 export class MaintenanceProfileNotFoundError extends Error {}
 
@@ -37,8 +38,12 @@ export class MaintenanceProfilesUseCase {
     private readonly repo: MaintenanceProfileRepository,
   ) {}
 
-  async list(tenantId: string, filters?: MaintenanceProfileFilters & { lifecycleStatus?: MaintenanceLifecycleStatus }) {
-    const profiles = await this.repo.findAllByTenant(tenantId, filters);
+  async list(
+    tenantId: string,
+    filters?: MaintenanceProfileFilters & { lifecycleStatus?: MaintenanceLifecycleStatus },
+    allowed?: AllowedVehicleIds,
+  ) {
+    const profiles = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId, filters), allowed);
     const withStatus = profiles.map((p) => ({ ...p, lifecycleStatus: computeLifecycleStatus(p) }));
     if (filters?.lifecycleStatus) {
       return withStatus.filter((p) => p.lifecycleStatus === filters.lifecycleStatus);
@@ -70,15 +75,22 @@ export class MaintenanceProfilesUseCase {
     return { ...profile, lifecycleStatus: computeLifecycleStatus(profile) };
   }
 
-  async delete(tenantId: string, id: string) {
+  private async findProfile(tenantId: string, id: string, allowed?: AllowedVehicleIds): Promise<StoredMaintenanceProfile> {
     const profile = await this.repo.findById(id, tenantId);
-    if (!profile || profile.tenantId !== tenantId) throw new MaintenanceProfileNotFoundError();
+    // Another owner's profile reads as missing, not as forbidden.
+    if (!profile || profile.tenantId !== tenantId || !isVehicleAllowed(profile.vehicleId, allowed)) {
+      throw new MaintenanceProfileNotFoundError();
+    }
+    return profile;
+  }
+
+  async delete(tenantId: string, id: string, allowed?: AllowedVehicleIds) {
+    await this.findProfile(tenantId, id, allowed);
     await this.repo.deleteById(id, tenantId);
   }
 
-  async complete(tenantId: string, id: string) {
-    const profile = await this.repo.findById(id, tenantId);
-    if (!profile || profile.tenantId !== tenantId) throw new MaintenanceProfileNotFoundError();
+  async complete(tenantId: string, id: string, allowed?: AllowedVehicleIds) {
+    const profile = await this.findProfile(tenantId, id, allowed);
     const today = new Date().toISOString().slice(0, 10);
     const updated: StoredMaintenanceProfile = {
       ...profile,
@@ -106,8 +118,8 @@ export class MaintenanceProfilesUseCase {
     return { ...updated, lifecycleStatus: computeLifecycleStatus(updated) };
   }
 
-  async summary(tenantId: string) {
-    const profiles = await this.repo.findAllByTenant(tenantId);
+  async summary(tenantId: string, allowed?: AllowedVehicleIds) {
+    const profiles = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const counts = { total: profiles.length, overdue: 0, due: 0, upcoming: 0, completed: 0 };
     for (const p of profiles) {
       const status = computeLifecycleStatus(p);
@@ -123,8 +135,8 @@ export class MaintenanceProfilesUseCase {
     return MAINTENANCE_SERVICE_CATEGORIES;
   }
 
-  async export(tenantId: string): Promise<string> {
-    const profiles = await this.repo.findAllByTenant(tenantId);
+  async export(tenantId: string, allowed?: AllowedVehicleIds): Promise<string> {
+    const profiles = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const headers = ["id", "vehicleId", "serviceType", "serviceLabel", "intervalType", "nextDueDate", "nextDueMileage", "lastServiceDate", "lifecycleStatus"];
     const rows = [
       headers.join(","),

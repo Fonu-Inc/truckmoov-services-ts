@@ -35,6 +35,7 @@ import {
   type MaintenanceReminderScheduleRepository,
 } from "./contexts/fleet/maintenance/domain/maintenance-reminder-schedule.repository";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
+import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import {
   MaintenanceRecordResponse,
   ServiceCategoryListResponse,
@@ -68,8 +69,18 @@ export class MaintenanceController extends BaseFleetController {
     @Inject(MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY)
     private readonly reminderSchedules: MaintenanceReminderScheduleRepository,
     @Inject(MaintenanceReminderService) private readonly reminderService: MaintenanceReminderService,
+    @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepository: VehicleRepository,
   ) {
     super(auditLog, bus);
+  }
+
+  private ownedVehicleIds(tenantId: string, req: FleetRequestContext) {
+    return this.ownedVehicleIdsFor(this.vehicleRepository, tenantId, req);
+  }
+
+  /** The reminder schedule covers the whole account, so a limited owner operator cannot change or run it. */
+  private assertMayManageReminders(req: FleetRequestContext): void {
+    if (this.ownerOperatorIdFromRequest(req)) throw new NotFoundException("Reminder schedule not found");
   }
 
   @Get("profiles")
@@ -91,14 +102,15 @@ export class MaintenanceController extends BaseFleetController {
     @Query("currentMileageMax") currentMileageMax: string,
     @Req() req: FleetRequestContext,
   ) {
-    const data = await this.maintenanceProfilesUseCase.list(this.tenantIdFromRequest(req), {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.maintenanceProfilesUseCase.list(tenantId, {
       vehicleId,
       lifecycleStatus: lifecycleStatus as any,
       nextDueDateFrom,
       nextDueDateTo,
       currentMileageMin: currentMileageMin != null && currentMileageMin !== "" ? Number(currentMileageMin) : undefined,
       currentMileageMax: currentMileageMax != null && currentMileageMax !== "" ? Number(currentMileageMax) : undefined,
-    });
+    }, await this.ownedVehicleIds(tenantId, req));
     return { status: true, message: "success", data };
   }
 
@@ -107,7 +119,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Create maintenance profile" })
   @ApiCreatedResponse({ description: "Maintenance profile created", type: MaintenanceProfileResponse })
   async createMaintenanceProfile(@Body() body: CreateMaintenanceProfileDto, @Req() req: FleetRequestContext) {
-    const data = await this.maintenanceProfilesUseCase.create(this.tenantIdFromRequest(req), body);
+    const tenantId = this.tenantIdFromRequest(req);
+    this.assertAmongOwned(await this.ownedVehicleIds(tenantId, req), [body.vehicleId]);
+    const data = await this.maintenanceProfilesUseCase.create(tenantId, body);
     return { status: true, message: "success", data };
   }
 
@@ -117,7 +131,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      await this.maintenanceProfilesUseCase.delete(this.tenantIdFromRequest(req), id);
+      const tenantId = this.tenantIdFromRequest(req);
+      await this.maintenanceProfilesUseCase.delete(tenantId, id, await this.ownedVehicleIds(tenantId, req));
       return { status: true, message: "success" };
     } catch (e) {
       if (e instanceof MaintenanceProfileNotFoundError) throw new NotFoundException("Maintenance profile not found");
@@ -131,7 +146,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Completed", type: MaintenanceProfileResponse })
   async completeMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.maintenanceProfilesUseCase.complete(this.tenantIdFromRequest(req), id);
+      const tenantId = this.tenantIdFromRequest(req);
+      const data = await this.maintenanceProfilesUseCase.complete(tenantId, id, await this.ownedVehicleIds(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof MaintenanceProfileNotFoundError) throw new NotFoundException("Maintenance profile not found");
@@ -144,7 +160,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Maintenance profiles summary" })
   @ApiOkResponse({ description: "Summary counts", type: MaintenanceProfilesSummaryResponse })
   async getMaintenanceProfilesSummary(@Req() req: FleetRequestContext) {
-    const data = await this.maintenanceProfilesUseCase.summary(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.maintenanceProfilesUseCase.summary(tenantId, await this.ownedVehicleIds(tenantId, req));
     return { status: true, message: "success", data };
   }
 
@@ -161,7 +178,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Export maintenance profiles as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportMaintenanceProfiles(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const csv = await this.maintenanceProfilesUseCase.export(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const csv = await this.maintenanceProfilesUseCase.export(tenantId, await this.ownedVehicleIds(tenantId, req));
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=maintenance-profiles.csv");
     res.send(csv);
@@ -186,9 +204,10 @@ export class MaintenanceController extends BaseFleetController {
     @Query("search") search: string,
     @Req() req: FleetRequestContext,
   ) {
-    const data = await this.maintenanceRecordsUseCase.list(this.tenantIdFromRequest(req), {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.maintenanceRecordsUseCase.list(tenantId, {
       vehicleId, status: status as any, priority: priority as any, maintenanceType, search,
-    });
+    }, await this.ownedVehicleIds(tenantId, req));
     return { status: true, message: "success", data };
   }
 
@@ -197,7 +216,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Create maintenance record" })
   @ApiCreatedResponse({ description: "Record created", type: MaintenanceRecordResponse })
   async createMaintenanceRecord(@Body() body: CreateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
-    const data = await this.maintenanceRecordsUseCase.create(this.tenantIdFromRequest(req), body);
+    const tenantId = this.tenantIdFromRequest(req);
+    const allowed = await this.ownedVehicleIds(tenantId, req);
+    const data = await this.runFleetUseCase(() => this.maintenanceRecordsUseCase.create(tenantId, body, allowed));
     return { status: true, message: "success", data };
   }
 
@@ -206,7 +227,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Maintenance records summary" })
   @ApiOkResponse({ description: "Summary counts", type: MaintenanceRecordsSummaryResponse })
   async getMaintenanceRecordsSummary(@Req() req: FleetRequestContext) {
-    const data = await this.maintenanceRecordsUseCase.summary(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.maintenanceRecordsUseCase.summary(tenantId, await this.ownedVehicleIds(tenantId, req));
     return { status: true, message: "success", data };
   }
 
@@ -215,7 +237,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOperation({ summary: "Export maintenance records as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportMaintenanceRecords(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const csv = await this.maintenanceRecordsUseCase.export(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const csv = await this.maintenanceRecordsUseCase.export(tenantId, await this.ownedVehicleIds(tenantId, req));
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=maintenance-records.csv");
     res.send(csv);
@@ -227,7 +250,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Maintenance record", type: MaintenanceRecordResponse })
   async getMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.maintenanceRecordsUseCase.findOne(this.tenantIdFromRequest(req), id);
+      const tenantId = this.tenantIdFromRequest(req);
+      const data = await this.maintenanceRecordsUseCase.findOne(tenantId, id, await this.ownedVehicleIds(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
@@ -241,7 +265,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Updated", type: MaintenanceRecordResponse })
   async updateMaintenanceRecord(@Param("id") id: string, @Body() body: UpdateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.maintenanceRecordsUseCase.update(this.tenantIdFromRequest(req), id, body);
+      const tenantId = this.tenantIdFromRequest(req);
+      const allowed = await this.ownedVehicleIds(tenantId, req);
+      const data = await this.runFleetUseCase(() => this.maintenanceRecordsUseCase.update(tenantId, id, body, allowed));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
@@ -255,7 +281,8 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      await this.maintenanceRecordsUseCase.delete(this.tenantIdFromRequest(req), id);
+      const tenantId = this.tenantIdFromRequest(req);
+      await this.maintenanceRecordsUseCase.delete(tenantId, id, await this.ownedVehicleIds(tenantId, req));
       return { status: true, message: "success" };
     } catch (e) {
       if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
@@ -269,7 +296,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Started", type: MaintenanceRecordResponse })
   async startMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.maintenanceRecordsUseCase.transition(this.tenantIdFromRequest(req), id, "in_progress");
+      const tenantId = this.tenantIdFromRequest(req);
+      const allowed = await this.ownedVehicleIds(tenantId, req);
+      const data = await this.maintenanceRecordsUseCase.transition(tenantId, id, "in_progress", allowed);
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
@@ -283,7 +312,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Completed", type: MaintenanceRecordResponse })
   async completeMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
     try {
-      const data = await this.maintenanceRecordsUseCase.transition(this.tenantIdFromRequest(req), id, "completed");
+      const tenantId = this.tenantIdFromRequest(req);
+      const allowed = await this.ownedVehicleIds(tenantId, req);
+      const data = await this.maintenanceRecordsUseCase.transition(tenantId, id, "completed", allowed);
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof MaintenanceRecordNotFoundError) throw new NotFoundException("Maintenance record not found");
@@ -299,7 +330,8 @@ export class MaintenanceController extends BaseFleetController {
   })
   @ApiOkResponse({ description: "Schedule returned" })
   async getReminderSchedule(@Req() req: FleetRequestContext) {
-    const schedule = await this.reminderSchedules.findByTenantId(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const schedule = this.ownerOperatorIdFromRequest(req) ? null : await this.reminderSchedules.findByTenantId(tenantId);
     return {
       status: true,
       message: "success",
@@ -321,6 +353,7 @@ export class MaintenanceController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ) {
     const tenantId = this.tenantIdFromRequest(req);
+    this.assertMayManageReminders(req);
     const existing = await this.reminderSchedules.findByTenantId(tenantId);
     const now = new Date();
 
@@ -363,6 +396,7 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Schedule removed" })
   async deleteReminderSchedule(@Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
+    this.assertMayManageReminders(req);
     await this.reminderSchedules.deleteByTenantId(tenantId);
     return { status: true, message: "Reminder schedule removed", data: { schedule: null } };
   }
@@ -377,7 +411,9 @@ export class MaintenanceController extends BaseFleetController {
   @ApiOkResponse({ description: "Reminder sent", type: ReminderQueuedResponse })
   @ApiBadRequestResponse({ description: "No reminder schedule is configured" })
   async sendMaintenanceReminders(@Req() req: FleetRequestContext) {
-    const schedule = await this.reminderSchedules.findByTenantId(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    this.assertMayManageReminders(req);
+    const schedule = await this.reminderSchedules.findByTenantId(tenantId);
     if (!schedule) {
       throw new BadRequestException("Set a reminder schedule before sending one");
     }

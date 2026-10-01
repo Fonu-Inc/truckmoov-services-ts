@@ -8,8 +8,9 @@ import {
   type MaintenanceRecordStatus,
   type StoredMaintenanceRecord,
 } from "./maintenance-record.repository";
-import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
+import { VEHICLE_REPOSITORY, VehicleNotFoundError } from "./contexts/fleet/vehicles";
 import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
 
 export class MaintenanceRecordNotFoundError extends Error {}
 
@@ -47,8 +48,18 @@ export class MaintenanceRecordsUseCase {
     };
   }
 
-  async list(tenantId: string, filters?: MaintenanceRecordFilters) {
-    const records = await this.repo.findAllByTenant(tenantId, filters);
+  /**
+   * The vehicle a limited caller names must resolve to one of theirs; anything
+   * else reads as an unknown vehicle.
+   */
+  private async allowedVehicleId(value: string, tenantId: string, allowed: ReadonlySet<string>): Promise<string> {
+    const vehicle = await this.resolveVehicle(value, tenantId);
+    if (!vehicle || !allowed.has(vehicle.id)) throw new VehicleNotFoundError(value);
+    return vehicle.id;
+  }
+
+  async list(tenantId: string, filters?: MaintenanceRecordFilters, allowed?: AllowedVehicleIds) {
+    const records = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId, filters), allowed);
     return Promise.all(records.map((rec) => this.withPlateNumber(rec)));
   }
 
@@ -60,26 +71,31 @@ export class MaintenanceRecordsUseCase {
    * makes MikroORM's upsert emit those phantom columns and the insert fails
    * with "column vehiclePlateNumber ... does not exist".
    */
-  private async findRaw(tenantId: string, id: string): Promise<StoredMaintenanceRecord> {
+  private async findRaw(tenantId: string, id: string, allowed?: AllowedVehicleIds): Promise<StoredMaintenanceRecord> {
     const rec = await this.repo.findById(id, tenantId);
-    if (!rec || rec.tenantId !== tenantId) throw new MaintenanceRecordNotFoundError();
+    // Another owner's record reads as missing, not as forbidden.
+    if (!rec || rec.tenantId !== tenantId || !isVehicleAllowed(rec.vehicleId, allowed)) {
+      throw new MaintenanceRecordNotFoundError();
+    }
     return rec;
   }
 
-  async findOne(tenantId: string, id: string) {
-    return this.withPlateNumber(await this.findRaw(tenantId, id));
+  async findOne(tenantId: string, id: string, allowed?: AllowedVehicleIds) {
+    return this.withPlateNumber(await this.findRaw(tenantId, id, allowed));
   }
 
-  async create(tenantId: string, data: CreateMaintenanceRecordInput) {
+  async create(tenantId: string, data: CreateMaintenanceRecordInput, allowed?: AllowedVehicleIds) {
     // The UI submits the vehicle registration/plate as vehicleId. Store the
     // canonical vehicle UUID when it resolves, so the record links correctly
     // and enrichment (plate/reg) works. Fall back to the raw value if it
     // resolves to nothing, so create still succeeds rather than hard-failing.
-    const vehicle = await this.resolveVehicle(data.vehicleId, tenantId);
+    const vehicleId = allowed
+      ? await this.allowedVehicleId(data.vehicleId, tenantId, allowed)
+      : (await this.resolveVehicle(data.vehicleId, tenantId))?.id ?? data.vehicleId;
     const record: StoredMaintenanceRecord = {
       id: randomUUID(),
       tenantId,
-      vehicleId: vehicle?.id ?? data.vehicleId,
+      vehicleId,
       maintenanceType: data.maintenanceType,
       status: data.status ?? "scheduled",
       priority: data.priority,
@@ -97,20 +113,28 @@ export class MaintenanceRecordsUseCase {
     return record;
   }
 
-  async update(tenantId: string, id: string, data: Partial<Omit<StoredMaintenanceRecord, "id" | "tenantId" | "createdAt">>) {
-    const existing = await this.findRaw(tenantId, id);
-    const updated: StoredMaintenanceRecord = { ...existing, ...data, updatedAt: new Date() };
+  async update(
+    tenantId: string,
+    id: string,
+    data: Partial<Omit<StoredMaintenanceRecord, "id" | "tenantId" | "createdAt">>,
+    allowed?: AllowedVehicleIds,
+  ) {
+    const existing = await this.findRaw(tenantId, id, allowed);
+    const changes = allowed && data.vehicleId
+      ? { ...data, vehicleId: await this.allowedVehicleId(data.vehicleId, tenantId, allowed) }
+      : data;
+    const updated: StoredMaintenanceRecord = { ...existing, ...changes, updatedAt: new Date() };
     await this.repo.save(updated);
     return this.withPlateNumber(updated);
   }
 
-  async delete(tenantId: string, id: string) {
-    await this.findRaw(tenantId, id);
+  async delete(tenantId: string, id: string, allowed?: AllowedVehicleIds) {
+    await this.findRaw(tenantId, id, allowed);
     await this.repo.deleteById(id, tenantId);
   }
 
-  async transition(tenantId: string, id: string, status: MaintenanceRecordStatus) {
-    const existing = await this.findRaw(tenantId, id);
+  async transition(tenantId: string, id: string, status: MaintenanceRecordStatus, allowed?: AllowedVehicleIds) {
+    const existing = await this.findRaw(tenantId, id, allowed);
     const today = new Date().toISOString().slice(0, 10);
     const updated: StoredMaintenanceRecord = {
       ...existing,
@@ -122,8 +146,8 @@ export class MaintenanceRecordsUseCase {
     return this.withPlateNumber(updated);
   }
 
-  async summary(tenantId: string) {
-    const records = await this.repo.findAllByTenant(tenantId);
+  async summary(tenantId: string, allowed?: AllowedVehicleIds) {
+    const records = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const today = new Date().toISOString().slice(0, 10);
     return {
       total: records.length,
@@ -135,8 +159,8 @@ export class MaintenanceRecordsUseCase {
     };
   }
 
-  async export(tenantId: string): Promise<string> {
-    const records = await this.repo.findAllByTenant(tenantId);
+  async export(tenantId: string, allowed?: AllowedVehicleIds): Promise<string> {
+    const records = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const headers = ["id", "vehicleId", "maintenanceType", "status", "priority", "scheduledDate", "completedDate", "cost", "currency", "technician"];
     const rows = [
       headers.join(","),

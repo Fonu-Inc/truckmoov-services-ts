@@ -295,8 +295,8 @@ export class VehiclesController extends BaseFleetController {
     switch (tab) {
       case "maintenance": {
         const [summary, records] = await Promise.all([
-          this.maintenanceRecordsUseCase.summary(tenantId),
-          this.maintenanceRecordsUseCase.list(tenantId, { search: query.query }),
+          this.maintenanceRecordsUseCase.summary(tenantId, ownedVehicleIds),
+          this.maintenanceRecordsUseCase.list(tenantId, { search: query.query }, ownedVehicleIds),
         ]);
         return { summary, items: records };
       }

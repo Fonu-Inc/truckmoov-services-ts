@@ -89,9 +89,14 @@ export abstract class BaseFleetController {
     vehicleId: string,
     req: FleetRequestContext,
   ): Promise<void> {
-    const owned = await this.ownedVehicleIdsVia(lister, tenantId, req);
-    if (owned !== null && !owned.has(vehicleId)) {
-      throw new NotFoundException("Vehicle not found");
+    this.assertAmongOwned(await this.ownedVehicleIdsVia(lister, tenantId, req), [vehicleId]);
+  }
+
+  /** Refuses, as not found, any vehicle outside the owned set. Null owns everything. */
+  protected assertAmongOwned(owned: ReadonlySet<string> | null, vehicleIds: Iterable<string>): void {
+    if (owned === null) return;
+    for (const vehicleId of vehicleIds) {
+      if (!owned.has(vehicleId)) throw new NotFoundException("Vehicle not found");
     }
   }
 
