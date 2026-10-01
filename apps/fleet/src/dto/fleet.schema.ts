@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { DEVICE_SETUP_REQUEST_STATUSES, SETUP_REQUEST_CHARGE_KINDS } from "@shared/devices";
-import { StandardApiResponse } from "@shared/openapi";
+import { ErrorResponse, StandardApiResponse } from "@shared/openapi";
 import { TRACKER_TYPES } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
 import {
@@ -9,6 +9,13 @@ import {
   type DriverScoreBand,
   type DriverTripBand,
 } from "../contexts/fleet/drivers/domain/driver-roster";
+import {
+  BEHAVIOR_EVENT_TYPES,
+  BEHAVIOR_SEVERITIES,
+  type BehaviorEventType,
+  type BehaviorSeverity,
+} from "../contexts/fleet/drivers/domain/driver-behavior";
+import { FATIGUE_RISK_LEVELS, type FatigueRiskLevel } from "../contexts/fleet/drivers/domain/driver-fatigue";
 
 export class VehicleGpsDeviceSchema {
   @ApiProperty()
@@ -528,6 +535,255 @@ export class DriverBehaviorRankingSchema {
 export class DriverBehaviorRankingResponse extends StandardApiResponse<DriverBehaviorRankingSchema> {
   @ApiProperty({ type: DriverBehaviorRankingSchema })
   data!: DriverBehaviorRankingSchema;
+}
+
+export class DriverBehaviorSummarySchema {
+  /** Average overall score of scored drivers, 0-100. Null when no driver has events in the period */
+  @ApiProperty({ type: Number, nullable: true })
+  averageScore!: number | null;
+  eventsLast24h!: number;
+  criticalLast24h!: number;
+  driversScored!: number;
+  driversTotal!: number;
+  zoneEntries!: number;
+  zoneExits!: number;
+  /** Geofence alerts in the period the caller has not marked read */
+  unreadGeofenceAlerts!: number;
+  periodDays!: number;
+}
+
+export class DriverBehaviorSummaryResponse extends StandardApiResponse<DriverBehaviorSummarySchema> {
+  @ApiProperty({ type: DriverBehaviorSummarySchema })
+  data!: DriverBehaviorSummarySchema;
+}
+
+export class BehaviorEventSchema {
+  id!: string;
+  driverId!: string;
+  @ApiProperty({ type: String, nullable: true })
+  vehicleId!: string | null;
+  @ApiProperty({ enum: BEHAVIOR_EVENT_TYPES })
+  type!: BehaviorEventType;
+  @ApiProperty({ enum: BEHAVIOR_SEVERITIES })
+  severity!: BehaviorSeverity;
+  @ApiProperty({ type: Number, nullable: true })
+  speedKph!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  latitude!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  longitude!: number | null;
+  occurredAt!: string;
+}
+
+export class BehaviorEventListSchema {
+  total!: number;
+  criticalCount!: number;
+  /** Newest first */
+  @ApiProperty({ type: BehaviorEventSchema, isArray: true })
+  items!: BehaviorEventSchema[];
+}
+
+export class BehaviorEventListResponse extends StandardApiResponse<BehaviorEventListSchema> {
+  @ApiProperty({ type: BehaviorEventListSchema })
+  data!: BehaviorEventListSchema;
+}
+
+export class RecordedBehaviorEventSchema {
+  id!: string;
+  occurredAt!: string;
+}
+
+export class RecordedBehaviorEventResponse extends StandardApiResponse<RecordedBehaviorEventSchema> {
+  @ApiProperty({ type: RecordedBehaviorEventSchema })
+  data!: RecordedBehaviorEventSchema;
+}
+
+export class DeletedBehaviorEventSchema {
+  id!: string;
+  /** The driver whose behaviour score the event no longer counts toward */
+  driverId!: string;
+}
+
+export class DeletedBehaviorEventResponse extends StandardApiResponse<DeletedBehaviorEventSchema> {
+  @ApiProperty({ type: DeletedBehaviorEventSchema })
+  data!: DeletedBehaviorEventSchema;
+}
+
+export class DriverBehaviorRecentEventSchema {
+  id!: string;
+  @ApiProperty({ enum: BEHAVIOR_EVENT_TYPES })
+  type!: BehaviorEventType;
+  @ApiProperty({ enum: BEHAVIOR_SEVERITIES })
+  severity!: BehaviorSeverity;
+  @ApiProperty({ type: Number, nullable: true })
+  speedKph!: number | null;
+  occurredAt!: string;
+}
+
+export class DriverBehaviorSchema {
+  periodDays!: number;
+  eventsRecorded!: number;
+  @ApiProperty({ type: BehaviorScoresSchema })
+  scores!: BehaviorScoresSchema;
+  /** Up to 20, newest first */
+  @ApiProperty({ type: DriverBehaviorRecentEventSchema, isArray: true })
+  recentEvents!: DriverBehaviorRecentEventSchema[];
+}
+
+export class DriverBehaviorResponse extends StandardApiResponse<DriverBehaviorSchema> {
+  @ApiProperty({ type: DriverBehaviorSchema })
+  data!: DriverBehaviorSchema;
+}
+
+/** The alert's raw event payload. The geofence evaluator and dwell sweep set the zone fields; other keys may ride along */
+export class GeofenceAlertDetailsSchema {
+  @ApiPropertyOptional()
+  zoneId?: string;
+  @ApiPropertyOptional()
+  zoneName?: string;
+  @ApiPropertyOptional()
+  zoneCategory?: string;
+  @ApiPropertyOptional()
+  lat?: number;
+  @ApiPropertyOptional()
+  lng?: number;
+  @ApiPropertyOptional({ description: "When the vehicle crossed the boundary" })
+  at?: string;
+  @ApiPropertyOptional({ description: "Dwell alerts only" })
+  minutesInside?: number;
+}
+
+export class GeofenceAlertFeedItemSchema {
+  id!: string;
+  @ApiProperty({ enum: ["geofence_entry", "geofence_exit", "geofence_dwell"] })
+  type!: string;
+  @ApiProperty({ enum: ["entry", "exit", "dwell"] })
+  direction!: string;
+  @ApiProperty({ enum: ["low", "medium", "high", "critical"] })
+  severity!: string;
+  @ApiProperty({ type: String, nullable: true })
+  vehicleId!: string | null;
+  @ApiProperty({ type: GeofenceAlertDetailsSchema })
+  details!: GeofenceAlertDetailsSchema;
+  triggeredAt!: string;
+  /** Read by the caller; read state is per user */
+  read!: boolean;
+}
+
+export class GeofenceAlertFeedSchema {
+  total!: number;
+  unread!: number;
+  /** Newest first */
+  @ApiProperty({ type: GeofenceAlertFeedItemSchema, isArray: true })
+  items!: GeofenceAlertFeedItemSchema[];
+}
+
+export class GeofenceAlertFeedResponse extends StandardApiResponse<GeofenceAlertFeedSchema> {
+  @ApiProperty({ type: GeofenceAlertFeedSchema })
+  data!: GeofenceAlertFeedSchema;
+}
+
+export class GeofenceAlertsMarkedReadSchema {
+  markedRead!: number;
+  /** Ids the caller cannot see, left untouched */
+  ignored!: number;
+}
+
+export class GeofenceAlertsMarkedReadResponse extends StandardApiResponse<GeofenceAlertsMarkedReadSchema> {
+  @ApiProperty({ type: GeofenceAlertsMarkedReadSchema })
+  data!: GeofenceAlertsMarkedReadSchema;
+}
+
+export class FatigueAnalysisSchema {
+  id!: string;
+  driverId!: string;
+  @ApiProperty({ type: String, nullable: true })
+  driverName!: string | null;
+  /** Fatigue score, 0-10 */
+  score!: number;
+  @ApiProperty({ enum: FATIGUE_RISK_LEVELS })
+  riskLevel!: FatigueRiskLevel;
+  drivingMinutes!: number;
+  /** 0-10 from observed breaks. Null when no break was recorded */
+  @ApiProperty({ type: Number, nullable: true })
+  restCompliance!: number | null;
+  @ApiProperty({ type: String, isArray: true })
+  indicators!: string[];
+  @ApiProperty({ type: String, isArray: true })
+  recommendations!: string[];
+  analysis!: string;
+  /** Partial until hours-of-service and driver-facing hardware exist */
+  @ApiProperty({ enum: ["partial", "complete"] })
+  dataQuality!: "partial" | "complete";
+  analyzedAt!: string;
+}
+
+export class FatigueAnalysisResponse extends StandardApiResponse<FatigueAnalysisSchema> {
+  @ApiProperty({ type: FatigueAnalysisSchema })
+  data!: FatigueAnalysisSchema;
+}
+
+export class FatigueRiskCountsSchema {
+  low!: number;
+  medium!: number;
+  high!: number;
+  critical!: number;
+}
+
+export class FatigueSummarySchema {
+  @ApiProperty({ type: Number, nullable: true })
+  averageScore!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  averageRestCompliance!: number | null;
+  criticalAlerts!: number;
+  highRiskAlerts!: number;
+  totalAnalyses!: number;
+  @ApiProperty({ type: FatigueRiskCountsSchema })
+  byRisk!: FatigueRiskCountsSchema;
+  driversAnalyzed!: number;
+  driversTotal!: number;
+  /** Latest analysis per driver, highest score first, up to 10 */
+  @ApiProperty({ type: FatigueAnalysisSchema, isArray: true })
+  recent!: FatigueAnalysisSchema[];
+}
+
+export class FatigueSummaryResponse extends StandardApiResponse<FatigueSummarySchema> {
+  @ApiProperty({ type: FatigueSummarySchema })
+  data!: FatigueSummarySchema;
+}
+
+export class FatigueHistoryEntrySchema {
+  score!: number;
+  @ApiProperty({ enum: FATIGUE_RISK_LEVELS })
+  riskLevel!: FatigueRiskLevel;
+  analyzedAt!: string;
+}
+
+export class DriverFatigueSchema {
+  /** Latest analysis. Null until one has been run */
+  @ApiProperty({ type: FatigueAnalysisSchema, nullable: true })
+  current!: FatigueAnalysisSchema | null;
+  /** Up to 10, newest first */
+  @ApiProperty({ type: FatigueHistoryEntrySchema, isArray: true })
+  history!: FatigueHistoryEntrySchema[];
+}
+
+export class DriverFatigueResponse extends StandardApiResponse<DriverFatigueSchema> {
+  @ApiProperty({ type: DriverFatigueSchema })
+  data!: DriverFatigueSchema;
+}
+
+/** 503 from every fatigue route while DRIVER_FATIGUE_ENABLED is unset */
+export class FeatureDisabledErrorResponse extends ErrorResponse {
+  @ApiProperty({ example: "Fatigue detection is not enabled for this deployment" })
+  message!: string;
+  @ApiProperty({ example: "Service Unavailable" })
+  error!: string;
+  @ApiProperty({ example: 503 })
+  statusCode!: number;
+  /** Tells a switched-off feature from a failure */
+  @ApiProperty({ enum: ["driver_fatigue"] })
+  feature!: "driver_fatigue";
 }
 
 export class VehicleDriverAssignmentSchema {

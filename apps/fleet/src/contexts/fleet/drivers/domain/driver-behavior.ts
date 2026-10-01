@@ -37,6 +37,8 @@ export type BehaviorEventFilters = {
 export interface BehaviorEventRepository {
   save(event: StoredBehaviorEvent): Promise<void>;
   findAll(tenantId: string, filters?: BehaviorEventFilters): Promise<StoredBehaviorEvent[]>;
+  findById(tenantId: string, id: string): Promise<StoredBehaviorEvent | null>;
+  delete(tenantId: string, id: string): Promise<void>;
 }
 
 export const BEHAVIOR_EVENT_REPOSITORY = Symbol("BEHAVIOR_EVENT_REPOSITORY");

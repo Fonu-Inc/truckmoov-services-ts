@@ -564,6 +564,31 @@ describe("Fleet HTTP contract", () => {
     expect(summary.body.data).toMatchObject({ driversScored: 1, driversTotal: 2, averageScore: detailScore });
   }, 120_000);
 
+  it("deletes a behaviour event recorded by mistake, only inside the tenant", async () => {
+    const tenant = "tenant-behavior-delete";
+    const http = () => request(app.getHttpServer());
+    const recorded = await http()
+      .post("/fleet/drivers/behavior/events")
+      .set("Authorization", authToken("admin", tenant))
+      .send({ driverId: "driver-test", type: "harsh_braking", severity: "critical" });
+    expect(recorded.status).toBe(201);
+    const path = `/fleet/drivers/behavior/events/${recorded.body.data.id}`;
+
+    const elsewhere = await http().delete(path).set("Authorization", authToken("admin", "tenant-other"));
+    expect(elsewhere.status).toBe(404);
+    expect(elsewhere.body).toMatchObject({ status: false, statusCode: 404 });
+
+    const deleted = await http().delete(path).set("Authorization", authToken("admin", tenant));
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.data).toEqual({ id: recorded.body.data.id, driverId: "driver-test" });
+
+    const events = await http().get("/fleet/drivers/behavior/events").set("Authorization", authToken("admin", tenant));
+    expect(events.body.data.total).toBe(0);
+
+    const again = await http().delete(path).set("Authorization", authToken("admin", tenant));
+    expect(again.status).toBe(404);
+  }, 60_000);
+
   it("POST /vehicles rejects unauthorized role", async () => {
     const response = await request(app.getHttpServer())
       .post("/fleet/vehicles")

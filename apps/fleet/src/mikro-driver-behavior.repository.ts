@@ -63,6 +63,17 @@ export class MikroBehaviorEventRepository implements BehaviorEventRepository {
     return records.map(toEvent);
   }
 
+  async findById(tenantId: string, id: string): Promise<StoredBehaviorEvent | null> {
+    const em = await this.em();
+    const record = await em.findOne(DriverBehaviorEventRecord, { tenantId, id });
+    return record ? toEvent(record) : null;
+  }
+
+  async delete(tenantId: string, id: string): Promise<void> {
+    const em = await this.em();
+    await em.nativeDelete(DriverBehaviorEventRecord, { tenantId, id });
+  }
+
   private async em() {
     const orm = await getFleetOrm(this.config.db);
     return orm.em.fork();

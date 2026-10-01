@@ -15,7 +15,7 @@ import type {
 
 @Injectable()
 export class InMemoryBehaviorEventRepository implements BehaviorEventRepository {
-  private readonly events: StoredBehaviorEvent[] = [];
+  private events: StoredBehaviorEvent[] = [];
 
   async save(event: StoredBehaviorEvent): Promise<void> {
     this.events.push({ ...event });
@@ -33,6 +33,15 @@ export class InMemoryBehaviorEventRepository implements BehaviorEventRepository 
       })
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
       .slice(0, filters?.limit === null ? undefined : (filters?.limit ?? 500));
+  }
+
+  async findById(tenantId: string, id: string): Promise<StoredBehaviorEvent | null> {
+    const event = this.events.find((entry) => entry.tenantId === tenantId && entry.id === id);
+    return event ? { ...event } : null;
+  }
+
+  async delete(tenantId: string, id: string): Promise<void> {
+    this.events = this.events.filter((entry) => entry.tenantId !== tenantId || entry.id !== id);
   }
 }
 

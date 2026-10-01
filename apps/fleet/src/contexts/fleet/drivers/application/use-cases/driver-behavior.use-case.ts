@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
   BEHAVIOR_EVENT_REPOSITORY,
@@ -256,6 +256,23 @@ export class DriverBehaviorUseCase {
     };
     await this.events.save(event);
     return { id: event.id, occurredAt: event.occurredAt.toISOString() };
+  }
+
+  /**
+   * Removes an event recorded by mistake. An event on a driver outside the
+   * caller's scope reads as missing, the same as one in another tenant.
+   */
+  async deleteEvent(
+    tenantId: string,
+    eventId: string,
+    ownedDriverIds: Set<string> | null = null,
+  ): Promise<StoredBehaviorEvent> {
+    const event = await this.events.findById(tenantId, eventId);
+    if (!event || (ownedDriverIds !== null && !ownedDriverIds.has(event.driverId))) {
+      throw new NotFoundException("Behaviour event not found");
+    }
+    await this.events.delete(tenantId, eventId);
+    return event;
   }
 
   private scoringEvents(tenantId: string, since: Date, driverId?: string) {

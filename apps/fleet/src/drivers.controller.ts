@@ -28,9 +28,12 @@ import {
   ApiOperation,
   ApiQuery,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { ErrorResponse } from "@shared/openapi";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
   RequireIdempotency,
@@ -56,6 +59,7 @@ import { DriverMessageDispatchError } from "./contexts/fleet/drivers/infrastruct
 import { DriverDetailUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-detail.use-case";
 import { DriverBehaviorUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-behavior.use-case";
 import { DriverFatigueUseCase } from "./contexts/fleet/drivers/application/use-cases/driver-fatigue.use-case";
+import type { StoredBehaviorEvent } from "./contexts/fleet/drivers/domain/driver-behavior";
 import {
   buildDriverCsvExport,
   buildDriverCsvTemplate,
@@ -109,10 +113,21 @@ import {
   RunFatigueAnalysisDto,
 } from "./dto/driver.dto";
 import {
+  BehaviorEventListResponse,
   BulkDriverImportResponse,
+  DeletedBehaviorEventResponse,
   DriverBehaviorRankingResponse,
+  DriverBehaviorResponse,
+  DriverBehaviorSummaryResponse,
+  DriverFatigueResponse,
   DriverListResponse,
   DriverResponse,
+  FatigueAnalysisResponse,
+  FatigueSummaryResponse,
+  FeatureDisabledErrorResponse,
+  GeofenceAlertFeedResponse,
+  GeofenceAlertsMarkedReadResponse,
+  RecordedBehaviorEventResponse,
   ScoredDriverResponse,
 } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
@@ -615,7 +630,7 @@ export class DriversController extends BaseFleetController {
     description: "Average score, 24-hour event counts, zone entries and exits, and unread geofence alerts.",
   })
   @ApiQuery({ name: "period_days", required: false, type: Number })
-  @ApiOkResponse({ description: "Behaviour summary" })
+  @ApiOkResponse({ type: DriverBehaviorSummaryResponse })
   async getBehaviorSummary(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.summary(
@@ -657,7 +672,7 @@ export class DriversController extends BaseFleetController {
   @ApiQuery({ name: "severity", required: false, enum: ["low", "medium", "high", "critical"] })
   @ApiQuery({ name: "driverId", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
-  @ApiOkResponse({ description: "Events" })
+  @ApiOkResponse({ type: BehaviorEventListResponse })
   async getBehaviorEvents(
     @Query("period_days") periodDays: string,
     @Query("severity") severity: string,
@@ -686,11 +701,50 @@ export class DriversController extends BaseFleetController {
     description:
       "Ingest point for telemetry-derived events. The producer that classifies harsh driving from position deltas is not built yet (TD-3), so today this is written by integrations and tests.",
   })
-  @ApiCreatedResponse({ description: "Event recorded" })
+  @ApiCreatedResponse({ type: RecordedBehaviorEventResponse })
   @ApiBadRequestResponse({ description: "Unknown type or severity" })
   async recordBehaviorEvent(@Body() payload: RecordBehaviorEventDto, @Req() req: FleetRequestContext) {
     const data = await this.driverBehaviorUseCase.recordEvent(this.tenantIdFromRequest(req), payload);
     return { status: true, message: "Event recorded", data };
+  }
+
+  @Delete("behavior/events/:eventId")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @ApiOperation({
+    summary: "Delete a behaviour event",
+    description:
+      "Removes an event recorded by mistake, such as a test event skewing a driver's score. Audit-logged against the driver.",
+  })
+  @ApiOkResponse({ type: DeletedBehaviorEventResponse })
+  @ApiNotFoundResponse({
+    type: ErrorResponse,
+    description: "Unknown id, another tenant's event, or an event on a driver outside the caller's scope",
+  })
+  async deleteBehaviorEvent(@Param("eventId") eventId: string, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const event = await this.driverBehaviorUseCase.deleteEvent(
+      tenantId,
+      eventId,
+      await this.ownedDriverIds(tenantId, req),
+    );
+    await this.auditBehaviorEventDeleted(req, event);
+    return { status: true, message: "Event deleted", data: { id: event.id, driverId: event.driverId } };
+  }
+
+  private auditBehaviorEventDeleted(req: FleetRequestContext, event: StoredBehaviorEvent): Promise<void> {
+    return this.recordActivity(req, {
+      entityType: "driver",
+      entityId: event.driverId,
+      action: "driver.behavior_event.deleted",
+      summary: "Behaviour event deleted",
+      metadata: {
+        eventId: event.id,
+        vehicleId: event.vehicleId,
+        type: event.type,
+        severity: event.severity,
+        occurredAt: event.occurredAt.toISOString(),
+      },
+    });
   }
 
   @Get("behavior/geofence-alerts")
@@ -700,7 +754,7 @@ export class DriversController extends BaseFleetController {
     description: "Zone entry, exit and dwell alerts with per-user read state.",
   })
   @ApiQuery({ name: "period_days", required: false, type: Number })
-  @ApiOkResponse({ description: "Geofence alerts" })
+  @ApiOkResponse({ type: GeofenceAlertFeedResponse })
   async getGeofenceAlerts(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.geofenceAlertFeed(
@@ -718,7 +772,7 @@ export class DriversController extends BaseFleetController {
     summary: "Mark geofence alerts read",
     description: "Read state is per person: clearing the panel does not clear it for colleagues.",
   })
-  @ApiOkResponse({ description: "Marked read" })
+  @ApiOkResponse({ type: GeofenceAlertsMarkedReadResponse })
   async markGeofenceAlertsRead(@Body() payload: MarkAlertsReadDto, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.markGeofenceAlertsRead(
@@ -737,7 +791,8 @@ export class DriversController extends BaseFleetController {
     description:
       "Optional feature, off unless DRIVER_FATIGUE_ENABLED is set. Returns 503 when disabled so the tab can render its own empty state.",
   })
-  @ApiOkResponse({ description: "Fatigue summary" })
+  @ApiOkResponse({ type: FatigueSummaryResponse })
+  @ApiServiceUnavailableResponse({ type: FeatureDisabledErrorResponse, description: "Fatigue detection is switched off" })
   async getFatigueSummary(@Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverFatigueUseCase.summary(
@@ -750,7 +805,8 @@ export class DriversController extends BaseFleetController {
   @Get(":id/fatigue")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fatigue status and history for one driver" })
-  @ApiOkResponse({ description: "Fatigue detail" })
+  @ApiOkResponse({ type: DriverFatigueResponse })
+  @ApiServiceUnavailableResponse({ type: FeatureDisabledErrorResponse, description: "Fatigue detection is switched off" })
   async getDriverFatigue(@Param("id") id: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     await this.assertDriverInScope(tenantId, req, id);
@@ -765,7 +821,8 @@ export class DriversController extends BaseFleetController {
     description:
       "The Run Analysis button. Scores from recorded driving time and behaviour events only; dataQuality is always partial until driver-facing hardware exists.",
   })
-  @ApiCreatedResponse({ description: "Analysis stored" })
+  @ApiCreatedResponse({ type: FatigueAnalysisResponse })
+  @ApiServiceUnavailableResponse({ type: FeatureDisabledErrorResponse, description: "Fatigue detection is switched off" })
   async runFatigueAnalysis(
     @Param("id") id: string,
     @Body() payload: RunFatigueAnalysisDto,
@@ -801,7 +858,7 @@ export class DriversController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Behaviour scores and recent events for one driver" })
   @ApiQuery({ name: "period_days", required: false, type: Number })
-  @ApiOkResponse({ description: "Driver behaviour" })
+  @ApiOkResponse({ type: DriverBehaviorResponse })
   async getDriverBehavior(
     @Param("id") id: string,
     @Query("period_days") periodDays: string,
