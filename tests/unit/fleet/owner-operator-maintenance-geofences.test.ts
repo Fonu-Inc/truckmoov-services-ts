@@ -79,7 +79,7 @@ function maintenance() {
   const controller = Object.assign(Object.create(MaintenanceController.prototype), {
     vehicleRepository,
     maintenanceRecordsUseCase: new MaintenanceRecordsUseCase(records as never, vehicleRepository as never),
-    maintenanceProfilesUseCase: new MaintenanceProfilesUseCase(profiles as never),
+    maintenanceProfilesUseCase: new MaintenanceProfilesUseCase(profiles as never, vehicleRepository as never),
     reminderSchedules,
     reminderService,
     auditLog: { record: vi.fn() },

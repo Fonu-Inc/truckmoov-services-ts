@@ -12,6 +12,9 @@ import {
   computeLifecycleStatus,
 } from "./maintenance-profile.repository";
 import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
+import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
+import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import { knownVehicleId } from "./vehicle-reference";
 
 export class MaintenanceProfileNotFoundError extends Error {}
 
@@ -36,6 +39,8 @@ export class MaintenanceProfilesUseCase {
   constructor(
     @Inject(MAINTENANCE_PROFILE_REPOSITORY)
     private readonly repo: MaintenanceProfileRepository,
+    @Inject(VEHICLE_REPOSITORY)
+    private readonly vehicles: VehicleRepository,
   ) {}
 
   async list(
@@ -55,7 +60,7 @@ export class MaintenanceProfilesUseCase {
     const profile: StoredMaintenanceProfile = {
       id: randomUUID(),
       tenantId,
-      vehicleId: data.vehicleId,
+      vehicleId: await knownVehicleId(this.vehicles, data.vehicleId, tenantId),
       serviceType: data.serviceType,
       serviceLabel: data.serviceLabel,
       intervalType: data.intervalType,

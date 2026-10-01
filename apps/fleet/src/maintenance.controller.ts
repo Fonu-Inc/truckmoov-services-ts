@@ -121,7 +121,7 @@ export class MaintenanceController extends BaseFleetController {
   async createMaintenanceProfile(@Body() body: CreateMaintenanceProfileDto, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     this.assertAmongOwned(await this.ownedVehicleIds(tenantId, req), [body.vehicleId]);
-    const data = await this.maintenanceProfilesUseCase.create(tenantId, body);
+    const data = await this.runFleetUseCase(() => this.maintenanceProfilesUseCase.create(tenantId, body));
     return { status: true, message: "success", data };
   }
 

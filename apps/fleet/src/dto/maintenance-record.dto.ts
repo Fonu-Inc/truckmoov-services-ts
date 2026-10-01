@@ -18,7 +18,7 @@ import {
 } from "../maintenance-record.repository";
 
 export class CreateMaintenanceRecordDto {
-  /** Vehicle the record belongs to */
+  /** Vehicle UUID. A plate number is accepted and stored as the UUID; an unknown vehicle is a 404 */
   @IsString()
   @MinLength(1)
   vehicleId!: string;

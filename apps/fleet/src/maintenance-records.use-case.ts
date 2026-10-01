@@ -8,9 +8,10 @@ import {
   type MaintenanceRecordStatus,
   type StoredMaintenanceRecord,
 } from "./maintenance-record.repository";
-import { VEHICLE_REPOSITORY, VehicleNotFoundError } from "./contexts/fleet/vehicles";
+import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
 import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
+import { knownVehicleId, resolveVehicleReference } from "./vehicle-reference";
 
 export class MaintenanceRecordNotFoundError extends Error {}
 
@@ -25,37 +26,14 @@ export class MaintenanceRecordsUseCase {
     private readonly vehicleRepo: VehicleRepository,
   ) {}
 
-  /**
-   * Resolves a vehicle from a value that may be either a real vehicle UUID
-   * or a plate/registration string. The "Schedule Maintenance" UI submits
-   * the vehicle *registration* (a plate string) as vehicleId, so a plain
-   * findById misses and enrichment came back null. Try id first, then fall
-   * back to plate lookup (registrationNumber is an alias of plateNumber).
-   */
-  private async resolveVehicle(vehicleId: string, tenantId: string) {
-    const byId = await this.vehicleRepo.findById(vehicleId, tenantId);
-    if (byId) return byId;
-    return this.vehicleRepo.findByPlateNumber(vehicleId, tenantId);
-  }
-
   private async withPlateNumber(rec: StoredMaintenanceRecord): Promise<WithVehiclePlateNumber<StoredMaintenanceRecord>> {
-    const vehicle = await this.resolveVehicle(rec.vehicleId, rec.tenantId);
+    const vehicle = await resolveVehicleReference(this.vehicleRepo, rec.vehicleId, rec.tenantId);
     const primitives = vehicle?.toPrimitives();
     return {
       ...rec,
       vehiclePlateNumber: primitives?.plateNumber ?? null,
       vehicleRegistrationNumber: primitives?.registrationNumber ?? primitives?.plateNumber ?? null,
     };
-  }
-
-  /**
-   * The vehicle a limited caller names must resolve to one of theirs; anything
-   * else reads as an unknown vehicle.
-   */
-  private async allowedVehicleId(value: string, tenantId: string, allowed: ReadonlySet<string>): Promise<string> {
-    const vehicle = await this.resolveVehicle(value, tenantId);
-    if (!vehicle || !allowed.has(vehicle.id)) throw new VehicleNotFoundError(value);
-    return vehicle.id;
   }
 
   async list(tenantId: string, filters?: MaintenanceRecordFilters, allowed?: AllowedVehicleIds) {
@@ -85,13 +63,7 @@ export class MaintenanceRecordsUseCase {
   }
 
   async create(tenantId: string, data: CreateMaintenanceRecordInput, allowed?: AllowedVehicleIds) {
-    // The UI submits the vehicle registration/plate as vehicleId. Store the
-    // canonical vehicle UUID when it resolves, so the record links correctly
-    // and enrichment (plate/reg) works. Fall back to the raw value if it
-    // resolves to nothing, so create still succeeds rather than hard-failing.
-    const vehicleId = allowed
-      ? await this.allowedVehicleId(data.vehicleId, tenantId, allowed)
-      : (await this.resolveVehicle(data.vehicleId, tenantId))?.id ?? data.vehicleId;
+    const vehicleId = await knownVehicleId(this.vehicleRepo, data.vehicleId, tenantId, allowed);
     const record: StoredMaintenanceRecord = {
       id: randomUUID(),
       tenantId,
@@ -120,8 +92,8 @@ export class MaintenanceRecordsUseCase {
     allowed?: AllowedVehicleIds,
   ) {
     const existing = await this.findRaw(tenantId, id, allowed);
-    const changes = allowed && data.vehicleId
-      ? { ...data, vehicleId: await this.allowedVehicleId(data.vehicleId, tenantId, allowed) }
+    const changes = data.vehicleId
+      ? { ...data, vehicleId: await knownVehicleId(this.vehicleRepo, data.vehicleId, tenantId, allowed) }
       : data;
     const updated: StoredMaintenanceRecord = { ...existing, ...changes, updatedAt: new Date() };
     await this.repo.save(updated);

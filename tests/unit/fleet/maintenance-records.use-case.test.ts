@@ -163,3 +163,33 @@ describe("MaintenanceRecordsUseCase — vehicle resolution (issue 4)", () => {
     expect(enriched.vehicleRegistrationNumber).toBeNull();
   });
 });
+
+describe("a maintenance record's vehicle", () => {
+  const input = { vehicleId: "", maintenanceType: "preventive", priority: "low", scheduledDate: "2026-10-05" } as never;
+
+  // An id nothing knows is stored as-is otherwise, and the record joins back
+  // to no vehicle on any screen.
+  it("refuses a vehicle the tenant does not have, for every role", async () => {
+    const saved: StoredMaintenanceRecord[] = [];
+    const useCase = new MaintenanceRecordsUseCase(fakeMaintenanceRepo([], saved), fakeVehicleRepo());
+
+    await expect(useCase.create(TENANT, { ...(input as object), vehicleId: "QA-NOT-A-VEHICLE" } as never)).rejects.toThrow(
+      /QA-NOT-A-VEHICLE/,
+    );
+    expect(saved).toHaveLength(0);
+  });
+
+  it("stores the vehicle's id when it is named by plate", async () => {
+    const useCase = new MaintenanceRecordsUseCase(fakeMaintenanceRepo(), fakeVehicleRepo());
+
+    const created = await useCase.create(TENANT, { ...(input as object), vehicleId: PLATE } as never);
+
+    expect(created.vehicleId).toBe(VEHICLE_UUID);
+  });
+
+  it("refuses moving a record onto an unknown vehicle", async () => {
+    const useCase = new MaintenanceRecordsUseCase(fakeMaintenanceRepo([seedRecord()]), fakeVehicleRepo());
+
+    await expect(useCase.update(TENANT, "rec-1", { vehicleId: "nope" })).rejects.toThrow(/nope/);
+  });
+});
