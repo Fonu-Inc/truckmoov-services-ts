@@ -58,6 +58,7 @@ export {
   DEVICE_STATUS_FILTERS,
   type DeviceStatusFilter,
 } from "./domain/device-inventory";
+export { deviceHeartbeat, heartbeatWindow, type DeviceHeartbeat } from "./domain/device-heartbeat";
 export { GetDeviceUseCase } from "./application/use-cases/get-device.use-case";
 export { UpdateDeviceUseCase } from "./application/use-cases/update-device.use-case";
 export { DeleteDeviceUseCase } from "./application/use-cases/delete-device.use-case";

@@ -397,6 +397,8 @@ describe("Fleet HTTP contract", () => {
     expect(summary.status).toBe(200);
     expect(summary.body.data.total).toBeGreaterThan(0);
     expect(summary.body.data.allowance).toMatchObject({ unlimited: expect.any(Boolean) });
+    expect(summary.body.data).toMatchObject({ online: expect.any(Number), offline: expect.any(Number), suspended: expect.any(Number) });
+    expect(summary.body.data.online + summary.body.data.offline).toBeLessThanOrEqual(summary.body.data.total);
 
     const filters = await request(app.getHttpServer())
       .get("/fleet/devices/filters")
@@ -404,6 +406,23 @@ describe("Fleet HTTP contract", () => {
     expect(filters.status).toBe(200);
     expect(filters.body.data.statuses.map((s: { value: string }) => s.value)).toContain("unregistered");
     expect(filters.body.data.lastSeen).toHaveLength(5);
+    expect(filters.body.data.statuses.map((s: { value: string }) => s.value)).toEqual(
+      expect.arrayContaining(["online", "offline", "suspended"]),
+    );
+
+    // None of these devices has reported, so every in-service one is offline.
+    const offline = await request(app.getHttpServer())
+      .get("/fleet/devices?status=offline")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(offline.status).toBe(200);
+    expect(offline.body).toHaveLength(summary.body.data.offline);
+    expect(offline.body.every((device: { lastSeen: string | null }) => device.lastSeen === null)).toBe(true);
+
+    const online = await request(app.getHttpServer())
+      .get("/fleet/devices?status=online")
+      .set("Authorization", authToken("fleet_manager"));
+    expect(online.status).toBe(200);
+    expect(online.body).toHaveLength(summary.body.data.online);
 
     // The dropdown offers buckets that are not lifecycle states, so they have
     // to survive the round trip through the query string.

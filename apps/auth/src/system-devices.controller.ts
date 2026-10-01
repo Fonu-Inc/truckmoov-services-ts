@@ -31,6 +31,7 @@ import {
   ApiOperation,
   ApiQuery,
   ApiCreatedResponse,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { DEVICE_LIFECYCLE_STATUSES, DEVICE_STATUSES } from '@shared/devices';
 import { ActivityLogService } from './activity-log.service';
@@ -358,8 +359,10 @@ export class SystemDevicesController extends BaseAuthController {
   @ApiOperation({
     summary: 'Create system device catalog model',
     description:
-      'Creates a manufacturer/model entry in the global device catalog used by system admins and tenant onboarding.',
+      'Creates a manufacturer/model entry in the global device catalog used by system admins and tenant onboarding. ' +
+      'A urlencoded body is form-decoded, so "+" reads as a space; send JSON to store a literal "+".',
   })
+  @ApiConsumes('application/json', 'application/x-www-form-urlencoded')
   @ApiCreatedResponse({ type: SystemDeviceCatalogModelResponse })
   @ApiBadRequestResponse({ description: 'Invalid request payload' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })

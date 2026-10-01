@@ -33,6 +33,8 @@ import {
   ReinstateDeviceUseCase,
   DecommissionDeviceUseCase,
   SuspendDeviceUseCase,
+  deviceHeartbeat,
+  heartbeatWindow,
 } from "./contexts/fleet/devices";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
 import type { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
@@ -48,6 +50,7 @@ import { InstallationHandoverUseCases } from "./contexts/fleet/devices/applicati
 import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
 import { Portals, OnResource } from "@shared/access";
 import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
+import { AppConfigService } from "@shared/config";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -82,6 +85,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(InstallationHandoverUseCases) private readonly handover: InstallationHandoverUseCases,
     @Inject(DecommissionDeviceUseCase) private readonly decommissionDeviceUseCase: DecommissionDeviceUseCase,
     @Inject(TenantHoldUseCases) private readonly tenantHolds: TenantHoldUseCases,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {
     super(auditLog, bus);
   }
@@ -398,7 +402,7 @@ export class InternalFleetController extends BaseFleetController {
       lifecycleStatus: device.lifecycleStatus,
       // Derived from the last fix rather than stored: a device is offline
       // because nothing has arrived, which no column records on its own.
-      healthStatus: deviceHealth(device.lastSeen),
+      healthStatus: deviceHeartbeat(device.lastSeen, heartbeatWindow(this.config.fleet.deviceOnlineThresholdSeconds)),
       lastSeen: device.lastSeen,
     };
   }
@@ -421,14 +425,4 @@ export class InternalFleetController extends BaseFleetController {
 
 function idList(ids: string): string[] {
   return ids.split(",").map((id) => id.trim()).filter(Boolean).slice(0, MAX_DEVICE_IDS);
-}
-
-/** Offline once nothing has arrived for longer than a missed ping allows. */
-const DEVICE_OFFLINE_AFTER_MS = 15 * 60 * 1000;
-
-function deviceHealth(lastSeen: string | null): "online" | "offline" | "never_reported" {
-  if (!lastSeen) return "never_reported";
-  const fixedAt = Date.parse(lastSeen);
-  if (Number.isNaN(fixedAt)) return "never_reported";
-  return Date.now() - fixedAt <= DEVICE_OFFLINE_AFTER_MS ? "online" : "offline";
 }

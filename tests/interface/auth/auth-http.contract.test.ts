@@ -1856,6 +1856,43 @@ describe('Auth HTTP contract', () => {
     expect(tenantCatalogRes.status).toBe(403);
   });
 
+  // A form-urlencoded "+" is an encoded space; a JSON "+" is the character.
+  it('POST /auth/system/devices/catalog decodes a urlencoded "+" and keeps a JSON one', async () => {
+    const systemLoginRes = await request(app.getHttpServer())
+      .post('/auth/system/login')
+      .send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
+    expect(systemLoginRes.status).toBe(201);
+    const token = `Bearer ${systemLoginRes.body.accessToken}`;
+
+    const formRes = await request(app.getHttpServer())
+      .post('/auth/system/devices/catalog')
+      .set('Authorization', token)
+      .type('form')
+      .send('manufacturer=Acme+Trackers&model=AT+100&protocolType=TCP&supportedFeatures[0]=fuel&status=supported');
+    expect(formRes.status).toBe(201);
+    expect(formRes.body.data).toMatchObject({ manufacturer: 'Acme Trackers', model: 'AT 100' });
+
+    const jsonRes = await request(app.getHttpServer())
+      .post('/auth/system/devices/catalog')
+      .set('Authorization', token)
+      .send({
+        manufacturer: 'Plus+Brand',
+        model: 'P+1',
+        protocolType: 'TCP',
+        supportedFeatures: ['fuel'],
+        status: 'supported',
+      });
+    expect(jsonRes.status).toBe(201);
+    expect(jsonRes.body.data).toMatchObject({ manufacturer: 'Plus+Brand', model: 'P+1' });
+
+    for (const id of [formRes.body.data.id, jsonRes.body.data.id]) {
+      const deleted = await request(app.getHttpServer())
+        .delete(`/auth/system/devices/catalog/${id}`)
+        .set('Authorization', token);
+      expect(deleted.status).toBe(200);
+    }
+  });
+
   it('GET /auth/activity-log returns tenant-scoped persisted activity entries', async () => {
     const registerRes = await seedEnterpriseAdmin('activity-admin@contract.com', {
           firstName: 'Activity',

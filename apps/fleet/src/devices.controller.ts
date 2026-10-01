@@ -54,6 +54,7 @@ import {
   SetDeviceLifecycleStatusUseCase,
   SuspendDeviceUseCase,
   ReinstateDeviceUseCase,
+  DEVICE_STATUS_FILTERS,
 } from "./contexts/fleet/devices";
 import {
   buildDeviceCsvExport,
@@ -64,7 +65,9 @@ import {
 } from "./contexts/fleet/devices/domain/device-csv";
 import {
   DeviceAssignmentValidationResponse,
+  DeviceFiltersResponse,
   DeviceListResponse,
+  DeviceSummaryResponse,
   BulkDeviceImportResponse,
   DeviceResponse,
 } from "./dto/fleet.schema";
@@ -124,7 +127,12 @@ export class DevicesController extends BaseFleetController {
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "manufacturer", required: false, type: String })
-  @ApiQuery({ name: "status", required: false, enum: ["registered", "configured", "assigned", "active", "faulty", "decommissioned"] })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: DEVICE_STATUS_FILTERS,
+    description: "online / offline read the heartbeat (TRACKING_STATUS_TIMEOUT_SECONDS); suspended is the lifecycle state.",
+  })
   @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["registered", "config_pending", "configured", "verified_online", "assignable", "assigned", "faulty", "decommissioned"] })
   @ApiQuery({ name: "assigned", required: false, enum: ["true", "false"] })
   @ApiQuery({ name: "lastSeenBucket", required: false, enum: ["5min", "1hr", "24hr", "7day", "never"] })
@@ -145,9 +153,10 @@ export class DevicesController extends BaseFleetController {
   )
   @ApiOperation({
     summary: "Device status cards",
-    description: "Counts behind the My Devices cards, plus the plan allowance bar.",
+    description:
+      "Counts behind the My Devices cards, plus the plan allowance bar. online, offline, suspended and decommissioned partition total.",
   })
-  @ApiOkResponse({ description: "Status counts and plan allowance" })
+  @ApiOkResponse({ type: DeviceSummaryResponse })
   async deviceSummary(@Req() req: FleetRequestContext) {
     const data = await this.deviceInventorySummaryUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data };
@@ -165,7 +174,7 @@ export class DevicesController extends BaseFleetController {
     summary: "Device filter options",
     description: "Statuses, manufacturers and last-seen buckets for the filter panel.",
   })
-  @ApiOkResponse({ description: "Filter options" })
+  @ApiOkResponse({ type: DeviceFiltersResponse })
   async deviceFilters(@Req() req: FleetRequestContext) {
     const data = await this.deviceFilterOptionsUseCase.execute(this.tenantIdFromRequest(req));
     return { status: true, message: "success", data };
@@ -175,7 +184,9 @@ export class DevicesController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Supported manufacturers",
-    description: "Manufacturers the platform device catalog supports, for the Add Device and Request Device modals.",
+    description:
+      "Manufacturers with at least one supported model in the platform device catalog, for the Add Device and Request Device modals. " +
+      "No built-in defaults are added: a manufacturer without a catalogued model has no protocol to configure a device with.",
   })
   @ApiOkResponse({ description: "Manufacturer names" })
   async listCatalogManufacturers() {

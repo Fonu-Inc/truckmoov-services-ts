@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { buildQuotaAllowance } from "../../../shared/domain/allowance";
 import {
   DEVICE_LAST_SEEN_FILTERS,
@@ -6,6 +7,7 @@ import {
   summarizeDeviceStatuses,
   type DeviceInventoryRow,
 } from "../../domain/device-inventory";
+import { heartbeatWindow } from "../../domain/device-heartbeat";
 import {
   DEVICE_QUOTA_READER,
   type DeviceQuotaReader,
@@ -18,6 +20,7 @@ export class DeviceInventorySummaryUseCase {
   constructor(
     @Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository,
     @Inject(DEVICE_QUOTA_READER) private readonly quota: DeviceQuotaReader,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async execute(tenantId: string) {
@@ -26,7 +29,8 @@ export class DeviceInventorySummaryUseCase {
       this.quota.findDeviceLimit(tenantId),
     ]);
 
-    const counts = summarizeDeviceStatuses(devices.map(toRow));
+    const window = heartbeatWindow(this.config.fleet.deviceOnlineThresholdSeconds);
+    const counts = summarizeDeviceStatuses(devices.map(toRow), window);
 
     return {
       ...counts,

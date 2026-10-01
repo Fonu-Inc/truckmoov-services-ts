@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDeviceStatusFilter,
+  deviceStatusFilterOptions,
   summarizeDeviceStatuses,
   type DeviceInventoryRow,
 } from "../../../apps/fleet/src/contexts/fleet/devices/domain/device-inventory";
+import {
+  deviceHeartbeat,
+  heartbeatWindow,
+} from "../../../apps/fleet/src/contexts/fleet/devices/domain/device-heartbeat";
 import {
   buildDeviceCsvExport,
   buildDeviceCsvTemplate,
@@ -11,6 +16,10 @@ import {
 } from "../../../apps/fleet/src/contexts/fleet/devices/domain/device-csv";
 import { buildQuotaAllowance } from "../../../apps/fleet/src/contexts/fleet/shared/domain/allowance";
 import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/entities/device.entity";
+
+const NOW = Date.parse("2026-10-01T12:00:00.000Z");
+const WINDOW = heartbeatWindow(600, NOW);
+const secondsAgo = (seconds: number) => new Date(NOW - seconds * 1000).toISOString();
 
 function row(overrides: Partial<DeviceInventoryRow> = {}): DeviceInventoryRow {
   return {
@@ -31,29 +40,29 @@ describe("Device status filters", () => {
   ];
 
   it("treats assigned and unassigned as a vehicle link, not a lifecycle state", () => {
-    expect(applyDeviceStatusFilter(inventory, "assigned")).toHaveLength(1);
-    expect(applyDeviceStatusFilter(inventory, "unassigned")).toHaveLength(3);
+    expect(applyDeviceStatusFilter(inventory, "assigned", WINDOW)).toHaveLength(1);
+    expect(applyDeviceStatusFilter(inventory, "unassigned", WINDOW)).toHaveLength(3);
   });
 
   // A device the telemetry platform never accepted cannot report, whatever the
   // installer did to it, so unregistered is about provisioning and not about
   // the `registered` lifecycle state it shares a word with.
   it("reads unregistered from the provisioning outcome, not the lifecycle", () => {
-    const unregistered = applyDeviceStatusFilter(inventory, "unregistered");
+    const unregistered = applyDeviceStatusFilter(inventory, "unregistered", WINDOW);
     expect(unregistered).toHaveLength(1);
     expect(unregistered[0].provisionStatus).toBe("failed");
-    expect(applyDeviceStatusFilter(inventory, "registered")).toHaveLength(1);
+    expect(applyDeviceStatusFilter(inventory, "registered", WINDOW)).toHaveLength(1);
   });
 
   it("counts active as the states that mean installed and reporting", () => {
-    expect(applyDeviceStatusFilter(inventory, "active").map((r) => r.lifecycleStatus)).toEqual([
+    expect(applyDeviceStatusFilter(inventory, "active", WINDOW).map((r) => r.lifecycleStatus)).toEqual([
       "assigned",
       "verified_online",
     ]);
   });
 
   it("returns everything when no filter is chosen", () => {
-    expect(applyDeviceStatusFilter(inventory, undefined)).toHaveLength(4);
+    expect(applyDeviceStatusFilter(inventory, undefined, WINDOW)).toHaveLength(4);
   });
 });
 
@@ -65,10 +74,12 @@ describe("Device status cards", () => {
       row({ lifecycleStatus: "configured" }),
       row({ lifecycleStatus: "registered" }),
       row({ lifecycleStatus: "suspended" }),
-    ]);
+    ], WINDOW);
 
     expect(counts).toEqual({
       total: 5,
+      online: 0,
+      offline: 4,
       active: 2,
       registered: 1,
       assigned: 1,
@@ -76,6 +87,58 @@ describe("Device status cards", () => {
       configured: 1,
       suspended: 1,
     });
+  });
+});
+
+describe("Device heartbeat", () => {
+  it("is online up to and including the threshold, offline after it", () => {
+    expect(deviceHeartbeat(secondsAgo(600), WINDOW)).toBe("online");
+    expect(deviceHeartbeat(secondsAgo(601), WINDOW)).toBe("offline");
+  });
+
+  it("reads a missing or unreadable last report as never reported", () => {
+    expect(deviceHeartbeat(null, WINDOW)).toBe("never_reported");
+    expect(deviceHeartbeat("not-a-date", WINDOW)).toBe("never_reported");
+  });
+});
+
+// The Devices page cards: Total / Active (online) / Offline / Suspended.
+describe("Device online, offline and suspended", () => {
+  const inventory = [
+    row({ lifecycleStatus: "assigned", vehicleId: "v1", lastSeen: secondsAgo(30) }),
+    row({ lifecycleStatus: "assignable", lastSeen: secondsAgo(3600) }),
+    row({ lifecycleStatus: "registered", lastSeen: null }),
+    row({ lifecycleStatus: "suspended", lastSeen: secondsAgo(30) }),
+    row({ lifecycleStatus: "decommissioned", lastSeen: null }),
+  ];
+
+  it("counts online off the last report, not the lifecycle", () => {
+    const online = applyDeviceStatusFilter(inventory, "online", WINDOW);
+    expect(online.map((r) => r.lifecycleStatus)).toEqual(["assigned"]);
+  });
+
+  // An active lifecycle with a stale report is the case the card was raised
+  // for: it used to read as active.
+  it("counts a stale or never-reported in-service device as offline", () => {
+    const offline = applyDeviceStatusFilter(inventory, "offline", WINDOW);
+    expect(offline.map((r) => r.lifecycleStatus)).toEqual(["assignable", "registered"]);
+  });
+
+  it("keeps suspended and decommissioned devices out of online and offline", () => {
+    expect(applyDeviceStatusFilter(inventory, "suspended", WINDOW).map((r) => r.lifecycleStatus)).toEqual(["suspended"]);
+    const counts = summarizeDeviceStatuses(inventory, WINDOW);
+    expect(counts).toMatchObject({ total: 5, online: 1, offline: 2, suspended: 1, active: 2 });
+  });
+
+  it("follows the configured threshold", () => {
+    const wide = heartbeatWindow(7200, NOW);
+    expect(summarizeDeviceStatuses(inventory, wide)).toMatchObject({ online: 2, offline: 1 });
+  });
+
+  it("offers the three in the status dropdown alongside the existing ones", () => {
+    const values = deviceStatusFilterOptions().map((option) => option.value);
+    expect(values.slice(0, 3)).toEqual(["online", "offline", "suspended"]);
+    expect(values).toEqual(expect.arrayContaining(["active", "assigned", "unassigned", "configured", "registered", "unregistered"]));
   });
 });
 

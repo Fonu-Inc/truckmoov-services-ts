@@ -106,6 +106,9 @@ export class AppConfigService {
       // Device models change rarely. Caching them keeps the installer queue
       // from calling auth once per row.
       deviceCatalogCacheSeconds: this.config.get<number>("DEVICE_CATALOG_CACHE_SECONDS", 300),
+      // Same variable and default as the tracking service's heartbeat, so a
+      // device reads online on the Devices page exactly when tracking says so.
+      deviceOnlineThresholdSeconds: Number(this.config.get("TRACKING_STATUS_TIMEOUT_SECONDS", 600)),
       // How sure extraction must be about every field before a waybill skips
       // human review. Judged per field, not per document: one misread
       // destination prices the trip wrongly however clean the rest of the page.

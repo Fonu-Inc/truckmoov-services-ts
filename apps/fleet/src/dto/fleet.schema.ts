@@ -154,6 +154,54 @@ export class DeviceListResponse extends StandardApiResponse<DeviceSchema[]> {
   data!: DeviceSchema[];
 }
 
+export class QuotaAllowanceSchema {
+  @ApiProperty({ nullable: true, type: Number }) limit!: number | null;
+  @ApiProperty() used!: number;
+  @ApiProperty({ nullable: true, type: Number }) remaining!: number | null;
+  @ApiProperty({ nullable: true, type: Number }) usedPercent!: number | null;
+  @ApiProperty() unlimited!: boolean;
+}
+
+export class DeviceSummarySchema {
+  @ApiProperty() total!: number;
+  @ApiProperty({ description: "In service and reported within the heartbeat threshold (TRACKING_STATUS_TIMEOUT_SECONDS, default 600s)." })
+  online!: number;
+  @ApiProperty({ description: "In service and not online, including devices that have never reported." })
+  offline!: number;
+  @ApiProperty({ description: "Lifecycle verified_online, assignable or assigned. Not a heartbeat reading." })
+  active!: number;
+  @ApiProperty() registered!: number;
+  @ApiProperty() assigned!: number;
+  @ApiProperty() unassigned!: number;
+  @ApiProperty() configured!: number;
+  @ApiProperty({ description: "Lifecycle suspended." }) suspended!: number;
+  @ApiProperty({ type: QuotaAllowanceSchema }) allowance!: QuotaAllowanceSchema;
+}
+
+export class DeviceSummaryResponse extends StandardApiResponse<DeviceSummarySchema> {
+  @ApiProperty({ type: DeviceSummarySchema })
+  data!: DeviceSummarySchema;
+}
+
+export class DeviceFilterOptionSchema {
+  @ApiProperty() value!: string;
+  @ApiProperty() label!: string;
+}
+
+export class DeviceFiltersSchema {
+  @ApiProperty({ type: DeviceFilterOptionSchema, isArray: true })
+  statuses!: DeviceFilterOptionSchema[];
+  @ApiProperty({ type: String, isArray: true })
+  manufacturers!: string[];
+  @ApiProperty({ type: DeviceFilterOptionSchema, isArray: true })
+  lastSeen!: DeviceFilterOptionSchema[];
+}
+
+export class DeviceFiltersResponse extends StandardApiResponse<DeviceFiltersSchema> {
+  @ApiProperty({ type: DeviceFiltersSchema })
+  data!: DeviceFiltersSchema;
+}
+
 export class DeviceSetupRequestTimelineEntrySchema {
   @ApiProperty() status!: string;
   @ApiProperty() at!: string;

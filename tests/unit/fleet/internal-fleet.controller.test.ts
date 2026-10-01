@@ -48,7 +48,8 @@ async function harness() {
   await devices.save(device("dev-1", "tenant-a"));
   await vehicles.save(vehicle("veh-1", "tenant-a"));
   const controller = new InternalFleetController(
-    {} as never, {} as never, vehicles, {} as never, devices, {} as never, {} as never, {} as never, {} as never,
+    {} as never, {} as never, vehicles, {} as never, devices, {} as never, {} as never, {} as never, {} as never, {} as never,
+    {} as never, { fleet: { deviceOnlineThresholdSeconds: 600 } } as never,
   );
   return controller;
 }

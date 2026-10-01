@@ -1,4 +1,5 @@
 import { DEVICE_LIFECYCLE_ONLINE, type DeviceLifecycleStatus } from "@shared/devices";
+import { deviceHeartbeat, type HeartbeatWindow } from "./device-heartbeat";
 
 /**
  * A row as the inventory list and the status cards read it. Deliberately
@@ -13,11 +14,15 @@ export type DeviceInventoryRow = {
 };
 
 /**
- * The status dropdown. Four of these are lifecycle projections; `unassigned`
- * and `unregistered` are not — they cut across the lifecycle, which is why the
- * filter cannot just be a lifecycle equality check.
+ * The status dropdown. `online` and `offline` read the heartbeat, `unassigned`
+ * and `unregistered` cut across the lifecycle, and the rest are lifecycle
+ * projections, which is why the filter cannot just be a lifecycle equality
+ * check. `active` is the lifecycle reading and does not mean reporting now.
  */
 export const DEVICE_STATUS_FILTERS = [
+  "online",
+  "offline",
+  "suspended",
   "active",
   "assigned",
   "unassigned",
@@ -41,7 +46,28 @@ function isRegisteredUpstream(row: DeviceInventoryRow): boolean {
   return row.provisionStatus === "registered";
 }
 
-const STATUS_FILTER_PREDICATES: Record<DeviceStatusFilter, (row: DeviceInventoryRow) => boolean> = {
+/** Suspended and decommissioned devices are not expected to report. */
+const OUT_OF_SERVICE: readonly DeviceLifecycleStatus[] = ["suspended", "decommissioned"];
+
+function isInService(row: DeviceInventoryRow): boolean {
+  return !OUT_OF_SERVICE.includes(row.lifecycleStatus);
+}
+
+/**
+ * Online, offline, suspended and decommissioned partition the inventory. A
+ * device that has never reported is offline: it is in service and not
+ * reporting, and the `never` last-seen bucket separates it when that matters.
+ */
+function isOnline(row: DeviceInventoryRow, window: HeartbeatWindow): boolean {
+  return isInService(row) && deviceHeartbeat(row.lastSeen, window) === "online";
+}
+
+type StatusPredicate = (row: DeviceInventoryRow, window: HeartbeatWindow) => boolean;
+
+const STATUS_FILTER_PREDICATES: Record<DeviceStatusFilter, StatusPredicate> = {
+  online: isOnline,
+  offline: (row, window) => isInService(row) && !isOnline(row, window),
+  suspended: (row) => row.lifecycleStatus === "suspended",
   active: (row) => DEVICE_LIFECYCLE_ONLINE.includes(row.lifecycleStatus),
   assigned: (row) => row.vehicleId !== null,
   unassigned: (row) => row.vehicleId === null,
@@ -53,20 +79,24 @@ const STATUS_FILTER_PREDICATES: Record<DeviceStatusFilter, (row: DeviceInventory
 export function matchesDeviceStatusFilter(
   row: DeviceInventoryRow,
   filter: DeviceStatusFilter,
+  window: HeartbeatWindow,
 ): boolean {
-  return STATUS_FILTER_PREDICATES[filter](row);
+  return STATUS_FILTER_PREDICATES[filter](row, window);
 }
 
 export function applyDeviceStatusFilter<T extends DeviceInventoryRow>(
   rows: T[],
   filter: DeviceStatusFilter | undefined,
+  window: HeartbeatWindow,
 ): T[] {
   if (!filter) return rows;
-  return rows.filter((row) => matchesDeviceStatusFilter(row, filter));
+  return rows.filter((row) => matchesDeviceStatusFilter(row, filter, window));
 }
 
 export type DeviceStatusCounts = {
   total: number;
+  online: number;
+  offline: number;
   active: number;
   registered: number;
   assigned: number;
@@ -79,18 +109,20 @@ export type DeviceStatusCounts = {
  * The status cards. Counted from the same predicates the filter uses, so
  * clicking a card and reading its number can never disagree.
  */
-export function summarizeDeviceStatuses(rows: DeviceInventoryRow[]): DeviceStatusCounts {
+export function summarizeDeviceStatuses(rows: DeviceInventoryRow[], window: HeartbeatWindow): DeviceStatusCounts {
   const count = (filter: DeviceStatusFilter) =>
-    rows.filter((row) => matchesDeviceStatusFilter(row, filter)).length;
+    rows.filter((row) => matchesDeviceStatusFilter(row, filter, window)).length;
 
   return {
     total: rows.length,
+    online: count("online"),
+    offline: count("offline"),
     active: count("active"),
     registered: count("registered"),
     assigned: count("assigned"),
     unassigned: count("unassigned"),
     configured: count("configured"),
-    suspended: rows.filter((row) => row.lifecycleStatus === "suspended").length,
+    suspended: count("suspended"),
   };
 }
 
@@ -103,6 +135,9 @@ export const DEVICE_LAST_SEEN_FILTERS = [
 ] as const;
 
 const STATUS_FILTER_LABELS: Record<DeviceStatusFilter, string> = {
+  online: "Online",
+  offline: "Offline",
+  suspended: "Suspended",
   active: "Active",
   assigned: "Assigned",
   unassigned: "Unassigned",
