@@ -892,6 +892,7 @@ export class AppModule implements NestModule {
         DocumentsController,
         AuditController,
         TrackingController,
+        OverviewController,
         // Service-to-service routes authenticate the same way. Left out, the
         // roles guard sees no user and refuses every internal call with a 401,
         // which callers were quietly reading as "fleet is unreachable".
