@@ -105,12 +105,18 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
     return rows.map((r) => toStored(em.map(BundleAllocationRecord, r)));
   }
 
-  async sumDataUsedByBundle(tenantId: string): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {
+  async sumDataUsedByBundle(
+    tenantId: string,
+    window?: { start: Date; end: Date },
+  ): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {
     const orm = await getAuthOrm(this.config.db);
+    const inWindow = window
+      ? ' and (activated_at is null or activated_at <= ?) and (expires_at is null or expires_at >= ?)'
+      : '';
     const rows = await orm.em.getConnection().execute<Array<{ bundle_id: string; used_mb: string; total_mb: string }>>(
       `select bundle_id, sum(data_used_mb)::numeric as used_mb, sum(data_total_mb)::numeric as total_mb
-       from bundle_allocations where tenant_id = ? group by bundle_id`,
-      [tenantId],
+       from bundle_allocations where tenant_id = ?${inWindow} group by bundle_id`,
+      window ? [tenantId, window.end, window.start] : [tenantId],
     );
     return rows.map((r) => ({ bundleId: r.bundle_id, usedMb: Number(r.used_mb), totalMb: Number(r.total_mb) }));
   }

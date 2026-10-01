@@ -59,10 +59,14 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
     );
   }
 
-  async sumDataUsedByBundle(tenantId: string): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {
+  async sumDataUsedByBundle(
+    tenantId: string,
+    window?: { start: Date; end: Date },
+  ): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {
     const map = new Map<string, { usedMb: number; totalMb: number }>();
     for (const a of this.store.values()) {
       if (a.tenantId !== tenantId) continue;
+      if (window && !liveIn(a, window)) continue;
       const existing = map.get(a.bundleId) ?? { usedMb: 0, totalMb: 0 };
       map.set(a.bundleId, {
         usedMb: existing.usedMb + a.dataUsedMb,
@@ -71,4 +75,8 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
     }
     return [...map.entries()].map(([bundleId, data]) => ({ bundleId, ...data }));
   }
+}
+
+function liveIn(a: { activatedAt: Date | null; expiresAt: Date | null }, window: { start: Date; end: Date }): boolean {
+  return (!a.activatedAt || a.activatedAt <= window.end) && (!a.expiresAt || a.expiresAt >= window.start);
 }

@@ -492,13 +492,16 @@ export class DataBundlesController extends BaseAuthController {
 
   @Get('analytics/subscription-usage')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get subscription usage analytics' })
+  @ApiOperation({
+    summary: 'Get subscription usage analytics',
+    description: 'Data used per bundle across allocations live at any point in the range (default 30d), like the other analytics charts.',
+  })
   @ApiOkResponse({ type: SubscriptionUsageResponse })
-  async getSubscriptionUsage(@Headers('authorization') authorization?: string) {
+  async getSubscriptionUsage(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      return await this.getSubscriptionUsageUseCase.execute(accessToken);
+      return await this.getSubscriptionUsageUseCase.execute(accessToken, query.range ?? '30d', query.startDate, query.endDate);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

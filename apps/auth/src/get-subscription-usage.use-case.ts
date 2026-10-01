@@ -4,6 +4,7 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
+import { analyticsWindow, type AnalyticsRange } from './analytics-range';
 
 @Injectable()
 export class GetSubscriptionUsageUseCase {
@@ -13,11 +14,14 @@ export class GetSubscriptionUsageUseCase {
     @Inject(BUNDLE_ALLOCATION_REPOSITORY) private readonly bundleAllocationRepository: BundleAllocationRepository,
   ) {}
 
-  async execute(accessToken: string) {
+  async execute(accessToken: string, range: AnalyticsRange = '30d', startDate?: string, endDate?: string) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
     if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot access subscription usage');
 
-    const rows = await this.bundleAllocationRepository.sumDataUsedByBundle(actor.tenantId!);
+    const rows = await this.bundleAllocationRepository.sumDataUsedByBundle(
+      actor.tenantId!,
+      analyticsWindow(range, startDate, endDate),
+    );
 
     return {
       status: true,

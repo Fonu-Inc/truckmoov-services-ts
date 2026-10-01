@@ -29,7 +29,11 @@ export interface BundleAllocationRepository {
   save(allocation: StoredBundleAllocation): Promise<void>;
   countByStatus(tenantId: string): Promise<Record<string, number>>;
   findExpiringWithin(tenantId: string, days: number): Promise<StoredBundleAllocation[]>;
-  sumDataUsedByBundle(tenantId: string): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>>;
+  /** Allocations live at any point in the window, when one is given. */
+  sumDataUsedByBundle(
+    tenantId: string,
+    window?: { start: Date; end: Date },
+  ): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>>;
 }
 
 export const BUNDLE_ALLOCATION_REPOSITORY = Symbol('BUNDLE_ALLOCATION_REPOSITORY');
