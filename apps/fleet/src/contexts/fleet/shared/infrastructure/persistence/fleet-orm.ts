@@ -1178,6 +1178,7 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
   ],
 });
 
+// Unread since the catalogue moved to auth; still mapped so a schema diff does not drop the tables before the cleanup migration.
 export class CarrierRecord {
   id!: string;
   name!: string;

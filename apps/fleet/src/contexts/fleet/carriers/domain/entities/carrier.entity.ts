@@ -14,3 +14,8 @@ export type DataBundle = {
   priceNgn: number;
   status: string;
 };
+
+export type BundleCatalog = {
+  carriers: Carrier[];
+  bundles: DataBundle[];
+};

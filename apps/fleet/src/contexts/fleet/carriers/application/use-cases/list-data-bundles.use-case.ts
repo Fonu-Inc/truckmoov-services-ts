@@ -1,11 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DATA_BUNDLE_REPOSITORY, type DataBundleFilters, type DataBundleRepository } from "../../domain/repositories/data-bundle.repository";
+import { BUNDLE_CATALOG_READER, type BundleCatalogReader } from "../../domain/ports/bundle-catalog-reader.port";
+import { readBundleCatalog } from "../read-bundle-catalog";
+
+export type DataBundleFilters = {
+  carrierId?: string;
+};
 
 @Injectable()
 export class ListDataBundlesUseCase {
-  constructor(@Inject(DATA_BUNDLE_REPOSITORY) private readonly repo: DataBundleRepository) {}
+  constructor(@Inject(BUNDLE_CATALOG_READER) private readonly reader: BundleCatalogReader) {}
 
   async execute(filters?: DataBundleFilters) {
-    return this.repo.findAll(filters);
+    const { bundles } = await readBundleCatalog(this.reader);
+    return filters?.carrierId ? bundles.filter((b) => b.carrierId === filters.carrierId) : bundles;
   }
 }

@@ -2,6 +2,13 @@ import { Inject, Injectable } from "@nestjs/common";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import {
+  BUNDLE_CATALOG_READER,
+  type BundleCatalogReader,
+  type SimSelection,
+  readBundleCatalog,
+  simSelectionProblem,
+} from "../../../carriers";
+import {
   DeviceSetupRequest,
   type TrackerType,
 } from "../../domain/entities/device-setup-request.entity";
@@ -39,9 +46,12 @@ export class CreateDeviceSetupRequestUseCase {
     private readonly repository: DeviceSetupRequestRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
+    @Inject(BUNDLE_CATALOG_READER)
+    private readonly catalog: BundleCatalogReader,
   ) {}
 
   async execute(command: CreateDeviceSetupRequestCommand) {
+    await this.assertSimSelection(command);
     const tenantId = command.tenantId ?? this.runtime.getDefaultTenantId();
     try {
       const request = DeviceSetupRequest.create({
@@ -71,5 +81,12 @@ export class CreateDeviceSetupRequestUseCase {
     } catch (err) {
       throw new FleetRuleError((err as Error).message);
     }
+  }
+
+  // Outside the rule try/catch so an auth outage stays a 503, not a 400.
+  private async assertSimSelection(selection: SimSelection) {
+    if (!selection.carrierId && !selection.bundleId) return;
+    const problem = simSelectionProblem(await readBundleCatalog(this.catalog), selection);
+    if (problem) throw new FleetRuleError(problem);
   }
 }

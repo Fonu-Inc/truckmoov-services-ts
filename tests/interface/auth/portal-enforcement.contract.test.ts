@@ -64,4 +64,9 @@ describe('Portal enforcement over HTTP (auth)', () => {
     const res = await request(app.getHttpServer()).get('/auth/internal/usage/entitlements').set('Authorization', `Bearer ${staffToken}`);
     expect(res.status).toBe(404);
   });
+
+  it('refuses the bundle catalogue service route to a user token', async () => {
+    const res = await request(app.getHttpServer()).get('/auth/internal/bundle-catalog').set('Authorization', `Bearer ${staffToken}`);
+    expect(res.status).toBe(404);
+  });
 });

@@ -67,12 +67,8 @@ import {
   UpdateDeviceSetupRequestStatusUseCase,
 } from "./contexts/fleet/device-setup-requests";
 import {
-  CARRIER_REPOSITORY,
-  DATA_BUNDLE_REPOSITORY,
-  InMemoryCarrierRepository,
-  MikroCarrierRepository,
-  InMemoryDataBundleRepository,
-  MikroDataBundleRepository,
+  BUNDLE_CATALOG_READER,
+  HttpBundleCatalogReader,
   ListCarriersUseCase,
   ListDataBundlesUseCase,
 } from "./contexts/fleet/carriers";
@@ -802,28 +798,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     ListDeviceSetupRequestsUseCase,
     GetDeviceSetupRequestUseCase,
     UpdateDeviceSetupRequestStatusUseCase,
-    InMemoryCarrierRepository,
-    MikroCarrierRepository,
-    {
-      provide: CARRIER_REPOSITORY,
-      inject: [InMemoryCarrierRepository, MikroCarrierRepository, AppConfigService],
-      useFactory: (
-        inMemoryRepository: InMemoryCarrierRepository,
-        mikroRepository: MikroCarrierRepository,
-        config: AppConfigService,
-      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
-    },
-    InMemoryDataBundleRepository,
-    MikroDataBundleRepository,
-    {
-      provide: DATA_BUNDLE_REPOSITORY,
-      inject: [InMemoryDataBundleRepository, MikroDataBundleRepository, AppConfigService],
-      useFactory: (
-        inMemoryRepository: InMemoryDataBundleRepository,
-        mikroRepository: MikroDataBundleRepository,
-        config: AppConfigService,
-      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
-    },
+    { provide: BUNDLE_CATALOG_READER, useClass: HttpBundleCatalogReader },
     ListCarriersUseCase,
     ListDataBundlesUseCase,
     InMemoryDriverRepository,

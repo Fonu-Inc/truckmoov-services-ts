@@ -305,6 +305,7 @@ import { MailboxController } from './mailbox.controller';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
+import { InternalBundleCatalogController } from './internal-bundle-catalog.controller';
 import { PlatformWalletsController } from './platform-wallets.controller';
 import { PlatformIntegrationCredentialsController } from './platform-integration-credentials.controller';
 import { LowBalanceNotifierService } from './low-balance-notifier.service';
@@ -801,6 +802,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     OrganisationUpgradesController,
     InternalUsageController,
     InternalDeviceCatalogController,
+    InternalBundleCatalogController,
     PlatformWalletsController,
     PlatformIntegrationCredentialsController,
     ProfileController,

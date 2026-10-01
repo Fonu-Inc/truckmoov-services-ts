@@ -17,7 +17,7 @@ function harness(trustedProxies: string[] = []) {
   const controller = new DeviceSetupRequestsController(
     auditLog as never,
     bus as never,
-    new CreateDeviceSetupRequestUseCase(repository, runtime),
+    new CreateDeviceSetupRequestUseCase(repository, runtime, { read: vi.fn() }),
     {} as never,
     {} as never,
     {} as never,

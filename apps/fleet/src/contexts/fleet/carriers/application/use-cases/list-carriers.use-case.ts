@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { CARRIER_REPOSITORY, type CarrierRepository } from "../../domain/repositories/carrier.repository";
+import { BUNDLE_CATALOG_READER, type BundleCatalogReader } from "../../domain/ports/bundle-catalog-reader.port";
+import { readBundleCatalog } from "../read-bundle-catalog";
 
 @Injectable()
 export class ListCarriersUseCase {
-  constructor(@Inject(CARRIER_REPOSITORY) private readonly repo: CarrierRepository) {}
+  constructor(@Inject(BUNDLE_CATALOG_READER) private readonly reader: BundleCatalogReader) {}
 
   async execute() {
-    return this.repo.findAll();
+    return (await readBundleCatalog(this.reader)).carriers;
   }
 }

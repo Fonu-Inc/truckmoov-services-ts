@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { ServiceUnavailableException } from "@nestjs/common";
+import { describe, expect, it, vi } from "vitest";
 import { DeviceSetupRequest } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { InMemoryDeviceSetupRequestRepository } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/infrastructure/repositories/in-memory-device-setup-request.repository";
 import { CreateDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/create-device-setup-request.use-case";
@@ -11,6 +12,15 @@ const runtime = {
   generateId: () => `req-${++counter}`,
   getDefaultTenantId: () => "t1",
 } as unknown as never;
+
+const catalog = {
+  carriers: [{ id: "car-mtn", name: "MTN", code: "MTN", status: "active" }],
+  bundles: [
+    { id: "b-mtn-1gb", carrierId: "car-mtn", name: "MTN 1GB", planType: "monthly", dataAllowanceMb: 1024, priceNgn: 1000, status: "active" },
+    { id: "b-glo-1gb", carrierId: "car-glo", name: "Glo 1GB", planType: "monthly", dataAllowanceMb: 1024, priceNgn: 900, status: "active" },
+  ],
+};
+const authCatalog = { read: vi.fn().mockResolvedValue(catalog) };
 
 function baseInput() {
   return { id: "r1", tenantId: "t1", manufacturer: "Teltonika", trackerType: "hardwired" as const, useCase: "Long-haul GPS tracking" };
@@ -85,7 +95,7 @@ describe("DeviceSetupRequest entity", () => {
 describe("DeviceSetupRequest use-cases", () => {
   it("creates, lists (newest first), and advances status", async () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
-    const create = new CreateDeviceSetupRequestUseCase(repo, runtime);
+    const create = new CreateDeviceSetupRequestUseCase(repo, runtime, authCatalog);
     const list = new ListDeviceSetupRequestsUseCase(repo, runtime);
     const update = new UpdateDeviceSetupRequestStatusUseCase(repo);
 
@@ -128,5 +138,42 @@ describe("DeviceSetupRequest use-cases", () => {
     await expect(() =>
       update.execute({ id: "a", tenantId: "t2", status: "in_progress" }),
     ).rejects.toThrow(/not found/);
+  });
+});
+
+describe("DeviceSetupRequest SIM pick against the auth catalog", () => {
+  const command = { manufacturer: "Teltonika", trackerType: "hardwired" as const, useCase: "Telematics", simRequired: true };
+
+  function harness(reader = { read: vi.fn().mockResolvedValue(catalog) }) {
+    const repo = new InMemoryDeviceSetupRequestRepository();
+    return { repo, reader, create: new CreateDeviceSetupRequestUseCase(repo, runtime, reader) };
+  }
+
+  it("accepts a carrier and bundle auth sells", async () => {
+    const { create } = harness();
+    const created = await create.execute({ ...command, carrierId: "car-mtn", bundleId: "b-mtn-1gb" });
+    expect(created).toMatchObject({ carrierId: "car-mtn", bundleId: "b-mtn-1gb" });
+  });
+
+  it.each([
+    [{ carrierId: "carrier-mtn" }, /carrierId is not in the carrier catalog/],
+    [{ carrierId: "car-mtn", bundleId: "bundle-mtn-monthly-1gb" }, /bundleId is not in the data bundle catalog/],
+    [{ carrierId: "car-mtn", bundleId: "b-glo-1gb" }, /bundleId does not belong to carrierId/],
+  ])("refuses %o and stores nothing", async (pick, message) => {
+    const { create, repo } = harness();
+    await expect(create.execute({ ...command, ...pick })).rejects.toThrow(message);
+    expect(await repo.findAll({ tenantId: "t1" })).toHaveLength(0);
+  });
+
+  it("answers 503 when auth cannot be asked, and stores nothing", async () => {
+    const { create, repo } = harness({ read: vi.fn().mockResolvedValue(null) });
+    await expect(create.execute({ ...command, carrierId: "car-mtn" })).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(await repo.findAll({ tenantId: "t1" })).toHaveLength(0);
+  });
+
+  it("does not ask auth when no SIM is picked", async () => {
+    const { create, reader } = harness();
+    await create.execute({ manufacturer: "Teltonika", trackerType: "hardwired", useCase: "Telematics" });
+    expect(reader.read).not.toHaveBeenCalled();
   });
 });
