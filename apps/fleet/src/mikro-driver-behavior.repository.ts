@@ -58,7 +58,7 @@ export class MikroBehaviorEventRepository implements BehaviorEventRepository {
 
     const records = await em.find(DriverBehaviorEventRecord, where, {
       orderBy: { occurredAt: "desc" },
-      limit: filters?.limit ?? 500,
+      limit: filters?.limit === null ? undefined : (filters?.limit ?? 500),
     });
     return records.map(toEvent);
   }

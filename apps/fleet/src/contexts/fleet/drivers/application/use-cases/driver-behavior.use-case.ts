@@ -4,9 +4,12 @@ import {
   BEHAVIOR_EVENT_REPOSITORY,
   BEHAVIOR_EVENT_TYPES,
   BEHAVIOR_SEVERITIES,
+  BEHAVIOR_WINDOW_DAYS,
   rankDrivers,
   scoreBehaviorEvents,
+  scoreDrivers,
   type BehaviorEventRepository,
+  type BehaviorScores,
   type StoredBehaviorEvent,
 } from "../../domain/driver-behavior";
 import {
@@ -39,7 +42,7 @@ export class DriverBehaviorUseCase {
     const last24h = new Date(Date.now() - DAY_MS);
 
     const [events, drivers, alerts, readIds] = await Promise.all([
-      this.events.findAll(tenantId, { since }),
+      this.scoringEvents(tenantId, since),
       this.drivers.findAll({ tenantId }),
       this.alerts.findAll(tenantId),
       this.reads.findReadAlertIds(tenantId, userId),
@@ -56,7 +59,9 @@ export class DriverBehaviorUseCase {
       scopedDrivers.map((driver) => ({ id: driver.id, name: driver.name })),
       scopedEvents,
     );
-    const scored = ranking.filter((entry) => entry.eventsRecorded > 0);
+    const scored = ranking
+      .map((entry) => entry.scores.overall)
+      .filter((score): score is number => score !== null);
     const geofence = this.geofenceAlerts(alerts, since, readIds, ownedVehicleIds);
 
     return {
@@ -64,7 +69,7 @@ export class DriverBehaviorUseCase {
       // drivers as flawless. Only scored drivers count toward the average.
       averageScore:
         scored.length > 0
-          ? Math.round(scored.reduce((total, entry) => total + entry.scores.overall, 0) / scored.length)
+          ? Math.round(scored.reduce((total, score) => total + score, 0) / scored.length)
           : null,
       eventsLast24h: scopedEvents.filter((event) => event.occurredAt >= last24h).length,
       criticalLast24h: scopedEvents.filter(
@@ -82,7 +87,7 @@ export class DriverBehaviorUseCase {
   async ranking(tenantId: string, periodDays: number, ownedDriverIds: Set<string> | null = null) {
     const since = new Date(Date.now() - periodDays * DAY_MS);
     const [events, drivers] = await Promise.all([
-      this.events.findAll(tenantId, { since }),
+      this.scoringEvents(tenantId, since),
       this.drivers.findAll({ tenantId }),
     ]);
 
@@ -133,13 +138,12 @@ export class DriverBehaviorUseCase {
 
   async driverBehavior(tenantId: string, driverId: string, periodDays: number) {
     const since = new Date(Date.now() - periodDays * DAY_MS);
-    const events = await this.events.findAll(tenantId, { driverId, since });
-    const scores = scoreBehaviorEvents(events);
+    const events = await this.scoringEvents(tenantId, since, driverId);
 
     return {
       periodDays,
       eventsRecorded: events.length,
-      scores: events.length > 0 ? scores : { ...scores, overall: null },
+      scores: scoreBehaviorEvents(events),
       recentEvents: events.slice(0, 20).map((event) => ({
         id: event.id,
         type: event.type,
@@ -148,6 +152,14 @@ export class DriverBehaviorUseCase {
         occurredAt: event.occurredAt.toISOString(),
       })),
     };
+  }
+
+  /** Behaviour scores for the roster and the driver record, over the same window as the detail page. */
+  async scoresForDrivers(tenantId: string, driverIds: string[]): Promise<Map<string, BehaviorScores>> {
+    if (driverIds.length === 0) return new Map();
+    const since = new Date(Date.now() - BEHAVIOR_WINDOW_DAYS * DAY_MS);
+    const driverId = driverIds.length === 1 ? driverIds[0] : undefined;
+    return scoreDrivers(driverIds, await this.scoringEvents(tenantId, since, driverId));
   }
 
   async geofenceAlertFeed(
@@ -244,6 +256,10 @@ export class DriverBehaviorUseCase {
     };
     await this.events.save(event);
     return { id: event.id, occurredAt: event.occurredAt.toISOString() };
+  }
+
+  private scoringEvents(tenantId: string, since: Date, driverId?: string) {
+    return this.events.findAll(tenantId, { since, driverId, limit: null });
   }
 
   private geofenceAlerts(

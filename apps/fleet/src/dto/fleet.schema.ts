@@ -370,12 +370,22 @@ export class DriverSchema {
   updatedAt!: string;
 }
 
-/** Driver as listed on the roster, with the derived columns */
-export class DriverListItemSchema extends DriverSchema {
-  /** Same value as performanceScore */
+/** Driver with the behaviour score the detail page shows */
+export class ScoredDriverSchema extends DriverSchema {
+  /** Telemetry behaviour score over the last 30 days, 0-100; same value as /drivers/{id}/detail. Null when no events. Not performanceScore, which is delivery punctuality */
+  @ApiProperty({ type: Number, nullable: true })
   behaviorScore!: number | null;
   @ApiProperty({ enum: DRIVER_SCORE_BANDS })
   scoreBand!: DriverScoreBand;
+}
+
+export class ScoredDriverResponse extends StandardApiResponse<ScoredDriverSchema> {
+  @ApiProperty({ type: ScoredDriverSchema })
+  data!: ScoredDriverSchema;
+}
+
+/** Driver as listed on the roster, with the derived columns */
+export class DriverListItemSchema extends ScoredDriverSchema {
   /** Dispatch jobs assigned to the driver */
   trips!: number;
   @ApiProperty({ enum: DRIVER_TRIP_BANDS })
@@ -392,6 +402,59 @@ export class DriverResponse extends StandardApiResponse<DriverSchema> {
 export class DriverListResponse extends StandardApiResponse<DriverListItemSchema[]> {
   @ApiProperty({ type: DriverListItemSchema, isArray: true })
   data!: DriverListItemSchema[];
+}
+
+export class BehaviorEventCountsSchema {
+  hardBrake!: number;
+  hardAccel!: number;
+  sharpTurn!: number;
+  speeding!: number;
+  total!: number;
+  critical!: number;
+}
+
+export class BehaviorScoresSchema {
+  /** Weighted overall score, 0-100. Null when the driver has no events in the period */
+  @ApiProperty({ type: Number, nullable: true })
+  overall!: number | null;
+  braking!: number;
+  acceleration!: number;
+  cornering!: number;
+  speed!: number;
+  counts!: BehaviorEventCountsSchema;
+}
+
+export class DriverBehaviorRankingItemSchema {
+  driverId!: string;
+  driverName!: string;
+  /** 1-based position among scored drivers. Null for an unscored driver */
+  @ApiProperty({ type: Number, nullable: true })
+  rank!: number | null;
+  eventsRecorded!: number;
+  scores!: BehaviorScoresSchema;
+  @ApiProperty({ enum: DRIVER_SCORE_BANDS })
+  band!: DriverScoreBand;
+}
+
+export class DriverBehaviorRankingWeightsSchema {
+  braking!: number;
+  speeding!: number;
+  acceleration!: number;
+  cornering!: number;
+}
+
+export class DriverBehaviorRankingSchema {
+  periodDays!: number;
+  /** Percent weight of each dimension in the overall score */
+  weights!: DriverBehaviorRankingWeightsSchema;
+  /** Scored drivers by score descending, then unscored drivers by name */
+  @ApiProperty({ type: DriverBehaviorRankingItemSchema, isArray: true })
+  items!: DriverBehaviorRankingItemSchema[];
+}
+
+export class DriverBehaviorRankingResponse extends StandardApiResponse<DriverBehaviorRankingSchema> {
+  @ApiProperty({ type: DriverBehaviorRankingSchema })
+  data!: DriverBehaviorRankingSchema;
 }
 
 export class VehicleDriverAssignmentSchema {

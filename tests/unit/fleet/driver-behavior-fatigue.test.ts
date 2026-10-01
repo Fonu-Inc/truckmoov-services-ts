@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  bandFor,
   rankDrivers,
   scoreBehaviorEvents,
+  scoreDrivers,
   type StoredBehaviorEvent,
 } from "../../../apps/fleet/src/contexts/fleet/drivers/domain/driver-behavior";
 import {
@@ -33,10 +33,9 @@ function event(overrides: Partial<StoredBehaviorEvent> = {}): StoredBehaviorEven
 }
 
 describe("Behaviour scoring", () => {
-  // Absence of events is evidence here, unlike a driver with no telemetry.
-  it("scores a driver with no events as a clean 100", () => {
+  it("leaves a driver with no events unscored rather than a clean 100", () => {
     const scores = scoreBehaviorEvents([]);
-    expect(scores.overall).toBe(100);
+    expect(scores.overall).toBeNull();
     expect(scores.counts.total).toBe(0);
   });
 
@@ -64,26 +63,50 @@ describe("Behaviour scoring", () => {
     expect(scoreBehaviorEvents(events).braking).toBe(0);
   });
 
-  it("bands scores the way the ranking chips do", () => {
-    expect(bandFor(94)).toBe("excellent");
-    expect(bandFor(80)).toBe("good");
-    expect(bandFor(65)).toBe("fair");
-    expect(bandFor(40)).toBe("poor");
+  it("scores many drivers from one event list, ignoring drivers outside it", () => {
+    const scores = scoreDrivers(
+      ["d1", "d2"],
+      [
+        event({ driverId: "d1", type: "harsh_cornering", severity: "critical" }),
+        event({ driverId: "d9", severity: "critical" }),
+      ],
+    );
+
+    expect(scores.get("d1")?.overall).toBe(97);
+    expect(scores.get("d2")?.overall).toBeNull();
+    expect(scores.has("d9")).toBe(false);
   });
 });
 
 describe("Driver ranking", () => {
-  it("ranks by score and includes drivers with no events", () => {
+  it("ranks scored drivers by score, then unscored drivers unranked", () => {
     const ranking = rankDrivers(
       [
+        { id: "d0", name: "Bola" },
         { id: "d1", name: "Ada" },
         { id: "d2", name: "Musa" },
+        { id: "d3", name: "Chidi" },
       ],
-      [event({ driverId: "d1", severity: "critical" })],
+      [
+        event({ driverId: "d1", severity: "critical" }),
+        event({ driverId: "d3", type: "harsh_cornering", severity: "low" }),
+      ],
     );
 
-    expect(ranking[0]).toMatchObject({ driverId: "d2", rank: 1, eventsRecorded: 0 });
-    expect(ranking[1]).toMatchObject({ driverId: "d1", rank: 2, eventsRecorded: 1 });
+    expect(ranking.map((entry) => [entry.driverId, entry.rank, entry.scores.overall, entry.band])).toEqual([
+      ["d3", 1, 100, "excellent"],
+      ["d1", 2, 96, "excellent"],
+      ["d0", null, null, "unscored"],
+      ["d2", null, null, "unscored"],
+    ]);
+  });
+
+  it("bands with the roster's bands, so the ranking and roster chips agree", () => {
+    const ranking = rankDrivers(
+      [{ id: "d1", name: "Ada" }],
+      Array.from({ length: 4 }, () => event({ type: "overspeeding", severity: "critical" })),
+    );
+    expect(ranking[0]).toMatchObject({ band: "strong", scores: { overall: 82 } });
   });
 
   it("breaks a tie by name so the order is stable between requests", () => {
@@ -92,7 +115,7 @@ describe("Driver ranking", () => {
         { id: "d2", name: "Musa" },
         { id: "d1", name: "Ada" },
       ],
-      [],
+      [event({ driverId: "d1" }), event({ driverId: "d2" })],
     );
     expect(ranking.map((entry) => entry.driverName)).toEqual(["Ada", "Musa"]);
   });

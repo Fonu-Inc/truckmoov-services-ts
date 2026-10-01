@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   BEHAVIOR_EVENT_REPOSITORY,
+  BEHAVIOR_WINDOW_DAYS,
   scoreBehaviorEvents,
   type BehaviorEventRepository,
 } from "../../domain/driver-behavior";
@@ -21,7 +22,6 @@ import {
 } from "../../../dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../../alerts/domain/alert.repository";
 
-const BEHAVIOR_WINDOW_DAYS = 30;
 const TRIP_HISTORY_LIMIT = 20;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,7 +42,7 @@ export class DriverDetailUseCase {
 
     const since = new Date(Date.now() - BEHAVIOR_WINDOW_DAYS * DAY_MS);
     const [events, latestFatigue, consents, jobs, alerts] = await Promise.all([
-      this.events.findAll(tenantId, { driverId, since }),
+      this.events.findAll(tenantId, { driverId, since, limit: null }),
       this.fatigue.findLatestForDriver(tenantId, driverId),
       this.consents.findAllForDriver(tenantId, driverId),
       this.dispatchJobs.listJobs(tenantId),
@@ -64,14 +64,14 @@ export class DriverDetailUseCase {
         totalTrips: driverJobs.length,
       },
       header: {
-        behaviorScore: events.length > 0 ? scores.overall : null,
+        behaviorScore: scores.overall,
         fatigueScore: latestFatigue?.score ?? null,
         openAlerts: driverAlerts.length,
       },
       // The score is shown with its inputs rather than as a bare number: an
       // operator asked to act on a score needs to see what produced it.
       scoreBreakdown: {
-        overall: events.length > 0 ? scores.overall : null,
+        overall: scores.overall,
         eventsRecorded: events.length,
         windowDays: BEHAVIOR_WINDOW_DAYS,
         dimensions: [
@@ -92,7 +92,7 @@ export class DriverDetailUseCase {
       },
       license: buildLicense(driver.licenseNumber, driver.licenseExpiryDate ?? null),
       safety: {
-        behaviorScore: events.length > 0 ? scores.overall : null,
+        behaviorScore: scores.overall,
         criticalEvents: scores.counts.critical,
         fatigueScore: latestFatigue?.score ?? null,
         fatigueRisk: latestFatigue?.riskLevel ?? null,

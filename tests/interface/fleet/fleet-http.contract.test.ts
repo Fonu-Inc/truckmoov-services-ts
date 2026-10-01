@@ -492,6 +492,59 @@ describe("Fleet HTTP contract", () => {
     expect(Array.isArray(search.body.drivers)).toBe(true);
   });
 
+  it("serves one behaviour score across roster, driver, detail, behaviour, ranking and summary", async () => {
+    const tenant = "tenant-driver-scores";
+    const http = () => request(app.getHttpServer());
+    const createDriver = (firstName: string, licenseNumber: string, phone: string) =>
+      http()
+        .post("/fleet/drivers")
+        .set("Authorization", authToken("admin", tenant))
+        .set("Idempotency-Key", randomUUID())
+        .send({ firstName, lastName: "Doe", phone, licenseNumber, status: "available" });
+
+    const john = await createDriver("John", "LIC-SCORE-1", "+2348000000201");
+    const jane = await createDriver("Jane", "LIC-SCORE-2", "+2348000000202");
+    expect(john.status).toBe(201);
+    expect(jane.status).toBe(201);
+
+    const recorded = await http()
+      .post("/fleet/drivers/behavior/events")
+      .set("Authorization", authToken("admin", tenant))
+      .send({ driverId: john.body.id, type: "harsh_cornering", severity: "critical" });
+    expect(recorded.status).toBe(201);
+
+    const get = (path: string) => http().get(path).set("Authorization", authToken("admin", tenant));
+    const roster = await get("/fleet/drivers");
+    const single = await get(`/fleet/drivers/${john.body.id}`);
+    const detail = await get(`/fleet/drivers/${john.body.id}/detail`);
+    const behavior = await get(`/fleet/drivers/${john.body.id}/behavior`);
+    const unscoredBehavior = await get(`/fleet/drivers/${jane.body.id}/behavior`);
+    const ranking = await get("/fleet/drivers/behavior/ranking");
+    const summary = await get("/fleet/drivers/behavior/summary");
+    const unscoredFilter = await get("/fleet/drivers?scoreBand=unscored");
+
+    const detailScore = detail.body.data.header.behaviorScore;
+    expect(detailScore).toBe(97);
+    expect(detail.body.data.scoreBreakdown.overall).toBe(97);
+    expect(behavior.body.data.scores.overall).toBe(detailScore);
+
+    const rosterJohn = roster.body.data.find((row: { id: string }) => row.id === john.body.id);
+    const rosterJane = roster.body.data.find((row: { id: string }) => row.id === jane.body.id);
+    expect(rosterJohn).toMatchObject({ behaviorScore: detailScore, scoreBand: "excellent", performanceScore: null });
+    expect(rosterJane).toMatchObject({ behaviorScore: null, scoreBand: "unscored" });
+    expect(single.body).toMatchObject({ behaviorScore: detailScore, scoreBand: "excellent", performanceScore: null });
+    expect(unscoredFilter.body.data.map((row: { id: string }) => row.id)).toEqual([jane.body.id]);
+
+    expect(unscoredBehavior.body.data.scores.overall).toBeNull();
+    expect(ranking.body.data.items.map((item: Record<string, unknown>) => [item.driverId, item.rank, item.band])).toEqual([
+      [john.body.id, 1, "excellent"],
+      [jane.body.id, null, "unscored"],
+    ]);
+    expect(ranking.body.data.items[0].scores.overall).toBe(detailScore);
+    expect(ranking.body.data.items[1].scores.overall).toBeNull();
+    expect(summary.body.data).toMatchObject({ driversScored: 1, driversTotal: 2, averageScore: detailScore });
+  }, 120_000);
+
   it("POST /vehicles rejects unauthorized role", async () => {
     const response = await request(app.getHttpServer())
       .post("/fleet/vehicles")

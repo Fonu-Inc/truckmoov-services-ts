@@ -108,7 +108,13 @@ import {
   MarkAlertsReadDto,
   RunFatigueAnalysisDto,
 } from "./dto/driver.dto";
-import { BulkDriverImportResponse, DriverListResponse, DriverResponse } from "./dto/fleet.schema";
+import {
+  BulkDriverImportResponse,
+  DriverBehaviorRankingResponse,
+  DriverListResponse,
+  DriverResponse,
+  ScoredDriverResponse,
+} from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
 
 @ApiTags("Drivers")
@@ -258,8 +264,9 @@ export class DriversController extends BaseFleetController {
   }
 
   /**
-   * Trip counts come from dispatch in one call for the whole roster rather than
-   * one per driver: a hundred drivers must not become a hundred round trips.
+   * Trip counts and behaviour scores each come from one call for the whole
+   * roster rather than one per driver: a hundred drivers must not become a
+   * hundred round trips.
    */
   private async buildRoster(tenantId: string, query: DriverListQueryDto, req?: FleetRequestContext) {
     const owned = req ? await this.ownedDriverIds(tenantId, req) : null;
@@ -281,9 +288,13 @@ export class DriversController extends BaseFleetController {
     const raw = (drivers as unknown as Array<Record<string, unknown>>).filter(
       (driver) => owned === null || owned.has(String(driver["id"])),
     );
+    const scores = await this.driverBehaviorUseCase.scoresForDrivers(
+      tenantId,
+      raw.map((driver) => String(driver["id"])),
+    );
     const rows: DriverRosterRow[] = raw.map((driver) => {
       const id = String(driver["id"]);
-      const behaviorScore = (driver["performanceScore"] as number | null) ?? null;
+      const behaviorScore = scores.get(id)?.overall ?? null;
       const trips = tripsByDriver.get(id) ?? 0;
       return {
         id,
@@ -621,10 +632,11 @@ export class DriversController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Driver performance ranking",
-    description: "Drivers ranked by behaviour score, with the four dimension scores and event counts.",
+    description:
+      "Drivers ranked by behaviour score, with the four dimension scores and event counts. Scored drivers come first by score; drivers with no events in the period follow by name, with rank, scores.overall null and band unscored.",
   })
   @ApiQuery({ name: "period_days", required: false, type: Number })
-  @ApiOkResponse({ description: "Ranking" })
+  @ApiOkResponse({ type: DriverBehaviorRankingResponse })
   async getBehaviorRanking(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const data = await this.driverBehaviorUseCase.ranking(
@@ -861,11 +873,13 @@ export class DriversController extends BaseFleetController {
   @Get(":id")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get driver by ID" })
-  @ApiOkResponse({ type: DriverResponse })
-  async getDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<DriverResponse> {
-    return this.runFleetUseCase(() =>
-      this.getDriverUseCase.execute(id, this.tenantIdFromRequest(req)),
-    ) as unknown as Promise<DriverResponse>;
+  @ApiOkResponse({ type: ScoredDriverResponse })
+  async getDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<ScoredDriverResponse> {
+    const tenantId = this.tenantIdFromRequest(req);
+    const driver = await this.runFleetUseCase(() => this.getDriverUseCase.execute(id, tenantId));
+    const scores = await this.driverBehaviorUseCase.scoresForDrivers(tenantId, [id]);
+    const behaviorScore = scores.get(id)?.overall ?? null;
+    return { ...driver, behaviorScore, scoreBand: scoreBandFor(behaviorScore) } as unknown as ScoredDriverResponse;
   }
 
   /** Partially update a driver's details */

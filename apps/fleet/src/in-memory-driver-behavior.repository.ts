@@ -32,7 +32,7 @@ export class InMemoryBehaviorEventRepository implements BehaviorEventRepository 
         return true;
       })
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
-      .slice(0, filters?.limit ?? 500);
+      .slice(0, filters?.limit === null ? undefined : (filters?.limit ?? 500));
   }
 }
 
