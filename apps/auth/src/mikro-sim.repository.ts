@@ -99,6 +99,13 @@ export class MikroSimRepository implements SimRepository {
     return records.map(toStored);
   }
 
+  async findByMsisdns(tenantId: string, msisdns: string[]): Promise<StoredSim[]> {
+    if (msisdns.length === 0) return [];
+    const orm = await getAuthOrm(this.config.db);
+    const records = await orm.em.fork().find(IotSimRecord, { tenantId, msisdn: { $in: msisdns } });
+    return records.map(toStored);
+  }
+
   async save(sim: StoredSim): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();

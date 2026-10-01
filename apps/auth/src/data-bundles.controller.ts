@@ -28,7 +28,7 @@ import {
 } from '@nestjs/swagger';
 import { RequireIdempotency, IdempotencyGuard } from '@shared/rbac';
 import { ActivityLogService } from './activity-log.service';
-import { AllocateBundleUseCase } from './allocate-bundle.use-case';
+import { AllocateBundleUseCase, AllocationReferenceError } from './allocate-bundle.use-case';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { SpendingLimitExceededError } from './spending-limit.service';
@@ -71,7 +71,7 @@ import { ExportBundleAllocationsUseCase } from './export-bundle-allocations.use-
 import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
 import { ExportBundleTransactionsUseCase } from './export-bundle-transactions.use-case';
 import { GetAutoTopupUseCase } from './get-auto-topup.use-case';
-import { GetBundleAllocationUseCase } from './get-bundle-allocation.use-case';
+import { BundleAllocationNotFoundError, GetBundleAllocationUseCase } from './get-bundle-allocation.use-case';
 import { GetBundleSummaryUseCase } from './get-bundle-summary.use-case';
 import { GetCarrierDistributionUseCase } from './get-carrier-distribution.use-case';
 import { GetSpendBreakdownUseCase } from './get-spend-breakdown.use-case';
@@ -85,7 +85,6 @@ import { ListBundleRatesUseCase } from './list-bundle-rates.use-case';
 import { ListBundleTransactionsUseCase } from './list-bundle-transactions.use-case';
 import { ListCarriersUseCase } from './list-carriers.use-case';
 import { ListSimsForAllocationUseCase } from './list-sims-for-allocation.use-case';
-import { SimNotFoundError as TenantSimNotFoundError } from './list-tenant-sims.use-case';
 import { SaveAutoTopupUseCase } from './save-auto-topup.use-case';
 import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
@@ -344,6 +343,7 @@ export class DataBundlesController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof AllocationReferenceError) throw new BadRequestException({ message: error.message, field: error.field });
       if (error instanceof SpendingLimitExceededError) throw new ConflictException(error.message);
       if (error instanceof Error && error.message.includes('Insufficient')) throw new BadRequestException(error.message);
       throw error;
@@ -362,7 +362,7 @@ export class DataBundlesController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof BundleAllocationNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }

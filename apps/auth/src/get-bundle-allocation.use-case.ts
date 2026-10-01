@@ -6,6 +6,12 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 
+export class BundleAllocationNotFoundError extends Error {
+  constructor() {
+    super('Allocation not found');
+  }
+}
+
 @Injectable()
 export class GetBundleAllocationUseCase {
   constructor(
@@ -20,7 +26,7 @@ export class GetBundleAllocationUseCase {
     if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot access tenant allocations');
 
     const alloc = await this.bundleAllocationRepository.findById(allocationId);
-    if (!alloc || alloc.tenantId !== actor.tenantId) throw new Error('Allocation not found');
+    if (!alloc || alloc.tenantId !== actor.tenantId) throw new BundleAllocationNotFoundError();
 
     const b = await this.bundleCatalogRepository.findById(alloc.bundleId);
     const now = Date.now();

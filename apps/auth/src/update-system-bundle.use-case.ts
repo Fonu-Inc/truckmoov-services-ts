@@ -14,6 +14,12 @@ type Payload = {
   active?: boolean;
 };
 
+export class BundleNotFoundError extends Error {
+  constructor() {
+    super('Bundle not found');
+  }
+}
+
 @Injectable()
 export class UpdateSystemBundleUseCase {
   constructor(
@@ -26,7 +32,7 @@ export class UpdateSystemBundleUseCase {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository);
 
     const existing = await this.bundleCatalogRepository.findById(bundleId);
-    if (!existing) throw new Error('Bundle not found');
+    if (!existing) throw new BundleNotFoundError();
 
     await this.bundleCatalogRepository.save({
       ...existing,

@@ -70,6 +70,7 @@ export interface SimRepository {
   findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }>;
   findById(id: string): Promise<StoredSim | null>;
   findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]>;
+  findByMsisdns(tenantId: string, msisdns: string[]): Promise<StoredSim[]>;
   save(sim: StoredSim): Promise<void>;
   delete(id: string): Promise<void>;
   countByStatus(): Promise<Record<string, number>>;

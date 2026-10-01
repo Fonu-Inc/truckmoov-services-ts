@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { isUUID } from 'class-validator';
 import {
   BundleAllocationRecord,
   getAuthOrm,
@@ -62,6 +63,8 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
   }
 
   async findById(id: string): Promise<StoredBundleAllocation | null> {
+    // id column is uuid: postgres rejects any other string instead of matching nothing
+    if (!isUUID(id)) return null;
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const record = await em.findOne(BundleAllocationRecord, { id });

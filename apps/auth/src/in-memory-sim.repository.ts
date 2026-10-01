@@ -39,6 +39,10 @@ export class InMemorySimRepository implements SimRepository {
     return [...this.store.values()].filter((s) => s.deviceId !== null && deviceIds.includes(s.deviceId));
   }
 
+  async findByMsisdns(tenantId: string, msisdns: string[]): Promise<StoredSim[]> {
+    return [...this.store.values()].filter((s) => s.tenantId === tenantId && s.msisdn !== null && msisdns.includes(s.msisdn));
+  }
+
   async save(sim: StoredSim): Promise<void> {
     this.store.set(sim.id, sim);
   }

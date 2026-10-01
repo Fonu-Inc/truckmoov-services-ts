@@ -9,10 +9,21 @@ import { TENANT_WALLET_REPOSITORY, type TenantWalletRepository } from './tenant-
 import { SpendingLimitService } from './spending-limit.service';
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
+import { BUNDLE_CARRIER_REPOSITORY, type BundleCarrierRepository } from './bundle-carrier.repository';
+import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 
 type Payload = { carrierId: string; planType: string; bundleId: string; mobileNumbers: string[]; idempotencyKey?: string };
 type Allocation = Awaited<ReturnType<BundleAllocationRepository['findByPaymentReference']>>[number];
 type Bundle = NonNullable<Awaited<ReturnType<BundleCatalogRepository['findById']>>>;
+
+export class AllocationReferenceError extends Error {
+  constructor(
+    readonly field: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -32,6 +43,8 @@ export class AllocateBundleUseCase {
     @Inject(BUNDLE_ALLOCATION_REPOSITORY) private readonly bundleAllocationRepository: BundleAllocationRepository,
     @Inject(BUNDLE_TRANSACTION_REPOSITORY) private readonly bundleTransactionRepository: BundleTransactionRepository,
     @Inject(SpendingLimitService) private readonly spendingLimitService: SpendingLimitService,
+    @Inject(BUNDLE_CARRIER_REPOSITORY) private readonly bundleCarrierRepository: BundleCarrierRepository,
+    @Inject(SIM_REPOSITORY) private readonly simRepository: SimRepository,
   ) {}
 
   async execute(accessToken: string, payload: Payload) {
@@ -41,12 +54,13 @@ export class AllocateBundleUseCase {
     const tenantId = actor.tenantId!;
     const key = payload.idempotencyKey ?? randomUUID();
 
-    const bundle = await this.bundleCatalogRepository.findById(payload.bundleId);
-    if (!bundle) throw new Error('Bundle not found');
+    const bundle = await this.resolveBundle(payload.carrierId, payload.bundleId);
 
     const existing = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
     const count = payload.mobileNumbers.length;
     if (existing.length > 0) return this.settlePrior(tenantId, key, bundle, count, existing);
+
+    await this.assertTenantSims(tenantId, payload.mobileNumbers);
 
     const totalCostKobo = bundle.priceKobo * count;
 
@@ -74,6 +88,22 @@ export class AllocateBundleUseCase {
       await this.tryRefund(tenantId, key, bundle, count, err);
       throw err;
     }
+  }
+
+  private async resolveBundle(carrierId: string, bundleId: string): Promise<Bundle> {
+    const carrier = await this.bundleCarrierRepository.findById(carrierId);
+    if (!carrier) throw new AllocationReferenceError('carrierId', 'Carrier not found');
+    const bundle = await this.bundleCatalogRepository.findById(bundleId);
+    if (!bundle) throw new AllocationReferenceError('bundleId', 'Bundle not found');
+    if (bundle.carrierId !== carrier.id) throw new AllocationReferenceError('bundleId', 'Bundle does not belong to this carrier');
+    return bundle;
+  }
+
+  private async assertTenantSims(tenantId: string, mobileNumbers: string[]) {
+    const sims = await this.simRepository.findByMsisdns(tenantId, mobileNumbers);
+    const known = new Set(sims.map((s) => s.msisdn));
+    const unknown = mobileNumbers.filter((n) => !known.has(n));
+    if (unknown.length > 0) throw new AllocationReferenceError('mobileNumbers', `No SIM found for: ${unknown.join(', ')}`);
   }
 
   private async settlePrior(tenantId: string, key: string, bundle: Bundle, count: number, prior: Allocation[]) {

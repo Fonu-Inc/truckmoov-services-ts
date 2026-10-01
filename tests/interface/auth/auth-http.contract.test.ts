@@ -2698,6 +2698,84 @@ describe('Auth HTTP contract', () => {
     expect(missing.status).toBe(400);
   });
 
+  // ── Data bundle references ────────────────────────────
+
+  const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
+
+  async function walletBalance(token: string) {
+    const res = await request(app.getHttpServer())
+      .get('/auth/data-bundles/wallet/balance')
+      .set('Authorization', `Bearer ${token}`);
+    return res.body.data;
+  }
+
+  function allocate(token: string, body: Record<string, unknown>) {
+    return request(app.getHttpServer())
+      .post('/auth/data-bundles/allocations')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Idempotency-Key', randomUUID())
+      .send(body);
+  }
+
+  it('GET /data-bundles/allocations/:id answers 404 for an unknown allocation', async () => {
+    const admin = await seedEnterpriseAdmin(`bundle-get-${Date.now()}@truckmoov.com`);
+    for (const id of [UNKNOWN_ID, 'not-a-uuid']) {
+      const res = await request(app.getHttpServer())
+        .get(`/auth/data-bundles/allocations/${id}`)
+        .set('Authorization', `Bearer ${admin.body.accessToken}`);
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ status: false, message: 'Allocation not found' });
+    }
+  });
+
+  it('POST /data-bundles/allocations answers 400 for unknown references and charges nothing', async () => {
+    const admin = await seedEnterpriseAdmin(`bundle-alloc-${Date.now()}@truckmoov.com`);
+    const token = admin.body.accessToken as string;
+    const system = await systemToken();
+    const suffix = randomUUID().slice(0, 8);
+    const carrierId = `carrier-${suffix}`;
+    await request(app.getHttpServer())
+      .post('/auth/system/carriers')
+      .set('Authorization', `Bearer ${system}`)
+      .send({ id: carrierId, name: 'MTN', displayName: 'MTN' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/system/bundle-catalog')
+      .set('Authorization', `Bearer ${system}`)
+      .send({ id: `bundle-${suffix}`, code: `B-${suffix}`, name: 'MTN 1GB', carrierId, dataAmountGb: 1, validityDays: 30, billingCycle: 'monthly', priceNaira: 10 })
+      .expect(201);
+    const before = await walletBalance(token);
+
+    const cases = [
+      [{ carrierId: UNKNOWN_ID, bundleId: UNKNOWN_ID }, 'carrierId'],
+      [{ carrierId, bundleId: UNKNOWN_ID }, 'bundleId'],
+      [{ carrierId, bundleId: `bundle-${suffix}` }, 'mobileNumbers'],
+    ] as const;
+    for (const [refs, field] of cases) {
+      const res = await allocate(token, { ...refs, planType: 'monthly', mobileNumbers: ['08000000000'] });
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ status: false, field });
+    }
+
+    expect(await walletBalance(token)).toEqual(before);
+    const list = await request(app.getHttpServer())
+      .get('/auth/data-bundles/allocations')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.body.data.total).toBe(0);
+  });
+
+  it('system carrier and bundle updates answer 404 for unknown ids', async () => {
+    const token = await systemToken();
+    const server = app.getHttpServer();
+    const auth = { Authorization: `Bearer ${token}` };
+    const responses = [
+      await request(server).patch(`/auth/system/carriers/${UNKNOWN_ID}`).set(auth).send({ name: 'X' }),
+      await request(server).patch(`/auth/system/bundle-catalog/${UNKNOWN_ID}`).set(auth).send({ name: 'X' }),
+      await request(server).delete(`/auth/system/bundle-catalog/${UNKNOWN_ID}`).set(auth),
+    ];
+    expect(responses.map((r) => r.status)).toEqual([404, 404, 404]);
+  });
+
   // ── CORS ──────────────────────────────────────────────
 
   it('OPTIONS /auth/login exposes CORS preflight headers', async () => {

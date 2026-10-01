@@ -11,6 +11,22 @@ vi.mock(
 import { AllocateBundleUseCase } from "../../../apps/auth/src/allocate-bundle.use-case";
 import { InMemoryTenantWalletRepository } from "../../../apps/auth/src/in-memory-tenant-wallet.repository";
 import { InMemoryBundleAllocationRepository } from "../../../apps/auth/src/in-memory-bundle-allocation.repository";
+import { InMemoryBundleCarrierRepository } from "../../../apps/auth/src/in-memory-bundle-carrier.repository";
+import { InMemoryBundleCatalogRepository } from "../../../apps/auth/src/in-memory-bundle-catalog.repository";
+import { InMemorySimRepository } from "../../../apps/auth/src/in-memory-sim.repository";
+import { AllocationReferenceError } from "../../../apps/auth/src/allocate-bundle.use-case";
+import type { StoredSim } from "../../../apps/auth/src/sim.repository";
+
+// Every number resolves to one of the tenant's SIMs, so the money path is all that varies.
+function anySims() {
+  return {
+    findByMsisdns: async (_tenantId: string, msisdns: string[]) => msisdns.map((msisdn) => ({ msisdn })),
+  } as any;
+}
+
+function carrierC1() {
+  return { findById: async (id: string) => (id === "c1" ? { id: "c1" } : null) } as any;
+}
 
 // No limit configured: allow every spend and record nothing.
 function noSpendingLimit() {
@@ -21,6 +37,7 @@ function makeUseCase(wallet: InMemoryTenantWalletRepository) {
   const bundleCatalogRepository = {
     findById: vi.fn().mockResolvedValue({
       id: "b1",
+      carrierId: "c1",
       priceKobo: 1000,
       dataAmountGb: 1,
       validityDays: 30,
@@ -37,6 +54,8 @@ function makeUseCase(wallet: InMemoryTenantWalletRepository) {
     bundleAllocationRepository as any,
     bundleTransactionRepository as any,
     noSpendingLimit(),
+    carrierC1(),
+    anySims(),
   );
 }
 
@@ -49,9 +68,9 @@ function build(
   limit: any = noSpendingLimit(),
 ) {
   const catalog = {
-    findById: vi.fn().mockResolvedValue({ id: "b1", name: "B", priceKobo: 1000, dataAmountGb: 1, validityDays: 30 }),
+    findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 1000, dataAmountGb: 1, validityDays: 30 }),
   };
-  return new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, allocations as any, transactions as any, limit);
+  return new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, allocations as any, transactions as any, limit, carrierC1(), anySims());
 }
 
 describe("AllocateBundleUseCase — double-spend guard", () => {
@@ -207,5 +226,74 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(2000);
     const saved = await allocations.findByPaymentReference("t1", "k7");
     expect(saved.every((a) => a.status === "cancelled")).toBe(true);
+  });
+});
+
+function sim(overrides: Partial<StoredSim>): StoredSim {
+  return {
+    id: "s1", iccid: "8923400000000000001", imsi: null, msisdn: "08000000001", carrier: "MTN", plan: "iot_basic",
+    status: "active", tenantId: "t1", deviceId: null, deviceName: null, deviceImei: null, deviceType: null,
+    vehicleId: null, suspensionReason: null, notes: null, dataUsageMb: 0, dataLimitMb: 0, smsUsage: 0, smsLimit: 0,
+    monthlyCostNgn: 0, activationDate: null, expiryDate: null, lastActivity: null, signalStrength: null,
+    networkType: null, roaming: false, fonuSimId: null, fonuStatus: null, createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+describe("AllocateBundleUseCase — unknown references", () => {
+  async function setup() {
+    const now = new Date();
+    const wallet = new InMemoryTenantWalletRepository();
+    await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: now });
+    const carriers = new InMemoryBundleCarrierRepository();
+    await carriers.save({ id: "carrier-mtn", name: "MTN", displayName: "MTN", active: true, createdAt: now, updatedAt: now });
+    await carriers.save({ id: "carrier-glo", name: "Glo", displayName: "Glo", active: true, createdAt: now, updatedAt: now });
+    const catalog = new InMemoryBundleCatalogRepository();
+    await catalog.save({
+      id: "bundle-mtn-1gb", code: "MTN-1GB", name: "MTN 1GB", carrierId: "carrier-mtn", dataAmountGb: 1, validityDays: 30,
+      billingCycle: "monthly", priceKobo: 1000, currency: "NGN", active: true, createdAt: now, updatedAt: now,
+    });
+    const sims = new InMemorySimRepository();
+    await sims.save(sim({ id: "s1", msisdn: "08000000001" }));
+    await sims.save(sim({ id: "s2", iccid: "8923400000000000002", msisdn: "08000000002", tenantId: "other" }));
+    const allocations = new InMemoryBundleAllocationRepository();
+    const transactions = { save: vi.fn().mockResolvedValue(undefined) };
+    const limit = { assertWithinLimit: vi.fn(), recordSpend: vi.fn() };
+    const debit = vi.spyOn(wallet, "debit");
+    const useCase = new AllocateBundleUseCase(
+      {} as any, {} as any, catalog, wallet, allocations, transactions as any, limit as any, carriers, sims,
+    );
+    return { useCase, wallet, allocations, transactions, debit, limit };
+  }
+
+  const valid = { carrierId: "carrier-mtn", planType: "monthly", bundleId: "bundle-mtn-1gb", mobileNumbers: ["08000000001"] };
+
+  it.each([
+    ["carrierId", { carrierId: "00000000-0000-4000-8000-000000000000" }, "Carrier not found"],
+    ["bundleId", { bundleId: "00000000-0000-4000-8000-000000000000" }, "Bundle not found"],
+    ["bundleId", { carrierId: "carrier-glo" }, "Bundle does not belong to this carrier"],
+    ["mobileNumbers", { mobileNumbers: ["08000000000"] }, "No SIM found for: 08000000000"],
+    ["mobileNumbers", { mobileNumbers: ["08000000001", "08000000002"] }, "No SIM found for: 08000000002"],
+  ])("refuses an unknown %s before charging or writing anything", async (field, override, message) => {
+    const { useCase, wallet, allocations, transactions, debit, limit } = await setup();
+
+    const result = useCase.execute("tok", { ...valid, ...override, idempotencyKey: "k-ref" });
+
+    await expect(result).rejects.toBeInstanceOf(AllocationReferenceError);
+    await expect(result).rejects.toMatchObject({ field, message });
+    expect(debit).not.toHaveBeenCalled();
+    expect(limit.assertWithinLimit).not.toHaveBeenCalled();
+    expect(transactions.save).not.toHaveBeenCalled();
+    expect(await allocations.findByPaymentReference("t1", "k-ref")).toHaveLength(0);
+    expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);
+  });
+
+  it("allocates when every reference resolves", async () => {
+    const { useCase, wallet } = await setup();
+
+    const result = await useCase.execute("tok", { ...valid, idempotencyKey: "k-ok" });
+
+    expect(result.data.successfulCount).toBe(1);
+    expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(4000);
   });
 });

@@ -11,6 +11,7 @@ import {
   Query,
   UnauthorizedException,
   Delete,
+  NotFoundException,
   Res,
 } from '@nestjs/common';
 import {
@@ -35,8 +36,8 @@ import {
   ListSystemBundleCatalogQueryDto,
 } from './dto/sim-management.dto';
 import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use-case';
-import { UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
-import { UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
+import { BundleNotFoundError, UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
+import { CarrierNotFoundError, UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
 import { Portals, OnResource } from '@shared/access';
 
@@ -119,6 +120,7 @@ export class SystemBillingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof CarrierNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }
@@ -177,6 +179,7 @@ export class SystemBillingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof BundleNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }
@@ -193,6 +196,7 @@ export class SystemBillingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof BundleNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }

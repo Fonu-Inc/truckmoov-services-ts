@@ -7,6 +7,12 @@ import { BUNDLE_CARRIER_REPOSITORY, type BundleCarrierRepository } from './bundl
 
 type Payload = { name?: string; displayName?: string; active?: boolean };
 
+export class CarrierNotFoundError extends Error {
+  constructor() {
+    super('Carrier not found');
+  }
+}
+
 @Injectable()
 export class UpdateSystemCarrierUseCase {
   constructor(
@@ -19,7 +25,7 @@ export class UpdateSystemCarrierUseCase {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository);
 
     const existing = await this.bundleCarrierRepository.findById(carrierId);
-    if (!existing) throw new Error('Carrier not found');
+    if (!existing) throw new CarrierNotFoundError();
 
     await this.bundleCarrierRepository.save({
       ...existing,
