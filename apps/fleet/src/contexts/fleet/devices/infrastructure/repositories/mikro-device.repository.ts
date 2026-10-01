@@ -170,6 +170,7 @@ export class MikroDeviceRepository implements DeviceRepository {
           : null,
       suspendedAt: record.suspendedAt?.toISOString() ?? null,
       suspensionReason: record.suspensionReason ?? null,
+      suspendedBy: record.suspendedBy === "tenant" || record.suspendedBy === "platform" ? record.suspendedBy : null,
       traccarDeviceId: record.traccarDeviceId ?? null,
       provisionStatus:
         record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)
@@ -210,6 +211,7 @@ function toRecord(device: Device) {
     preSuspensionLifecycleStatus: device.preSuspensionLifecycleStatus,
     suspendedAt: device.suspendedAt ? new Date(device.suspendedAt) : null,
     suspensionReason: device.suspensionReason,
+    suspendedBy: device.suspendedBy,
     traccarDeviceId: device.traccarDeviceId,
     provisionStatus: device.provisionStatus,
     createdAt: new Date(device.createdAt),

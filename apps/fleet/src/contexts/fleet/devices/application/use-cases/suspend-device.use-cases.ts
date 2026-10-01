@@ -28,11 +28,11 @@ export class SuspendDeviceUseCase {
     private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
-  async execute(deviceId: string, reason: string | null) {
-    const device = await this.devices.findByIdAcrossTenants(deviceId);
-    if (!device) throw new DeviceNotFoundError(deviceId);
+  /** With a tenant, the tenant is suspending one of its own devices; without, the platform is. */
+  async execute(deviceId: string, reason: string | null, tenantId?: string) {
+    const device = await findDevice(this.devices, deviceId, tenantId);
 
-    const suspended = device.suspend(reason);
+    const suspended = device.suspend(reason, tenantId ? "tenant" : "platform");
     await this.devices.save(suspended);
     await detachFromVehicle(this.vehicles, device);
     await emitDeviceIdentity(this.identityPublisher, suspended, "updated");
@@ -61,14 +61,21 @@ export class ReinstateDeviceUseCase {
     private readonly identityPublisher: DeviceIdentityEventPublisher,
   ) {}
 
-  async execute(deviceId: string) {
-    const device = await this.devices.findByIdAcrossTenants(deviceId);
-    if (!device) throw new DeviceNotFoundError(deviceId);
+  async execute(deviceId: string, tenantId?: string) {
+    const device = await findDevice(this.devices, deviceId, tenantId);
 
-    const reinstated = device.reinstate();
+    const reinstated = device.reinstate(tenantId ? "tenant" : "platform");
     await this.devices.save(reinstated);
     await emitDeviceIdentity(this.identityPublisher, reinstated, "updated");
 
     return reinstated.toPrimitives();
   }
+}
+
+async function findDevice(devices: DeviceRepository, deviceId: string, tenantId?: string): Promise<Device> {
+  const device = tenantId
+    ? await devices.findById(deviceId, tenantId)
+    : await devices.findByIdAcrossTenants(deviceId);
+  if (!device) throw new DeviceNotFoundError(deviceId);
+  return device;
 }

@@ -43,6 +43,8 @@ export type {
 };
 
 
+export type SuspendedBy = "platform" | "tenant";
+
 export const VALID_DEVICE_LIFECYCLE_TRANSITIONS: Record<
   DeviceLifecycleStatus,
   DeviceLifecycleStatus[]
@@ -105,6 +107,7 @@ export type DeviceProps = {
   preSuspensionLifecycleStatus?: DeviceLifecycleStatus | null;
   suspendedAt?: string | null;
   suspensionReason?: string | null;
+  suspendedBy?: SuspendedBy | null;
   /** The wire-protocol/vendor identity actually observed at ingest, e.g. "teltonika". Not the same taxonomy as `protocol`, which is what the installer configured. */
   reportedProtocol?: string | null;
   configuredAt?: string | null;
@@ -216,6 +219,7 @@ export class Device {
       preSuspensionLifecycleStatus: props.preSuspensionLifecycleStatus ?? null,
       suspendedAt: props.suspendedAt ?? null,
       suspensionReason: props.suspensionReason ?? null,
+      suspendedBy: props.suspendedBy ?? null,
       traccarDeviceId: props.traccarDeviceId ?? null,
       provisionStatus: props.provisionStatus ?? "pending",
       createdAt: props.createdAt ?? new Date().toISOString(),
@@ -327,6 +331,10 @@ export class Device {
     return this.props.suspensionReason ?? null;
   }
 
+  get suspendedBy(): SuspendedBy | null {
+    return this.props.suspendedBy ?? null;
+  }
+
   get isSuspended(): boolean {
     return this.lifecycleStatus === "suspended";
   }
@@ -421,6 +429,7 @@ export class Device {
       preSuspensionLifecycleStatus: null,
       suspendedAt: null,
       suspensionReason: null,
+      suspendedBy: null,
       vehicleId: null,
       assignedAt: null,
       updatedAt: new Date().toISOString(),
@@ -433,7 +442,7 @@ export class Device {
    * vehicle's tracker, and where it was is kept so reinstating is not a
    * reinstallation.
    */
-  suspend(reason: string | null): Device {
+  suspend(reason: string | null, by: SuspendedBy = "platform"): Device {
     if (this.isSuspended) throw new FleetRuleError("device is already suspended");
     if (this.lifecycleStatus === "decommissioned") {
       throw new FleetRuleError("a decommissioned device cannot be suspended");
@@ -446,14 +455,22 @@ export class Device {
       preSuspensionLifecycleStatus: this.lifecycleStatus,
       suspendedAt: new Date().toISOString(),
       suspensionReason: reason?.trim() || null,
+      suspendedBy: by,
       vehicleId: null,
       assignedAt: null,
       updatedAt: new Date().toISOString(),
     });
   }
 
-  reinstate(): Device {
+  /**
+   * A tenant lifts only its own suspension. Anything else, including a row
+   * suspended before the suspender was recorded, is the platform's to lift.
+   */
+  reinstate(by: SuspendedBy = "platform"): Device {
     if (!this.isSuspended) throw new FleetRuleError("device is not suspended");
+    if (by === "tenant" && this.suspendedBy !== "tenant") {
+      throw new FleetRuleError("this device was suspended by the platform and only the platform can reinstate it");
+    }
 
     // It was assigned when it was suspended, but the vehicle link was released
     // and may since have been taken by another device, so it comes back ready
@@ -468,6 +485,7 @@ export class Device {
       preSuspensionLifecycleStatus: null,
       suspendedAt: null,
       suspensionReason: null,
+      suspendedBy: null,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -636,6 +654,12 @@ export class Device {
       verificationDeadline: this.verificationDeadline,
       verificationError: this.verificationError,
       verifiedAt: this.verifiedAt,
+      // Carried so rebuilding a suspended device keeps where it was and who
+      // suspended it.
+      preSuspensionLifecycleStatus: this.preSuspensionLifecycleStatus,
+      suspendedAt: this.suspendedAt,
+      suspensionReason: this.suspensionReason,
+      suspendedBy: this.suspendedBy,
       traccarDeviceId: this.traccarDeviceId,
       provisionStatus: this.provisionStatus,
       createdAt: this.createdAt,

@@ -121,6 +121,22 @@ export class DeviceSchema {
   @ApiProperty({ enum: ["pending", "registered", "failed"] })
   provisionStatus!: "pending" | "registered" | "failed";
 
+  @ApiProperty({ nullable: true })
+  suspendedAt!: string | null;
+
+  @ApiProperty({ nullable: true })
+  suspensionReason!: string | null;
+
+  @ApiProperty({
+    enum: ["platform", "tenant"],
+    nullable: true,
+    description: "Who suspended the device. A tenant can reinstate only its own suspensions; show Reinstate only when this is tenant.",
+  })
+  suspendedBy!: "platform" | "tenant" | null;
+
+  @ApiProperty({ nullable: true, description: "Where the device returns on reinstatement (assigned comes back as assignable)." })
+  preSuspensionLifecycleStatus!: string | null;
+
   @ApiProperty()
   createdAt!: string;
 

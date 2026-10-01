@@ -86,6 +86,7 @@ export class DeviceRecord {
   preSuspensionLifecycleStatus?: string | null;
   suspendedAt?: Date | null;
   suspensionReason?: string | null;
+  suspendedBy?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: string | null;
   createdAt!: Date;
@@ -197,6 +198,7 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     preSuspensionLifecycleStatus: { type: "string", length: 32, nullable: true },
     suspendedAt: { type: "datetime", nullable: true },
     suspensionReason: { type: "string", length: 500, nullable: true },
+    suspendedBy: { type: "string", length: 16, nullable: true },
     traccarDeviceId: { type: "string", length: 64, nullable: true },
     provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
     createdAt: { type: "datetime", defaultRaw: "now()" },

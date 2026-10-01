@@ -190,23 +190,25 @@ describe("Device CSV", () => {
   });
 });
 
+function device(lifecycleStatus: Parameters<typeof Device.create>[0]["lifecycleStatus"], vehicleId: string | null = null) {
+  return Device.create({
+    id: "d1",
+    imei: "359779090012345",
+    manufacturer: "Teltonika",
+    model: "FMC130",
+    firmwareVersion: "1.0.0",
+    tenantId: "tenant-a",
+    lifecycleStatus,
+    vehicleId,
+    signalStrength: null,
+    batteryLevel: null,
+    lastSeen: null,
+    assignedAt: null,
+  });
+}
+
 describe("Device suspension", () => {
-  function device(lifecycleStatus: Parameters<typeof Device.create>[0]["lifecycleStatus"], vehicleId: string | null = null) {
-    return Device.create({
-      id: "d1",
-      imei: "359779090012345",
-      manufacturer: "Teltonika",
-      model: "FMC130",
-      firmwareVersion: "1.0.0",
-      tenantId: "tenant-a",
-      lifecycleStatus,
-      vehicleId,
-      signalStrength: null,
-      batteryLevel: null,
-      lastSeen: null,
-      assignedAt: null,
-    });
-  }
+
 
   it("releases the vehicle and remembers where the device was", () => {
     const suspended = device("assigned", "v1").suspend("Unpaid invoice");
@@ -235,5 +237,43 @@ describe("Device suspension", () => {
     expect(() => device("configured").suspend(null).suspend(null)).toThrow(/already suspended/);
     expect(() => device("decommissioned").suspend(null)).toThrow(/decommissioned/);
     expect(() => device("configured").reinstate()).toThrow(/not suspended/);
+  });
+});
+
+describe("who may lift a suspension", () => {
+  it("lets a tenant reinstate a device it suspended", () => {
+    const suspended = device("assignable").suspend("lost", "tenant");
+
+    expect(suspended.suspendedBy).toBe("tenant");
+    const reinstated = suspended.reinstate("tenant");
+    expect(reinstated.lifecycleStatus).toBe("assignable");
+    expect(reinstated.suspendedBy).toBeNull();
+  });
+
+  // A platform suspension (say, for non-payment) is not the tenant's to undo.
+  it("refuses a tenant reinstating a platform suspension", () => {
+    expect(() => device("assignable").suspend(null, "platform").reinstate("tenant")).toThrow(/only the platform/);
+  });
+
+  it("treats a suspension with no recorded suspender as the platform's", () => {
+    const legacy = Device.create({ ...device("assignable").suspend(null).toPrimitives(), suspendedBy: null });
+
+    expect(() => legacy.reinstate("tenant")).toThrow(/only the platform/);
+    expect(legacy.reinstate("platform").lifecycleStatus).toBe("assignable");
+  });
+
+  it("lets the platform lift a tenant's suspension", () => {
+    expect(device("assignable").suspend(null, "tenant").reinstate().lifecycleStatus).toBe("assignable");
+  });
+});
+
+describe("a suspended device rebuilt by another change", () => {
+  // Any entity change rebuilds the device from its primitives; losing these
+  // would forget where to reinstate it and who may.
+  it("keeps where it was and who suspended it", () => {
+    const rebuilt = device("configured").suspend("lost", "tenant").withProvisioning({ provisionStatus: "registered" });
+
+    expect(rebuilt).toMatchObject({ suspendedBy: "tenant", suspensionReason: "lost", preSuspensionLifecycleStatus: "configured" });
+    expect(rebuilt.reinstate("tenant").lifecycleStatus).toBe("configured");
   });
 });

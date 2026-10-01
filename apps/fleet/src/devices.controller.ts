@@ -52,6 +52,8 @@ import {
   ListDevicesUseCase,
   GetDeviceUseCase,
   SetDeviceLifecycleStatusUseCase,
+  SuspendDeviceUseCase,
+  ReinstateDeviceUseCase,
 } from "./contexts/fleet/devices";
 import {
   buildDeviceCsvExport,
@@ -69,6 +71,7 @@ import {
 import {
   DeviceListQueryDto,
   SetDeviceLifecycleStatusDto,
+  SuspendDeviceDto,
   AssignDeviceToVehicleDto,
   SetDeviceFirmwareDto,
   UpdateDeviceDto,
@@ -101,6 +104,8 @@ export class DevicesController extends BaseFleetController {
     @Inject(DeviceInventorySummaryUseCase) private readonly deviceInventorySummaryUseCase: DeviceInventorySummaryUseCase,
     @Inject(DeviceFilterOptionsUseCase) private readonly deviceFilterOptionsUseCase: DeviceFilterOptionsUseCase,
     @Inject(DeviceCatalogLookupUseCase) private readonly deviceCatalogLookupUseCase: DeviceCatalogLookupUseCase,
+    @Inject(SuspendDeviceUseCase) private readonly suspendDeviceUseCase: SuspendDeviceUseCase,
+    @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -407,6 +412,47 @@ export class DevicesController extends BaseFleetController {
       metadata: { lifecycleStatus: payload.lifecycleStatus },
     });
     return result;
+  }
+
+  @Post(":id/suspend")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Suspend a device",
+    description:
+      "Takes the device out of service and releases its vehicle assignment. Reinstating returns it to where it was (an assigned device comes back assignable). A decommissioned or already suspended device is a 400.",
+  })
+  @ApiOkResponse({ type: DeviceResponse })
+  async suspendDevice(@Param("id") id: string, @Body() payload: SuspendDeviceDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.runFleetUseCase(() => this.suspendDeviceUseCase.execute(id, payload?.reason ?? null, tenantId));
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.suspended",
+      summary: "Device suspended",
+      metadata: { reason: payload?.reason ?? null },
+    });
+    return { status: true, message: "Device suspended", data } as unknown as DeviceResponse;
+  }
+
+  @Post(":id/reinstate")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Reinstate a device the tenant suspended",
+    description:
+      "Only a suspension the tenant made can be lifted here. A device the platform suspended answers 400 and stays suspended until the platform reinstates it.",
+  })
+  @ApiOkResponse({ type: DeviceResponse })
+  async reinstateDevice(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.runFleetUseCase(() => this.reinstateDeviceUseCase.execute(id, tenantId));
+    await this.recordActivity(req, {
+      entityType: "device",
+      entityId: id,
+      action: "device.reinstated",
+      summary: "Device reinstated",
+    });
+    return { status: true, message: "Device reinstated", data } as unknown as DeviceResponse;
   }
 
   @Patch(":id/firmware")
