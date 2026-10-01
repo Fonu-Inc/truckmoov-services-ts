@@ -8,6 +8,8 @@ export type WaybillFilters = {
   customerName?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** registrationKey()s of the vehicles the caller may see. Null or absent means every vehicle. */
+  registrationKeys?: ReadonlySet<string> | null;
   limit?: number;
   offset?: number;
 };
@@ -24,7 +26,10 @@ export interface WaybillRepository {
   findByNumber(waybillNumber: string, tenantId: string): Promise<Waybill | null>;
   search(filters: WaybillFilters): Promise<WaybillPage>;
   /** Counts per status for the summary figures, which must not be derived from a page. */
-  countByStatus(tenantId: string): Promise<Record<WaybillStatus, number>>;
+  countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<WaybillStatus, number>>;
   /**
    * Waybills still pending from before a cutoff, across every tenant. The stall
    * sweep runs platform-wide, so this deliberately takes no tenant.

@@ -8,6 +8,7 @@ import {
 } from "../../domain/entities/customer-invoice.entity";
 import type { Waybill } from "../../domain/entities/waybill.entity";
 import { WaybillNotFoundError } from "../../domain/errors/waybill.errors";
+import { isOnAllowedVehicle } from "../../domain/vehicle-registration";
 import {
   CUSTOMER_INVOICE_REPOSITORY,
   type CustomerInvoiceRepository,
@@ -26,6 +27,8 @@ import {
 export type GenerateInvoiceCommand = {
   tenantId: string;
   waybillIds: string[];
+  /** When set, every waybill must be on one of these vehicles. Null means no limit. */
+  allowedRegistrationKeys?: ReadonlySet<string> | null;
 };
 
 /**
@@ -104,7 +107,10 @@ export class GenerateInvoiceUseCase {
     const waybills: Waybill[] = [];
     for (const id of [...new Set(command.waybillIds)]) {
       const waybill = await this.waybills.findById(id, command.tenantId);
-      if (!waybill) throw new WaybillNotFoundError(id);
+      // Another owner's waybill reads as missing, not as forbidden.
+      if (!waybill || !isOnAllowedVehicle(waybill.vehicleRegistration, command.allowedRegistrationKeys)) {
+        throw new WaybillNotFoundError(id);
+      }
       if (waybill.status === "invoiced") {
         throw new FleetRuleError(`waybill ${id} is already on an invoice`);
       }

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { raw } from "@mikro-orm/core";
 import { AppConfigService } from "@shared/config";
 import {
   CustomerInvoice,
@@ -16,6 +17,7 @@ import {
   CustomerInvoiceRecord,
   getFleetOrm,
 } from "../../../shared/infrastructure/persistence/fleet-orm";
+import { REGISTRATION_KEY_SQL, registrationKeyClause } from "./registration-key.sql";
 
 @Injectable()
 export class MikroCustomerInvoiceRepository implements CustomerInvoiceRepository {
@@ -58,6 +60,9 @@ export class MikroCustomerInvoiceRepository implements CustomerInvoiceRepository
     const orm = await getFleetOrm(this.config.db);
     const where: Record<string, unknown> = { tenantId: filters.tenantId };
     if (filters.status) where.status = filters.status;
+    if (filters.registrationKeys) {
+      where[raw(REGISTRATION_KEY_SQL)] = { $in: [...filters.registrationKeys] };
+    }
 
     const query = filters.query?.trim();
     if (query) {
@@ -79,14 +84,18 @@ export class MikroCustomerInvoiceRepository implements CustomerInvoiceRepository
     return { items: records.map(toDomain), total };
   }
 
-  async countByStatus(tenantId: string): Promise<Record<InvoiceStatus, number>> {
+  async countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<InvoiceStatus, number>> {
+    const scope = registrationKeyClause(registrationKeys);
     const orm = await getFleetOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ status: string; total: string }>>(
       `select status, count(*) as total
          from fleet_customer_invoices
-        where tenant_id = ?
+        where tenant_id = ?${scope.sql}
         group by status`,
-      [tenantId],
+      [tenantId, ...scope.bindings],
     );
 
     const counts = Object.fromEntries(

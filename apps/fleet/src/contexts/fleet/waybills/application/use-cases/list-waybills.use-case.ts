@@ -21,8 +21,8 @@ export class ListWaybillsUseCase {
     const [page, counts] = await Promise.all([
       this.waybills.search({ ...filters, limit, offset }),
       // Counted independently of the page. The summary figures describe every
-      // waybill the tenant has, not the twenty-five currently on screen.
-      this.waybills.countByStatus(filters.tenantId),
+      // waybill the caller can see, not the twenty-five currently on screen.
+      this.waybills.countByStatus(filters.tenantId, filters.registrationKeys),
     ]);
 
     return {

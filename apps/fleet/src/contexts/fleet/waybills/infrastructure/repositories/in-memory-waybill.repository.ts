@@ -9,6 +9,7 @@ import type {
   WaybillPage,
   WaybillRepository,
 } from "../../domain/repositories/waybill.repository";
+import { isOnAllowedVehicle } from "../../domain/vehicle-registration";
 
 @Injectable()
 export class InMemoryWaybillRepository implements WaybillRepository {
@@ -45,13 +46,17 @@ export class InMemoryWaybillRepository implements WaybillRepository {
     return { items: matched.slice(offset, offset + limit), total: matched.length };
   }
 
-  async countByStatus(tenantId: string): Promise<Record<WaybillStatus, number>> {
+  async countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<WaybillStatus, number>> {
     const counts = Object.fromEntries(
       WAYBILL_STATUSES.map((status) => [status, 0]),
     ) as Record<WaybillStatus, number>;
 
     for (const waybill of this.data.values()) {
       if (waybill.tenantId !== tenantId) continue;
+      if (!isOnAllowedVehicle(waybill.vehicleRegistration, registrationKeys)) continue;
       counts[waybill.status] += 1;
     }
     return counts;
@@ -70,6 +75,7 @@ export class InMemoryWaybillRepository implements WaybillRepository {
   private matches(waybill: Waybill, filters: WaybillFilters): boolean {
     if (waybill.tenantId !== filters.tenantId) return false;
     if (filters.status && waybill.status !== filters.status) return false;
+    if (!isOnAllowedVehicle(waybill.vehicleRegistration, filters.registrationKeys)) return false;
     if (
       filters.customerName
       && (waybill.customerName ?? "").toLowerCase() !== filters.customerName.toLowerCase()

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { raw } from "@mikro-orm/core";
 import { AppConfigService } from "@shared/config";
 import {
   WAYBILL_STATUSES,
@@ -17,6 +18,7 @@ import {
   WaybillRecord,
   getFleetOrm,
 } from "../../../shared/infrastructure/persistence/fleet-orm";
+import { REGISTRATION_KEY_SQL, registrationKeyClause } from "./registration-key.sql";
 
 @Injectable()
 export class MikroWaybillRepository implements WaybillRepository {
@@ -74,6 +76,9 @@ export class MikroWaybillRepository implements WaybillRepository {
 
     const where: Record<string, unknown> = { tenantId: filters.tenantId };
     if (filters.status) where.status = filters.status;
+    if (filters.registrationKeys) {
+      where[raw(REGISTRATION_KEY_SQL)] = { $in: [...filters.registrationKeys] };
+    }
     if (filters.customerName) where.customerName = filters.customerName;
     if (filters.dateFrom || filters.dateTo) {
       where.waybillDate = {
@@ -114,16 +119,20 @@ export class MikroWaybillRepository implements WaybillRepository {
     return records.map(toDomain);
   }
 
-  async countByStatus(tenantId: string): Promise<Record<WaybillStatus, number>> {
+  async countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<WaybillStatus, number>> {
+    const scope = registrationKeyClause(registrationKeys);
     const orm = await getFleetOrm(this.config.db);
     // Grouped in SQL. A tenant's waybill count is unbounded, and counting them
     // in memory would fail first on the tenant the figures matter most for.
     const rows = await orm.em.getConnection().execute<Array<{ status: string; total: string }>>(
       `select status, count(*) as total
          from fleet_waybills
-        where tenant_id = ?
+        where tenant_id = ?${scope.sql}
         group by status`,
-      [tenantId],
+      [tenantId, ...scope.bindings],
     );
 
     const counts = Object.fromEntries(

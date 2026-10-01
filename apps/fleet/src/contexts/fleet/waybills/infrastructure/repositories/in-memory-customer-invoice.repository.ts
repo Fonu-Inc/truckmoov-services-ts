@@ -9,6 +9,7 @@ import type {
   InvoiceFilters,
   InvoicePage,
 } from "../../domain/repositories/customer-invoice.repository";
+import { isOnAllowedVehicle } from "../../domain/vehicle-registration";
 
 @Injectable()
 export class InMemoryCustomerInvoiceRepository implements CustomerInvoiceRepository {
@@ -31,6 +32,7 @@ export class InMemoryCustomerInvoiceRepository implements CustomerInvoiceReposit
       .filter((invoice) => {
         if (invoice.tenantId !== filters.tenantId) return false;
         if (filters.status && invoice.status !== filters.status) return false;
+        if (!isOnAllowedVehicle(invoice.vehicleRegistration, filters.registrationKeys)) return false;
         if (!query) return true;
         return [
           invoice.invoiceNumber,
@@ -46,13 +48,17 @@ export class InMemoryCustomerInvoiceRepository implements CustomerInvoiceReposit
     return { items: matched.slice(offset, offset + limit), total: matched.length };
   }
 
-  async countByStatus(tenantId: string): Promise<Record<InvoiceStatus, number>> {
+  async countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<InvoiceStatus, number>> {
     const counts = Object.fromEntries(
       INVOICE_STATUSES.map((status) => [status, 0]),
     ) as Record<InvoiceStatus, number>;
 
     for (const invoice of this.data.values()) {
       if (invoice.tenantId !== tenantId) continue;
+      if (!isOnAllowedVehicle(invoice.vehicleRegistration, registrationKeys)) continue;
       counts[invoice.status] += 1;
     }
     return counts;

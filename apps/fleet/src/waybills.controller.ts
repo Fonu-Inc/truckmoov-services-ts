@@ -50,6 +50,8 @@ import {
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
 import { Portals, OnResource } from "@shared/access";
+import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
+import { isOnAllowedVehicle } from "./contexts/fleet/waybills/domain/vehicle-registration";
 
 /** Reading revenue is a finance view; capturing a waybill is operations. */
 const WAYBILL_READ_ROLES = [
@@ -90,6 +92,7 @@ export class WaybillsController extends BaseFleetController {
     @Inject(WAYBILL_REPOSITORY) private readonly waybills: WaybillRepository,
     @Inject(ReviewWaybillUseCase) private readonly review: ReviewWaybillUseCase,
     @Inject(DRIVER_REPOSITORY) private readonly drivers: DriverRepository,
+    @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -99,7 +102,7 @@ export class WaybillsController extends BaseFleetController {
   @ApiOperation({
     summary: "List waybills",
     description:
-      "Paged. The summary figures count every waybill the tenant holds and are not derived from the returned page.",
+      "Paged. The summary figures count every waybill the caller can see and are not derived from the returned page. An independent owner operator sees only waybills on their own vehicles' registrations.",
   })
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiQuery({ name: "status", required: false, enum: WAYBILL_STATUSES })
@@ -123,8 +126,10 @@ export class WaybillsController extends BaseFleetController {
       throw new BadRequestException(`status must be one of: ${WAYBILL_STATUSES.join(", ")}`);
     }
 
+    const tenantId = this.tenantIdFromRequest(req);
     const data = await this.list.execute({
-      tenantId: this.tenantIdFromRequest(req),
+      tenantId,
+      registrationKeys: await this.ownedRegistrationKeysVia(this.listVehiclesUseCase, tenantId, req),
       query,
       status: status as never,
       customerName,
@@ -207,14 +212,18 @@ export class WaybillsController extends BaseFleetController {
   @ApiOperation({ summary: "Get one waybill, with whatever extraction produced" })
   @ApiOkResponse()
   async getWaybill(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const allowed = await this.ownedRegistrationKeysVia(this.listVehiclesUseCase, tenantId, req);
     const waybill = await this.runFleetUseCase(async () => {
-      const found = await this.waybills.findById(id, this.tenantIdFromRequest(req));
-      if (!found) throw new WaybillNotFoundError(id);
+      const found = await this.waybills.findById(id, tenantId);
+      // Another owner's waybill reads as missing, not as forbidden.
+      if (!found || !isOnAllowedVehicle(found.vehicleRegistration, allowed)) throw new WaybillNotFoundError(id);
       return found;
     });
 
     return { status: true, message: "success", data: toWaybillRow(waybill) };
   }
+
   @Patch(":id/review")
   @Roles(...WAYBILL_WRITE_ROLES)
   @ApiOperation({
@@ -229,8 +238,9 @@ export class WaybillsController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ) {
     const tenantId = this.tenantIdFromRequest(req);
+    const allowedRegistrationKeys = await this.ownedRegistrationKeysVia(this.listVehiclesUseCase, tenantId, req);
     const waybill = await this.runFleetUseCase(() =>
-      this.review.execute({ ...body, waybillId: id, tenantId }),
+      this.review.execute({ ...body, waybillId: id, tenantId, allowedRegistrationKeys }),
     );
 
     await this.recordActivity(req, {

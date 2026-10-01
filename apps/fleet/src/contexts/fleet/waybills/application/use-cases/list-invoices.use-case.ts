@@ -21,7 +21,7 @@ export class ListInvoicesUseCase {
 
     const [page, counts] = await Promise.all([
       this.invoices.search({ ...filters, limit, offset }),
-      this.invoices.countByStatus(filters.tenantId),
+      this.invoices.countByStatus(filters.tenantId, filters.registrationKeys),
     ]);
 
     return {

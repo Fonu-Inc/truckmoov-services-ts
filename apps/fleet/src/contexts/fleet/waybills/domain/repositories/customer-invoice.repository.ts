@@ -5,6 +5,8 @@ export type InvoiceFilters = {
   status?: InvoiceStatus;
   /** Matches invoice number, customer or route. */
   query?: string;
+  /** registrationKey()s of the vehicles the caller may see. Null or absent means every vehicle. */
+  registrationKeys?: ReadonlySet<string> | null;
   limit?: number;
   offset?: number;
 };
@@ -18,7 +20,10 @@ export interface CustomerInvoiceRepository {
   save(invoice: CustomerInvoice): Promise<void>;
   findById(id: string, tenantId: string): Promise<CustomerInvoice | null>;
   search(filters: InvoiceFilters): Promise<InvoicePage>;
-  countByStatus(tenantId: string): Promise<Record<InvoiceStatus, number>>;
+  countByStatus(
+    tenantId: string,
+    registrationKeys?: ReadonlySet<string> | null,
+  ): Promise<Record<InvoiceStatus, number>>;
   /**
    * Takes the next number in a series for one tenant.
    *

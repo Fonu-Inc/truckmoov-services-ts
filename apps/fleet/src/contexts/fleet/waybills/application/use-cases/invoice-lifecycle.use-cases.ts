@@ -9,12 +9,28 @@ import {
   WAYBILL_REPOSITORY,
   type WaybillRepository,
 } from "../../domain/repositories/waybill.repository";
+import { isOnAllowedVehicle } from "../../domain/vehicle-registration";
 
 export class InvoiceNotFoundError extends Error {
   constructor(id: string) {
     super(`Invoice ${id} not found`);
     this.name = "InvoiceNotFoundError";
   }
+}
+
+/** Null means no limit; otherwise the invoice must be on one of these vehicles. */
+type AllowedRegistrations = { allowedRegistrationKeys?: ReadonlySet<string> | null };
+
+async function loadInvoice(
+  invoices: CustomerInvoiceRepository,
+  input: { invoiceId: string; tenantId: string } & AllowedRegistrations,
+): Promise<CustomerInvoice> {
+  const invoice = await invoices.findById(input.invoiceId, input.tenantId);
+  // Another owner's invoice reads as missing, not as forbidden.
+  if (!invoice || !isOnAllowedVehicle(invoice.vehicleRegistration, input.allowedRegistrationKeys)) {
+    throw new InvoiceNotFoundError(input.invoiceId);
+  }
+  return invoice;
 }
 
 @Injectable()
@@ -29,8 +45,8 @@ export class ApproveInvoiceUseCase {
    * Deliberately not at creation: a binned draft would otherwise burn a number
    * and leave a hole an auditor would ask about.
    */
-  async execute(input: { invoiceId: string; tenantId: string }): Promise<CustomerInvoice> {
-    const invoice = await this.load(input.invoiceId, input.tenantId);
+  async execute(input: { invoiceId: string; tenantId: string } & AllowedRegistrations): Promise<CustomerInvoice> {
+    const invoice = await loadInvoice(this.invoices, input);
 
     const issuedAt = new Date();
     const year = issuedAt.getUTCFullYear();
@@ -43,12 +59,6 @@ export class ApproveInvoiceUseCase {
     });
     await this.invoices.save(approved);
     return approved;
-  }
-
-  private async load(id: string, tenantId: string): Promise<CustomerInvoice> {
-    const invoice = await this.invoices.findById(id, tenantId);
-    if (!invoice) throw new InvoiceNotFoundError(id);
-    return invoice;
   }
 }
 
@@ -69,9 +79,8 @@ export class SendInvoiceUseCase {
     invoiceId: string;
     tenantId: string;
     to?: string | null;
-  }): Promise<CustomerInvoice> {
-    const invoice = await this.invoices.findById(input.invoiceId, input.tenantId);
-    if (!invoice) throw new InvoiceNotFoundError(input.invoiceId);
+  } & AllowedRegistrations): Promise<CustomerInvoice> {
+    const invoice = await loadInvoice(this.invoices, input);
 
     const recipient = input.to?.trim() || (await this.replyAddressFor(invoice));
     if (!recipient) {
@@ -107,9 +116,8 @@ export class MarkInvoicePaidUseCase {
     tenantId: string;
     paidAt: string;
     reference: string | null;
-  }): Promise<CustomerInvoice> {
-    const invoice = await this.invoices.findById(input.invoiceId, input.tenantId);
-    if (!invoice) throw new InvoiceNotFoundError(input.invoiceId);
+  } & AllowedRegistrations): Promise<CustomerInvoice> {
+    const invoice = await loadInvoice(this.invoices, input);
 
     const paid = invoice.markPaid({ paidAt: input.paidAt, reference: input.reference });
     await this.invoices.save(paid);

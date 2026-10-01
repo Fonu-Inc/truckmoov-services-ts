@@ -8,6 +8,8 @@ import {
   WAYBILL_REPOSITORY,
   type WaybillRepository,
 } from "../../domain/repositories/waybill.repository";
+import { isOnAllowedVehicle } from "../../domain/vehicle-registration";
+import { VehicleNotFoundError } from "../../../vehicles";
 import { PriceWaybillUseCase } from "./price-waybill.use-case";
 
 export type ReviewWaybillCommand = {
@@ -21,6 +23,11 @@ export type ReviewWaybillCommand = {
   weight?: number | null;
   weightUnit?: string | null;
   waybillDate?: string | null;
+  /**
+   * When set, the waybill and the registration it is corrected to must be on
+   * one of these vehicles. Null means no limit.
+   */
+  allowedRegistrationKeys?: ReadonlySet<string> | null;
 };
 
 /**
@@ -39,9 +46,16 @@ export class ReviewWaybillUseCase {
 
   async execute(command: ReviewWaybillCommand): Promise<Waybill> {
     const waybill = await this.waybills.findById(command.waybillId, command.tenantId);
-    if (!waybill) throw new WaybillNotFoundError(command.waybillId);
+    const allowed = command.allowedRegistrationKeys;
+    // Another owner's waybill reads as missing, not as forbidden.
+    if (!waybill || !isOnAllowedVehicle(waybill.vehicleRegistration, allowed)) {
+      throw new WaybillNotFoundError(command.waybillId);
+    }
 
     const reviewed = waybill.applyReview(command);
+    if (!isOnAllowedVehicle(reviewed.vehicleRegistration, allowed)) {
+      throw new VehicleNotFoundError(reviewed.vehicleRegistration ?? "");
+    }
 
     if (reviewed.waybillNumber) {
       const existing = await this.waybills.findByNumber(

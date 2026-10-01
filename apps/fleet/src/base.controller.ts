@@ -8,6 +8,9 @@ import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntityType } from "./audit-log.service";
 import { DeviceNotFoundError } from "./contexts/fleet/devices";
 import { WaybillNotFoundError } from "./contexts/fleet/waybills/domain/errors/waybill.errors";
+import { registrationKey } from "./contexts/fleet/waybills/domain/vehicle-registration";
+import { InvoiceNotFoundError } from "./contexts/fleet/waybills/application/use-cases/invoice-lifecycle.use-cases";
+import { PricingRuleNotFoundError } from "./contexts/fleet/waybills/application/use-cases/pricing-rule.use-cases";
 import { DriverNotFoundError } from "./contexts/fleet/drivers";
 import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
 import { VehicleCapacityError } from "./contexts/fleet/vehicles/domain/vehicle-capacity";
@@ -80,6 +83,23 @@ export abstract class BaseFleetController {
 
     const vehicles = (await lister.execute({ tenantId, ownerOperatorId })) as Array<{ id: string }>;
     return new Set(vehicles.map((vehicle) => vehicle.id));
+  }
+
+  /**
+   * The registrationKey()s of an owner operator's own vehicles, or null for
+   * every other role. Waybills and invoices name a vehicle by its plate, not
+   * its id, so this is their scoping key.
+   */
+  protected async ownedRegistrationKeysVia(
+    lister: { execute(query: { tenantId: string; ownerOperatorId?: string }): Promise<unknown[]> },
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<Set<string> | null> {
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId) return null;
+
+    const vehicles = (await lister.execute({ tenantId, ownerOperatorId })) as Array<{ plateNumber?: string }>;
+    return new Set(vehicles.map((vehicle) => registrationKey(vehicle.plateNumber)).filter(Boolean));
   }
 
   /** An owner operator may act only on their own vehicles; a stranger's reads as not found. */
@@ -204,6 +224,8 @@ export abstract class BaseFleetController {
         || error instanceof DriverNotFoundError
         || error instanceof DeviceNotFoundError
         || error instanceof WaybillNotFoundError
+        || error instanceof InvoiceNotFoundError
+        || error instanceof PricingRuleNotFoundError
       ) {
         throw new NotFoundException(error.message);
       }

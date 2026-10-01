@@ -1,4 +1,18 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Role, Roles, RolesGuard } from "@shared/rbac";
@@ -22,6 +36,7 @@ import {
   DeactivatePricingRuleUseCase,
   ListPricingRulesUseCase,
   SavePricingRuleUseCase,
+  pricingRulesView,
   toPricingRuleRow,
 } from "./contexts/fleet/waybills/application/use-cases/pricing-rule.use-cases";
 import { INVOICE_STATUSES } from "./contexts/fleet/waybills/domain/entities/customer-invoice.entity";
@@ -34,6 +49,7 @@ import {
 } from "./dto/waybill.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
+import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 
 const READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
@@ -76,6 +92,7 @@ export class InvoicingController extends BaseFleetController {
     @Inject(ApproveInvoiceUseCase) private readonly approve: ApproveInvoiceUseCase,
     @Inject(SendInvoiceUseCase) private readonly send: SendInvoiceUseCase,
     @Inject(MarkInvoicePaidUseCase) private readonly markPaid: MarkInvoicePaidUseCase,
+    @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -86,7 +103,10 @@ export class InvoicingController extends BaseFleetController {
   @ApiQuery({ name: "query", required: false, type: String })
   @ApiOkResponse()
   async pricingRules(@Req() req: FleetRequestContext, @Query("query") query?: string) {
-    const data = await this.listRules.execute(this.tenantIdFromRequest(req), query);
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = this.ownerOperatorIdFromRequest(req)
+      ? pricingRulesView([], query)
+      : await this.listRules.execute(tenantId, query);
     return { status: true, message: "success", data };
   }
 
@@ -99,6 +119,7 @@ export class InvoicingController extends BaseFleetController {
   })
   @ApiOkResponse()
   async createPricingRule(@Body() body: SavePricingRuleDto, @Req() req: FleetRequestContext) {
+    this.refuseOwnerOperator(req, "Pricing rule not found");
     return this.upsertRule(body, req);
   }
 
@@ -111,6 +132,7 @@ export class InvoicingController extends BaseFleetController {
     @Body() body: SavePricingRuleDto,
     @Req() req: FleetRequestContext,
   ) {
+    this.refuseOwnerOperator(req, `Pricing rule ${id} not found`);
     return this.upsertRule(body, req, id);
   }
 
@@ -124,6 +146,7 @@ export class InvoicingController extends BaseFleetController {
   @ApiOkResponse()
   async deactivatePricingRule(@Param("id") id: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
+    this.refuseOwnerOperator(req, `Pricing rule ${id} not found`);
     const rule = await this.runFleetUseCase(() => this.deactivateRule.execute({ id, tenantId }));
 
     await this.recordActivity(req, {
@@ -141,7 +164,9 @@ export class InvoicingController extends BaseFleetController {
   @ApiOperation({ summary: "Invoice settings printed on every invoice" })
   @ApiOkResponse()
   async invoiceSettings(@Req() req: FleetRequestContext) {
-    const data = await this.getSettings.execute(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    // Shown as if none were saved, the way the fleet-wide fuel budget is hidden.
+    const data = this.ownerOperatorIdFromRequest(req) ? null : await this.getSettings.execute(tenantId);
     return { status: true, message: "success", data };
   }
 
@@ -157,8 +182,10 @@ export class InvoicingController extends BaseFleetController {
     @Body() body: SaveInvoiceSettingsDto,
     @Req() req: FleetRequestContext,
   ) {
+    const tenantId = this.tenantIdFromRequest(req);
+    this.refuseOwnerOperator(req, "Invoice settings not found");
     const data = await this.runFleetUseCase(() =>
-      this.saveSettings.execute({ ...body, tenantId: this.tenantIdFromRequest(req) }),
+      this.saveSettings.execute({ ...body, tenantId }),
     );
     return { status: true, message: "success", data };
   }
@@ -178,8 +205,10 @@ export class InvoicingController extends BaseFleetController {
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
   ) {
+    const tenantId = this.tenantIdFromRequest(req);
     const data = await this.listInvoices.execute({
-      tenantId: this.tenantIdFromRequest(req),
+      tenantId,
+      registrationKeys: await this.allowedRegistrationKeys(tenantId, req),
       query,
       status: status as never,
       limit: limit ? Number(limit) : undefined,
@@ -198,8 +227,9 @@ export class InvoicingController extends BaseFleetController {
   @ApiOkResponse()
   async generateInvoice(@Body() body: GenerateInvoiceDto, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
+    const allowedRegistrationKeys = await this.allowedRegistrationKeys(tenantId, req);
     const invoice = await this.runFleetUseCase(() =>
-      this.generate.execute({ tenantId, waybillIds: body.waybillIds }),
+      this.generate.execute({ tenantId, waybillIds: body.waybillIds, allowedRegistrationKeys }),
     );
 
     await this.recordActivity(req, {
@@ -219,8 +249,9 @@ export class InvoicingController extends BaseFleetController {
   @ApiOkResponse()
   async approveInvoice(@Param("id") id: string, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
+    const allowedRegistrationKeys = await this.allowedRegistrationKeys(tenantId, req);
     const invoice = await this.runFleetUseCase(() =>
-      this.approve.execute({ invoiceId: id, tenantId }),
+      this.approve.execute({ invoiceId: id, tenantId, allowedRegistrationKeys }),
     );
 
     await this.recordActivity(req, {
@@ -246,8 +277,9 @@ export class InvoicingController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ) {
     const tenantId = this.tenantIdFromRequest(req);
+    const allowedRegistrationKeys = await this.allowedRegistrationKeys(tenantId, req);
     const invoice = await this.runFleetUseCase(() =>
-      this.send.execute({ invoiceId: id, tenantId, to: body.to }),
+      this.send.execute({ invoiceId: id, tenantId, to: body.to, allowedRegistrationKeys }),
     );
 
     await this.recordActivity(req, {
@@ -270,12 +302,14 @@ export class InvoicingController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ) {
     const tenantId = this.tenantIdFromRequest(req);
+    const allowedRegistrationKeys = await this.allowedRegistrationKeys(tenantId, req);
     const invoice = await this.runFleetUseCase(() =>
       this.markPaid.execute({
         invoiceId: id,
         tenantId,
         paidAt: body.paidAt,
         reference: body.reference ?? null,
+        allowedRegistrationKeys,
       }),
     );
 
@@ -288,6 +322,18 @@ export class InvoicingController extends BaseFleetController {
     });
 
     return { status: true, message: "success", data: toInvoiceRow(invoice) };
+  }
+
+  private allowedRegistrationKeys(tenantId: string, req: FleetRequestContext) {
+    return this.ownedRegistrationKeysVia(this.listVehiclesUseCase, tenantId, req);
+  }
+
+  /**
+   * Pricing rules and invoice settings are the whole account's, not any one
+   * vehicle's, so an independent owner operator is refused them as if absent.
+   */
+  private refuseOwnerOperator(req: FleetRequestContext, message: string): void {
+    if (this.ownerOperatorIdFromRequest(req)) throw new NotFoundException(message);
   }
 
   private async upsertRule(

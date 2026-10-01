@@ -104,28 +104,31 @@ export class ListPricingRulesUseCase {
   ) {}
 
   async execute(tenantId: string, query?: string, now = new Date()) {
-    const all = await this.rules.findAll(tenantId);
-    const search = query?.trim().toLowerCase();
-    const today = now.toISOString().slice(0, 10);
-
-    const filtered = !search
-      ? all
-      : all.filter((rule) =>
-          [rule.name, rule.destination, rule.origin, rule.customerName, rule.vehicleType]
-            .some((value) => (value ?? "").toLowerCase().includes(search)),
-        );
-
-    return {
-      summary: {
-        totalRules: all.length,
-        // "Active" means both flagged active and inside its window today.
-        activeRules: all.filter((rule) => rule.active && rule.wasEffectiveOn(today)).length,
-        flatRateRules: all.filter((rule) => rule.mode === "flat").length,
-        perWeightRules: all.filter((rule) => rule.mode === "per_unit").length,
-      },
-      rules: filtered.map(toPricingRuleRow),
-    };
+    return pricingRulesView(await this.rules.findAll(tenantId), query, now);
   }
+}
+
+export function pricingRulesView(all: PricingRule[], query?: string, now = new Date()) {
+  const search = query?.trim().toLowerCase();
+  const today = now.toISOString().slice(0, 10);
+
+  const filtered = !search
+    ? all
+    : all.filter((rule) =>
+        [rule.name, rule.destination, rule.origin, rule.customerName, rule.vehicleType]
+          .some((value) => (value ?? "").toLowerCase().includes(search)),
+      );
+
+  return {
+    summary: {
+      totalRules: all.length,
+      // "Active" means both flagged active and inside its window today.
+      activeRules: all.filter((rule) => rule.active && rule.wasEffectiveOn(today)).length,
+      flatRateRules: all.filter((rule) => rule.mode === "flat").length,
+      perWeightRules: all.filter((rule) => rule.mode === "per_unit").length,
+    },
+    rules: filtered.map(toPricingRuleRow),
+  };
 }
 
 export function toPricingRuleRow(rule: PricingRule) {
