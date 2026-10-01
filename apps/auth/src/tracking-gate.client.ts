@@ -33,12 +33,13 @@ export class TrackingGateClient {
     const headers = this.caller.headers('tracking', { tenantId: SYSTEM_TENANT_ID, legacyRole: 'PLATFORM_ADMIN' });
     if (!headers) return null;
     try {
-      const response = await axios.get<GateReport>(
+      const response = await axios.get<{ data?: GateReport }>(
         `${this.config.auth.trackingServiceUrl}/tracking/internal/gate/blocked-devices`,
         { headers, timeout: 4000, validateStatus: () => true },
       );
-      if (response.status !== 200 || !Array.isArray(response.data?.devices)) return null;
-      return response.data;
+      const report = response.data?.data;
+      if (response.status !== 200 || !Array.isArray(report?.devices)) return null;
+      return report;
     } catch (error) {
       this.logger.warn(`tracking_gate_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return null;
