@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { StandardApiResponse } from "@shared/openapi";
 import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
+import {
+  DRIVER_SCORE_BANDS,
+  DRIVER_TRIP_BANDS,
+  type DriverScoreBand,
+  type DriverTripBand,
+} from "../contexts/fleet/drivers/domain/driver-roster";
 
 export class VehicleGpsDeviceSchema {
   @ApiProperty()
@@ -336,10 +342,30 @@ export class DriverSchema {
   assignedVehicleId!: string | null;
   /** Contact channels used for dispatch communications */
   contactChannels!: DriverContactChannelsSchema;
+  /** Stored delivery performance score, 0-100. Null until scored */
+  performanceScore!: number | null;
+  /** Deliveries the score was computed from */
+  performanceJobsScored!: number | null;
+  /** When the score was last computed */
+  performanceScoredAt!: string | null;
   /** Record creation timestamp */
   createdAt!: string;
   /** Record update timestamp */
   updatedAt!: string;
+}
+
+/** Driver as listed on the roster, with the derived columns */
+export class DriverListItemSchema extends DriverSchema {
+  /** Same value as performanceScore */
+  behaviorScore!: number | null;
+  @ApiProperty({ enum: DRIVER_SCORE_BANDS })
+  scoreBand!: DriverScoreBand;
+  /** Dispatch jobs assigned to the driver */
+  trips!: number;
+  @ApiProperty({ enum: DRIVER_TRIP_BANDS })
+  tripBand!: DriverTripBand;
+  /** Same value as communicationPreference, defaulting to whatsapp */
+  preferredChannel!: string;
 }
 
 export class DriverResponse extends StandardApiResponse<DriverSchema> {
@@ -347,9 +373,9 @@ export class DriverResponse extends StandardApiResponse<DriverSchema> {
   data!: DriverSchema;
 }
 
-export class DriverListResponse extends StandardApiResponse<DriverSchema[]> {
-  @ApiProperty({ type: DriverSchema, isArray: true })
-  data!: DriverSchema[];
+export class DriverListResponse extends StandardApiResponse<DriverListItemSchema[]> {
+  @ApiProperty({ type: DriverListItemSchema, isArray: true })
+  data!: DriverListItemSchema[];
 }
 
 export class VehicleDriverAssignmentSchema {
@@ -438,6 +464,25 @@ export class RecommendedDriverSchema {
 export class RecommendDriversResponse extends StandardApiResponse<RecommendedDriverSchema[]> {
   @ApiProperty({ type: RecommendedDriverSchema, isArray: true })
   data!: RecommendedDriverSchema[];
+}
+
+export class RecommendedVehicleRankSchema {
+  @ApiProperty() vehicleId!: string;
+  @ApiProperty() plateNumber!: string;
+  @ApiProperty({ nullable: true }) make!: string | null;
+  @ApiProperty() model!: string;
+  @ApiProperty({ nullable: true }) type!: string | null;
+  @ApiProperty({ nullable: true }) fuelType!: string | null;
+  @ApiProperty() status!: string;
+  @ApiProperty({ nullable: true }) capacityWeightKg!: number | null;
+  @ApiProperty({ description: "0-100, higher is a better fit" }) score!: number;
+  @ApiProperty({ nullable: true }) distanceKm!: number | null;
+  @ApiProperty({ type: String, isArray: true }) reasons!: string[];
+}
+
+export class RecommendVehiclesResponse extends StandardApiResponse<RecommendedVehicleRankSchema[]> {
+  @ApiProperty({ type: RecommendedVehicleRankSchema, isArray: true })
+  data!: RecommendedVehicleRankSchema[];
 }
 
 export class FleetHealthResponse extends StandardApiResponse<{ service: string }> {

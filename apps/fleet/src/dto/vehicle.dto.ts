@@ -367,6 +367,45 @@ export class RecommendDriversQueryDto {
   limit?: number;
 }
 
+export class RecommendVehiclesQueryDto {
+  @ApiPropertyOptional({ description: "Cargo weight in kg the vehicle must carry" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  requiredWeightKg?: number;
+
+  @ApiPropertyOptional({ enum: FLEET_VEHICLE_TYPES })
+  @IsOptional()
+  @IsIn(FLEET_VEHICLE_TYPES)
+  vehicleType?: "truck" | "van" | "trailer";
+
+  @ApiPropertyOptional({ enum: FLEET_FUEL_TYPES })
+  @IsOptional()
+  @IsIn(FLEET_FUEL_TYPES)
+  fuelType?: (typeof FLEET_FUEL_TYPES)[number];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  pickupLat?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  pickupLng?: number;
+
+  @ApiPropertyOptional({ description: "Default 10, at most 50" })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export class DispatchSearchQueryDto {
   @IsOptional()
   @IsString()

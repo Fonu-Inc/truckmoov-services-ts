@@ -3,6 +3,8 @@ import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/r
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
 import { VehicleHealthService } from "../../../../vehicle-health.service";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../domain/ports/dispatch-jobs-reader.port";
+import { ACTIVE_JOB_STATUSES } from "../domain/active-job-statuses";
+import { haversineKm } from "../../../../utils/haversine";
 
 export type RecommendDriversQuery = {
   requiredCapacity?: number;
@@ -45,13 +47,18 @@ export class RecommendDriversUseCase {
   ) {}
 
   async execute(tenantId: string, query: RecommendDriversQuery): Promise<RecommendedDriver[]> {
-    const [drivers, vehicles, activeJobs] = await Promise.all([
+    const [drivers, vehicles, jobs] = await Promise.all([
       this.driverRepo.findAll({ tenantId }),
       this.vehicleRepo.findAll({ tenantId }),
-      this.dispatchJobs.listJobs(tenantId, { status: "in_progress" }),
+      this.dispatchJobs.listJobs(tenantId),
     ]);
     const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
-    const busyDriverIds = new Set(activeJobs.map((j) => j.assignedDriverId).filter((id): id is string => !!id));
+    const busyDriverIds = new Set(
+      jobs
+        .filter((j) => ACTIVE_JOB_STATUSES.has(j.status))
+        .map((j) => j.assignedDriverId)
+        .filter((id): id is string => !!id),
+    );
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
 
     const ranked = drivers
@@ -128,18 +135,4 @@ export class RecommendDriversUseCase {
       reasons,
     };
   }
-}
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
 }

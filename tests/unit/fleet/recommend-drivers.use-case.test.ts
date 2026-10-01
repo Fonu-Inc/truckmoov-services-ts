@@ -18,10 +18,10 @@ function vehicle(id: string, capacity: number | null, type: string | null) {
   });
 }
 
-function build(drivers: Driver[], vehicles: Vehicle[], activeJobs: Array<{ assignedDriverId: string | null }> = []) {
+function build(drivers: Driver[], vehicles: Vehicle[], jobs: Array<{ assignedDriverId: string | null; status: string }> = []) {
   const driverRepo = { findAll: vi.fn().mockResolvedValue(drivers) };
   const vehicleRepo = { findAll: vi.fn().mockResolvedValue(vehicles) };
-  const dispatchJobs = { listJobs: vi.fn().mockResolvedValue(activeJobs) };
+  const dispatchJobs = { listJobs: vi.fn().mockResolvedValue(jobs) };
   const health = new VehicleHealthService();
   return { uc: new RecommendDriversUseCase(driverRepo as any, vehicleRepo as any, dispatchJobs as any, health), health };
 }
@@ -68,10 +68,32 @@ describe("RecommendDriversUseCase", () => {
     const { uc } = build(
       [driver("d1", "available", "v1"), driver("d2", "available", "v2")],
       [vehicle("v1", 10, "truck"), vehicle("v2", 10, "truck")],
-      [{ assignedDriverId: "d1" }],
+      [{ assignedDriverId: "d1", status: "en-route" }],
     );
     const ranked = await uc.execute("t1", {});
     expect(ranked[0].driverId).toBe("d2");
     expect(ranked.find((r) => r.driverId === "d1")?.reasons).toContain("on active dispatch job");
+  });
+
+  // Dispatch's in_progress filter no longer includes assigned jobs, so the
+  // busy check cannot lean on it.
+  it("treats a driver on an assigned job as busy", async () => {
+    const { uc } = build(
+      [driver("d1", "available", "v1")],
+      [vehicle("v1", 10, "truck")],
+      [{ assignedDriverId: "d1", status: "assigned" }],
+    );
+    const [ranked] = await uc.execute("t1", {});
+    expect(ranked.reasons).toContain("on active dispatch job");
+  });
+
+  it("frees a driver once their job is delivered", async () => {
+    const { uc } = build(
+      [driver("d1", "available", "v1")],
+      [vehicle("v1", 10, "truck")],
+      [{ assignedDriverId: "d1", status: "delivered" }],
+    );
+    const [ranked] = await uc.execute("t1", {});
+    expect(ranked.reasons).not.toContain("on active dispatch job");
   });
 });

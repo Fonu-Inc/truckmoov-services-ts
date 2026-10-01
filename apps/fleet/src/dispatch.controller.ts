@@ -18,11 +18,12 @@ import { Roles, Role, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { RecommendDriversUseCase } from "./contexts/fleet/dispatch/application/recommend-drivers.use-case";
+import { RecommendVehiclesUseCase } from "./contexts/fleet/dispatch/application/recommend-vehicles.use-case";
 import { ListDriversUseCase } from "./contexts/fleet/drivers";
 import { normalizeDriverStatus, DRIVER_STATUS_INPUTS } from "./contexts/fleet/drivers/domain/entities/driver.entity";
 import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
-import { DispatchSearchResponse, RecommendDriversResponse } from "./dto/fleet.schema";
-import { RecommendDriversQueryDto, DispatchSearchQueryDto } from "./dto/vehicle.dto";
+import { DispatchSearchResponse, RecommendDriversResponse, RecommendVehiclesResponse } from "./dto/fleet.schema";
+import { RecommendDriversQueryDto, RecommendVehiclesQueryDto, DispatchSearchQueryDto } from "./dto/vehicle.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
 
@@ -39,6 +40,7 @@ export class DispatchController extends BaseFleetController {
     @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
     @Inject(ListDriversUseCase) private readonly listDriversUseCase: ListDriversUseCase,
     @Inject(RecommendDriversUseCase) private readonly recommendDriversUseCase: RecommendDriversUseCase,
+    @Inject(RecommendVehiclesUseCase) private readonly recommendVehiclesUseCase: RecommendVehiclesUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -88,5 +90,17 @@ export class DispatchController extends BaseFleetController {
   async recommendDrivers(@Query() query: RecommendDriversQueryDto, @Req() req: FleetRequestContext): Promise<RecommendDriversResponse> {
     const data = await this.recommendDriversUseCase.execute(this.tenantIdFromRequest(req), query);
     return { status: true, message: "success", data } as unknown as RecommendDriversResponse;
+  }
+
+  @Get("recommend-vehicles")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @ApiOperation({
+    summary: "Rank vehicles for a job by availability, capacity, type, fuel, and proximity",
+    description: "Same shape and scoring approach as recommend-drivers. A vehicle on an active dispatch job (assigned through loaded) or in maintenance still appears, ranked low, with the reason.",
+  })
+  @ApiOkResponse({ type: RecommendVehiclesResponse })
+  async recommendVehicles(@Query() query: RecommendVehiclesQueryDto, @Req() req: FleetRequestContext): Promise<RecommendVehiclesResponse> {
+    const data = await this.recommendVehiclesUseCase.execute(this.tenantIdFromRequest(req), query);
+    return { status: true, message: "success", data };
   }
 }

@@ -269,6 +269,7 @@ import { DISPATCH_JOBS_READER } from "./contexts/fleet/dispatch/domain/ports/dis
 import { HttpDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/http-dispatch-jobs-reader";
 import { NoopDispatchJobsReader } from "./contexts/fleet/dispatch/infrastructure/noop-dispatch-jobs-reader";
 import { RecommendDriversUseCase } from "./contexts/fleet/dispatch/application/recommend-drivers.use-case";
+import { RecommendVehiclesUseCase } from "./contexts/fleet/dispatch/application/recommend-vehicles.use-case";
 import {
   DeleteFuelRecordUseCase,
   FUEL_RECORD_REPOSITORY,
@@ -508,6 +509,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
       ) => config.persistence.backend === "in-memory" ? noopReader : httpReader,
     },
     RecommendDriversUseCase,
+    RecommendVehiclesUseCase,
     FleetFinancialsUseCase,
     DeliveryMetricsUseCase,
     ExportUseCase,
