@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/common";
-import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, DiscoveryModule, HttpAdapterHost } from "@nestjs/core";
+import { SentryExceptionFilter } from "@shared/observability";
 import { ConfigModule, AppConfigService } from "@shared/config";
 import { EVENT_BUS, EventBusModule, type EventBus } from "@shared/eventbus";
 import { MetricsModule } from "@shared/metrics";
@@ -565,6 +566,11 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
       },
     },
     { provide: APP_GUARD, useClass: TenantActiveGuard },
+    {
+      provide: APP_FILTER,
+      inject: [HttpAdapterHost],
+      useFactory: (host: HttpAdapterHost) => new SentryExceptionFilter(host, "fleet"),
+    },
     InMemoryAuditLogRepository,
     MikroAuditLogRepository,
     {

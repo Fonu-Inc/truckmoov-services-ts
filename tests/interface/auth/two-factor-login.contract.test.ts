@@ -177,7 +177,10 @@ describe('Two-factor sign-in over HTTP (auth)', () => {
       const cooling = await post(portals[portal].code).send({ challengeToken: token, code: codeAt(secret, 0) });
       expect(cooling.status).toBe(429);
       expect(cooling.body).toEqual({
+        status: false,
         message: expect.stringMatching(/^Too many wrong codes, try again in \d+ seconds$/),
+        error: 'Too Many Requests',
+        statusCode: 429,
         retryAfterSeconds: expect.any(Number),
       });
 

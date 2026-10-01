@@ -1,11 +1,10 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { HttpAdapterHost } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
 import { JsonLogger } from "@shared/logger";
-import { initializeSentry, registerSentryProcessHandlers, SentryExceptionFilter } from "@shared/observability";
+import { initializeSentry, registerSentryProcessHandlers } from "@shared/observability";
 import { setupSwagger, StandardApiResponse, TransformResponseInterceptor } from "@shared/openapi";
 import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
 import {
@@ -105,11 +104,7 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new TransformResponseInterceptor());
 
-  if (sentryEnabled) {
-    const httpAdapterHost = app.get(HttpAdapterHost);
-    app.useGlobalFilters(new SentryExceptionFilter(httpAdapterHost, "auth"));
-    registerSentryProcessHandlers();
-  }
+  if (sentryEnabled) registerSentryProcessHandlers();
 
   setupSwagger(app, "Auth Service", "auth", [
     StandardApiResponse,

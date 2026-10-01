@@ -229,7 +229,7 @@ describe('Installer portal over HTTP (auth)', () => {
     installerToken = back.body.data?.accessToken ?? installerToken;
 
     expect(wrong.status).toBe(401);
-    expect(wrong.body).toEqual({ statusCode: 401, message: 'Invalid credentials', error: 'Unauthorized' });
+    expect(wrong.body).toEqual({ status: false, statusCode: 401, message: 'Invalid credentials', error: 'Unauthorized' });
     expect(changed.status).toBe(201);
     expect(changed.body.data).toMatchObject({ accessToken: expect.any(String), refreshToken: expect.any(String), user: { role: 'INSTALLER' } });
     expect(back.status).toBe(201);

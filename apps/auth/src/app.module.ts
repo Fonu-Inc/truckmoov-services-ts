@@ -1,4 +1,6 @@
 import { type MiddlewareConsumer, type NestModule, Module } from '@nestjs/common';
+import { APP_FILTER, HttpAdapterHost } from '@nestjs/core';
+import { SentryExceptionFilter } from '@shared/observability';
 import { CryptoModule } from "@shared/crypto";
 import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
@@ -822,6 +824,11 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ReadinessController,
   ],
   providers: [
+    {
+      provide: APP_FILTER,
+      inject: [HttpAdapterHost],
+      useFactory: (host: HttpAdapterHost) => new SentryExceptionFilter(host, 'auth'),
+    },
     RequestContextMiddleware,
     GetMySupportSummaryUseCase,
     GetSupportOptionsUseCase,

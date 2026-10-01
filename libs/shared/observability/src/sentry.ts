@@ -1,5 +1,6 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/common";
-import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
+import { ArgumentsHost, Catch, HttpException } from "@nestjs/common";
+import { HttpAdapterHost } from "@nestjs/core";
+import { ApiExceptionFilter } from "@shared/openapi";
 import { NodeEnv, type AppConfigService } from "@shared/config";
 import * as Sentry from "@sentry/node";
 
@@ -39,10 +40,14 @@ export function registerSentryProcessHandlers() {
   });
 }
 
+/**
+ * Reports, then answers in the response contract. Capturing is a no-op until
+ * initializeSentry has run, so this is safe to register everywhere.
+ */
 @Catch()
-export class SentryExceptionFilter extends BaseExceptionFilter implements ExceptionFilter {
+export class SentryExceptionFilter extends ApiExceptionFilter {
   constructor(adapterHost: HttpAdapterHost, private readonly serviceName: string) {
-    super(adapterHost.httpAdapter);
+    super(adapterHost);
   }
 
   override catch(exception: unknown, host: ArgumentsHost) {

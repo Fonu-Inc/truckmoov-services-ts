@@ -6,34 +6,25 @@ import {
   ApiResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { ErrorResponse } from '@shared/openapi';
 import { IDENTITY_CLAIM_TYPES, ONBOARDING_DOCUMENT_TYPES } from '@auth/onboarding';
 import { OnboardingVehicleMissingDocumentSchema } from './onboarding-application-response.dto';
 
-export class ApiErrorBody {
-  @ApiProperty({ example: 404 }) statusCode!: number;
-  @ApiProperty({ example: 'Application not found' }) message!: string;
-  @ApiProperty({
-    example: 'Not Found',
-    required: false,
-    description:
-      'The status name. Absent on a bare HttpException, such as the 429 rate limits.',
-  })
-  error?: string;
-}
+export class ApiErrorBody extends ErrorResponse {}
 
-export class ApiValidationErrorBody {
-  @ApiProperty({ example: 400 }) statusCode!: number;
+export class ApiValidationErrorBody extends ErrorResponse {
+  @ApiProperty({ example: 'property foo should not exist', description: 'The first rejected property.' })
+  declare message: string;
   @ApiProperty({
     type: [String],
     example: ['property foo should not exist'],
     description: 'One entry per rejected property, from the global ValidationPipe.',
   })
-  message!: string[];
-  @ApiProperty({ example: 'Bad Request' }) error!: string;
+  declare errors: string[];
 }
 
-export class OnboardingFieldErrorBody {
-  @ApiProperty({ example: 'Organization name is required' }) message!: string;
+export class OnboardingFieldErrorBody extends ErrorResponse {
+  @ApiProperty({ example: 'Organization name is required' }) declare message: string;
   @ApiProperty({ example: 'organizationName', description: 'The request field at fault.' })
   field!: string;
   @ApiPropertyOptional({
@@ -43,11 +34,11 @@ export class OnboardingFieldErrorBody {
   deviceIndex?: number;
 }
 
-export class OnboardingIncompleteErrorBody {
+export class OnboardingIncompleteErrorBody extends ErrorResponse {
   @ApiProperty({
     example: 'This application cannot be submitted yet: the business email is not verified',
   })
-  message!: string;
+  declare message: string;
   @ApiProperty() emailVerified!: boolean;
   @ApiProperty() phoneVerified!: boolean;
   @ApiProperty({ enum: [...ONBOARDING_DOCUMENT_TYPES], isArray: true })
@@ -70,11 +61,11 @@ export class OnboardingIncompleteErrorBody {
   @ApiProperty() planSelected!: boolean;
 }
 
-export class DuplicateIdentityErrorBody {
+export class DuplicateIdentityErrorBody extends ErrorResponse {
   @ApiProperty({
     example: 'These details are already on another application: CAC registration number.',
   })
-  message!: string;
+  declare message: string;
   @ApiProperty({ enum: [...IDENTITY_CLAIM_TYPES], isArray: true })
   claimTypes!: string[];
 }
@@ -99,8 +90,8 @@ export function ApiErrorResponse(
   );
 }
 
-export class CodeCooldownErrorBody {
-  @ApiProperty({ example: 'Too many wrong codes, try again in 42 seconds' }) message!: string;
+export class CodeCooldownErrorBody extends ErrorResponse {
+  @ApiProperty({ example: 'Too many wrong codes, try again in 42 seconds' }) declare message: string;
   @ApiProperty({ example: 42, description: 'Seconds until a code is checked again.' })
   retryAfterSeconds!: number;
 }
