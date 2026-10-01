@@ -5,14 +5,22 @@ import type {
   TenantWalletRepository,
   WalletMovementResult,
 } from './tenant-wallet.repository';
-import type {
-  StoredWalletLedgerEntry,
-  WalletLedgerDraft,
+import {
+  withNormalizedKey,
+  type StoredWalletLedgerEntry,
+  type WalletLedgerDraft,
 } from './wallet-ledger.repository';
 import {
   DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
   walletCreditFloorKobo,
 } from './wallet-credit';
+
+const NOT_APPLIED: WalletMovementResult = {
+  ok: false,
+  balanceAfterKobo: null,
+  replayed: false,
+  entry: null,
+};
 
 @Injectable()
 export class InMemoryTenantWalletRepository implements TenantWalletRepository {
@@ -55,14 +63,17 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
     amountKobo: number,
     entry: WalletLedgerDraft,
   ): Promise<WalletMovementResult> {
+    entry = withNormalizedKey(entry);
     const wallet = this.store.get(tenantId);
+    const replay = this.replayOf(tenantId, entry);
+    if (replay) return replay;
     if (!wallet || wallet.balanceKobo - amountKobo < walletCreditFloorKobo(wallet)) {
-      return { ok: false, balanceAfterKobo: null };
+      return NOT_APPLIED;
     }
     wallet.balanceKobo -= amountKobo;
     wallet.updatedAt = new Date();
-    this.record(tenantId, 'debit', amountKobo, wallet.balanceKobo, entry);
-    return { ok: true, balanceAfterKobo: wallet.balanceKobo };
+    const stored = this.record(tenantId, 'debit', amountKobo, wallet.balanceKobo, entry);
+    return { ok: true, balanceAfterKobo: wallet.balanceKobo, replayed: false, entry: stored };
   }
 
   async credit(
@@ -70,12 +81,24 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
     amountKobo: number,
     entry: WalletLedgerDraft,
   ): Promise<WalletMovementResult> {
+    entry = withNormalizedKey(entry);
     const wallet = this.store.get(tenantId);
-    if (!wallet) return { ok: false, balanceAfterKobo: null };
+    const replay = this.replayOf(tenantId, entry);
+    if (replay) return replay;
+    if (!wallet) return NOT_APPLIED;
     wallet.balanceKobo += amountKobo;
     wallet.updatedAt = new Date();
-    this.record(tenantId, 'credit', amountKobo, wallet.balanceKobo, entry);
-    return { ok: true, balanceAfterKobo: wallet.balanceKobo };
+    const stored = this.record(tenantId, 'credit', amountKobo, wallet.balanceKobo, entry);
+    return { ok: true, balanceAfterKobo: wallet.balanceKobo, replayed: false, entry: stored };
+  }
+
+  private replayOf(tenantId: string, draft: WalletLedgerDraft): WalletMovementResult | null {
+    if (!draft.idempotencyKey) return null;
+    const original = this.ledger.find(
+      (e) => e.tenantId === tenantId && e.idempotencyKey === draft.idempotencyKey,
+    );
+    if (!original) return null;
+    return { ok: true, balanceAfterKobo: original.balanceAfterKobo, replayed: true, entry: { ...original } };
   }
 
   private record(
@@ -84,9 +107,9 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
     amountKobo: number,
     balanceAfterKobo: number,
     entry: WalletLedgerDraft,
-  ): void {
+  ): StoredWalletLedgerEntry {
     this.seq += 1;
-    this.ledger.push({
+    const stored: StoredWalletLedgerEntry = {
       ...entry,
       id: randomUUID(),
       seq: this.seq,
@@ -95,7 +118,10 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
       amountKobo,
       balanceAfterKobo,
       reference: entry.reference ?? null,
+      idempotencyKey: entry.idempotencyKey ?? null,
       createdAt: new Date(),
-    });
+    };
+    this.ledger.push(stored);
+    return { ...stored };
   }
 }

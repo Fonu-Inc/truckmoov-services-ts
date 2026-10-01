@@ -13,6 +13,7 @@ const SERIES_FORMAT: Record<InvoiceSeries, { prefix: string; width: number }> = 
   platform_subscription: { prefix: 'INV', width: 3 },
   platform_usage: { prefix: 'POST', width: 3 },
   tenant_customer: { prefix: DEFAULT_TENANT_INVOICE_PREFIX, width: 4 },
+  quotation: { prefix: 'QT', width: 4 },
 };
 
 export type AllocatedInvoiceNumber = {
@@ -37,7 +38,7 @@ export class InvoiceNumberService {
    * so every tenant's subscription invoices share one sequence.
    */
   async allocatePlatform(
-    series: Extract<InvoiceSeries, 'platform_subscription' | 'platform_usage'>,
+    series: Extract<InvoiceSeries, 'platform_subscription' | 'platform_usage' | 'quotation'>,
     issuedAt = new Date(),
   ): Promise<AllocatedInvoiceNumber> {
     return this.allocate(series, PLATFORM_SCOPE, issuedAt);

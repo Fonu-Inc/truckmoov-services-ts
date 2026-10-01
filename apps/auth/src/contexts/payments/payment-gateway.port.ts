@@ -37,8 +37,21 @@ export type PaymentCallback = {
   provider: string;
   /** True only for a completed payment. Other events are recorded, not acted on. */
   succeeded: boolean;
+  /** True only for an explicit provider failure event; other events are ignored. */
+  failed?: boolean;
   reference: string;
   metadata: Record<string, unknown>;
+  /** Kobo the provider says it collected; null when the event does not say. */
+  amountKobo: number | null;
+  currency: string | null;
+  /** How the customer paid, as the provider names it; null when it does not say. */
+  channel: string | null;
+};
+
+export type PaidAmount = {
+  amountKobo: number | null;
+  currency: string | null;
+  channel?: string | null;
 };
 
 export interface PaymentGateway {

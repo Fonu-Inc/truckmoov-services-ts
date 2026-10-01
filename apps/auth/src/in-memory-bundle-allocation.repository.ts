@@ -29,6 +29,10 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
     return this.store.get(id) ?? null;
   }
 
+  async findByPaymentReference(tenantId: string, paymentReference: string): Promise<StoredBundleAllocation[]> {
+    return [...this.store.values()].filter((a) => a.tenantId === tenantId && a.paymentReference === paymentReference);
+  }
+
   async save(allocation: StoredBundleAllocation): Promise<void> {
     this.store.set(allocation.id, allocation);
   }

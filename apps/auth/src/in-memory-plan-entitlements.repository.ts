@@ -46,6 +46,17 @@ export class InMemoryPlanEntitlementsRepository implements PlanEntitlementsRepos
     return { covered, uncovered: requested - covered };
   }
 
+  async releaseAllowance(
+    tenantId: string,
+    item: UsageItem,
+    billingMonth: string,
+    units: number,
+  ): Promise<void> {
+    if (units <= 0) return;
+    const key = this.usageKey(tenantId, item, billingMonth);
+    this.usage.set(key, Math.max(0, (this.usage.get(key) ?? 0) - units));
+  }
+
   async findUsage(tenantId: string, billingMonth: string): Promise<AllowanceUsage[]> {
     const prefix = `${tenantId}::`;
     const suffix = `::${billingMonth}`;

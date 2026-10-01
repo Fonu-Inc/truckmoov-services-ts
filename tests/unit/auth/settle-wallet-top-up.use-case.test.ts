@@ -4,6 +4,8 @@ import { InMemoryTenantWalletRepository } from '../../../apps/auth/src/in-memory
 import { SettleWalletTopUpUseCase } from '../../../apps/auth/src/settle-wallet-top-up.use-case';
 import type { StoredWalletTopUp } from '../../../apps/auth/src/wallet-top-up.repository';
 
+const PAID = { amountKobo: 500_000, currency: 'NGN' };
+
 function buildTopUp(overrides: Partial<StoredWalletTopUp> = {}): StoredWalletTopUp {
   return {
     id: 'top-1',
@@ -39,7 +41,7 @@ describe('SettleWalletTopUpUseCase', () => {
   });
 
   it('credits the wallet once for a confirmed top-up', async () => {
-    const result = await useCase.execute('MOMO-ABCD1234');
+    const result = await useCase.execute('MOMO-ABCD1234', PAID);
 
     expect(result.outcome).toBe('credited');
     expect(result.tenantId).toBe('tenant-a');
@@ -49,7 +51,7 @@ describe('SettleWalletTopUpUseCase', () => {
   });
 
   it('marks the top-up successful and stamps the settled time', async () => {
-    await useCase.execute('MOMO-ABCD1234');
+    await useCase.execute('MOMO-ABCD1234', PAID);
 
     const settled = await topUps.findByReference('MOMO-ABCD1234');
     expect(settled?.status).toBe('success');
@@ -57,9 +59,9 @@ describe('SettleWalletTopUpUseCase', () => {
   });
 
   it('does not credit twice when the provider replays the callback', async () => {
-    const first = await useCase.execute('MOMO-ABCD1234');
-    const second = await useCase.execute('MOMO-ABCD1234');
-    const third = await useCase.execute('MOMO-ABCD1234');
+    const first = await useCase.execute('MOMO-ABCD1234', PAID);
+    const second = await useCase.execute('MOMO-ABCD1234', PAID);
+    const third = await useCase.execute('MOMO-ABCD1234', PAID);
 
     expect(first.outcome).toBe('credited');
     expect(second.outcome).toBe('already_settled');
@@ -70,9 +72,9 @@ describe('SettleWalletTopUpUseCase', () => {
   });
 
   it('credits nothing for a reference it does not know', async () => {
-    const result = await useCase.execute('MOMO-UNKNOWN');
+    const result = await useCase.execute('MOMO-UNKNOWN', PAID);
 
-    expect(result.outcome).toBe('unknown_reference');
+    expect(result.outcome).toBe('not_found');
     expect(result.tenantId).toBeNull();
 
     const wallet = await wallets.findByTenantId('tenant-a');
@@ -88,7 +90,7 @@ describe('SettleWalletTopUpUseCase', () => {
       updatedAt: new Date('2026-08-21T00:00:00Z'),
     });
 
-    const result = await useCase.execute('MOMO-BBBB2222');
+    const result = await useCase.execute('MOMO-BBBB2222', PAID);
 
     expect(result.tenantId).toBe('tenant-b');
     expect((await wallets.findByTenantId('tenant-b'))?.balanceKobo).toBe(500_000);
@@ -100,10 +102,51 @@ describe('SettleWalletTopUpUseCase', () => {
       buildTopUp({ id: 'top-3', reference: 'MOMO-DONE0000', status: 'success', settledAt: new Date() }),
     );
 
-    const result = await useCase.execute('MOMO-DONE0000');
+    const result = await useCase.execute('MOMO-DONE0000', PAID);
 
     expect(result.outcome).toBe('already_settled');
     const wallet = await wallets.findByTenantId('tenant-a');
     expect(wallet?.balanceKobo).toBe(100_000);
+  });
+
+  it('credits nothing and marks nothing when the paid amount differs', async () => {
+    for (const paid of [{ amountKobo: 400_000, currency: 'NGN' }, { amountKobo: null, currency: 'NGN' }, undefined]) {
+      const result = await useCase.execute('MOMO-ABCD1234', paid);
+      expect(result.outcome).toBe('amount_mismatch');
+    }
+
+    expect((await wallets.findByTenantId('tenant-a'))?.balanceKobo).toBe(100_000);
+    expect((await topUps.findByReference('MOMO-ABCD1234'))?.status).toBe('pending');
+  });
+
+  it('rejects a payment in another currency', async () => {
+    const result = await useCase.execute('MOMO-ABCD1234', { amountKobo: 500_000, currency: 'USD' });
+
+    expect(result.outcome).toBe('amount_mismatch');
+    expect((await wallets.findByTenantId('tenant-a'))?.balanceKobo).toBe(100_000);
+  });
+
+  it('creates the wallet when the tenant has none', async () => {
+    await topUps.save(buildTopUp({ id: 'top-9', tenantId: 'tenant-new', reference: 'MOMO-NEW00000' }));
+
+    const result = await useCase.execute('MOMO-NEW00000', PAID);
+
+    expect(result.outcome).toBe('credited');
+    expect((await wallets.findByTenantId('tenant-new'))?.balanceKobo).toBe(500_000);
+  });
+
+  it('repairs a crash between the credit and the settled mark without crediting twice', async () => {
+    const markSettled = topUps.markSettled.bind(topUps);
+    topUps.markSettled = async () => {
+      throw new Error('crash');
+    };
+    await expect(useCase.execute('MOMO-ABCD1234', PAID)).rejects.toThrow('crash');
+    topUps.markSettled = markSettled;
+
+    const retry = await useCase.execute('MOMO-ABCD1234', PAID);
+
+    expect(retry.outcome).toBe('credited');
+    expect((await wallets.findByTenantId('tenant-a'))?.balanceKobo).toBe(600_000);
+    expect((await topUps.findByReference('MOMO-ABCD1234'))?.status).toBe('success');
   });
 });

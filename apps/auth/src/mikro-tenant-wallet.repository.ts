@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { LockMode, type EntityManager } from '@mikro-orm/core';
+import { LockMode, UniqueConstraintViolationException, type EntityManager } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import {
   TenantWalletRecord,
@@ -12,7 +12,8 @@ import type {
   TenantWalletRepository,
   WalletMovementResult,
 } from './tenant-wallet.repository';
-import type { WalletLedgerDraft } from './wallet-ledger.repository';
+import { toStoredLedgerEntry } from './mikro-wallet-ledger.repository';
+import { withNormalizedKey, type StoredWalletLedgerEntry, type WalletLedgerDraft } from './wallet-ledger.repository';
 import {
   DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
   walletCreditFloorKobo,
@@ -80,25 +81,7 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
     amountKobo: number,
     entry: WalletLedgerDraft,
   ): Promise<WalletMovementResult> {
-    const orm = await getAuthOrm(this.config.db);
-    return orm.em.fork().transactional(async (em) => {
-      const record = await em.findOne(
-        TenantWalletRecord,
-        { tenantId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      // The credit floor is read and applied inside the same lock as the
-      // balance. Checking it anywhere else would let two concurrent debits both
-      // pass a limit that only one of them fits under.
-      if (!record || record.balanceKobo - amountKobo < walletCreditFloorKobo(toStored(record))) {
-        return { ok: false, balanceAfterKobo: null };
-      }
-      record.balanceKobo -= amountKobo;
-      record.updatedAt = new Date();
-      writeLedgerEntry(em, tenantId, 'debit', amountKobo, record.balanceKobo, entry);
-      await em.flush();
-      return { ok: true, balanceAfterKobo: record.balanceKobo };
-    });
+    return this.move(tenantId, 'debit', amountKobo, entry);
   }
 
   async credit(
@@ -106,22 +89,93 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
     amountKobo: number,
     entry: WalletLedgerDraft,
   ): Promise<WalletMovementResult> {
+    return this.move(tenantId, 'credit', amountKobo, entry);
+  }
+
+  private async move(
+    tenantId: string,
+    direction: 'debit' | 'credit',
+    amountKobo: number,
+    entry: WalletLedgerDraft,
+  ): Promise<WalletMovementResult> {
+    entry = withNormalizedKey(entry);
     const orm = await getAuthOrm(this.config.db);
-    return orm.em.fork().transactional(async (em) => {
-      const record = await em.findOne(
-        TenantWalletRecord,
-        { tenantId },
-        { lockMode: LockMode.PESSIMISTIC_WRITE },
-      );
-      if (!record) return { ok: false, balanceAfterKobo: null };
-      record.balanceKobo += amountKobo;
-      record.updatedAt = new Date();
-      writeLedgerEntry(em, tenantId, 'credit', amountKobo, record.balanceKobo, entry);
-      await em.flush();
-      return { ok: true, balanceAfterKobo: record.balanceKobo };
-    });
+    try {
+      return await orm.em
+        .fork()
+        .transactional((em) => applyMovement(em, tenantId, direction, amountKobo, entry));
+    } catch (error) {
+      const key = entry.idempotencyKey;
+      if (!key || !(error instanceof UniqueConstraintViolationException)) throw error;
+      const original = await findByKey(orm.em.fork(), tenantId, key);
+      if (!original) throw error;
+      return replayResult(original);
+    }
   }
 }
+
+async function findByKey(
+  em: EntityManager,
+  tenantId: string,
+  idempotencyKey: string,
+): Promise<StoredWalletLedgerEntry | null> {
+  const record = await em.findOne(WalletLedgerEntryRecord, { tenantId, idempotencyKey });
+  return record ? toStoredLedgerEntry(record) : null;
+}
+
+function replayResult(original: StoredWalletLedgerEntry): WalletMovementResult {
+  return {
+    ok: true,
+    balanceAfterKobo: original.balanceAfterKobo,
+    replayed: true,
+    entry: original,
+  };
+}
+
+async function applyMovement(
+  em: EntityManager,
+  tenantId: string,
+  direction: 'debit' | 'credit',
+  amountKobo: number,
+  entry: WalletLedgerDraft,
+): Promise<WalletMovementResult> {
+  const record = await em.findOne(
+    TenantWalletRecord,
+    { tenantId },
+    { lockMode: LockMode.PESSIMISTIC_WRITE },
+  );
+  if (entry.idempotencyKey) {
+    const original = await findByKey(em, tenantId, entry.idempotencyKey);
+    if (original) return replayResult(original);
+  }
+  if (!record || !canMove(record, direction, amountKobo)) return NOT_APPLIED;
+
+  record.balanceKobo = Number(record.balanceKobo) + (direction === 'debit' ? -amountKobo : amountKobo);
+  record.updatedAt = new Date();
+  const ledger = writeLedgerEntry(em, tenantId, direction, amountKobo, record.balanceKobo, entry);
+  await em.flush();
+  return {
+    ok: true,
+    balanceAfterKobo: record.balanceKobo,
+    replayed: false,
+    entry: toStoredLedgerEntry(ledger),
+  };
+}
+
+// The credit floor is read and applied inside the same lock as the balance.
+// Checking it anywhere else would let two concurrent debits both pass a limit
+// that only one of them fits under.
+function canMove(record: TenantWalletRecord, direction: 'debit' | 'credit', amountKobo: number) {
+  if (direction === 'credit') return true;
+  return Number(record.balanceKobo) - amountKobo >= walletCreditFloorKobo(toStored(record));
+}
+
+const NOT_APPLIED: WalletMovementResult = {
+  ok: false,
+  balanceAfterKobo: null,
+  replayed: false,
+  entry: null,
+};
 
 /**
  * Queues the ledger row inside the caller's transaction. It is not flushed here:
@@ -134,9 +188,8 @@ function writeLedgerEntry(
   amountKobo: number,
   balanceAfterKobo: number,
   entry: WalletLedgerDraft,
-): void {
-  em.persist(
-    em.create(WalletLedgerEntryRecord, {
+): WalletLedgerEntryRecord {
+  const ledger = em.create(WalletLedgerEntryRecord, {
       id: randomUUID(),
       tenantId,
       direction,
@@ -147,7 +200,9 @@ function writeLedgerEntry(
       quantity: entry.quantity,
       reason: entry.reason,
       reference: entry.reference ?? null,
+      idempotencyKey: entry.idempotencyKey ?? null,
       createdAt: new Date(),
-    } as WalletLedgerEntryRecord),
-  );
+    } as WalletLedgerEntryRecord);
+  em.persist(ledger);
+  return ledger;
 }

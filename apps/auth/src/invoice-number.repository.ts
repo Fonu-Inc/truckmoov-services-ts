@@ -1,15 +1,17 @@
 /**
- * Three separate invoice series exist across the product, and conflating any
+ * Separate number series exist across the product, and conflating any
  * two of them causes real confusion. Each keeps its own counter.
  *
  * - `platform_subscription` — what the platform bills a tenant for its plan
  * - `platform_usage` — what the platform bills a tenant for postpaid usage
  * - `tenant_customer` — what a tenant bills its own customer, from a waybill
+ * - `quotation` — what the platform quotes an applicant before payment
  */
 export const INVOICE_SERIES = [
   'platform_subscription',
   'platform_usage',
   'tenant_customer',
+  'quotation',
 ] as const;
 export type InvoiceSeries = (typeof INVOICE_SERIES)[number];
 

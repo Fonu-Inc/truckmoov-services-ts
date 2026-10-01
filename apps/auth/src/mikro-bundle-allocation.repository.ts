@@ -16,11 +16,12 @@ function toStored(r: BundleAllocationRecord): StoredBundleAllocation {
     tenantId: r.tenantId,
     mobileNumber: r.mobileNumber,
     bundleId: r.bundleId,
-    dataUsedMb: r.dataUsedMb,
-    dataTotalMb: r.dataTotalMb,
+    dataUsedMb: Number(r.dataUsedMb),
+    dataTotalMb: Number(r.dataTotalMb),
     activatedAt: r.activatedAt,
     expiresAt: r.expiresAt,
     status: r.status,
+    paymentReference: r.paymentReference,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -56,7 +57,8 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
       `select * from bundle_allocations ${where} order by created_at desc limit ? offset ?`,
       [...params, limit, offset],
     );
-    return { items: rows.map((r) => toStored(r as unknown as BundleAllocationRecord)), total };
+    const em = orm.em.fork();
+    return { items: rows.map((r) => toStored(em.map(BundleAllocationRecord, r))), total };
   }
 
   async findById(id: string): Promise<StoredBundleAllocation | null> {
@@ -64,6 +66,12 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
     const em = orm.em.fork();
     const record = await em.findOne(BundleAllocationRecord, { id });
     return record ? toStored(record) : null;
+  }
+
+  async findByPaymentReference(tenantId: string, paymentReference: string): Promise<StoredBundleAllocation[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const records = await orm.em.fork().find(BundleAllocationRecord, { tenantId, paymentReference }, { orderBy: { createdAt: 'asc' } });
+    return records.map(toStored);
   }
 
   async save(allocation: StoredBundleAllocation): Promise<void> {
@@ -87,10 +95,11 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<BundleAllocationRecord[]>(
       `select * from bundle_allocations
-       where tenant_id = ? and status = 'active' and expires_at >= now() and expires_at <= now() + interval '? days'`,
+       where tenant_id = ? and status = 'active' and expires_at >= now() and expires_at <= now() + (? * interval '1 day')`,
       [tenantId, days],
     );
-    return rows.map((r) => toStored(r as unknown as BundleAllocationRecord));
+    const em = orm.em.fork();
+    return rows.map((r) => toStored(em.map(BundleAllocationRecord, r)));
   }
 
   async sumDataUsedByBundle(tenantId: string): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {

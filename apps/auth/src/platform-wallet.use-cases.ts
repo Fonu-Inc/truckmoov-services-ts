@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ActivityLogService } from './activity-log.service';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
@@ -29,6 +30,8 @@ export type PlatformTopUpCommand = {
   amountKobo: number;
   /** Why the platform is crediting. Mandatory: this is money created by staff. */
   reason: string;
+  /** Same key, same credit: a double submit or retry moves money once. */
+  idempotencyKey?: string;
 };
 
 @Injectable()
@@ -74,16 +77,19 @@ export class PlatformTopUpWalletUseCase {
     await this.wallets.ensure(command.tenantId);
 
     const result = await this.wallets.credit(command.tenantId, command.amountKobo, {
-      category: 'top_up',
+      category: 'goodwill',
       quantity: 1,
       unitRateKobo: command.amountKobo,
       reason: `Platform top-up: ${reason}`,
       reference: `staff:${actor.id}`,
+      idempotencyKey: `staff:${actor.id}:${command.idempotencyKey?.trim() || randomUUID()}`,
     });
 
     if (!result.ok) {
       throw new PlatformTopUpError('The wallet could not be credited');
     }
+
+    if (result.replayed) return this.summarise(command, reason, actor.id, result.balanceAfterKobo);
 
     await this.activityLog.record({
       tenantId: command.tenantId,
@@ -101,12 +107,21 @@ export class PlatformTopUpWalletUseCase {
       `platform_wallet_top_up:${command.tenantId}:${command.amountKobo}:by=${actor.id}`,
     );
 
+    return this.summarise(command, reason, actor.id, result.balanceAfterKobo);
+  }
+
+  private summarise(
+    command: PlatformTopUpCommand,
+    reason: string,
+    by: string,
+    balanceAfterKobo: number | null,
+  ) {
     return {
       tenantId: command.tenantId,
       amountKobo: command.amountKobo,
-      balanceAfterKobo: result.balanceAfterKobo,
+      balanceAfterKobo,
       reason,
-      by: actor.id,
+      by,
     };
   }
 }

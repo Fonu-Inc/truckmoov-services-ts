@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
 import { InMemoryOnboardingPaymentRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-payment.repository";
+import { InMemoryBillingSettingsRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-billing-settings.repository";
 import { InMemoryM2mLicensePlanRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-m2m-license-plan.repository";
 import { GetOnboardingApplicationUseCase } from "@auth/onboarding/application/use-cases/get-onboarding-application.use-case";
 import {
@@ -20,6 +21,7 @@ import {
   ApplicationNotEditableError,
   hashApplicationToken,
 } from "@auth/onboarding/domain/onboarding-application.support";
+import { buildQuotationKit } from "./quotation-test-kit";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 import type { OnboardingStage } from "@auth/onboarding/domain/onboarding-stage";
 import type { VerificationCodeMessage } from "@auth/onboarding/domain/ports/onboarding-verification-notifier.port";
@@ -78,6 +80,7 @@ describe("Payment step", () => {
   let setBillingEmail: SetBillingEmailUseCase;
   let order: GetApplicationOrderUseCase;
   let plans: InMemoryM2mLicensePlanRepository;
+  let settings: InMemoryBillingSettingsRepository;
   let getView: GetOnboardingApplicationUseCase;
   let status: GetOnboardingApplicationStatusUseCase;
 
@@ -118,11 +121,13 @@ describe("Payment step", () => {
       {} as never,
     );
     plans = new InMemoryM2mLicensePlanRepository();
+    settings = new InMemoryBillingSettingsRepository();
     order = new GetApplicationOrderUseCase(
       applications,
       plans,
       payments,
       getApplication,
+      settings,
     );
   });
 
@@ -135,6 +140,9 @@ describe("Payment step", () => {
       description: "Standard M2M licence",
       perDeviceYear1Ngn: 25_000,
       perDeviceRenewalNgn: 20_000,
+      validityDays: 365,
+      components: null,
+      lastPriceChangedAt: null,
       sortOrder: 1,
       isActive: true,
       createdAt: new Date(),
@@ -153,7 +161,7 @@ describe("Payment step", () => {
 
   const billing = { applicationId: "app-1", applicationToken: TOKEN };
 
-  async function recordPaidPayment() {
+  async function recordPaidPayment(orderSummary: unknown = null) {
     const now = new Date();
     await payments.save({
       id: "pay-1",
@@ -161,9 +169,17 @@ describe("Payment step", () => {
       reference: "FPA-APP-2026-AAAA-1",
       provider: "paystack",
       amountKobo: 100,
+      authorizationUrl: null,
       billingEmail: "accounts@arne.com",
       planCode: "m2m_standard",
       deviceCount: 2,
+      orderSummary: orderSummary as never,
+      quotationId: null,
+      invoiceId: null,
+      method: null,
+      customerName: null,
+      note: null,
+      autoReconciled: true,
       status: "paid",
       paidAt: now,
       createdAt: now,
@@ -246,6 +262,52 @@ describe("Payment step", () => {
     expect(result.data.payable).toBe(true);
   });
 
+  it("prices installation from the audience's setting", async () => {
+    await settings.savePriced(
+      [
+        { key: "installation_fee_enterprise_ngn", value: 20_000 },
+        { key: "installation_fee_owner_operator_ngn", value: 9_000 },
+      ],
+      "admin-1",
+      [],
+    );
+
+    await seed({ applicantType: "fleet_provider" });
+    const fleet = await order.execute("app-1", TOKEN);
+    expect(fleet.data.order.installationNgn).toBe(40_000);
+
+    await applications.save(application({ applicantType: "owner_operator" }));
+    const owner = await order.execute("app-1", TOKEN);
+    expect(owner.data.order.installationNgn).toBe(18_000);
+    expect(owner.data.order.totalNgn).toBe(50_000 + 18_000);
+  });
+
+  it("keeps the 15,000 installation price when nothing has been set", async () => {
+    await seed();
+
+    const result = await order.execute("app-1", TOKEN);
+
+    expect(result.data.order.installationNgn).toBe(30_000);
+  });
+
+  it("freezes a paid order against later price changes", async () => {
+    await seed();
+    const before = await order.execute("app-1", TOKEN);
+    await recordPaidPayment(before.data.order);
+
+    await settings.savePriced(
+      [{ key: "installation_fee_enterprise_ngn", value: 99_000 }],
+      "admin-1",
+      [],
+    );
+    const plan = (await plans.findByCode("m2m_standard"))!;
+    await plans.save({ ...plan, perDeviceYear1Ngn: 90_000 });
+
+    const after = await order.execute("app-1", TOKEN);
+    expect(after.data.order).toEqual(before.data.order);
+    expect(after.data.order.totalNgn).toBe(80_000);
+  });
+
   it("marks the order unpayable before the payment stage", async () => {
     await seed({ stage: "provisioning" });
 
@@ -303,6 +365,8 @@ describe("Payment step", () => {
       gateway,
       getView,
       { generate: () => "pay-1" },
+      settings,
+      buildQuotationKit(plans, settings, payments).service,
     );
 
     await expect(pay.execute(billing)).rejects.toBeInstanceOf(ChargeRefusedError);

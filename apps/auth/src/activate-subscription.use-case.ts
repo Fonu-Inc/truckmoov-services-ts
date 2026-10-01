@@ -1,15 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type { PaidAmount } from './contexts/payments';
 import {
-  TENANT_BILLING_CYCLES,
   TENANT_ONBOARDING_REPOSITORY,
-  type TenantBillingCycle,
+  type PendingSubscriptionCharge,
+  type StoredTenantOnboarding,
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
 
 export class OnboardingNotFoundError extends Error {}
 
+const SETTLEMENT_CURRENCY = 'NGN';
+
 @Injectable()
 export class ActivateSubscriptionUseCase {
+  private readonly logger = new Logger(ActivateSubscriptionUseCase.name);
+
   constructor(
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboardingRepository: TenantOnboardingRepository,
@@ -18,38 +23,54 @@ export class ActivateSubscriptionUseCase {
   async execute(
     tenantId: string,
     reference: string,
-    selection?: { planCode?: string; billingCycle?: string },
+    _selection?: { planCode?: string; billingCycle?: string },
+    paid?: PaidAmount,
   ): Promise<void> {
     const onboarding = await this.onboardingRepository.findByTenantId(tenantId);
     if (!onboarding) throw new OnboardingNotFoundError('Onboarding record not found');
 
-    // A tenant approved from a landing-page application has no plan on its
-    // record: nobody chose one for it. The plan it actually paid for arrives in
-    // the payment metadata, so it is recorded here. A tenant that already has a
-    // plan keeps it — this must not let a payment rewrite an admin's choice.
-    const planCode = onboarding.subscription.planCode
-      ? onboarding.subscription.planCode
-      : (selection?.planCode?.trim() ?? '');
-    const billingCycle = onboarding.subscription.planCode
-      ? onboarding.subscription.billingCycle
-      : resolveBillingCycle(selection?.billingCycle, onboarding.subscription.billingCycle);
+    if (this.isAlreadyActivated(onboarding, reference)) return;
 
-    await this.onboardingRepository.save({
-      ...onboarding,
-      subscription: { planCode, billingCycle },
-      paymentReference: reference,
-      subscriptionActivatedAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const charge = onboarding.subscription.pendingCharges?.find(
+      (pending) => pending.reference === reference,
+    );
+    if (!charge) {
+      this.logger.warn(`No pending subscription charge ${reference} for tenant ${tenantId}`);
+      return;
+    }
+    if (!this.paymentMatches(tenantId, charge, paid)) return;
+    if (!this.planChangeAllowed(tenantId, onboarding, charge)) return;
+
+    await this.onboardingRepository.activateSubscription(tenantId, charge, new Date());
   }
-}
 
-function resolveBillingCycle(
-  candidate: string | undefined,
-  fallback: TenantBillingCycle,
-): TenantBillingCycle {
-  const normalized = candidate?.trim() as TenantBillingCycle | undefined;
-  return normalized && TENANT_BILLING_CYCLES.includes(normalized)
-    ? normalized
-    : fallback;
+  private isAlreadyActivated(onboarding: StoredTenantOnboarding, reference: string): boolean {
+    return onboarding.paymentReference === reference && Boolean(onboarding.subscriptionActivatedAt);
+  }
+
+  private paymentMatches(
+    tenantId: string,
+    charge: PendingSubscriptionCharge,
+    paid?: PaidAmount,
+  ): boolean {
+    const currency = paid?.currency?.toUpperCase() ?? SETTLEMENT_CURRENCY;
+    if (paid?.amountKobo === charge.amountKobo && currency === SETTLEMENT_CURRENCY) return true;
+    this.logger.error(
+      `Subscription payment ${charge.reference} for tenant ${tenantId} expected ${charge.amountKobo} ${SETTLEMENT_CURRENCY}, got ${paid?.amountKobo ?? 'unknown'} ${paid?.currency ?? 'unknown'}; not activated`,
+    );
+    return false;
+  }
+
+  private planChangeAllowed(
+    tenantId: string,
+    onboarding: StoredTenantOnboarding,
+    charge: PendingSubscriptionCharge,
+  ): boolean {
+    const current = onboarding.subscription.planCode;
+    if (!current || current === charge.planCode) return true;
+    this.logger.error(
+      `Paid subscription ${charge.reference} for tenant ${tenantId} targets plan ${charge.planCode} but tenant is on ${current}; not activated, needs refund or manual review`,
+    );
+    return false;
+  }
 }

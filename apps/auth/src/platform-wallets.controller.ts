@@ -13,7 +13,7 @@ import {
   StreamableFile,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -188,17 +188,24 @@ export class PlatformWalletsController extends BaseAuthController {
   @ApiOperation({
     summary: 'Credit a tenant wallet directly',
     description:
-      'For a payment that landed outside the platform. Attributed to the staff member and recorded with its reason in the activity log.',
+      'For a payment that landed outside the platform. Attributed to the staff member and recorded with its reason in the activity log. Ledger category is goodwill, distinct from paid top-ups.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description: 'Repeating a request with the same key credits once. Overrides the body field.',
   })
   @ApiOkResponse()
   async platformTopUp(
     @Param('tenantId') tenantId: string,
     @Body(BodyOrDataPipe) payload: PlatformTopUpDto,
     @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     const accessToken = this.requireToken(authorization);
     try {
       const data = await this.topUp.execute({
+        idempotencyKey: idempotencyKey || payload.idempotencyKey,
         accessToken,
         tenantId,
         amountKobo: toKobo(payload.amount),

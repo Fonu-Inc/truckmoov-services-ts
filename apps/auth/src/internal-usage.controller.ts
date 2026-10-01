@@ -13,7 +13,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
+import {
+  ChargeReferenceRequiredError,
+  ChargeUsageUseCase,
+  InsufficientWalletBalanceError,
+} from './charge-usage.use-case';
 import { EntitlementService, PlanNotEntitledError } from './entitlement.service';
 import { StorageQuotaService } from './storage-quota.service';
 import {
@@ -206,6 +210,9 @@ export class InternalUsageController extends BaseAuthController {
       // is a bug and the other is a business outcome.
       if (error instanceof InsufficientWalletBalanceError) {
         throw new HttpException(error.message, HttpStatus.PAYMENT_REQUIRED);
+      }
+      if (error instanceof ChargeReferenceRequiredError) {
+        throw new BadRequestException(error.message);
       }
       if (error instanceof ChannelDisabledError) throw new ForbiddenException(error.message);
       if (error instanceof RateNotConfiguredError) throw new BadRequestException(error.message);

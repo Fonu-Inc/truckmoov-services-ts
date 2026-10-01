@@ -18,12 +18,22 @@ import {
   IndemnitySignatureRecordSchema,
   IndemnityTemplateRecordSchema,
   M2mLicensePlanRecordSchema,
+  BillingPriceChangeRecordSchema,
+  BillingSettingRecordSchema,
   OnboardingApplicationDocumentRecordSchema,
   OnboardingApplicationRecordSchema,
   OnboardingApplicationVehicleRecordSchema,
   OnboardingDeviceRequestRecordSchema,
   OnboardingVerificationCodeRecordSchema,
 } from '@auth/onboarding/infrastructure/persistence/onboarding-orm';
+import {
+  BillingInvoiceLineRecordSchema,
+  BillingInvoiceRecordSchema,
+} from '@auth/onboarding/infrastructure/persistence/billing-invoice-orm';
+import {
+  BillingQuotationLineRecordSchema,
+  BillingQuotationRecordSchema,
+} from '@auth/onboarding/infrastructure/persistence/billing-quotation-orm';
 
 export type DbConfig = {
   host: string;
@@ -1990,6 +2000,7 @@ export class WalletLedgerEntryRecord {
   quantity!: number;
   reason!: string;
   reference!: string | null;
+  idempotencyKey!: string | null;
   createdAt!: Date;
 }
 
@@ -2008,6 +2019,7 @@ export const WalletLedgerEntryRecordSchema = new EntitySchema<WalletLedgerEntryR
     quantity: { type: 'number', default: 1 },
     reason: { type: 'string', length: 255 },
     reference: { type: 'string', length: 255, nullable: true },
+    idempotencyKey: { fieldName: 'idempotency_key', type: 'string', length: 160, nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
   },
 });
@@ -2082,6 +2094,7 @@ export class BundleAllocationRecord {
   activatedAt!: Date | null;
   expiresAt!: Date | null;
   status!: string;
+  paymentReference!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -2099,6 +2112,7 @@ export const BundleAllocationRecordSchema = new EntitySchema<BundleAllocationRec
     activatedAt: { fieldName: 'activated_at', type: 'datetime', nullable: true },
     expiresAt: { fieldName: 'expires_at', type: 'datetime', nullable: true },
     status: { type: 'string', length: 32, default: 'pending' },
+    paymentReference: { fieldName: 'payment_reference', type: 'string', length: 255, nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
     updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
   },
@@ -2228,6 +2242,12 @@ async function initAuthOrm(cfg: DbConfig) {
       IndemnityTemplateRecordSchema,
       IndemnitySignatureRecordSchema,
       M2mLicensePlanRecordSchema,
+      BillingPriceChangeRecordSchema,
+      BillingSettingRecordSchema,
+      BillingQuotationRecordSchema,
+      BillingQuotationLineRecordSchema,
+      BillingInvoiceRecordSchema,
+      BillingInvoiceLineRecordSchema,
       OnboardingApplicationVehicleRecordSchema,
       OnboardingDeviceRequestRecordSchema,
       OnboardingApplicationDocumentRecordSchema,

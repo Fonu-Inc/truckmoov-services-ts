@@ -28,6 +28,7 @@
     "test:realtime": "vitest run tests/unit/realtime",
     "test:shared": "vitest run tests/unit/shared",
     "test": "pnpm test:unit && pnpm test:interface",
+    "test:db": "vitest run -c vitest.db.config.ts",
     "migration:generate:auth": "mikro-orm migration:create --config apps/auth/mikro-orm.config.ts",
     "migration:generate:fleet": "mikro-orm migration:create --config apps/fleet/mikro-orm.config.ts",
     "migration:run:auth": "mikro-orm migration:up --config apps/auth/mikro-orm.config.ts",

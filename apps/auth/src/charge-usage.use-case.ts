@@ -12,8 +12,21 @@ import { LowBalanceNotifierService } from './low-balance-notifier.service';
 import {
   TENANT_WALLET_REPOSITORY,
   type TenantWalletRepository,
+  type WalletMovementResult,
 } from './tenant-wallet.repository';
-import type { WalletLedgerCategory } from './wallet-ledger.repository';
+import {
+  WALLET_LEDGER_REPOSITORY,
+  type StoredWalletLedgerEntry,
+  type WalletLedgerCategory,
+  type WalletLedgerDraft,
+  type WalletLedgerRepository,
+} from './wallet-ledger.repository';
+
+export class ChargeReferenceRequiredError extends Error {
+  constructor() {
+    super('A charge needs a non-empty reference');
+  }
+}
 
 export class InsufficientWalletBalanceError extends Error {
   constructor(requiredKobo: number) {
@@ -57,7 +70,11 @@ export type ChargeResult = {
   coveredByAllowance: number;
   /** Units charged to the wallet, being everything past the allowance. */
   chargedUnits: number;
+  /** True when the idempotency key was already billed and nothing moved. */
+  replayed?: boolean;
 };
+
+type AllowanceClaim = { covered: number; restore: () => Promise<void> };
 
 /**
  * The usage item a channel draws its monthly allowance from. A plan that
@@ -97,9 +114,17 @@ export class ChargeUsageUseCase {
     @Inject(EntitlementService) private readonly entitlements: EntitlementService,
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly planEntitlements: PlanEntitlementsRepository,
+    @Inject(WALLET_LEDGER_REPOSITORY) private readonly ledger: WalletLedgerRepository,
   ) {}
 
   async execute(command: ChargeUsageCommand): Promise<ChargeResult> {
+    const reference = command.reference?.trim();
+    if (!reference) throw new ChargeReferenceRequiredError();
+
+    const idempotencyKey = `usage:${reference}`;
+    const original = await this.ledger.findByIdempotencyKey(command.tenantId, idempotencyKey);
+    if (original) return this.replayOf(original, command.quantity);
+
     // Throws when the channel is disabled or has no rate, which is the refusal
     // path for a switched-off channel: no rate, no send.
     const priced = await this.rates.price(
@@ -111,57 +136,138 @@ export class ChargeUsageUseCase {
     // The plan's included allowance is consumed first, and only what it does
     // not cover reaches the wallet. A plan selling 1,000 messages means the
     // first thousand are already paid for in the subscription.
-    const covered = await this.consumeAllowance(command, priced.quantity);
-    const chargeable = priced.quantity - covered;
+    const allowance = await this.consumeAllowance(command, priced.quantity);
+    const chargeable = priced.quantity - allowance.covered;
 
     if (chargeable <= 0) {
-      return {
-        charged: false,
-        totalKobo: 0,
-        unitRateKobo: priced.unitRateKobo,
-        balanceAfterKobo: null,
-        coveredByAllowance: covered,
-        chargedUnits: 0,
-      };
+      return this.recordAllowanceCover(command, allowance, priced, reference, idempotencyKey);
     }
 
     const totalKobo = priced.unitRateKobo * chargeable;
-
-    // Checked before the debit, so a refused spend leaves the balance alone.
-    // This is what extends the spending limit past data bundles to every
-    // channel, which was the gap.
-    await this.spendingLimit.assertWithinLimit(command.tenantId, totalKobo);
-
-    const before = await this.wallet.findByTenantId(command.tenantId);
-    const debited = await this.wallet.debit(command.tenantId, totalKobo, {
+    const debited = await this.debitOrRestore(command, allowance, {
       category: CHANNEL_CATEGORY[command.channel],
       quantity: chargeable,
       // The rate at the moment of use, copied onto the line. A later repricing
       // cannot change what this charge was.
       unitRateKobo: priced.unitRateKobo,
       reason: command.reason,
-      reference: command.reference,
-    });
+      reference,
+      idempotencyKey,
+    }, totalKobo);
 
-    if (!debited.ok) {
-      this.logger.warn(`usage_charge_refused:${command.tenantId}:${command.channel}`);
-      throw new InsufficientWalletBalanceError(totalKobo);
+    if (debited.replayed && debited.entry) {
+      await allowance.restore();
+      return this.replayOf(debited.entry, command.quantity);
     }
-
-    await this.lowBalance.afterDebit(
-      command.tenantId,
-      before?.balanceKobo ?? null,
-      debited.balanceAfterKobo,
-    );
 
     return {
       charged: true,
       totalKobo,
       unitRateKobo: priced.unitRateKobo,
       balanceAfterKobo: debited.balanceAfterKobo ?? null,
-      coveredByAllowance: covered,
+      coveredByAllowance: allowance.covered,
       chargedUnits: chargeable,
+      replayed: false,
     };
+  }
+
+  /**
+   * A zero-amount ledger entry under the usage key, so a redelivery finds the
+   * charge already settled and does not consume the allowance a second time.
+   */
+  private async recordAllowanceCover(
+    command: ChargeUsageCommand,
+    allowance: AllowanceClaim,
+    priced: { unitRateKobo: number },
+    reference: string,
+    idempotencyKey: string,
+  ): Promise<ChargeResult> {
+    try {
+      await this.wallet.ensure(command.tenantId);
+      const marker = await this.wallet.debit(command.tenantId, 0, {
+        category: CHANNEL_CATEGORY[command.channel],
+        quantity: allowance.covered,
+        unitRateKobo: 0,
+        reason: command.reason,
+        reference,
+        idempotencyKey,
+      });
+      if (!marker.ok) throw new InsufficientWalletBalanceError(0);
+      if (marker.replayed && marker.entry) {
+        await allowance.restore();
+        return this.replayOf(marker.entry, command.quantity);
+      }
+    } catch (error) {
+      await allowance.restore();
+      throw error;
+    }
+    return {
+      charged: false,
+      totalKobo: 0,
+      unitRateKobo: priced.unitRateKobo,
+      balanceAfterKobo: null,
+      coveredByAllowance: allowance.covered,
+      chargedUnits: 0,
+      replayed: false,
+    };
+  }
+
+  private replayOf(original: StoredWalletLedgerEntry, quantity: number): ChargeResult {
+    if (original.amountKobo === 0) {
+      return {
+        charged: false,
+        totalKobo: 0,
+        unitRateKobo: original.unitRateKobo,
+        balanceAfterKobo: null,
+        coveredByAllowance: original.quantity,
+        chargedUnits: 0,
+        replayed: true,
+      };
+    }
+    return {
+      charged: true,
+      totalKobo: original.amountKobo,
+      unitRateKobo: original.unitRateKobo,
+      balanceAfterKobo: original.balanceAfterKobo,
+      coveredByAllowance: Math.max(0, quantity - original.quantity),
+      chargedUnits: original.quantity,
+      replayed: true,
+    };
+  }
+
+  /**
+   * The limit check and the debit, with the allowance given back when either
+   * refuses. Without that, a tenant who cannot pay loses allowance for a send
+   * that never happens.
+   */
+  private async debitOrRestore(
+    command: ChargeUsageCommand,
+    allowance: AllowanceClaim,
+    draft: WalletLedgerDraft,
+    totalKobo: number,
+  ): Promise<WalletMovementResult> {
+    try {
+      // Checked before the debit, so a refused spend leaves the balance alone.
+      await this.spendingLimit.assertWithinLimit(command.tenantId, totalKobo);
+
+      const before = await this.wallet.findByTenantId(command.tenantId);
+      const debited = await this.wallet.debit(command.tenantId, totalKobo, draft);
+      if (!debited.ok) {
+        this.logger.warn(`usage_charge_refused:${command.tenantId}:${command.channel}`);
+        throw new InsufficientWalletBalanceError(totalKobo);
+      }
+      if (!debited.replayed) {
+        await this.lowBalance.afterDebit(
+          command.tenantId,
+          before?.balanceKobo ?? null,
+          debited.balanceAfterKobo,
+        );
+      }
+      return debited;
+    } catch (error) {
+      await allowance.restore();
+      throw error;
+    }
   }
 
   /**
@@ -170,13 +276,17 @@ export class ChargeUsageUseCase {
    * A tenant with no plan entitlements configured gets no allowance rather than
    * an error: the charge still works, it is simply all billable.
    */
-  private async consumeAllowance(command: ChargeUsageCommand, quantity: number): Promise<number> {
-    if (!command.planCode) return 0;
+  private async consumeAllowance(
+    command: ChargeUsageCommand,
+    quantity: number,
+  ): Promise<AllowanceClaim> {
+    const none: AllowanceClaim = { covered: 0, restore: async () => {} };
+    if (!command.planCode) return none;
 
     const item = CHANNEL_USAGE_ITEM[command.channel];
     try {
       const included = await this.entitlements.monthlyAllowance(command.planCode, item);
-      if (included <= 0) return 0;
+      if (included <= 0) return none;
 
       const month = allowanceMonth(command.occurredAt ?? new Date());
       const result = await this.planEntitlements.consumeAllowance(
@@ -186,11 +296,15 @@ export class ChargeUsageUseCase {
         quantity,
         included,
       );
-      return result.covered;
+      return {
+        covered: result.covered,
+        restore: () =>
+          this.planEntitlements.releaseAllowance(command.tenantId, item, month, result.covered),
+      };
     } catch {
       // No entitlements for this plan. Charging everything is the safe
       // fallback: giving away free units on a lookup failure is not.
-      return 0;
+      return none;
     }
   }
 }

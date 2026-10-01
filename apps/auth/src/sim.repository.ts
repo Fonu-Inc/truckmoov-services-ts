@@ -64,6 +64,8 @@ export type SimFilters = {
   limit?: number;
 };
 
+export type TenantSimCount = { tenantId: string; activeSims: number };
+
 export interface SimRepository {
   findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }>;
   findById(id: string): Promise<StoredSim | null>;
@@ -73,6 +75,7 @@ export interface SimRepository {
   countByStatus(): Promise<Record<string, number>>;
   countByCarrier(): Promise<Record<string, number>>;
   countUnassigned(): Promise<number>;
+  countActiveByTenant(): Promise<TenantSimCount[]>;
 }
 
 export const SIM_REPOSITORY = Symbol('SIM_REPOSITORY');

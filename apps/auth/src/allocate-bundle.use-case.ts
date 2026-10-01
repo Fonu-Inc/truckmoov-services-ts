@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -10,7 +10,9 @@ import { SpendingLimitService } from './spending-limit.service';
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 
-type Payload = { carrierId: string; planType: string; bundleId: string; mobileNumbers: string[] };
+type Payload = { carrierId: string; planType: string; bundleId: string; mobileNumbers: string[]; idempotencyKey?: string };
+type Allocation = Awaited<ReturnType<BundleAllocationRepository['findByPaymentReference']>>[number];
+type Bundle = NonNullable<Awaited<ReturnType<BundleCatalogRepository['findById']>>>;
 
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -20,6 +22,8 @@ function addDays(date: Date, days: number): Date {
 
 @Injectable()
 export class AllocateBundleUseCase {
+  private readonly logger = new Logger(AllocateBundleUseCase.name);
+
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
@@ -35,90 +39,121 @@ export class AllocateBundleUseCase {
     if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot allocate bundles');
 
     const tenantId = actor.tenantId!;
+    const key = payload.idempotencyKey ?? randomUUID();
 
     const bundle = await this.bundleCatalogRepository.findById(payload.bundleId);
     if (!bundle) throw new Error('Bundle not found');
 
-    const totalCostKobo = bundle.priceKobo * payload.mobileNumbers.length;
+    const existing = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
+    const count = payload.mobileNumbers.length;
+    if (existing.length > 0) return this.settlePrior(tenantId, key, bundle, count, existing);
 
-    // Checked before the debit, so a refused spend leaves the balance alone.
+    const totalCostKobo = bundle.priceKobo * count;
+
     await this.spendingLimitService.assertWithinLimit(tenantId, totalCostKobo);
 
-    // Atomic debit up front prevents concurrent double-spend: the balance is
-    // reserved before any allocation, and unused funds are refunded per failure.
     const debited = await this.tenantWalletRepository.debit(tenantId, totalCostKobo, {
       category: 'data_bundle',
-      quantity: payload.mobileNumbers.length,
-      // The bundle price at this moment, so a later catalogue change cannot
-      // re-price what the tenant already paid.
+      quantity: count,
       unitRateKobo: bundle.priceKobo,
-      reason: `${bundle.name} for ${payload.mobileNumbers.length} SIM(s)`,
+      reason: `${bundle.name} for ${count} SIM(s)`,
       reference: bundle.id,
+      idempotencyKey: `bundle:${tenantId}:${key}`,
     });
     if (!debited.ok) throw new Error('Insufficient wallet balance');
-
-    const now = new Date();
-    const allocationIds: string[] = [];
-    const failures: Array<{ mobileNumber: string; reason: string }> = [];
-
-    for (const mobileNumber of payload.mobileNumbers) {
-      try {
-        const id = randomUUID();
-        await this.bundleAllocationRepository.save({
-          id,
-          tenantId,
-          mobileNumber,
-          bundleId: bundle.id,
-          dataUsedMb: 0,
-          dataTotalMb: bundle.dataAmountGb * 1024,
-          activatedAt: now,
-          expiresAt: addDays(now, bundle.validityDays),
-          status: 'active',
-          createdAt: now,
-          updatedAt: now,
-        });
-
-        await this.bundleTransactionRepository.save({
-          id: randomUUID(),
-          tenantId,
-          mobileNumber,
-          bundleId: bundle.id,
-          amountKobo: bundle.priceKobo,
-          status: 'success',
-          paymentReference: null,
-          failureReason: null,
-          createdAt: now,
-        });
-
-        allocationIds.push(id);
-      } catch (err) {
-        // Refund the reserved cost for this failed allocation.
-        await this.tenantWalletRepository.credit(tenantId, bundle.priceKobo, {
-          category: 'refund',
-          quantity: 1,
-          unitRateKobo: bundle.priceKobo,
-          reason: `Refund: ${bundle.name} could not be allocated to ${mobileNumber}`,
-          reference: bundle.id,
-        });
-        failures.push({ mobileNumber, reason: err instanceof Error ? err.message : 'Unknown error' });
-      }
+    if (debited.replayed) {
+      const prior = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
+      return this.settlePrior(tenantId, key, bundle, count, prior);
     }
 
-    const successfulCount = allocationIds.length;
+    try {
+      const allocationIds = await this.persistPurchase(tenantId, key, bundle, payload.mobileNumbers);
+      await this.spendingLimitService.recordSpend(tenantId, totalCostKobo);
+      return this.toResponse(bundle, allocationIds);
+    } catch (err) {
+      await this.tryRefund(tenantId, key, bundle, count, err);
+      throw err;
+    }
+  }
 
-    // Failed allocations were refunded, so only the amount that stayed spent
-    // counts towards the limit.
-    await this.spendingLimitService.recordSpend(tenantId, bundle.priceKobo * successfulCount);
+  private async settlePrior(tenantId: string, key: string, bundle: Bundle, count: number, prior: Allocation[]) {
+    const complete = prior.length >= count && prior.every((a) => a.status !== 'cancelled');
+    if (complete) return this.toResponse(bundle, prior.map((a) => a.id));
+    await this.refundPurchase(tenantId, key, bundle, bundle.priceKobo * count, count);
+    throw new Error('Purchase failed and was refunded, use a new idempotency key');
+  }
 
+  private async tryRefund(tenantId: string, key: string, bundle: Bundle, count: number, cause: unknown) {
+    try {
+      await this.refundPurchase(tenantId, key, bundle, bundle.priceKobo * count, count);
+    } catch (refundErr) {
+      this.logger.error(`Refund failed for ${tenantId}:${key} after: ${String(cause)}`, refundErr as Error);
+    }
+  }
+
+  private async persistPurchase(tenantId: string, key: string, bundle: Bundle, mobileNumbers: string[]) {
+    const now = new Date();
+    const allocationIds: string[] = [];
+    for (const mobileNumber of mobileNumbers) {
+      const id = randomUUID();
+      await this.bundleAllocationRepository.save({
+        id,
+        tenantId,
+        mobileNumber,
+        bundleId: bundle.id,
+        dataUsedMb: 0,
+        dataTotalMb: bundle.dataAmountGb * 1024,
+        activatedAt: now,
+        expiresAt: addDays(now, bundle.validityDays),
+        status: 'active',
+        paymentReference: key,
+        createdAt: now,
+        updatedAt: now,
+      });
+      allocationIds.push(id);
+      await this.bundleTransactionRepository.save({
+        id: randomUUID(),
+        tenantId,
+        mobileNumber,
+        bundleId: bundle.id,
+        amountKobo: bundle.priceKobo,
+        status: 'success',
+        paymentReference: key,
+        failureReason: null,
+        createdAt: now,
+      });
+    }
+    return allocationIds;
+  }
+
+  private async refundPurchase(tenantId: string, key: string, bundle: Bundle, amountKobo: number, count: number) {
+    await this.cancelAllocations(tenantId, key);
+    await this.tenantWalletRepository.credit(tenantId, amountKobo, {
+      category: 'refund',
+      quantity: count,
+      unitRateKobo: bundle.priceKobo,
+      reason: `Refund: ${bundle.name} for ${count} SIM(s) could not be allocated`,
+      reference: bundle.id,
+      idempotencyKey: `bundle-refund:${tenantId}:${key}`,
+    });
+  }
+
+  private async cancelAllocations(tenantId: string, key: string) {
+    const saved = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
+    for (const allocation of saved.filter((a) => a.status !== 'cancelled')) {
+      await this.bundleAllocationRepository.save({ ...allocation, status: 'cancelled', updatedAt: new Date() });
+    }
+  }
+
+  private toResponse(bundle: Bundle, allocationIds: string[]) {
     return {
       status: true,
       message: 'success',
       data: {
         allocationIds,
-        totalAmount: (bundle.priceKobo * successfulCount) / 100,
-        successfulCount,
-        failedCount: failures.length,
-        ...(failures.length > 0 && { failures }),
+        totalAmount: (bundle.priceKobo * allocationIds.length) / 100,
+        successfulCount: allocationIds.length,
+        failedCount: 0,
       },
     };
   }

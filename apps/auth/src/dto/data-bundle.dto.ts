@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, MinLength,
+  IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -29,6 +29,7 @@ export class AllocateBundleDto {
   @ApiProperty() @IsString() planType!: string;
   @ApiProperty() @IsString() bundleId!: string;
   @ApiProperty({ type: [String] }) @IsArray() @IsString({ each: true }) @MinLength(1, { each: true }) mobileNumbers!: string[];
+  @ApiPropertyOptional({ description: 'Client key making a retry return the original purchase' }) @IsOptional() @IsString() @MinLength(1) @MaxLength(100) idempotencyKey?: string;
 }
 
 export class ListAllocationsQueryDto {

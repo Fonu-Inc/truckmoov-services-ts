@@ -101,7 +101,7 @@ describe("Platform top-up", () => {
     });
 
     const { items } = await kit.ledger.listAcrossTenants({});
-    expect(items[0]?.category).toBe("top_up");
+    expect(items[0]?.category).toBe("goodwill");
     expect(items[0]?.reason).toContain("Goodwill credit");
     expect(items[0]?.reference).toBe(`staff:${ACTOR.id}`);
   });
@@ -117,6 +117,47 @@ describe("Platform top-up", () => {
         reason: "   ",
       }),
     ).rejects.toBeInstanceOf(PlatformTopUpError);
+  });
+
+  it("records the credit as goodwill, not a paid top-up", async () => {
+    const kit = harness();
+
+    await kit.topUp.execute({
+      accessToken: "token",
+      tenantId: "tenant-a",
+      amountKobo: 1_000 * NAIRA,
+      reason: "Goodwill",
+    });
+
+    const { items } = await kit.ledger.listAcrossTenants({});
+    expect(items.map((item) => item.category)).toEqual(["goodwill"]);
+  });
+
+  it("credits once for a repeated idempotency key", async () => {
+    const kit = harness();
+    const command = {
+      accessToken: "token",
+      tenantId: "tenant-a",
+      amountKobo: 1_000 * NAIRA,
+      reason: "Transfer",
+      idempotencyKey: "k-1",
+    };
+
+    await kit.topUp.execute(command);
+    const second = await kit.topUp.execute(command);
+
+    expect(second.balanceAfterKobo).toBe(1_000 * NAIRA);
+    expect(kit.activityLog.entries).toHaveLength(1);
+  });
+
+  it("credits each request separately when no key is given", async () => {
+    const kit = harness();
+    const command = { accessToken: "token", tenantId: "tenant-a", amountKobo: 1_000 * NAIRA, reason: "Transfer" };
+
+    await kit.topUp.execute(command);
+    const second = await kit.topUp.execute(command);
+
+    expect(second.balanceAfterKobo).toBe(2_000 * NAIRA);
   });
 
   it("refuses a zero or negative amount", async () => {

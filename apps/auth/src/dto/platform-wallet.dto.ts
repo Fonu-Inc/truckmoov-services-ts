@@ -16,6 +16,16 @@ export class PlatformTopUpDto {
   @IsString()
   @MaxLength(500)
   reason!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Retry key. Repeating a request with the same key credits once. Also accepted as the Idempotency-Key header, which wins.',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  idempotencyKey?: string;
 }
 
 export class WalletCreditSettingsDto {

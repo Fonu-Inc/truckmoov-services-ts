@@ -67,6 +67,17 @@ export class InMemoryWalletLedgerRepository implements WalletLedgerRepository {
     };
   }
 
+  async findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<StoredWalletLedgerEntry | null> {
+    return (
+      this.entries().find(
+        (entry) => entry.tenantId === tenantId && entry.idempotencyKey === idempotencyKey,
+      ) ?? null
+    );
+  }
+
   async sum(tenantId: string, filters?: WalletLedgerFilters): Promise<number> {
     return this.matching(tenantId, filters).reduce((total, e) => total + e.amountKobo, 0);
   }

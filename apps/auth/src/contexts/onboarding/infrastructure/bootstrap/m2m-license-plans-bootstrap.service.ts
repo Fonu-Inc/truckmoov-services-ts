@@ -18,6 +18,8 @@ type M2mLicensePlanSeed = {
   sortOrder: number;
 };
 
+const DEFAULT_VALIDITY_DAYS = 365;
+
 export const M2M_LICENSE_PLAN_SEEDS: readonly M2mLicensePlanSeed[] = [
   {
     code: 'm2m_standard',
@@ -58,16 +60,17 @@ export class M2mLicensePlansBootstrapService implements OnApplicationBootstrap {
     const now = new Date();
 
     for (const seed of M2M_LICENSE_PLAN_SEEDS) {
-      if (await this.plans.findByCode(seed.code)) continue;
-
-      await this.plans.save({
+      const inserted = await this.plans.insertIfMissing({
         id: `m2m-license-plan-${seed.code}`,
         ...seed,
+        validityDays: DEFAULT_VALIDITY_DAYS,
+        components: null,
+        lastPriceChangedAt: null,
         isActive: true,
         createdAt: now,
         updatedAt: now,
       });
-      this.logger.log(`Seeded M2M licence plan ${seed.code}`);
+      if (inserted) this.logger.log(`Seeded M2M licence plan ${seed.code}`);
     }
   }
 }

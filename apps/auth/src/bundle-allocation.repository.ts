@@ -8,6 +8,7 @@ export type StoredBundleAllocation = {
   activatedAt: Date | null;
   expiresAt: Date | null;
   status: string;
+  paymentReference?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -24,6 +25,7 @@ export type BundleAllocationFilters = {
 export interface BundleAllocationRepository {
   findAll(filters?: BundleAllocationFilters): Promise<{ items: StoredBundleAllocation[]; total: number }>;
   findById(id: string): Promise<StoredBundleAllocation | null>;
+  findByPaymentReference(tenantId: string, paymentReference: string): Promise<StoredBundleAllocation[]>;
   save(allocation: StoredBundleAllocation): Promise<void>;
   countByStatus(tenantId: string): Promise<Record<string, number>>;
   findExpiringWithin(tenantId: string, days: number): Promise<StoredBundleAllocation[]>;

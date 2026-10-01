@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { COMMUNICATION_CHANNELS } from '../communication-rates.repository';
 
 export class ChargeUsageDto {
@@ -15,6 +15,7 @@ export class ChargeUsageDto {
 
   /** Ties the charge to what caused it, and makes a retry idempotent. */
   @IsString()
+  @Matches(/\S/, { message: 'reference must not be empty' })
   @MaxLength(255)
   reference!: string;
 

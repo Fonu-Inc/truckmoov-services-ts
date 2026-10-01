@@ -8,6 +8,7 @@ import {
   Put,
   Param,
   BadRequestException,
+  ConflictException,
   Post,
   Headers,
   UnauthorizedException,
@@ -41,7 +42,7 @@ import {
 import { AppConfigService } from '@shared/config';
 import { ObjectStorageService } from '@shared/object-storage';
 import { Observable } from 'rxjs';
-import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
+import { ActivateSubscriptionUseCase, OnboardingNotFoundError } from './activate-subscription.use-case';
 import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { ConfirmApplicationPaymentUseCase } from '@auth/onboarding';
 import { ActivityLogService } from './activity-log.service';
@@ -49,7 +50,12 @@ import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { CompleteOnboardingUseCase } from './complete-onboarding.use-case';
 import { ForbiddenError } from './contexts/auth/session';
-import { PlanNotFoundError, CreatePaymentIntentUseCase } from './create-payment-intent.use-case';
+import {
+  PlanNotFoundError,
+  InvalidPlanPriceError,
+  PlanChangeNotAllowedError,
+  CreatePaymentIntentUseCase,
+} from './create-payment-intent.use-case';
 import { DeleteKycDocumentUseCase, KycDocumentNotFoundError } from './delete-kyc-document.use-case';
 import {
   EnterpriseEnquiryResponse,
@@ -80,7 +86,7 @@ import {
 } from './dto/onboarding.dto';
 import { Portals, OnResource, Requires, SignedIn } from '@shared/access';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
-import { PaymentGatewayRegistry } from './contexts/payments';
+import { PaymentGatewayRegistry, type PaidAmount, type PaymentCallback } from './contexts/payments';
 import { StorageQuotaService } from './storage-quota.service';
 import { StorageQuotaExceededError } from './storage-usage.repository';
 import { TOKEN_SERVICE } from './contexts/auth/session';
@@ -177,6 +183,9 @@ export class OnboardingController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof PlanNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof OnboardingNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof InvalidPlanPriceError) throw new BadRequestException(error.message);
+      if (error instanceof PlanChangeNotAllowedError) throw new ConflictException(error.message);
       throw error;
     }
   }
@@ -221,56 +230,74 @@ export class OnboardingController extends BaseAuthController {
     const callback = this.gatewayRegistry.parse(payload, req.headers, body);
     if (!callback) throw new ForbiddenException('Invalid webhook signature');
 
-    // An onboarding payment is settled whatever the outcome: a failed attempt
-    // has to be visible on the application, not silently absent.
-    if (callback.reference && callback.metadata['kind'] === 'onboarding') {
-      try {
-        await this.confirmApplicationPayment.execute(
-          callback.reference,
-          callback.succeeded,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to settle onboarding payment ${callback.reference}: ${
-            error instanceof Error ? error.message : 'unknown error'
-          }`,
-        );
-      }
-    }
+    const paid: PaidAmount = {
+      amountKobo: callback.amountKobo,
+      currency: callback.currency,
+      channel: callback.channel,
+    };
+    const failures = [
+      await this.settleOnboardingPayment(callback, paid),
+      await this.settleSubscription(callback, paid),
+      await this.settleWalletTopUp(callback, paid),
+    ].filter((failed) => failed);
 
-    if (callback.succeeded) {
-      const metadata = callback.metadata;
-      const tenantId = metadata['tenantId'] as string | undefined;
-      const reference = callback.reference;
-      if (tenantId && reference) {
-        try {
-          await this.activateSubscriptionUseCase.execute(tenantId, reference, {
-            planCode: metadata['planCode'] as string | undefined,
-            billingCycle: metadata['billingCycle'] as string | undefined,
-          });
-          this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
-        } catch {
-          this.logger.error(`Failed to activate subscription for tenant ${tenantId}`);
-        }
-      }
-      // A wallet top-up carries no tenant in its metadata: the settlement reads
-      // the tenant from the stored top-up row instead, so it runs on reference alone.
-      if (reference) {
-        try {
-          const settlement = await this.settleWalletTopUpUseCase.execute(reference);
-          if (settlement.outcome === 'credited' && settlement.tenantId) {
-            this.paymentEventService.emit(settlement.tenantId, {
-              event: 'payment.confirmed',
-              reference,
-            });
-          }
-        } catch {
-          this.logger.error(`Failed to settle wallet top-up for reference ${reference}`);
-        }
-      }
+    if (failures.length > 0) {
+      throw new ServiceUnavailableException('Payment settlement failed, retry later');
     }
 
     return { received: true };
+  }
+
+  private async settle(label: string, run: () => Promise<void>): Promise<boolean> {
+    try {
+      await run();
+      return false;
+    } catch (error) {
+      this.logger.error(
+        `Failed to settle ${label}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return true;
+    }
+  }
+
+  private settleOnboardingPayment(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
+    if (!callback.reference || callback.metadata['kind'] !== 'onboarding') return Promise.resolve(false);
+    if (!callback.succeeded && !callback.failed) return Promise.resolve(false);
+    return this.settle(`onboarding payment ${callback.reference}`, () =>
+      this.confirmApplicationPayment.execute(callback.reference, callback.succeeded, paid),
+    );
+  }
+
+  private settleSubscription(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
+    const { metadata, reference } = callback;
+    const tenantId = metadata['tenantId'] as string | undefined;
+    if (!callback.succeeded || !tenantId || !reference) return Promise.resolve(false);
+    return this.settle(`subscription for tenant ${tenantId}`, async () => {
+      await this.activateSubscriptionUseCase.execute(
+        tenantId,
+        reference,
+        {
+          planCode: metadata['planCode'] as string | undefined,
+          billingCycle: metadata['billingCycle'] as string | undefined,
+        },
+        paid,
+      );
+      this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
+    });
+  }
+
+  private settleWalletTopUp(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
+    const { reference } = callback;
+    if (!callback.succeeded || !reference) return Promise.resolve(false);
+    return this.settle(`wallet top-up ${reference}`, async () => {
+      const settlement = await this.settleWalletTopUpUseCase.execute(reference, paid);
+      if (settlement.outcome === 'credited' && settlement.tenantId) {
+        this.paymentEventService.emit(settlement.tenantId, {
+          event: 'payment.confirmed',
+          reference,
+        });
+      }
+    });
   }
 
   @Requires('tenant.upgrades.manage')

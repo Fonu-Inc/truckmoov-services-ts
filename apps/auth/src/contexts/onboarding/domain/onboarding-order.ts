@@ -1,13 +1,28 @@
+import type { OnboardingApplicantType } from './onboarding-application.repository';
 import type { StoredM2mLicensePlan } from './m2m-license-plan.repository';
+import { computeTotals, koboToNgn } from './quotation-totals';
 
 /**
- * What installing one device costs.
+ * What installing one device costs when no price has been set.
  *
- * FIX: hard-coded until platform admin billing owns this. The designs show
- * ₦60,000 against a four-device order, which is this figure per device; a flat
- * fee would charge a single-vehicle owner operator the same as a fleet.
+ * The live figure is a billing setting; this is only the starting value and
+ * the fallback for an install that has not been seeded.
  */
-export const INSTALLATION_FEE_PER_DEVICE_NGN = 15_000;
+export const DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN = 15_000;
+
+export type InstallationFees = {
+  enterpriseNgn: number;
+  ownerOperatorNgn: number;
+};
+
+export function installationFeeFor(
+  applicantType: OnboardingApplicantType,
+  fees: InstallationFees,
+): number {
+  return applicantType === 'owner_operator'
+    ? fees.ownerOperatorNgn
+    : fees.enterpriseNgn;
+}
 
 export type OnboardingOrderSummary = {
   planCode: string;
@@ -16,6 +31,10 @@ export type OnboardingOrderSummary = {
   perDeviceNgn: number;
   devicesNgn: number;
   installationNgn: number;
+  installationPerDeviceNgn: number;
+  subtotalNgn: number;
+  taxRateBp: number;
+  taxNgn: number;
   totalNgn: number;
   /** What the same fleet costs to renew, shown before anyone commits. */
   renewalPerDeviceNgn: number;
@@ -31,9 +50,19 @@ export type OnboardingOrderSummary = {
 export function buildOrderSummary(
   plan: StoredM2mLicensePlan,
   deviceCount: number,
+  installationFeePerDeviceNgn: number,
+  taxRateBp = 0,
 ): OnboardingOrderSummary {
   const devicesNgn = plan.perDeviceYear1Ngn * deviceCount;
-  const installationNgn = INSTALLATION_FEE_PER_DEVICE_NGN * deviceCount;
+  const installationNgn = installationFeePerDeviceNgn * deviceCount;
+  const totals = computeTotals(
+    [
+      { quantity: deviceCount, unitPriceKobo: toKobo(plan.perDeviceYear1Ngn) },
+      { quantity: deviceCount, unitPriceKobo: toKobo(installationFeePerDeviceNgn) },
+    ],
+    0,
+    taxRateBp,
+  );
 
   return {
     planCode: plan.code,
@@ -42,7 +71,11 @@ export function buildOrderSummary(
     perDeviceNgn: plan.perDeviceYear1Ngn,
     devicesNgn,
     installationNgn,
-    totalNgn: devicesNgn + installationNgn,
+    installationPerDeviceNgn: installationFeePerDeviceNgn,
+    subtotalNgn: koboToNgn(totals.subtotalKobo),
+    taxRateBp,
+    taxNgn: koboToNgn(totals.taxKobo),
+    totalNgn: koboToNgn(totals.totalKobo),
     renewalPerDeviceNgn: plan.perDeviceRenewalNgn,
   };
 }

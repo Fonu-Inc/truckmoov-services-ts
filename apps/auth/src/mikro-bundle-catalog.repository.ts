@@ -12,10 +12,10 @@ function toStored(r: BundleCatalogRecord): StoredBundleCatalog {
     code: r.code,
     name: r.name,
     carrierId: r.carrierId,
-    dataAmountGb: r.dataAmountGb,
+    dataAmountGb: Number(r.dataAmountGb),
     validityDays: r.validityDays,
     billingCycle: r.billingCycle,
-    priceKobo: r.priceKobo,
+    priceKobo: Number(r.priceKobo),
     currency: r.currency,
     active: r.active,
     createdAt: r.createdAt,
@@ -44,7 +44,7 @@ export class MikroBundleCatalogRepository implements BundleCatalogRepository {
 
     const where = conditions.length ? `where ${conditions.join(' and ')}` : '';
     const countRows = await orm.em.getConnection().execute<Array<{ count: string }>>(
-      `select count(*)::int as count from bundle_catalogs ${where}`,
+      `select count(*)::int as count from bundle_catalog ${where}`,
       params,
     );
     const total = Number(countRows[0]?.count ?? 0);
@@ -53,10 +53,11 @@ export class MikroBundleCatalogRepository implements BundleCatalogRepository {
     const limit = filters?.limit ?? 50;
     const offset = (page - 1) * limit;
     const rows = await orm.em.getConnection().execute<BundleCatalogRecord[]>(
-      `select * from bundle_catalogs ${where} order by name asc limit ? offset ?`,
+      `select * from bundle_catalog ${where} order by name asc limit ? offset ?`,
       [...params, limit, offset],
     );
-    return { items: rows.map((r) => toStored(r as unknown as BundleCatalogRecord)), total };
+    const em = orm.em.fork();
+    return { items: rows.map((r) => toStored(em.map(BundleCatalogRecord, r))), total };
   }
 
   async findById(id: string): Promise<StoredBundleCatalog | null> {

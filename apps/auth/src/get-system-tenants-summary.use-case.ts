@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ListSystemTenantsUseCase } from "./list-system-tenants.use-case";
+import { INVOICE_REPOSITORY, lagosDate, type InvoiceRepository } from "@auth/onboarding";
 import { SIM_REPOSITORY, type SimRepository } from "./sim.repository";
 
 @Injectable()
@@ -9,12 +10,15 @@ export class GetSystemTenantsSummaryUseCase {
     private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
     @Inject(SIM_REPOSITORY)
     private readonly simRepository: SimRepository,
+    @Inject(INVOICE_REPOSITORY)
+    private readonly invoiceRepository: InvoiceRepository,
   ) {}
 
   async execute(accessToken: string) {
-    const [tenants, simCountByStatus] = await Promise.all([
+    const [tenants, simCountByStatus, overdueInvoices] = await Promise.all([
       this.listSystemTenantsUseCase.list(accessToken, {}),
       this.simRepository.countByStatus(),
+      this.invoiceRepository.countOverdue(lagosDate(new Date())),
     ]);
     const totalSims = Object.values(simCountByStatus).reduce(
       (sum, count) => sum + count,
@@ -43,8 +47,7 @@ export class GetSystemTenantsSummaryUseCase {
           0,
         ),
         totalSims,
-        // No invoice/billing source exists yet; surfaced as null (N/A).
-        overdueInvoices: null,
+        overdueInvoices,
         monthlyRevenueNgn: tenants.reduce(
           (sum, tenant) => sum + tenant.monthlyRevenueNgn,
           0,

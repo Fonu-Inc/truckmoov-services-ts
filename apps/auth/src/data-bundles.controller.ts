@@ -329,11 +329,18 @@ export class DataBundlesController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Allocate bundle to SIMs' })
   @ApiCreatedResponse({ type: AllocateBundleResponse })
-  async allocateBundle(@Body() payload: AllocateBundleDto, @Headers('authorization') authorization?: string) {
+  async allocateBundle(
+    @Body() payload: AllocateBundleDto,
+    @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyHeader?: string,
+  ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      return await this.allocateBundleUseCase.execute(accessToken, payload);
+      return await this.allocateBundleUseCase.execute(accessToken, {
+        ...payload,
+        idempotencyKey: payload.idempotencyKey ?? idempotencyHeader?.slice(0, 100),
+      });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

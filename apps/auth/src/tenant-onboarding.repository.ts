@@ -61,9 +61,17 @@ export type TenantCompanyDetails = {
   organizationType: TenantOrganizationType;
 };
 
+export type PendingSubscriptionCharge = {
+  reference: string;
+  amountKobo: number;
+  planCode: string;
+  billingCycle: TenantBillingCycle;
+};
+
 export type TenantSubscriptionSelection = {
   planCode: string;
   billingCycle: TenantBillingCycle;
+  pendingCharges?: PendingSubscriptionCharge[];
 };
 
 export type TenantDeviceProvisioning = {
@@ -120,6 +128,16 @@ export type StoredTenantOnboarding = {
 
 export interface TenantOnboardingRepository {
   save(onboarding: StoredTenantOnboarding): Promise<void>;
+  appendPendingCharge(
+    tenantId: string,
+    charge: PendingSubscriptionCharge,
+    maxPending: number,
+  ): Promise<void>;
+  activateSubscription(
+    tenantId: string,
+    charge: PendingSubscriptionCharge,
+    activatedAt: Date,
+  ): Promise<boolean>;
   findByTenantId(tenantId: string): Promise<StoredTenantOnboarding | null>;
   findAll(): Promise<StoredTenantOnboarding[]>;
   deleteByTenantId(tenantId: string): Promise<void>;

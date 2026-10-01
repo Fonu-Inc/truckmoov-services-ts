@@ -32,13 +32,21 @@ class OtherGateway implements PaymentGateway {
       succeeded: body['status'] === 'successful',
       reference: String(body['txRef'] ?? ''),
       metadata: {},
+      amountKobo: null,
+      currency: null,
+      channel: null,
     };
   }
 }
 
 const BODY = JSON.stringify({
   event: 'charge.success',
-  data: { reference: 'TOPUP-1', metadata: { tenantId: 'tenant-a', purpose: 'wallet_topup' } },
+  data: {
+    reference: 'TOPUP-1',
+    amount: 500000,
+    currency: 'NGN',
+    metadata: { tenantId: 'tenant-a', purpose: 'wallet_topup' },
+  },
 });
 
 function sign(secret: string, body = BODY) {
@@ -116,6 +124,8 @@ describe('one webhook, dispatched by signature', () => {
       provider: 'paystack',
       succeeded: true,
       reference: 'TOPUP-1',
+      amountKobo: 500000,
+      currency: 'NGN',
     });
     expect(callback?.metadata).toMatchObject({ purpose: 'wallet_topup' });
   });
@@ -127,6 +137,8 @@ describe('one webhook, dispatched by signature', () => {
     }, JSON.parse(failed));
 
     expect(callback?.succeeded).toBe(false);
+    expect(callback?.amountKobo).toBeNull();
+    expect(callback?.currency).toBeNull();
   });
 
   it('returns null for a verified body carrying no reference', () => {

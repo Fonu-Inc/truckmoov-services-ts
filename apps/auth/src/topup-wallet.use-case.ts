@@ -61,7 +61,7 @@ export class TopupWalletUseCase {
     }
 
     const id = randomUUID();
-    const reference = `TOPUP-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const reference = `TOPUP-${randomUUID().replaceAll('-', '').toUpperCase()}`;
     const now = new Date();
 
     // Recorded before the charge is initiated, never after. The provider's

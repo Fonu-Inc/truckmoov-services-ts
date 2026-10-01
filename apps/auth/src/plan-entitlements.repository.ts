@@ -27,6 +27,14 @@ export interface PlanEntitlementsRepository {
     includedPerMonth: number,
   ): Promise<{ covered: number; uncovered: number }>;
 
+  /** Gives back allowance consumed by a charge that did not go through. Never takes usage below zero. */
+  releaseAllowance(
+    tenantId: string,
+    item: UsageItem,
+    billingMonth: string,
+    units: number,
+  ): Promise<void>;
+
   findUsage(tenantId: string, billingMonth: string): Promise<AllowanceUsage[]>;
 }
 

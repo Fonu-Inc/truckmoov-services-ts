@@ -13,7 +13,7 @@ import type {
   WalletLedgerRepository,
 } from './wallet-ledger.repository';
 
-function toStored(record: WalletLedgerEntryRecord): StoredWalletLedgerEntry {
+export function toStoredLedgerEntry(record: WalletLedgerEntryRecord): StoredWalletLedgerEntry {
   return {
     id: record.id,
     seq: Number(record.seq),
@@ -26,6 +26,7 @@ function toStored(record: WalletLedgerEntryRecord): StoredWalletLedgerEntry {
     quantity: record.quantity,
     reason: record.reason,
     reference: record.reference,
+    idempotencyKey: record.idempotencyKey ?? null,
     createdAt: record.createdAt,
   };
 }
@@ -61,7 +62,7 @@ export class MikroWalletLedgerRepository implements WalletLedgerRepository {
       whereFrom(tenantId, filters) as never,
       { orderBy: { seq: 'desc' }, limit, offset: (page - 1) * limit },
     );
-    return { items: records.map(toStored), total };
+    return { items: records.map(toStoredLedgerEntry), total };
   }
 
   async listAcrossTenants(
@@ -95,7 +96,16 @@ export class MikroWalletLedgerRepository implements WalletLedgerRepository {
       limit,
       offset: (page - 1) * limit,
     });
-    return { items: records.map(toStored), total };
+    return { items: records.map(toStoredLedgerEntry), total };
+  }
+
+  async findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<StoredWalletLedgerEntry | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const record = await orm.em.fork().findOne(WalletLedgerEntryRecord, { tenantId, idempotencyKey });
+    return record ? toStoredLedgerEntry(record) : null;
   }
 
   async sum(tenantId: string, filters?: WalletLedgerFilters): Promise<number> {

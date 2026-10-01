@@ -6,17 +6,31 @@ import {
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import type { StoredWalletTopUp, WalletTopUpRepository } from './wallet-top-up.repository';
 
-function toStored(r: WalletTopUpRecord): StoredWalletTopUp {
+export interface WalletTopUpRow {
+  id: string;
+  tenant_id: string;
+  amount_kobo: string | number;
+  provider: string;
+  mobile_number: string;
+  status: string;
+  reference: string | null;
+  settled_at: Date | string | null;
+  created_at: Date | string;
+}
+
+const toDate = (value: Date | string): Date => (value instanceof Date ? value : new Date(value));
+
+export function toStored(r: WalletTopUpRow): StoredWalletTopUp {
   return {
     id: r.id,
-    tenantId: r.tenantId,
-    amountKobo: r.amountKobo,
+    tenantId: r.tenant_id,
+    amountKobo: Number(r.amount_kobo),
     provider: r.provider,
-    mobileNumber: r.mobileNumber,
+    mobileNumber: r.mobile_number,
     status: r.status,
     reference: r.reference,
-    settledAt: r.settledAt ?? null,
-    createdAt: r.createdAt,
+    settledAt: r.settled_at ? toDate(r.settled_at) : null,
+    createdAt: toDate(r.created_at),
   };
 }
 
@@ -26,21 +40,21 @@ export class MikroWalletTopUpRepository implements WalletTopUpRepository {
 
   async findAllByTenantId(tenantId: string): Promise<StoredWalletTopUp[]> {
     const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em.getConnection().execute<WalletTopUpRecord[]>(
+    const rows = await orm.em.getConnection().execute<WalletTopUpRow[]>(
       'select * from wallet_top_ups where tenant_id = ? order by created_at desc',
       [tenantId],
     );
-    return rows.map((r) => toStored(r as unknown as WalletTopUpRecord));
+    return rows.map((r) => toStored(r));
   }
 
   async findByReference(reference: string): Promise<StoredWalletTopUp | null> {
     const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em.getConnection().execute<WalletTopUpRecord[]>(
+    const rows = await orm.em.getConnection().execute<WalletTopUpRow[]>(
       'select * from wallet_top_ups where reference = ? limit 1',
       [reference],
     );
     const row = rows[0];
-    return row ? toStored(row as unknown as WalletTopUpRecord) : null;
+    return row ? toStored(row) : null;
   }
 
   async markSettled(id: string, settledAt: Date): Promise<boolean> {

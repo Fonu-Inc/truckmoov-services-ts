@@ -1,7 +1,13 @@
+import type { OnboardingOrderSummary } from './onboarding-order';
+import type { PaymentMethod } from './payment-method';
+
 export const ONBOARDING_PAYMENT_STATUSES = [
   'pending',
   'paid',
   'failed',
+  'mismatch',
+  'refunded',
+  'requires_review',
 ] as const;
 export type OnboardingPaymentStatus =
   (typeof ONBOARDING_PAYMENT_STATUSES)[number];
@@ -20,13 +26,26 @@ export type StoredOnboardingPayment = {
   reference: string;
   provider: string;
   amountKobo: number;
+  authorizationUrl: string | null;
   billingEmail: string;
   planCode: string;
   deviceCount: number;
+  orderSummary: OnboardingOrderSummary | null;
+  quotationId: string | null;
+  invoiceId: string | null;
+  method: PaymentMethod | null;
+  customerName: string | null;
+  note: string | null;
+  autoReconciled: boolean;
   status: OnboardingPaymentStatus;
   paidAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type SettleDetails = {
+  method: PaymentMethod | null;
+  autoReconciled: boolean;
 };
 
 export interface OnboardingPaymentRepository {
@@ -35,6 +54,25 @@ export interface OnboardingPaymentRepository {
   findLatestForApplication(
     applicationId: string,
   ): Promise<StoredOnboardingPayment | null>;
+  findByQuotationId(quotationId: string): Promise<StoredOnboardingPayment[]>;
+  findByInvoiceId(invoiceId: string): Promise<StoredOnboardingPayment[]>;
+  findReusablePending(
+    applicationId: string,
+    amountKobo: number,
+    planCode: string,
+    createdSince: Date,
+  ): Promise<StoredOnboardingPayment | null>;
+  setAuthorizationUrl(id: string, authorizationUrl: string | null): Promise<void>;
+  /** Moves a pending payment to a final status; paid may also settle failed or mismatch rows. False when not settleable. */
+  settlePending(
+    id: string,
+    status: Exclude<OnboardingPaymentStatus, 'pending'>,
+    paidAt: Date | null,
+    details?: SettleDetails,
+  ): Promise<boolean>;
+  /** Links a payment to its invoice once; a payment already linked is left alone. */
+  linkInvoice(id: string, invoiceId: string): Promise<void>;
+  deleteUnstarted(id: string): Promise<void>;
   deleteForApplication(applicationId: string): Promise<void>;
 }
 

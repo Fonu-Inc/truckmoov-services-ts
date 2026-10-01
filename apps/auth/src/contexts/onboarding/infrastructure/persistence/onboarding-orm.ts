@@ -232,6 +232,9 @@ export class M2mLicensePlanRecord {
   description!: string;
   perDeviceYear1Ngn!: number;
   perDeviceRenewalNgn!: number;
+  validityDays!: number;
+  components!: string[] | null;
+  lastPriceChangedAt!: Date | null;
   sortOrder!: number;
   isActive!: boolean;
   createdAt!: Date;
@@ -249,12 +252,68 @@ export const M2mLicensePlanRecordSchema =
       description: { type: 'string', length: 255 },
       perDeviceYear1Ngn: { fieldName: 'per_device_year1_ngn', type: 'number' },
       perDeviceRenewalNgn: { fieldName: 'per_device_renewal_ngn', type: 'number' },
+      validityDays: { fieldName: 'validity_days', type: 'number', default: 365 },
+      components: { fieldName: 'components', type: 'json', nullable: true },
+      lastPriceChangedAt: { fieldName: 'last_price_changed_at', type: 'datetime', nullable: true },
       sortOrder: { fieldName: 'sort_order', type: 'number', default: 0 },
       isActive: { fieldName: 'is_active', type: 'boolean', default: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },
   });
+
+/* ── Billing price history and settings ─────────────── */
+
+export class BillingPriceChangeRecord {
+  id!: string;
+  itemType!: string;
+  itemRef!: string;
+  field!: string;
+  oldPriceNgn!: number;
+  newPriceNgn!: number;
+  effectiveDate!: string;
+  reason!: string;
+  changedByUserId!: string;
+  changedByName!: string;
+  createdAt!: Date;
+}
+
+export const BillingPriceChangeRecordSchema =
+  new EntitySchema<BillingPriceChangeRecord>({
+    class: BillingPriceChangeRecord,
+    tableName: 'billing_price_changes',
+    properties: {
+      id: { type: 'string', primary: true },
+      itemType: { fieldName: 'item_type', type: 'string', length: 32 },
+      itemRef: { fieldName: 'item_ref', type: 'string', length: 64 },
+      field: { type: 'string', length: 32 },
+      oldPriceNgn: { fieldName: 'old_price_ngn', type: 'number' },
+      newPriceNgn: { fieldName: 'new_price_ngn', type: 'number' },
+      effectiveDate: { fieldName: 'effective_date', type: 'string', columnType: 'date' },
+      reason: { type: 'string', length: 500 },
+      changedByUserId: { fieldName: 'changed_by_user_id', type: 'string', length: 64 },
+      changedByName: { fieldName: 'changed_by_name', type: 'string', length: 160 },
+      createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    },
+  });
+
+export class BillingSettingRecord {
+  key!: string;
+  valueJson!: unknown;
+  updatedAt!: Date;
+  updatedBy!: string | null;
+}
+
+export const BillingSettingRecordSchema = new EntitySchema<BillingSettingRecord>({
+  class: BillingSettingRecord,
+  tableName: 'billing_settings',
+  properties: {
+    key: { type: 'string', primary: true, length: 64 },
+    valueJson: { fieldName: 'value_json', type: 'json' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedBy: { fieldName: 'updated_by', type: 'string', length: 64, nullable: true },
+  },
+});
 
 /* ── Indemnity Agreement ────────────────────────────── */
 
@@ -378,9 +437,17 @@ export class OnboardingPaymentRecord {
   reference!: string;
   provider!: string;
   amountKobo!: number;
+  authorizationUrl!: string | null;
   billingEmail!: string;
   planCode!: string;
   deviceCount!: number;
+  orderSummary!: Record<string, unknown> | null;
+  quotationId!: string | null;
+  invoiceId!: string | null;
+  method!: string | null;
+  customerName!: string | null;
+  note!: string | null;
+  autoReconciled!: boolean;
   status!: string;
   paidAt!: Date | null;
   createdAt!: Date;
@@ -396,10 +463,18 @@ export const OnboardingPaymentRecordSchema =
       applicationId: { fieldName: 'application_id', type: 'string', length: 64, index: true },
       reference: { type: 'string', length: 64, unique: true },
       provider: { type: 'string', length: 40 },
-      amountKobo: { fieldName: 'amount_kobo', type: 'number' },
+      amountKobo: { fieldName: 'amount_kobo', type: 'bigint' },
+      authorizationUrl: { fieldName: 'authorization_url', type: 'text', nullable: true },
       billingEmail: { fieldName: 'billing_email', type: 'string', length: 254 },
       planCode: { fieldName: 'plan_code', type: 'string', length: 64 },
       deviceCount: { fieldName: 'device_count', type: 'number' },
+      orderSummary: { fieldName: 'order_summary', type: 'json', nullable: true },
+      quotationId: { fieldName: 'quotation_id', type: 'string', length: 64, nullable: true, index: true },
+      invoiceId: { fieldName: 'invoice_id', type: 'string', length: 64, nullable: true, index: true },
+      method: { type: 'string', length: 20, nullable: true },
+      customerName: { fieldName: 'customer_name', type: 'string', length: 200, nullable: true },
+      note: { type: 'text', nullable: true },
+      autoReconciled: { fieldName: 'auto_reconciled', type: 'boolean', default: true },
       status: { type: 'string', length: 20, default: 'pending', index: true },
       paidAt: { fieldName: 'paid_at', type: 'datetime', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },

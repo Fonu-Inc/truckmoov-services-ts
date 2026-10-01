@@ -1,5 +1,5 @@
 import type { WalletCreditSettings, WalletStatus } from './wallet-credit';
-import type { WalletLedgerDraft } from './wallet-ledger.repository';
+import type { StoredWalletLedgerEntry, WalletLedgerDraft } from './wallet-ledger.repository';
 
 export type StoredTenantWallet = WalletCreditSettings & {
   tenantId: string;
@@ -24,6 +24,10 @@ export type WalletMovementResult = {
   ok: boolean;
   /** Balance once the movement applied, or null when nothing moved. */
   balanceAfterKobo: number | null;
+  /** True when the idempotency key was already applied; the original entry is returned and nothing moved. */
+  replayed: boolean;
+  /** The ledger entry written, or the original one on replay. Null when nothing moved. */
+  entry: StoredWalletLedgerEntry | null;
 };
 
 export interface TenantWalletRepository {

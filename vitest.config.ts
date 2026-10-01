@@ -34,6 +34,7 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "tests/db/**"],
     environment: "node",
     clearMocks: true,
     setupFiles: ["tests/setup.ts"],

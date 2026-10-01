@@ -1,0 +1,77 @@
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  M2M_LICENSE_PLAN_REPOSITORY,
+  type M2mLicensePlanRepository,
+} from '@auth/onboarding/domain/m2m-license-plan.repository';
+import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from '@auth/onboarding/domain/onboarding-application.repository';
+import type { StoredOnboardingPayment } from '@auth/onboarding/domain/onboarding-payment.repository';
+import {
+  QUOTATION_REPOSITORY,
+  type QuotationRepository,
+} from '@auth/onboarding/domain/quotation.repository';
+import { INVOICE_REPOSITORY, type InvoiceRepository } from '@auth/onboarding/domain/invoice.repository';
+import type {
+  PaymentHistoryFilter,
+  PaymentHistoryRepository,
+  PaymentHistoryRow,
+} from '@auth/onboarding/domain/payment-history.repository';
+import { InMemoryOnboardingPaymentRepository } from './in-memory-onboarding-payment.repository';
+
+@Injectable()
+export class InMemoryPaymentHistoryRepository implements PaymentHistoryRepository {
+  constructor(
+    @Inject(InMemoryOnboardingPaymentRepository)
+    private readonly payments: InMemoryOnboardingPaymentRepository,
+    @Inject(QUOTATION_REPOSITORY) private readonly quotations: QuotationRepository,
+    @Inject(INVOICE_REPOSITORY) private readonly invoices: InvoiceRepository,
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications: OnboardingApplicationRepository,
+    @Inject(M2M_LICENSE_PLAN_REPOSITORY) private readonly plans: M2mLicensePlanRepository,
+  ) {}
+
+  async list(filter: PaymentHistoryFilter) {
+    const rows = await Promise.all(this.payments.all().map((payment) => this.toRow(payment)));
+    const needle = filter.q?.trim().toLowerCase();
+    const matching = rows
+      .filter(({ payment, customerName, quotationNumber }) => {
+        if (filter.statuses && !filter.statuses.includes(payment.status)) return false;
+        if (filter.method && payment.method !== filter.method) return false;
+        if (!needle) return true;
+        return [payment.reference, customerName, quotationNumber ?? '']
+          .some((field) => field.toLowerCase().includes(needle));
+      })
+      .sort(
+        (a, b) =>
+          b.payment.createdAt.getTime() - a.payment.createdAt.getTime() ||
+          b.payment.id.localeCompare(a.payment.id),
+      );
+    const offset = (filter.page - 1) * filter.limit;
+    return { items: matching.slice(offset, offset + filter.limit), total: matching.length };
+  }
+
+  async findById(id: string): Promise<PaymentHistoryRow | null> {
+    const payment = this.payments.all().find((candidate) => candidate.id === id);
+    return payment ? this.toRow(payment) : null;
+  }
+
+  private async toRow(source: StoredOnboardingPayment): Promise<PaymentHistoryRow> {
+    const payment = { ...source };
+    const quotation = payment.quotationId
+      ? await this.quotations.findById(payment.quotationId)
+      : null;
+    const invoice = payment.invoiceId ? await this.invoices.findById(payment.invoiceId) : null;
+    const application = await this.applications.findById(payment.applicationId);
+    const plan = await this.plans.findByCode(payment.planCode);
+    return {
+      payment,
+      customerName:
+        payment.customerName ?? quotation?.customerName ?? application?.organizationName ?? '',
+      quotationNumber: quotation?.number ?? null,
+      invoiceNumber: invoice?.number ?? null,
+      productName: payment.orderSummary?.planName ?? plan?.name ?? payment.planCode,
+    };
+  }
+}

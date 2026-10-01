@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOrderSummary,
-  INSTALLATION_FEE_PER_DEVICE_NGN,
+  DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN,
   toKobo,
 } from "@auth/onboarding/domain/onboarding-order";
 import type { StoredM2mLicensePlan } from "@auth/onboarding/domain/m2m-license-plan.repository";
@@ -13,6 +13,9 @@ const ADVANCE: StoredM2mLicensePlan = {
   description: "",
   perDeviceYear1Ngn: 124_000,
   perDeviceRenewalNgn: 80_000,
+  validityDays: 365,
+  components: null,
+  lastPriceChangedAt: null,
   sortOrder: 2,
   isActive: true,
   createdAt: new Date(),
@@ -21,7 +24,7 @@ const ADVANCE: StoredM2mLicensePlan = {
 
 describe("Order summary", () => {
   it("reproduces the order on the payment screen", () => {
-    const summary = buildOrderSummary(ADVANCE, 4);
+    const summary = buildOrderSummary(ADVANCE, 4, DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN);
 
     expect(summary.devicesNgn).toBe(496_000);
     expect(summary.installationNgn).toBe(60_000);
@@ -29,15 +32,15 @@ describe("Order summary", () => {
   });
 
   it("charges installation per device, not per application", () => {
-    const one = buildOrderSummary(ADVANCE, 1);
-    const ten = buildOrderSummary(ADVANCE, 10);
+    const one = buildOrderSummary(ADVANCE, 1, DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN);
+    const ten = buildOrderSummary(ADVANCE, 10, DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN);
 
-    expect(one.installationNgn).toBe(INSTALLATION_FEE_PER_DEVICE_NGN);
-    expect(ten.installationNgn).toBe(INSTALLATION_FEE_PER_DEVICE_NGN * 10);
+    expect(one.installationNgn).toBe(DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN);
+    expect(ten.installationNgn).toBe(DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN * 10);
   });
 
   it("carries the renewal price so it is known before committing", () => {
-    expect(buildOrderSummary(ADVANCE, 2).renewalPerDeviceNgn).toBe(80_000);
+    expect(buildOrderSummary(ADVANCE, 2, DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN).renewalPerDeviceNgn).toBe(80_000);
   });
 
   it("converts to kobo without floating point drift", () => {

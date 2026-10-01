@@ -122,6 +122,22 @@ export class MikroPlanEntitlementsRepository implements PlanEntitlementsReposito
     });
   }
 
+  async releaseAllowance(
+    tenantId: string,
+    item: UsageItem,
+    billingMonth: string,
+    units: number,
+  ): Promise<void> {
+    if (units <= 0) return;
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.fork().getConnection().execute(
+      `update "tenant_usage_allowance"
+          set "used" = greatest("used" - ?, 0), "updated_at" = now()
+        where "tenant_id" = ? and "item" = ? and "billing_month" = ?`,
+      [units, tenantId, item, billingMonth],
+    );
+  }
+
   async findUsage(tenantId: string, billingMonth: string): Promise<AllowanceUsage[]> {
     const orm = await getAuthOrm(this.config.db);
     const records = await orm.em

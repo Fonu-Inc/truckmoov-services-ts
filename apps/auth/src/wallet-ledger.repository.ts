@@ -13,6 +13,7 @@ export const WALLET_LEDGER_CATEGORIES = [
   'top_up',
   'refund',
   'adjustment',
+  'goodwill',
 ] as const;
 export type WalletLedgerCategory = (typeof WALLET_LEDGER_CATEGORIES)[number];
 
@@ -35,6 +36,8 @@ export type WalletLedgerDraft = {
   /** Shown to the tenant, so it reads as a sentence rather than a code. */
   reason: string;
   reference?: string | null;
+  /** Unique per tenant. A repeat call with the same key returns the original entry and moves no money. */
+  idempotencyKey?: string | null;
 };
 
 export type StoredWalletLedgerEntry = WalletLedgerDraft & {
@@ -79,8 +82,23 @@ export interface WalletLedgerRepository {
     tenantId: string,
     filters?: WalletLedgerFilters,
   ): Promise<{ items: StoredWalletLedgerEntry[]; total: number }>;
+  findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<StoredWalletLedgerEntry | null>;
   /** Total moved in one direction, optionally within one category and period. */
   sum(tenantId: string, filters?: WalletLedgerFilters): Promise<number>;
 }
 
 export const WALLET_LEDGER_REPOSITORY = Symbol('WALLET_LEDGER_REPOSITORY');
+
+const MAX_IDEMPOTENCY_KEY_LENGTH = 160;
+
+/** An empty key means no key, and a key the column cannot hold is refused before any money moves. */
+export function withNormalizedKey(entry: WalletLedgerDraft): WalletLedgerDraft {
+  const key = entry.idempotencyKey?.trim() || null;
+  if (key && key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+    throw new Error(`Idempotency key is longer than ${MAX_IDEMPOTENCY_KEY_LENGTH} characters`);
+  }
+  return { ...entry, idempotencyKey: key };
+}

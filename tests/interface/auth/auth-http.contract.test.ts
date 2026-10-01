@@ -1150,7 +1150,7 @@ describe('Auth HTTP contract', () => {
     expect(summaryRes.body.data.monthlyRevenueNgn).toBe(0);
     expect(summaryRes.body.data.totalVehicles).toBe(0);
     expect(summaryRes.body.data.totalSims).toBeGreaterThanOrEqual(0);
-    expect(summaryRes.body.data.overdueInvoices).toBeNull();
+    expect(summaryRes.body.data.overdueInvoices).toBe(0);
 
     const listRes = await request(app.getHttpServer())
       .get('/auth/system/tenants')

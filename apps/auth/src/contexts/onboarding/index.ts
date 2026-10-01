@@ -30,7 +30,9 @@ export {
 } from "./domain/onboarding-payment.repository";
 export {
   buildOrderSummary,
-  INSTALLATION_FEE_PER_DEVICE_NGN,
+  DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN,
+  installationFeeFor,
+  type InstallationFees,
   toKobo,
   type OnboardingOrderSummary,
 } from "./domain/onboarding-order";
@@ -245,3 +247,73 @@ export { MikroIndemnityAgreementRepository } from "./infrastructure/persistence/
 export { InMemoryOnboardingApplicationRepository } from "./infrastructure/persistence/in-memory-onboarding-application.repository";
 export { MikroM2mLicensePlanRepository } from "./infrastructure/persistence/mikro-m2m-license-plan.repository";
 export { MikroOnboardingApplicationRepository } from "./infrastructure/persistence/mikro-onboarding-application.repository";
+export {
+  BILLING_PRICE_CHANGE_REPOSITORY,
+  type BillingPriceChangeRepository,
+  type StoredBillingPriceChange,
+} from "./domain/billing-price-change.repository";
+export {
+  BILLING_SETTINGS_REPOSITORY,
+  BILLING_SETTING_KEYS,
+  type BillingSettingsRepository,
+} from "./domain/billing-settings.repository";
+export { BILLING_AUDIT } from "./domain/ports/billing-audit.port";
+export { CreateLicensePlanUseCase } from "./application/use-cases/billing/create-license-plan.use-case";
+export { UpdateLicensePlanUseCase } from "./application/use-cases/billing/update-license-plan.use-case";
+export { SetLicensePlanActiveUseCase } from "./application/use-cases/billing/set-license-plan-active.use-case";
+export {
+  GetLicensePlanUseCase,
+  ListLicensePlansUseCase,
+} from "./application/use-cases/billing/list-license-plans.use-cases";
+export { ListPriceChangesUseCase } from "./application/use-cases/billing/list-price-changes.use-case";
+export {
+  GetInstallationPriceUseCase,
+  UpdateInstallationPriceUseCase,
+} from "./application/use-cases/billing/installation-price.use-cases";
+export { InMemoryBillingPriceChangeRepository } from "./infrastructure/persistence/in-memory-billing-price-change.repository";
+export { InMemoryBillingSettingsRepository } from "./infrastructure/persistence/in-memory-billing-settings.repository";
+export { MikroBillingPriceChangeRepository } from "./infrastructure/persistence/mikro-billing-price-change.repository";
+export { MikroBillingSettingsRepository } from "./infrastructure/persistence/mikro-billing-settings.repository";
+export {
+  QUOTATION_REPOSITORY,
+  QUOTATION_STATUSES,
+  type QuotationRepository,
+  type StoredQuotation,
+} from "./domain/quotation.repository";
+export { QUOTATION_NUMBER_ALLOCATOR } from "./domain/ports/quotation-number.port";
+export { computeTotals, percentToBasisPoints } from "./domain/quotation-totals";
+export { OrderQuotationService } from "./application/services/order-quotation.service";
+export {
+  GetQuotationUseCase,
+  ListQuotationsUseCase,
+} from "./application/use-cases/billing/quotation-queries.use-cases";
+export { InMemoryQuotationRepository } from "./infrastructure/persistence/in-memory-quotation.repository";
+export { MikroQuotationRepository } from "./infrastructure/persistence/mikro-quotation.repository";
+export {
+  INVOICE_REPOSITORY,
+  INVOICE_STATUSES,
+  type InvoiceRepository,
+} from "./domain/invoice.repository";
+export { lagosDate } from "./domain/invoice-dates";
+export { INVOICE_NUMBER_ALLOCATOR } from "./domain/ports/invoice-number.port";
+export { INVOICE_NOTIFIER } from "./domain/ports/invoice-notifier.port";
+export { PAYMENT_HISTORY_REPOSITORY } from "./domain/payment-history.repository";
+export { BILLING_SUMMARY_REPOSITORY } from "./domain/billing-summary.repository";
+export { PAYMENT_METHODS, methodFromChannel } from "./domain/payment-method";
+export { InvoiceIssuanceService } from "./application/services/invoice-issuance.service";
+export {
+  GetInvoiceUseCase,
+  ListInvoicesUseCase,
+} from "./application/use-cases/billing/invoice-queries.use-cases";
+export {
+  GetPaymentUseCase,
+  ListPaymentsUseCase,
+} from "./application/use-cases/billing/payment-queries.use-cases";
+export { GetBillingSummaryUseCase } from "./application/use-cases/billing/billing-summary.use-case";
+export { InMemoryInvoiceRepository } from "./infrastructure/persistence/in-memory-invoice.repository";
+export { MikroInvoiceRepository } from "./infrastructure/persistence/mikro-invoice.repository";
+export { InMemoryPaymentHistoryRepository } from "./infrastructure/persistence/in-memory-payment-history.repository";
+export { MikroPaymentHistoryRepository } from "./infrastructure/persistence/mikro-payment-history.repository";
+export { InMemoryBillingSummaryRepository } from "./infrastructure/persistence/in-memory-billing-summary.repository";
+export { MikroBillingSummaryRepository } from "./infrastructure/persistence/mikro-billing-summary.repository";
+export { MailerInvoiceNotifier } from "./infrastructure/notifications/mailer-invoice.notifier";

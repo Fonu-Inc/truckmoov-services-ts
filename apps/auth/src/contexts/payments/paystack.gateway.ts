@@ -89,8 +89,12 @@ export class PaystackGateway implements PaymentGateway {
     return {
       provider: this.name,
       succeeded: body['event'] === 'charge.success',
+      failed: body['event'] === 'charge.failed',
       reference,
       metadata: (data?.['metadata'] as Record<string, unknown>) ?? {},
+      amountKobo: Number.isInteger(data?.['amount']) ? (data?.['amount'] as number) : null,
+      currency: typeof data?.['currency'] === 'string' ? data['currency'] : null,
+      channel: typeof data?.['channel'] === 'string' ? data['channel'] : null,
     };
   }
 }

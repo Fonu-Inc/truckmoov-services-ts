@@ -16,7 +16,7 @@ function toStored(r: BundleTransactionRecord): StoredBundleTransaction {
     tenantId: r.tenantId,
     mobileNumber: r.mobileNumber,
     bundleId: r.bundleId,
-    amountKobo: r.amountKobo,
+    amountKobo: Number(r.amountKobo),
     status: r.status,
     paymentReference: r.paymentReference,
     failureReason: r.failureReason,
@@ -57,7 +57,8 @@ export class MikroBundleTransactionRepository implements BundleTransactionReposi
       `select * from bundle_transactions ${where} order by created_at desc limit ? offset ?`,
       [...params, limit, offset],
     );
-    return { items: rows.map((r) => toStored(r as unknown as BundleTransactionRecord)), total };
+    const em = orm.em.fork();
+    return { items: rows.map((r) => toStored(em.map(BundleTransactionRecord, r))), total };
   }
 
   async save(transaction: StoredBundleTransaction): Promise<void> {

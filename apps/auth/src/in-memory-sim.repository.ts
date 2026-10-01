@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { SimFilters, SimRepository, StoredSim } from './sim.repository';
+import type { SimFilters, SimRepository, StoredSim, TenantSimCount } from './sim.repository';
 
 @Injectable()
 export class InMemorySimRepository implements SimRepository {
@@ -61,5 +61,14 @@ export class InMemorySimRepository implements SimRepository {
 
   async countUnassigned(): Promise<number> {
     return [...this.store.values()].filter((s) => s.tenantId === null).length;
+  }
+
+  async countActiveByTenant(): Promise<TenantSimCount[]> {
+    const counts = new Map<string, number>();
+    for (const sim of this.store.values()) {
+      if (sim.status !== 'active' || !sim.tenantId) continue;
+      counts.set(sim.tenantId, (counts.get(sim.tenantId) ?? 0) + 1);
+    }
+    return [...counts].map(([tenantId, activeSims]) => ({ tenantId, activeSims }));
   }
 }

@@ -4,7 +4,7 @@ import {
   getAuthOrm,
   IotSimRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type { SimFilters, SimRepository, StoredSim } from './sim.repository';
+import type { SimFilters, SimRepository, StoredSim, TenantSimCount } from './sim.repository';
 
 function toStored(record: IotSimRecord): StoredSim {
   return {
@@ -136,5 +136,14 @@ export class MikroSimRepository implements SimRepository {
       'select count(*)::int as count from iot_sims where tenant_id is null',
     );
     return Number(rows[0]?.count ?? 0);
+  }
+
+  async countActiveByTenant(): Promise<TenantSimCount[]> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ tenant_id: string; count: string }>>(
+      `select tenant_id, count(*)::int as count from iot_sims
+       where status = 'active' and tenant_id is not null group by tenant_id`,
+    );
+    return rows.map((row) => ({ tenantId: row.tenant_id, activeSims: Number(row.count) }));
   }
 }
