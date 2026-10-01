@@ -39,6 +39,7 @@ import {
   FinancialStatementResponse,
   FinancialConfigNullableResponse,
 } from "./dto/fleet.schema";
+import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource, Requires } from "@shared/access";
@@ -54,8 +55,14 @@ export class FinancialsController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(FleetFinancialsUseCase) private readonly fleetFinancialsUseCase: FleetFinancialsUseCase,
+    @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
   ) {
     super(auditLog, bus);
+  }
+
+  /** An owner operator's figures cover their own vehicles; null for every other role. */
+  private ownedVehicleIds(tenantId: string, req: FleetRequestContext) {
+    return this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
   }
 
   // Computes a figure from existing records; changes nothing.
@@ -65,7 +72,8 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "Compute per-vehicle profitability" })
   @ApiOkResponse({ description: "Profitability array", type: VehicleProfitabilityListResponse })
   async computeProfitability(@Body() body: ComputeProfitabilityDto, @Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.computeProfitability(this.tenantIdFromRequest(req), body.periodMonths ?? 1, {
+    const tenantId = this.tenantIdFromRequest(req);
+    const filters = {
       from: body.from,
       to: body.to,
       search: body.search,
@@ -77,7 +85,13 @@ export class FinancialsController extends BaseFleetController {
       netProfitTo: body.netProfitTo,
       scoreFrom: body.scoreFrom,
       scoreTo: body.scoreTo,
-    });
+    };
+    const data = await this.fleetFinancialsUseCase.computeProfitability(
+      tenantId,
+      body.periodMonths ?? 1,
+      filters,
+      await this.ownedVehicleIds(tenantId, req),
+    );
     return { status: true, message: "success", data };
   }
 
@@ -88,7 +102,12 @@ export class FinancialsController extends BaseFleetController {
   @ApiQuery({ name: "to", required: false, type: String })
   @ApiOkResponse({ description: "Financial summary", type: FinancialSummaryResponse })
   async getFinancialSummary(@Query() query: FinancialSummaryQueryDto, @Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.summary(this.tenantIdFromRequest(req), { from: query.from, to: query.to });
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fleetFinancialsUseCase.summary(
+      tenantId,
+      { from: query.from, to: query.to },
+      await this.ownedVehicleIds(tenantId, req),
+    );
     return { status: true, message: "success", data };
   }
 
@@ -97,7 +116,8 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "List financial configs" })
   @ApiOkResponse({ description: "Financial configs array", type: FinancialConfigListResponse })
   async listFinancialConfigs(@Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.listConfigs(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fleetFinancialsUseCase.listConfigs(tenantId, await this.ownedVehicleIds(tenantId, req));
     return { status: true, message: "success", data };
   }
 
@@ -106,7 +126,9 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "Get financial config for a vehicle" })
   @ApiOkResponse({ description: "Financial config", type: FinancialConfigNullableResponse })
   async getFinancialConfig(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
-    const data = await this.fleetFinancialsUseCase.getConfig(this.tenantIdFromRequest(req), vehicleId);
+    const tenantId = this.tenantIdFromRequest(req);
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
+    const data = await this.fleetFinancialsUseCase.getConfig(tenantId, vehicleId);
     return { status: true, message: "success", data };
   }
 
@@ -121,7 +143,9 @@ export class FinancialsController extends BaseFleetController {
     if (Object.keys(fields).length === 0) {
       throw new BadRequestException("No cost fields supplied");
     }
-    const data = await this.fleetFinancialsUseCase.upsertConfig(this.tenantIdFromRequest(req), vehicleId, fields);
+    const tenantId = this.tenantIdFromRequest(req);
+    await this.assertOwnsVehicle(this.listVehiclesUseCase, tenantId, vehicleId, req);
+    const data = await this.fleetFinancialsUseCase.upsertConfig(tenantId, vehicleId, fields);
     return { status: true, message: "success", data };
   }
 
@@ -130,7 +154,8 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "Export vehicle P&L as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportVehiclePL(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const csv = await this.fleetFinancialsUseCase.exportVehiclePL(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const csv = await this.fleetFinancialsUseCase.exportVehiclePL(tenantId, await this.ownedVehicleIds(tenantId, req));
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=vehicle-pl.csv");
     res.send(csv);
@@ -141,7 +166,8 @@ export class FinancialsController extends BaseFleetController {
   @ApiOperation({ summary: "Export cost breakdown as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportCostBreakdown(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
-    const csv = await this.fleetFinancialsUseCase.exportCostBreakdown(this.tenantIdFromRequest(req));
+    const tenantId = this.tenantIdFromRequest(req);
+    const csv = await this.fleetFinancialsUseCase.exportCostBreakdown(tenantId, await this.ownedVehicleIds(tenantId, req));
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", "attachment; filename=cost-breakdown.csv");
     res.send(csv);
@@ -154,11 +180,13 @@ export class FinancialsController extends BaseFleetController {
   @ApiQuery({ name: "periodMonths", required: false, type: Number })
   @ApiOkResponse({ description: "Statement file", content: { "application/pdf": {}, "text/csv": {}, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {} } })
   async exportFinancialStatement(@Query() query: StatementExportQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
+    const tenantId = this.tenantIdFromRequest(req);
     const { body, contentType, filename } = await this.fleetFinancialsUseCase.exportStatement(
-      this.tenantIdFromRequest(req),
+      tenantId,
       query.format ?? "pdf",
       query.periodMonths ?? 1,
       normalizeStatementOptions(query),
+      await this.ownedVehicleIds(tenantId, req),
     );
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
@@ -171,7 +199,12 @@ export class FinancialsController extends BaseFleetController {
   @ApiQuery({ name: "periodMonths", required: false, type: Number })
   @ApiOkResponse({ type: FinancialStatementResponse })
   async getFinancialStatement(@Query() query: StatementQueryDto, @Req() req: FleetRequestContext): Promise<FinancialStatementResponse> {
-    const data = await this.fleetFinancialsUseCase.buildStatement(this.tenantIdFromRequest(req), query.periodMonths ?? 1);
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fleetFinancialsUseCase.buildStatement(
+      tenantId,
+      query.periodMonths ?? 1,
+      await this.ownedVehicleIds(tenantId, req),
+    );
     return { status: true, message: "success", data } as unknown as FinancialStatementResponse;
   }
 

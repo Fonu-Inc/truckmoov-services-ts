@@ -2,8 +2,11 @@ import { Inject, Injectable } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
-import { ALERT_REPOSITORY, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
+import { ALERT_REPOSITORY, type AlertFilters, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
+import { ownedDriverIdsFrom } from "./contexts/fleet/drivers/domain/driver-roster";
 import { VehicleHealthService } from "./vehicle-health.service";
+
+type AllowedVehicleIds = ReadonlySet<string> | null;
 
 function cutoff(periodDays: number): Date {
   const d = new Date();
@@ -21,13 +24,41 @@ export class FleetAnalyticsUseCase {
     private readonly healthService: VehicleHealthService,
   ) {}
 
-  async summary(tenantId: string, periodDays = 30) {
+  /*
+   * allowed limits every figure to those vehicles and what hangs off
+   * them: jobs assigned to them, drivers assigned to them, alerts raised on
+   * them. Anything not tied to one of them belongs to the account at large, so
+   * a limited caller does not see it. Null or absent means the whole tenant.
+   */
+  private async vehiclesIn(tenantId: string, allowed?: AllowedVehicleIds) {
+    const vehicles = await this.vehicleRepo.findAll({ tenantId });
+    return allowed ? vehicles.filter((v) => allowed.has(v.id)) : vehicles;
+  }
+
+  private async driversIn(tenantId: string, allowed?: AllowedVehicleIds) {
+    const drivers = await this.driverRepo.findAll({ tenantId });
+    if (!allowed) return drivers;
+    const owned = ownedDriverIdsFrom(allowed, drivers);
+    return drivers.filter((d) => owned.has(d.id));
+  }
+
+  private async jobsIn(tenantId: string, allowed?: AllowedVehicleIds) {
+    const jobs = await this.dispatchJobs.listJobs(tenantId);
+    return allowed ? jobs.filter((j) => j.assignedVehicleId !== null && allowed.has(j.assignedVehicleId)) : jobs;
+  }
+
+  private async alertsIn(tenantId: string, allowed?: AllowedVehicleIds, filters?: AlertFilters) {
+    const alerts = await this.alertRepo.findAll(tenantId, filters);
+    return allowed ? alerts.filter((a) => a.vehicleId !== null && allowed.has(a.vehicleId)) : alerts;
+  }
+
+  async summary(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
     const [vehicles, drivers, jobs, alerts] = await Promise.all([
-      this.vehicleRepo.findAll({ tenantId }),
-      this.driverRepo.findAll({ tenantId }),
-      this.dispatchJobs.listJobs(tenantId),
-      this.alertRepo.findAll(tenantId),
+      this.vehiclesIn(tenantId, allowed),
+      this.driversIn(tenantId, allowed),
+      this.jobsIn(tenantId, allowed),
+      this.alertsIn(tenantId, allowed),
     ]);
     const recentJobs = jobs.filter((j) => new Date(j.updatedAt) >= since);
     const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
@@ -59,8 +90,8 @@ export class FleetAnalyticsUseCase {
     };
   }
 
-  async fleetStatus(tenantId: string, periodDays = 30) {
-    const vehicles = await this.vehicleRepo.findAll({ tenantId });
+  async fleetStatus(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
+    const vehicles = await this.vehiclesIn(tenantId, allowed);
     const byStatus: Record<string, number> = {};
     for (const v of vehicles) {
       byStatus[v.status] = (byStatus[v.status] ?? 0) + 1;
@@ -79,9 +110,9 @@ export class FleetAnalyticsUseCase {
     };
   }
 
-  async jobPipeline(tenantId: string, periodDays = 30) {
+  async jobPipeline(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
-    const jobs = await this.dispatchJobs.listJobs(tenantId);
+    const jobs = await this.jobsIn(tenantId, allowed);
     const recent = jobs.filter((j) => new Date(j.updatedAt) >= since);
     const byStatus: Record<string, number> = {};
     for (const j of recent) {
@@ -90,8 +121,8 @@ export class FleetAnalyticsUseCase {
     return { total: recent.length, byStatus, periodDays };
   }
 
-  async fuelLevels(tenantId: string, periodDays = 30) {
-    const vehicles = await this.vehicleRepo.findAll({ tenantId });
+  async fuelLevels(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
+    const vehicles = await this.vehiclesIn(tenantId, allowed);
     return {
       periodDays,
       vehicles: vehicles.map((v) => ({
@@ -103,12 +134,12 @@ export class FleetAnalyticsUseCase {
     };
   }
 
-  async driverScores(tenantId: string, periodDays = 30, limit = 20) {
+  async driverScores(tenantId: string, periodDays = 30, limit = 20, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
     const [vehicles, drivers, alerts] = await Promise.all([
-      this.vehicleRepo.findAll({ tenantId }),
-      this.driverRepo.findAll({ tenantId }),
-      this.alertRepo.findAll(tenantId),
+      this.vehiclesIn(tenantId, allowed),
+      this.driversIn(tenantId, allowed),
+      this.alertsIn(tenantId, allowed),
     ]);
     const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
     const vehicleToDriver = new Map(
@@ -138,12 +169,12 @@ export class FleetAnalyticsUseCase {
       .map((s) => ({ ...s, safetyScore: Math.max(0, 100 - s.incidents * 2) }));
   }
 
-  async vehicleSafetyRadar(tenantId: string, periodDays = 30) {
+  async vehicleSafetyRadar(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
     const [vehicles, drivers, alerts] = await Promise.all([
-      this.vehicleRepo.findAll({ tenantId }),
-      this.driverRepo.findAll({ tenantId }),
-      this.alertRepo.findAll(tenantId),
+      this.vehiclesIn(tenantId, allowed),
+      this.driversIn(tenantId, allowed),
+      this.alertsIn(tenantId, allowed),
     ]);
     const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
     const vehicleToDriver = new Map(
@@ -181,9 +212,9 @@ export class FleetAnalyticsUseCase {
     };
   }
 
-  async events(tenantId: string, periodDays = 30, limit = 50, severity?: string) {
+  async events(tenantId: string, periodDays = 30, limit = 50, severity?: string, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
-    const alerts = await this.alertRepo.findAll(tenantId, severity ? { type: severity } : undefined);
+    const alerts = await this.alertsIn(tenantId, allowed, severity ? { type: severity } : undefined);
     return alerts
       .filter((a) => a.triggeredAt >= since && (!severity || a.severity === severity))
       .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())

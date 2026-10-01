@@ -54,6 +54,9 @@ function inRange(iso: string | null | undefined, from?: string, to?: string): bo
   return true;
 }
 
+/** Null or absent means the whole tenant; a set limits every figure to those vehicles. */
+export type AllowedVehicleIds = ReadonlySet<string> | null | undefined;
+
 export type ProfitabilityFilters = {
   from?: string;
   to?: string;
@@ -111,16 +114,29 @@ export class FleetFinancialsUseCase {
     return (await this.getConfig(tenantId, vehicleId)) ?? cfg;
   }
 
-  async listConfigs(tenantId: string) {
-    return this.getConfigs(tenantId);
+  async listConfigs(tenantId: string, allowedVehicleIds?: AllowedVehicleIds) {
+    const configs = await this.getConfigs(tenantId);
+    return allowedVehicleIds ? configs.filter((c) => allowedVehicleIds.has(c.vehicleId)) : configs;
   }
 
-  async computeProfitability(tenantId: string, periodMonths = 1, filters: ProfitabilityFilters = {}) {
+  // Every figure is a per-vehicle row, so limiting the vehicles limits the
+  // jobs, fuel, maintenance and configs counted against them too.
+  private async vehiclesIn(tenantId: string, allowedVehicleIds: AllowedVehicleIds) {
+    const vehicles = await this.vehicleRepo.findAll({ tenantId });
+    return allowedVehicleIds ? vehicles.filter((v) => allowedVehicleIds.has(v.id)) : vehicles;
+  }
+
+  async computeProfitability(
+    tenantId: string,
+    periodMonths = 1,
+    filters: ProfitabilityFilters = {},
+    allowedVehicleIds?: AllowedVehicleIds,
+  ) {
     const from = filters.from;
     const to = inclusiveEnd(filters.to);
     const now = new Date();
     const [vehicles, jobs, fuelRecords, maintRecords, configs] = await Promise.all([
-      this.vehicleRepo.findAll({ tenantId }),
+      this.vehiclesIn(tenantId, allowedVehicleIds),
       this.dispatchJobs.listJobs(tenantId),
       this.fuelRepo.findAll({ tenantId, from, to }).then((rs) => rs.map((r) => r.toPrimitives())),
       this.maintRepo.findAllByTenant(tenantId),
@@ -236,12 +252,16 @@ export class FleetFinancialsUseCase {
     };
   }
 
-  async summary(tenantId: string, filters: ProfitabilityFilters = {}) {
-    return this.aggregate(await this.computeProfitability(tenantId, 1, filters));
+  async summary(tenantId: string, filters: ProfitabilityFilters = {}, allowedVehicleIds?: AllowedVehicleIds) {
+    return this.aggregate(await this.computeProfitability(tenantId, 1, filters, allowedVehicleIds));
   }
 
-  async buildStatement(tenantId: string, periodMonths = 1): Promise<FinancialStatement> {
-    const vehicles = await this.computeProfitability(tenantId, periodMonths);
+  async buildStatement(
+    tenantId: string,
+    periodMonths = 1,
+    allowedVehicleIds?: AllowedVehicleIds,
+  ): Promise<FinancialStatement> {
+    const vehicles = await this.computeProfitability(tenantId, periodMonths, {}, allowedVehicleIds);
     return {
       generatedAt: new Date().toISOString(),
       periodMonths,
@@ -255,8 +275,9 @@ export class FleetFinancialsUseCase {
     format: StatementFormat,
     periodMonths = 1,
     options: StatementOptions = {},
+    allowedVehicleIds?: AllowedVehicleIds,
   ): Promise<RenderedStatement> {
-    const statement = await this.buildStatement(tenantId, periodMonths);
+    const statement = await this.buildStatement(tenantId, periodMonths, allowedVehicleIds);
     switch (format) {
       case "csv":
         return { body: renderStatementCsv(statement, options), contentType: "text/csv", filename: "financial-statement.csv" };
@@ -276,11 +297,11 @@ export class FleetFinancialsUseCase {
     }
   }
 
-  async exportVehiclePL(tenantId: string): Promise<string> {
-    return renderVehiclePLCsv(await this.computeProfitability(tenantId));
+  async exportVehiclePL(tenantId: string, allowedVehicleIds?: AllowedVehicleIds): Promise<string> {
+    return renderVehiclePLCsv(await this.computeProfitability(tenantId, 1, {}, allowedVehicleIds));
   }
 
-  async exportCostBreakdown(tenantId: string): Promise<string> {
-    return renderCostBreakdownCsv(await this.computeProfitability(tenantId));
+  async exportCostBreakdown(tenantId: string, allowedVehicleIds?: AllowedVehicleIds): Promise<string> {
+    return renderCostBreakdownCsv(await this.computeProfitability(tenantId, 1, {}, allowedVehicleIds));
   }
 }
