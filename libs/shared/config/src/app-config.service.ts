@@ -449,6 +449,10 @@ export class AppConfigService {
     return this.config.get<string>("EVENT_SIGNING_SECRET", "");
   }
 
+  get eventAcceptUnsigned(): boolean {
+    return this.config.get<string>("EVENT_ACCEPT_UNSIGNED", "false") === "true";
+  }
+
   get auth() {
     return {
       jwtSecret: this.config.get<string>("JWT_SECRET", "replace-me"),
@@ -484,6 +488,7 @@ export class AppConfigService {
       // variable must not leave a decision being made on stale, self-reported
       // numbers.
       fleetServiceUrl: this.config.get<string>("FLEET_SERVICE_URL", "http://fleet-service:3002"),
+      trackingServiceUrl: this.config.get<string>("TRACKING_SERVICE_URL", "http://tracking-service:3003"),
       // Where onboarding OTP text messages are sent. In-cluster by default for
       // the same reason as the addresses above.
       notificationServiceUrl: this.config.get<string>("NOTIFICATION_SERVICE_URL", "http://notification-service:3004"),

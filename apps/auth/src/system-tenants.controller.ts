@@ -67,7 +67,11 @@ import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import { SystemTenantInviteResendConflictError, ResendSystemTenantInviteUseCase } from './resend-system-tenant-invite.use-case';
 import { InvalidSystemDeviceProvisioningError } from './system-device-model.errors';
-import { SystemTenantStatusConflictError, UpdateSystemTenantStatusUseCase } from './update-system-tenant-status.use-case';
+import {
+  SystemTenantStatusConflictError,
+  SystemTenantStatusReasonRequiredError,
+  UpdateSystemTenantStatusUseCase,
+} from './update-system-tenant-status.use-case';
 import { UpdateSystemTenantUseCase, SystemTenantUpdateConflictError } from './update-system-tenant.use-case';
 import { Portals, OnResource } from '@shared/access';
 
@@ -581,6 +585,7 @@ export class SystemTenantsController extends BaseAuthController {
         accessToken,
         tenantId,
         status: payload.status,
+        reason: payload.reason,
       });
       await this.tryRecordActivityFromAccessToken(accessToken, {
         service: 'auth',
@@ -597,6 +602,8 @@ export class SystemTenantsController extends BaseAuthController {
         metadata: {
           requestedStatus: payload.status,
           resultingStatus: result.data.tenant.status,
+          ...(payload.reason ? { reason: payload.reason } : {}),
+          ...(result.assets ? { assets: result.assets } : {}),
         },
       });
       return result;
@@ -608,6 +615,8 @@ export class SystemTenantsController extends BaseAuthController {
         throw new NotFoundException(error.message);
       if (error instanceof SystemTenantStatusConflictError)
         throw new ConflictException(error.message);
+      if (error instanceof SystemTenantStatusReasonRequiredError)
+        throw new BadRequestException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
       throw error;

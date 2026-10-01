@@ -7,6 +7,7 @@ import { CommunicationRateService } from "../../apps/auth/src/communication-rate
 import { EntitlementService } from "../../apps/auth/src/entitlement.service";
 import { MikroCommunicationRatesRepository } from "../../apps/auth/src/mikro-communication-rates.repository";
 import { MikroPlanEntitlementsRepository } from "../../apps/auth/src/mikro-plan-entitlements.repository";
+import { MikroArrearsRepository } from "../../apps/auth/src/arrears.repository";
 import { MikroSimRepository } from "../../apps/auth/src/mikro-sim.repository";
 import { MikroTenantWalletRepository } from "../../apps/auth/src/mikro-tenant-wallet.repository";
 import { MikroWalletLedgerRepository } from "../../apps/auth/src/mikro-wallet-ledger.repository";
@@ -72,7 +73,7 @@ describe.skipIf(!dbEnabled)("sim monthly charge on real postgres", () => {
       planRepo,
       new MikroWalletLedgerRepository(cfg),
     );
-    return new SimRecurringChargeService(cfg, chargeUsage, sims);
+    return new SimRecurringChargeService(cfg, chargeUsage, sims, new MikroArrearsRepository(cfg));
   }
 
   function config() {

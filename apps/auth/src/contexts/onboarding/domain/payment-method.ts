@@ -1,4 +1,4 @@
-export const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'other'] as const;
+export const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'wallet', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 const CHANNEL_METHODS: Record<string, PaymentMethod> = {

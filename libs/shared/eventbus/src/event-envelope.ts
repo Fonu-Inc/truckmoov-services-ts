@@ -8,4 +8,5 @@ export type EventEnvelope<TData = Record<string, unknown>> = {
   actor?: Record<string, unknown>;
   data: TData;
   sig?: string;
+  bsig?: string;
 };

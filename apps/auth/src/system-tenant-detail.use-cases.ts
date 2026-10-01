@@ -99,6 +99,8 @@ export class GetTenantResourceUseCase {
         carrier: sim.carrier,
         iccid: sim.iccid,
         status: sim.status,
+        suspensionCause: sim.suspensionCause ?? null,
+        suspensionReason: sim.suspensionReason,
       })),
     };
   }

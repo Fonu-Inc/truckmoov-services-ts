@@ -22,6 +22,8 @@ export async function emitDeviceIdentity(
       model: device.model,
       vehicle_id: device.vehicleId,
       action,
+      suspended: device.holdCause !== null,
+      suspension_cause: device.holdCause,
     });
   } catch {
     // swallow — identity propagation is eventually reconciled, not transactional.

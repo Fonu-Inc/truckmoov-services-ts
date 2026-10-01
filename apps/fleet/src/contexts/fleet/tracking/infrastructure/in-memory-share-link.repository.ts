@@ -47,7 +47,7 @@ export class InMemoryShareLinkRepository implements ShareLinkRepository {
 
   async recordView(id: string, at: Date): Promise<void> {
     const link = this.store.get(id);
-    if (!link) return;
+    if (!link || link.heldAt) return;
     link.lastViewedAt = at;
     link.viewCount += 1;
   }

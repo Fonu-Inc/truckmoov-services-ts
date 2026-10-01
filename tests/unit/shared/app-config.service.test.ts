@@ -73,3 +73,11 @@ describe("AppConfigService.validateSecrets", () => {
     ).not.toThrow();
   });
 });
+
+describe("AppConfigService.eventAcceptUnsigned", () => {
+  it("defaults to false and is true only for the string true", () => {
+    expect(new AppConfigService(makeConfig({})).eventAcceptUnsigned).toBe(false);
+    expect(new AppConfigService(makeConfig({ EVENT_ACCEPT_UNSIGNED: "" })).eventAcceptUnsigned).toBe(false);
+    expect(new AppConfigService(makeConfig({ EVENT_ACCEPT_UNSIGNED: "true" })).eventAcceptUnsigned).toBe(true);
+  });
+});

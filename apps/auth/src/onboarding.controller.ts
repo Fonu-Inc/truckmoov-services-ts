@@ -44,6 +44,8 @@ import { ObjectStorageService } from '@shared/object-storage';
 import { Observable } from 'rxjs';
 import { ActivateSubscriptionUseCase, OnboardingNotFoundError } from './activate-subscription.use-case';
 import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
+import { SettleRenewalPaymentUseCase } from '@auth/onboarding/application/settle-renewal-payment.use-case';
+import { EnforcementRestoreService } from './enforcement-restore.service';
 import { ConfirmApplicationPaymentUseCase } from '@auth/onboarding';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
@@ -121,6 +123,8 @@ export class OnboardingController extends BaseAuthController {
     @Inject(CreatePaymentIntentUseCase) private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
     @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
+    @Inject(SettleRenewalPaymentUseCase) private readonly settleRenewalPaymentUseCase: SettleRenewalPaymentUseCase,
+    @Inject(EnforcementRestoreService) private readonly enforcementRestore: EnforcementRestoreService,
     @Inject(PaymentGatewayRegistry) private readonly gatewayRegistry: PaymentGatewayRegistry,
     @Inject(StorageQuotaService) private readonly storageQuota: StorageQuotaService,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
@@ -239,6 +243,7 @@ export class OnboardingController extends BaseAuthController {
       await this.settleOnboardingPayment(callback, paid),
       await this.settleSubscription(callback, paid),
       await this.settleWalletTopUp(callback, paid),
+      await this.settleRenewal(callback, paid),
     ].filter((failed) => failed);
 
     if (failures.length > 0) {
@@ -263,14 +268,16 @@ export class OnboardingController extends BaseAuthController {
   private settleOnboardingPayment(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
     if (!callback.reference || callback.metadata['kind'] !== 'onboarding') return Promise.resolve(false);
     if (!callback.succeeded && !callback.failed) return Promise.resolve(false);
-    return this.settle(`onboarding payment ${callback.reference}`, () =>
-      this.confirmApplicationPayment.execute(callback.reference, callback.succeeded, paid),
-    );
+    return this.settle(`onboarding payment ${callback.reference}`, async () => {
+      await this.confirmApplicationPayment.execute(callback.reference, callback.succeeded, paid);
+      if (callback.succeeded) void this.enforcementRestore.onApplicationPaymentSettled(callback.reference);
+    });
   }
 
   private settleSubscription(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
     const { metadata, reference } = callback;
     const tenantId = metadata['tenantId'] as string | undefined;
+    if (metadata['kind'] === 'renewal') return Promise.resolve(false);
     if (!callback.succeeded || !tenantId || !reference) return Promise.resolve(false);
     return this.settle(`subscription for tenant ${tenantId}`, async () => {
       await this.activateSubscriptionUseCase.execute(
@@ -283,11 +290,24 @@ export class OnboardingController extends BaseAuthController {
         paid,
       );
       this.paymentEventService.emit(tenantId, { event: 'payment.confirmed', reference });
+      void this.enforcementRestore.onPaymentSettled(tenantId, 'subscription');
+    });
+  }
+
+  private settleRenewal(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
+    if (!callback.reference || callback.metadata['kind'] !== 'renewal') return Promise.resolve(false);
+    if (!callback.succeeded && !callback.failed) return Promise.resolve(false);
+    return this.settle(`renewal payment ${callback.reference}`, async () => {
+      await this.settleRenewalPaymentUseCase.execute({
+        reference: callback.reference,
+        gateway: { succeeded: callback.succeeded, paid },
+      });
     });
   }
 
   private settleWalletTopUp(callback: PaymentCallback, paid: PaidAmount): Promise<boolean> {
     const { reference } = callback;
+    if (callback.metadata['kind'] === 'renewal') return Promise.resolve(false);
     if (!callback.succeeded || !reference) return Promise.resolve(false);
     return this.settle(`wallet top-up ${reference}`, async () => {
       const settlement = await this.settleWalletTopUpUseCase.execute(reference, paid);
@@ -297,6 +317,8 @@ export class OnboardingController extends BaseAuthController {
           reference,
         });
       }
+      const settled = settlement.outcome === 'credited' || settlement.outcome === 'already_settled';
+      if (settled && settlement.tenantId) void this.enforcementRestore.onPaymentSettled(settlement.tenantId, 'wallet_topup');
     });
   }
 

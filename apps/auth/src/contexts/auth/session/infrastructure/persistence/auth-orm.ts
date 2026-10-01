@@ -115,6 +115,42 @@ export const TenantTerminationRecordSchema = new EntitySchema<TenantTerminationR
   },
 });
 
+export class TenantSuspensionRecord {
+  tenantId!: string;
+  suspendedAt!: Date;
+  suspendedBy!: string;
+  reason!: string;
+  cause!: string;
+  unpaidSince?: string | null;
+  graceDays?: number | null;
+  cascadeStatus!: string;
+  cascadeProgress!: Record<string, unknown>;
+  cascadeAttempts!: number;
+  cascadeLastError?: string | null;
+  cascadeCompletedAt?: Date | null;
+  updatedAt!: Date;
+}
+
+export const TenantSuspensionRecordSchema = new EntitySchema<TenantSuspensionRecord>({
+  class: TenantSuspensionRecord,
+  tableName: 'tenant_suspensions',
+  properties: {
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, primary: true },
+    suspendedAt: { fieldName: 'suspended_at', type: 'datetime', defaultRaw: 'now()' },
+    suspendedBy: { fieldName: 'suspended_by', type: 'string', length: 64 },
+    reason: { type: 'text' },
+    cause: { type: 'string', length: 16, default: 'manual' },
+    unpaidSince: { fieldName: 'unpaid_since', type: 'date', nullable: true },
+    graceDays: { fieldName: 'grace_days', type: 'integer', nullable: true },
+    cascadeStatus: { fieldName: 'cascade_status', type: 'string', length: 16, default: 'complete' },
+    cascadeProgress: { fieldName: 'cascade_progress', type: 'json', defaultRaw: "'{}'" },
+    cascadeAttempts: { fieldName: 'cascade_attempts', type: 'integer', default: 0 },
+    cascadeLastError: { fieldName: 'cascade_last_error', type: 'text', nullable: true },
+    cascadeCompletedAt: { fieldName: 'cascade_completed_at', type: 'datetime', nullable: true },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
 export class TwoFactorEnrolmentRecord {
   userId!: string;
   secretCiphertext!: string;
@@ -152,6 +188,7 @@ export class AuthUserRecord {
   roleId!: number;
   tenantId!: string;
   accountStatus!: string;
+  suspensionCause?: string | null;
   customRoleId?: string | null;
   emailVerificationToken?: string | null;
   profile?: {
@@ -187,6 +224,7 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
     roleId: { type: 'number' },
     tenantId: { type: 'string', length: 64, default: 'default' },
     accountStatus: { type: 'string', length: 20, default: 'enabled' },
+    suspensionCause: { fieldName: 'suspension_cause', type: 'string', length: 16, nullable: true },
     customRoleId: { fieldName: 'custom_role_id', type: 'string', length: 64, nullable: true },
     emailVerificationToken: { type: 'string', length: 128, nullable: true },
     profile: { type: 'json', nullable: true },
@@ -1332,6 +1370,8 @@ export class IotSimRecord {
   deviceType!: string | null;
   vehicleId!: string | null;
   suspensionReason!: string | null;
+  suspensionCause?: string | null;
+  preSuspensionStatus?: string | null;
   notes!: string | null;
   dataUsageMb!: number;
   dataLimitMb!: number;
@@ -1368,6 +1408,8 @@ export const IotSimRecordSchema = new EntitySchema<IotSimRecord>({
     deviceType: { fieldName: 'device_type', type: 'string', length: 64, nullable: true },
     vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64, nullable: true },
     suspensionReason: { fieldName: 'suspension_reason', type: 'string', length: 255, nullable: true },
+    suspensionCause: { fieldName: 'suspension_cause', type: 'string', length: 16, nullable: true },
+    preSuspensionStatus: { fieldName: 'pre_suspension_status', type: 'string', length: 16, nullable: true },
     notes: { type: 'text', nullable: true },
     dataUsageMb: { fieldName: 'data_usage_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
     dataLimitMb: { fieldName: 'data_limit_mb', type: 'number', columnType: 'numeric(12,2)', default: 0 },
@@ -2210,6 +2252,7 @@ async function initAuthOrm(cfg: DbConfig) {
       AiGovernanceRecordSchema,
       TwoFactorEnrolmentRecordSchema,
       TenantTerminationRecordSchema,
+      TenantSuspensionRecordSchema,
       AiRequestLogRecordSchema,
       ActivityLogRecordSchema,
       SystemTenantOnboardingRecordSchema,

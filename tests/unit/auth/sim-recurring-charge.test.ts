@@ -7,6 +7,7 @@ import { InMemoryPlanEntitlementsRepository } from '../../../apps/auth/src/in-me
 import { InMemorySimRepository } from '../../../apps/auth/src/in-memory-sim.repository';
 import { InMemoryWalletLedgerRepository } from '../../../apps/auth/src/in-memory-wallet-ledger.repository';
 import { InMemoryTenantWalletRepository } from '../../../apps/auth/src/in-memory-tenant-wallet.repository';
+import { InMemoryArrearsRepository } from '../../../apps/auth/src/in-memory-enforcement-automation.repositories';
 import { SimRecurringChargeService } from '../../../apps/auth/src/sim-recurring-charge.service';
 import type { StoredSim } from '../../../apps/auth/src/sim.repository';
 import { runIfLockFree } from '@shared/db';
@@ -33,8 +34,9 @@ async function build(funds: Record<string, number>) {
   );
   const sims = new InMemorySimRepository();
   const config = { persistence: { backend: 'memory' } } as never;
-  const service = new SimRecurringChargeService(config, chargeUsage, sims);
-  return { service, wallet, sims };
+  const arrears = new InMemoryArrearsRepository();
+  const service = new SimRecurringChargeService(config, chargeUsage, sims, arrears);
+  return { service, wallet, sims, arrears };
 }
 
 describe('sim monthly charge', () => {
@@ -67,6 +69,7 @@ describe('sim monthly charge', () => {
       { persistence: { backend: 'memory' } } as never,
       (first.service as never as { chargeUsage: never }).chargeUsage,
       first.sims,
+      first.arrears,
     );
 
     await Promise.all([first.service.run(), second.run()]);
@@ -86,6 +89,25 @@ describe('sim monthly charge', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toContain('poor:insufficient_funds');
     expect(wallet.ledger).toHaveLength(1);
+  });
+
+  it('records one arrear for an unpaid month and none for a paid one', async () => {
+    const { service, sims, arrears } = await build({ poor: 0, rich: 1_000_000 });
+    await sims.save(sim('1', 'poor'));
+    await sims.save(sim('2', 'poor'));
+    await sims.save(sim('3', 'rich'));
+
+    await service.run();
+    await service.run();
+
+    expect(arrears.arrears).toHaveLength(1);
+    expect(arrears.arrears[0]).toMatchObject({
+      tenantId: 'poor',
+      quantity: 2,
+      amountKobo: 100_000,
+      dueDate: expect.stringMatching(/^\d{4}-\d{2}-01$/),
+      reference: expect.stringMatching(/^sim-monthly:poor:\d{4}-\d{2}$/),
+    });
   });
 });
 

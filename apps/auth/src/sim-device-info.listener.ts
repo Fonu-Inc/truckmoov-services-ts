@@ -27,9 +27,9 @@ export class SimDeviceInfoListener implements OnApplicationBootstrap, OnApplicat
       const sim = await this.simRepo.findById(simId);
       if (!sim) return;
 
-      // The envelope's tenant_id comes from the publishing service's own
-      // authenticated context, not from this payload's fields — reject a
-      // mismatch rather than let a cross-tenant simId update this SIM.
+      // This subject is not signature-verified yet, so the envelope tenant is
+      // only as trustworthy as the bus. Reject a mismatch rather than let a
+      // cross-tenant simId update this SIM.
       if (sim.tenantId !== null && sim.tenantId !== event.tenant_id) {
         this.logger.warn(
           `sim_device_info_tenant_mismatch simId=${simId} simTenant=${sim.tenantId} eventTenant=${event.tenant_id}`,

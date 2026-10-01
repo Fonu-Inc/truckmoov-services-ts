@@ -35,6 +35,9 @@ export class VehicleRecord {
   gpsProvider?: string | null;
   gpsSerialNumber?: string | null;
   gpsInstalledAt?: Date | null;
+  holdCause?: string | null;
+  heldAt?: Date | null;
+  holdReason?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -89,6 +92,9 @@ export class DeviceRecord {
   suspendedBy?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: string | null;
+  holdCause?: string | null;
+  heldAt?: Date | null;
+  holdReason?: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -119,6 +125,9 @@ export const VehicleRecordSchema = new EntitySchema<VehicleRecord>({
     gpsProvider: { type: "string", length: 128, nullable: true },
     gpsSerialNumber: { type: "string", length: 128, nullable: true },
     gpsInstalledAt: { type: "datetime", nullable: true },
+    holdCause: { fieldName: "hold_cause", type: "string", length: 16, nullable: true },
+    heldAt: { fieldName: "held_at", type: "datetime", nullable: true },
+    holdReason: { fieldName: "hold_reason", type: "text", nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: {
       type: "datetime",
@@ -201,6 +210,9 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     suspendedBy: { type: "string", length: 16, nullable: true },
     traccarDeviceId: { type: "string", length: 64, nullable: true },
     provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
+    holdCause: { fieldName: "hold_cause", type: "string", length: 16, nullable: true },
+    heldAt: { fieldName: "held_at", type: "datetime", nullable: true },
+    holdReason: { fieldName: "hold_reason", type: "text", nullable: true },
     createdAt: { type: "datetime", defaultRaw: "now()" },
     updatedAt: {
       type: "datetime",
@@ -1081,6 +1093,9 @@ export class ShareLinkRecord {
   revokedAt?: Date | null;
   lastViewedAt?: Date | null;
   viewCount!: number;
+  holdCause?: string | null;
+  heldAt?: Date | null;
+  holdReason?: string | null;
 }
 
 export const ShareLinkRecordSchema = new EntitySchema<ShareLinkRecord>({
@@ -1098,6 +1113,9 @@ export const ShareLinkRecordSchema = new EntitySchema<ShareLinkRecord>({
     revokedAt: { type: "datetime", nullable: true },
     lastViewedAt: { type: "datetime", nullable: true },
     viewCount: { type: "integer", defaultRaw: "0" },
+    holdCause: { fieldName: "hold_cause", type: "string", length: 16, nullable: true },
+    heldAt: { fieldName: "held_at", type: "datetime", nullable: true },
+    holdReason: { fieldName: "hold_reason", type: "text", nullable: true },
   },
   indexes: [
     { properties: ["tokenHash"], options: { unique: true } },

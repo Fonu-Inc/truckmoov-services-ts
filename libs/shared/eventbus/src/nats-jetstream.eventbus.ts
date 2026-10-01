@@ -8,6 +8,7 @@ import {
   type NatsConnection,
 } from "nats";
 import { AppLogger } from "../../logger/src";
+import { signBusEvent, type BusHandler } from "./bus-signature";
 import type { EventBus } from "./event-bus.interface";
 import type { EventEnvelope } from "./event-envelope";
 
@@ -27,17 +28,21 @@ function sanitizeJetStreamName(streamName: string): string {
   return normalized || "truckmoov_events";
 }
 
+export type NatsBusOptions = { signingSecret?: string };
+
 export class NatsJetStreamEventBus implements EventBus {
   private connection: NatsConnection | null = null;
   private jetstream: JetStreamClient | null = null;
   private readonly jsonCodec = JSONCodec<EventEnvelope>();
   private readonly streamName: string;
+  private warnedUnsigned = false;
 
   constructor(
     private readonly logger: AppLogger,
     private readonly natsUrl: string,
     streamName: string,
     private readonly credentials: NatsCredentials = {},
+    private readonly options: NatsBusOptions = {},
   ) {
     // JetStream stream names cannot contain "." even though event subjects do.
     this.streamName = sanitizeJetStreamName(streamName);
@@ -61,12 +66,30 @@ export class NatsJetStreamEventBus implements EventBus {
       return;
     }
 
-    await js.publish(subject, this.jsonCodec.encode(envelope));
+    await js.publish(subject, this.jsonCodec.encode(this.sign(subject, envelope)));
+  }
+
+  private sign(subject: string, envelope: EventEnvelope): EventEnvelope {
+    const { bsig: _ignored, ...unsigned } = envelope;
+    const secret = this.options.signingSecret;
+    if (!secret) {
+      if (!this.warnedUnsigned) {
+        this.warnedUnsigned = true;
+        this.logger.warn("event_signing_secret_unset: publishing unsigned events");
+      }
+      return unsigned;
+    }
+    try {
+      return signBusEvent(secret, subject, unsigned);
+    } catch {
+      this.logger.warn(`event_unsignable:${envelope.type}`);
+      return unsigned;
+    }
   }
 
   async subscribe(
     subject: string,
-    handler: (envelope: EventEnvelope) => Promise<void>,
+    handler: BusHandler,
     consumer?: string,
   ): Promise<() => Promise<void>> {
     const js = await this.getJetStream();
@@ -105,7 +128,7 @@ export class NatsJetStreamEventBus implements EventBus {
       for await (const msg of sub) {
         try {
           const envelope = this.jsonCodec.decode(msg.data);
-          await handler(envelope);
+          await handler(envelope, { subject: msg.subject });
           msg.ack();
         } catch (err) {
           this.logger.warn("event_handler_failed", { subject, error: (err as Error).message });
@@ -119,7 +142,7 @@ export class NatsJetStreamEventBus implements EventBus {
 
   async subscribeEveryInstance(
     subject: string,
-    handler: (envelope: EventEnvelope) => Promise<void>,
+    handler: BusHandler,
   ): Promise<() => Promise<void>> {
     await this.getJetStream();
     if (!this.connection) {
@@ -130,7 +153,7 @@ export class NatsJetStreamEventBus implements EventBus {
     (async () => {
       for await (const msg of sub) {
         try {
-          await handler(this.jsonCodec.decode(msg.data));
+          await handler(this.jsonCodec.decode(msg.data), { subject: msg.subject });
         } catch (err) {
           this.logger.warn("event_handler_failed", { subject, error: (err as Error).message });
         }

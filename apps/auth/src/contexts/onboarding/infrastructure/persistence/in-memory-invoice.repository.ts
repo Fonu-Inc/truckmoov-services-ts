@@ -9,12 +9,17 @@ import {
 } from '@auth/onboarding/domain/quotation.repository';
 import {
   effectiveInvoiceStatus,
+  isRenewalInvoice,
+  outstandingKobo,
   settledInvoiceStatus,
   invoiceOverdue,
   type InvoiceListFilter,
   type InvoiceListRow,
   type InvoiceRepository,
   type InvoiceWithLines,
+  type RenewalAmounts,
+  type TenantInvoiceFilter,
+  type TenantInvoicePage,
 } from '@auth/onboarding/domain/invoice.repository';
 
 function copy(invoice: InvoiceWithLines): InvoiceWithLines {
@@ -24,6 +29,7 @@ function copy(invoice: InvoiceWithLines): InvoiceWithLines {
 @Injectable()
 export class InMemoryInvoiceRepository implements InvoiceRepository {
   private readonly invoices = new Map<string, InvoiceWithLines>();
+  private readonly renewalLinks = new Map<string, string>();
 
   constructor(
     @Inject(ONBOARDING_PAYMENT_REPOSITORY)
@@ -90,12 +96,17 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     const rows: InvoiceListRow[] = await Promise.all(
       [...this.invoices.values()].map(async (invoice) => {
         const { lines: _lines, ...header } = copy(invoice);
-        return { invoice: header, quotationNumber: await this.findQuotationNumber(invoice.id) };
+        return {
+          invoice: header,
+          quotationNumber: await this.findQuotationNumber(invoice.id),
+          isRenewal: isRenewalInvoice(invoice),
+        };
       }),
     );
     const needle = filter.q?.trim().toLowerCase();
     const matching = rows
-      .filter(({ invoice, quotationNumber }) => {
+      .filter(({ invoice, quotationNumber, isRenewal }) => {
+        if (filter.kind && (filter.kind === 'renewal') !== isRenewal) return false;
         if (filter.status && effectiveInvoiceStatus(invoice, filter.today) !== filter.status) {
           return false;
         }
@@ -115,4 +126,104 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   async countOverdue(today: string): Promise<number> {
     return [...this.invoices.values()].filter((invoice) => invoiceOverdue(invoice, today)).length;
   }
+
+  async createRenewal(invoice: InvoiceWithLines, periodId: string) {
+    if (this.renewalLinks.has(periodId)) return { invoice: null, created: false };
+    this.invoices.set(invoice.id, copy(invoice));
+    this.renewalLinks.set(periodId, invoice.id);
+    return { invoice: copy(invoice), created: true };
+  }
+
+  linkedInvoiceId(periodId: string): string | null {
+    return this.renewalLinks.get(periodId) ?? null;
+  }
+
+  unlink(periodId: string): void {
+    this.renewalLinks.delete(periodId);
+  }
+
+  async listOpenRenewals(): Promise<InvoiceWithLines[]> {
+    return [...this.invoices.values()]
+      .filter(
+        (invoice) =>
+          invoice.status === 'issued' &&
+          invoice.amountPaidKobo === 0 &&
+          invoice.tenantId !== null &&
+          invoice.quotationId === null &&
+          isRenewalInvoice(invoice),
+      )
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id.localeCompare(b.id))
+      .map(copy);
+  }
+
+  async cancelRenewal(id: string): Promise<boolean> {
+    const invoice = this.invoices.get(id);
+    if (!invoice || invoice.status !== 'issued' || invoice.amountPaidKobo !== 0) return false;
+    if (!isRenewalInvoice(invoice)) return false;
+    invoice.status = 'cancelled';
+    invoice.updatedAt = new Date();
+    return true;
+  }
+
+  async updateRenewalAmounts(id: string, amounts: RenewalAmounts): Promise<boolean> {
+    const invoice = this.invoices.get(id);
+    if (!invoice || invoice.status !== 'issued' || invoice.amountPaidKobo !== 0) return false;
+    const line = invoice.lines.find((candidate) => candidate.kind === 'plan' && candidate.isRenewal);
+    if (!line) return false;
+    line.quantity = amounts.quantity;
+    line.unitPriceKobo = amounts.unitPriceKobo;
+    Object.assign(invoice, {
+      subtotalKobo: amounts.subtotalKobo,
+      taxRateBp: amounts.taxRateBp,
+      taxKobo: amounts.taxKobo,
+      totalKobo: amounts.totalKobo,
+      updatedAt: new Date(),
+    });
+    return true;
+  }
+
+  async listForTenant(filter: TenantInvoiceFilter): Promise<TenantInvoicePage> {
+    const mine = this.tenantInvoices(filter.tenantId);
+    const open = mine.filter(isOpen);
+    const matching = mine
+      .filter((invoice) => scopeMatches(filter.scope, invoice))
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate) || b.id.localeCompare(a.id));
+    const offset = (filter.page - 1) * filter.limit;
+    return {
+      items: matching
+        .slice(offset, offset + filter.limit)
+        .map((invoice) => ({ invoice: headerOf(invoice), isRenewal: isRenewalInvoice(invoice) })),
+      total: matching.length,
+      openTotalKobo: open.reduce((sum, invoice) => sum + outstandingKobo(invoice), 0),
+      nextDueDate: open.map((invoice) => invoice.dueDate).sort()[0] ?? null,
+    };
+  }
+
+  async findForTenant(tenantId: string, id: string) {
+    const found = this.tenantInvoices(tenantId).find((invoice) => invoice.id === id);
+    return found ? { ...copy(found), isRenewal: isRenewalInvoice(found) } : null;
+  }
+
+  private tenantInvoices(tenantId: string): InvoiceWithLines[] {
+    return [...this.invoices.values()].filter(
+      (invoice) => invoice.tenantId === tenantId && invoice.status !== 'draft' && invoice.status !== 'cancelled',
+    );
+  }
+}
+
+function headerOf(invoice: InvoiceWithLines) {
+  const { lines: _lines, ...header } = copy(invoice);
+  return header;
+}
+
+function isOpen(invoice: InvoiceWithLines): boolean {
+  return (
+    (invoice.status === 'issued' || invoice.status === 'partially_paid' || invoice.status === 'overdue') &&
+    outstandingKobo(invoice) > 0
+  );
+}
+
+function scopeMatches(scope: TenantInvoiceFilter['scope'], invoice: InvoiceWithLines): boolean {
+  if (scope === 'open') return isOpen(invoice);
+  return scope === 'paid' ? invoice.status === 'paid' : true;
 }

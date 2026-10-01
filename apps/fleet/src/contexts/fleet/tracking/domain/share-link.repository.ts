@@ -11,6 +11,8 @@ export type StoredShareLink = {
   revokedAt: Date | null;
   lastViewedAt: Date | null;
   viewCount: number;
+  /** Set while the tenant's suspension holds the link. A held link reads as expired. */
+  heldAt?: Date | null;
 };
 
 export interface ShareLinkRepository {

@@ -1,0 +1,228 @@
+{
+  "secret": "test-secret-do-not-use",
+  "cases": [
+    {
+      "name": "empty data no actor",
+      "subject": "tm.system.alert.raised",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e1",
+        "type": "alert.raised",
+        "tenant_id": "system",
+        "data": {}
+      },
+      "canonical_data": "{}",
+      "canonical_actor": "{}",
+      "sig": "766cbe61b2a890251b7c5da809325f7ac8eb3849ff69d01356ff7522f4161764"
+    },
+    {
+      "name": "nested objects and arrays",
+      "subject": "tm.acme.job.offer.created",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e2",
+        "type": "job.offer.created",
+        "tenant_id": "acme",
+        "data": {
+          "z": [
+            1,
+            2,
+            {
+              "b": true,
+              "a": false
+            }
+          ],
+          "a": {
+            "y": null,
+            "x": "s"
+          },
+          "m": []
+        }
+      },
+      "canonical_data": "{\"a\":{\"x\":\"s\",\"y\":null},\"m\":[],\"z\":[1,2,{\"a\":false,\"b\":true}]}",
+      "canonical_actor": "{}",
+      "sig": "81abf2b3d4931a82d1fd0dc07d062bd8ec372e16669e11a7b4caff2bdf3e078b"
+    },
+    {
+      "name": "key order by code point",
+      "subject": "tm.acme.device.identity.changed",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e3",
+        "type": "device.identity.changed",
+        "tenant_id": "acme",
+        "data": {
+          "😀": 1,
+          "￿": 2,
+          "b": 3,
+          "B": 4,
+          "a": 5,
+          "": 6
+        }
+      },
+      "canonical_data": "{\"\":6,\"B\":4,\"a\":5,\"b\":3,\"￿\":2,\"😀\":1}",
+      "canonical_actor": "{}",
+      "sig": "8e23f03675f0864130109c9e41e5d2b43920a7ab6b1b06ddf9272ef758db942b"
+    },
+    {
+      "name": "unicode and control chars",
+      "subject": "tm.acme.x.y",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e4",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "text": "café 中文 😀   <&>",
+          "ctl": "a\nb\tc\u0000d\u001fe"
+        }
+      },
+      "canonical_data": "{\"ctl\":\"a\\u000ab\\u0009c\\u0000d\\u001fe\",\"text\":\"café 中文 😀   <&>\"}",
+      "canonical_actor": "{}",
+      "sig": "5e5c92a52fd259ef73f7a4425c02ef0b0b002c1ab837e2b8bb6c92b32dae525e"
+    },
+    {
+      "name": "quotes and backslash",
+      "subject": "tm.acme.x.y",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e5",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "q": "say \"hi\"",
+          "bs": "C:\\path\\n",
+          "both": "\\\""
+        }
+      },
+      "canonical_data": "{\"both\":\"\\\\\\\"\",\"bs\":\"C:\\\\path\\\\n\",\"q\":\"say \\\"hi\\\"\"}",
+      "canonical_actor": "{}",
+      "sig": "df4029bc669e48fab521d749a6b23ed657724865d030bf343730fc6ba0ed7f5a"
+    },
+    {
+      "name": "integers and negative zero",
+      "subject": "tm.acme.x.y",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e6",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "zero": 0,
+          "negzero": 0,
+          "neg": -42,
+          "big": 9007199254740991,
+          "small": -9007199254740991,
+          "one": 1
+        }
+      },
+      "canonical_data": "{\"big\":9007199254740991,\"neg\":-42,\"negzero\":0,\"one\":1,\"small\":-9007199254740991,\"zero\":0}",
+      "canonical_actor": "{}",
+      "sig": "1eca710be423c6db08755a4cc32ecb02fb5d9d156efee4a13306c23e4548c8b7"
+    },
+    {
+      "name": "fractions",
+      "subject": "tm.acme.x.y",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e7",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "half": 0.5,
+          "pi": 3.14159,
+          "tiny": 0.000001,
+          "neg": -12.25,
+          "large": 123456789012345.5
+        }
+      },
+      "canonical_data": "{\"half\":0.5,\"large\":123456789012345.5,\"neg\":-12.25,\"pi\":3.14159,\"tiny\":0.000001}",
+      "canonical_actor": "{}",
+      "sig": "571109455b321ac50f0c676a323799cf3e444341c95bc8fcc6df5e12dc100f6e"
+    },
+    {
+      "name": "null and booleans",
+      "subject": "tm.acme.x.y",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e8",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "n": null,
+          "t": true,
+          "f": false,
+          "arr": [
+            null,
+            true
+          ]
+        }
+      },
+      "canonical_data": "{\"arr\":[null,true],\"f\":false,\"n\":null,\"t\":true}",
+      "canonical_actor": "{}",
+      "sig": "fddccdf01df2a589f2eb747a2b42a1ee2882742d61a4031a76f7e7205753ca63"
+    },
+    {
+      "name": "with actor",
+      "subject": "tm.system.messaging.send.requested",
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e9",
+        "type": "messaging.send.requested",
+        "tenant_id": "system",
+        "data": {
+          "conversation_id": "c1",
+          "text": "hello"
+        },
+        "actor": {
+          "user_id": "u1",
+          "roles": [
+            "staff"
+          ]
+        }
+      },
+      "canonical_data": "{\"conversation_id\":\"c1\",\"text\":\"hello\"}",
+      "canonical_actor": "{\"roles\":[\"staff\"],\"user_id\":\"u1\"}",
+      "sig": "476894203eb06a08b98a5dbfa57208889a718e5cd58347a9dd2e0424214f4569"
+    },
+    {
+      "name": "tiny number unsupported",
+      "subject": "tm.acme.x.y",
+      "unsupported": true,
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e10",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "v": 1e-7
+        }
+      }
+    },
+    {
+      "name": "huge integer unsupported",
+      "subject": "tm.acme.x.y",
+      "unsupported": true,
+      "envelope": {
+        "version": 1,
+        "occurred_at": "2026-10-01T00:00:00Z",
+        "id": "e11",
+        "type": "x.y",
+        "tenant_id": "acme",
+        "data": {
+          "v": 9007199254740992
+        }
+      }
+    }
+  ]
+}

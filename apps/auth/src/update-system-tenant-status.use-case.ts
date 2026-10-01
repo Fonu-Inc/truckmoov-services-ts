@@ -1,18 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { Role } from "@shared/rbac";
 import { resolveActorUser } from "./contexts/auth/session/application/use-cases/support/resolve-actor-user";
 import { ForbiddenError } from "./contexts/auth/session/domain/errors/forbidden.error";
-import { SESSION_STORE, type SessionStore } from "./contexts/auth/session/domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "./contexts/auth/session/domain/ports/token-service.port";
-import { USER_REPOSITORY, type UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
+import { USER_REPOSITORY, type StoredUser, type UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
 import {
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
 } from "./tenant-onboarding.repository";
 import { GetSystemTenantUseCase, SystemTenantNotFoundError } from "./get-system-tenant.use-case";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
+import { TenantSuspensionService, type Actor } from "./tenant-suspension.service";
 
 const SYSTEM_MUTATOR_ROLES = new Set<string>([Role.SUPER_ADMIN, Role.SYSTEM_ADMIN]);
 
@@ -22,10 +20,17 @@ export class SystemTenantStatusConflictError extends Error {
   }
 }
 
+export class SystemTenantStatusReasonRequiredError extends Error {
+  constructor() {
+    super("A reason is required to suspend a tenant");
+  }
+}
+
 export type UpdateSystemTenantStatusCommand = {
   accessToken: string;
   tenantId: string;
   status: "active" | "suspended";
+  reason?: string;
 };
 
 @Injectable()
@@ -35,20 +40,26 @@ export class UpdateSystemTenantStatusUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: UserRepository,
-    @Inject(SESSION_STORE)
-    private readonly sessionStore: SessionStore,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(GetSystemTenantUseCase)
     private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
-    @Inject(EVENT_BUS)
-    private readonly bus: EventBus,
+    @Inject(TenantSuspensionService)
+    private readonly cascade: TenantSuspensionService,
   ) {}
 
   async execute(command: UpdateSystemTenantStatusCommand) {
     const actor = await resolveActorUser(command.accessToken, this.tokenService, this.userRepository);
     if (actor.tenantId !== SYSTEM_TENANT_ID || !SYSTEM_MUTATOR_ROLES.has(actor.role)) {
       throw new ForbiddenError("Only system admins can change tenant status");
+    }
+
+    if (command.tenantId === SYSTEM_TENANT_ID) {
+      throw new SystemTenantNotFoundError();
+    }
+
+    if (command.status !== "active" && !command.reason?.trim()) {
+      throw new SystemTenantStatusReasonRequiredError();
     }
 
     const users = await this.userRepository.findAllByTenant(command.tenantId);
@@ -62,18 +73,7 @@ export class UpdateSystemTenantStatusUseCase {
       throw new SystemTenantNotFoundError();
     }
 
-    const nextAccountStatus = command.status === "active" ? "enabled" : "disabled";
-    await Promise.all(users.map(async (user) => {
-      await this.userRepository.updateAccountStatus(user.id, nextAccountStatus);
-      if (nextAccountStatus === "disabled") {
-        await this.sessionStore.deleteAllForUser(user.id);
-      }
-    }));
-
-    // Other services verify the access token locally, so a token minted before
-    // this moment stays valid to them until it expires. The event closes that
-    // window; their cache TTL is the fallback for an event that never arrives.
-    await this.announceStatusChange(command.tenantId, command.status, actor.id);
+    const assets = await this.applyStatus(command, actor);
 
     const detail = await this.getSystemTenantUseCase.execute(command.accessToken, command.tenantId);
     return {
@@ -81,29 +81,25 @@ export class UpdateSystemTenantStatusUseCase {
       message: command.status === "active"
         ? "Tenant reactivated successfully"
         : "Tenant suspended successfully",
+      assets,
     };
   }
 
-  // A failed announcement must not undo a suspension that is already written.
-  // The status change is the authoritative act; this only speeds up its reach.
-  private async announceStatusChange(
-    tenantId: string,
-    status: "active" | "suspended",
-    actorId: string,
-  ): Promise<void> {
-    const type = status === "suspended" ? "tenant.suspended" : "tenant.reinstated";
-    try {
-      await this.bus.publish(`tm.${tenantId}.${type}`, {
-        id: randomUUID(),
-        type,
-        version: 1,
-        occurred_at: new Date().toISOString(),
-        tenant_id: tenantId,
-        actor: { id: actorId },
-        data: { tenant_id: tenantId, status },
-      });
-    } catch {
-      // Swallowed on purpose: see above.
+  private async applyStatus(
+    command: UpdateSystemTenantStatusCommand,
+    actor: StoredUser,
+  ) {
+    const staff: Actor = { id: actor.id, name: actor.profile?.fullName ?? actor.email, role: actor.role };
+    const result = command.status === "active"
+      ? await this.cascade.restore(command.tenantId, { cause: "manual", actor: staff })
+      : await this.cascade.suspend(command.tenantId, {
+          cause: "manual",
+          reason: command.reason?.trim() ?? "",
+          actor: staff,
+        });
+    if (result.busy) {
+      throw new SystemTenantStatusConflictError("Another change for this customer is still running. Try again shortly.");
     }
+    return { complete: result.status === "complete", counts: result.counts, error: result.error ?? null };
   }
 }

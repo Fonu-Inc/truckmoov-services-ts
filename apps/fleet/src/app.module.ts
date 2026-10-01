@@ -301,6 +301,10 @@ import { RateLimitGuard } from "./rate-limit.guard";
 import { EntitlementReaderService } from "./entitlement-reader.service";
 import { QuotaService } from "./quota.service";
 import { InternalFleetController } from "./internal-fleet.controller";
+import { TenantHoldUseCases } from "./contexts/fleet/tenant-hold/application/tenant-hold.use-cases";
+import { TENANT_HOLD_REPOSITORY } from "./contexts/fleet/tenant-hold/domain/tenant-hold.repository";
+import { InMemoryTenantHoldRepository } from "./contexts/fleet/tenant-hold/infrastructure/in-memory-tenant-hold.repository";
+import { MikroTenantHoldRepository } from "./contexts/fleet/tenant-hold/infrastructure/mikro-tenant-hold.repository";
 import { StorageReconciliationService } from "./storage-reconciliation.service";
 import { StorageReporterService } from "./storage-reporter.service";
 import { TenantActiveGuard } from "./tenant-active.guard";
@@ -629,6 +633,18 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     SetVehicleStatusUseCase,
     RegisterVehicleGpsDeviceUseCase,
     BulkImportVehiclesUseCase,
+    TenantHoldUseCases,
+    InMemoryTenantHoldRepository,
+    MikroTenantHoldRepository,
+    {
+      provide: TENANT_HOLD_REPOSITORY,
+      inject: [InMemoryTenantHoldRepository, MikroTenantHoldRepository, AppConfigService],
+      useFactory: (
+        inMemoryRepository: InMemoryTenantHoldRepository,
+        mikroRepository: MikroTenantHoldRepository,
+        config: AppConfigService,
+      ) => config.persistence.backend === "in-memory" ? inMemoryRepository : mikroRepository,
+    },
     InMemoryDeviceRepository,
     MikroDeviceRepository,
     {

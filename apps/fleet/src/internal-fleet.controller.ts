@@ -15,7 +15,9 @@ import {
 import { ApiExcludeController } from "@nestjs/swagger";
 import { Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
-import { PlatformActorGuard } from "./platform-actor.guard";
+import { PlatformActorGuard, PlatformOrTrackingGuard } from "./platform-actor.guard";
+import { TenantHoldUseCases } from "./contexts/fleet/tenant-hold/application/tenant-hold.use-cases";
+import { TenantHoldDto, TenantHoldPreviewDto } from "./dto/tenant-hold.dto";
 import { AuditLogService } from "./audit-log.service";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
@@ -58,6 +60,8 @@ import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
 const DRAWER_ROW_LIMIT = 25;
 /** A job lists a handful of units; a page of them at most. */
 const MAX_DEVICE_IDS = 100;
+/** Tracking pages the held-device list; this is the most it may take at once. */
+const MAX_HELD_PAGE = 5000;
 
 @ApiExcludeController()
 @Portals("service")
@@ -77,6 +81,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(DEVICE_CATALOG_PORT) private readonly catalog: DeviceCatalogPort,
     @Inject(InstallationHandoverUseCases) private readonly handover: InstallationHandoverUseCases,
     @Inject(DecommissionDeviceUseCase) private readonly decommissionDeviceUseCase: DecommissionDeviceUseCase,
+    @Inject(TenantHoldUseCases) private readonly tenantHolds: TenantHoldUseCases,
   ) {
     super(auditLog, bus);
   }
@@ -163,6 +168,38 @@ export class InternalFleetController extends BaseFleetController {
     }
   }
 
+  /** Holds a tenant's devices, vehicles and share links. Nothing is detached or deleted. */
+  @Post("tenants/:tenantId/suspend")
+  @UseGuards(PlatformActorGuard)
+  async suspendTenant(@Param("tenantId") tenantId: string, @Body() payload: TenantHoldDto) {
+    const counts = await this.tenantHolds.suspend(tenantId, payload.cause, payload.reason ?? "");
+    return { status: true, message: "Tenant assets held", data: { tenantId, ...counts, complete: true } };
+  }
+
+  @Post("tenants/:tenantId/reinstate")
+  @UseGuards(PlatformActorGuard)
+  async reinstateTenant(@Param("tenantId") tenantId: string, @Body() payload: TenantHoldDto) {
+    const counts = await this.tenantHolds.reinstate(tenantId, payload.cause);
+    return { status: true, message: "Tenant assets released", data: { tenantId, ...counts, complete: true } };
+  }
+
+  /** What a suspension would hold, for every listed tenant in one call. */
+  @Post("tenants/suspension-preview")
+  @UseGuards(PlatformActorGuard)
+  async suspensionPreview(@Body() payload: TenantHoldPreviewDto) {
+    const items = await this.tenantHolds.preview(payload.tenantIds);
+    return { status: true, message: "success", data: { items } };
+  }
+
+  /** Every held device, paged, so tracking can heal events it missed. */
+  @Get("suspended-devices")
+  @UseGuards(PlatformOrTrackingGuard)
+  async suspendedDevices(@Query("limit") limit?: string, @Query("cursor") cursor?: string) {
+    const size = Math.min(Math.max(Number.parseInt(limit ?? "", 10) || MAX_HELD_PAGE, 1), MAX_HELD_PAGE);
+    const data = await this.tenantHolds.heldDevices(size, cursor?.trim() || null);
+    return { status: true, message: "success", data };
+  }
+
   /** An installer started a job. Devices already waiting or verified are left alone. */
   @Post("tenants/:tenantId/devices/verification")
   @UseGuards(PlatformActorGuard)
@@ -247,6 +284,7 @@ export class InternalFleetController extends BaseFleetController {
       imei: device.imei,
       status: device.status,
       assignedVehicleId: device.vehicleId,
+      holdCause: device.holdCause,
     }));
 
     return {

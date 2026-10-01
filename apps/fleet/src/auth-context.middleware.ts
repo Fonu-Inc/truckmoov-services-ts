@@ -37,10 +37,11 @@ export type FleetAuthUser = {
  * Only auth may act for no tenant, which is how it reaches the cross-tenant
  * platform routes.
  */
-const SERVICE_ROLES: Record<string, { inTenant: Role; platform?: Role }> = {
+const SERVICE_ROLES: Record<string, { inTenant?: Role; platform?: Role }> = {
   auth: { inTenant: Role.FLEET_ADMIN, platform: Role.PLATFORM_ADMIN },
   dispatch: { inTenant: Role.FLEET_ADMIN },
   notification: { inTenant: Role.DISPATCHER },
+  tracking: { platform: Role.PLATFORM_ADMIN },
 };
 
 type MutableFleetRequest = {

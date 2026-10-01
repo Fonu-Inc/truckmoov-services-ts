@@ -8,16 +8,24 @@ import type { StoredOnboardingPayment } from '@auth/onboarding/domain/onboarding
 import { toApiPaymentStatus } from '@auth/onboarding/domain/payment-status';
 import { koboToNgn } from '@auth/onboarding/domain/quotation-totals';
 
+export type InvoiceRenewalInfo = { isRenewal: boolean; periodEnd: string | null };
+
+const FIRST_PURCHASE: InvoiceRenewalInfo = { isRenewal: false, periodEnd: null };
+
 export function toInvoiceRowView(
   invoice: StoredInvoice,
   quotationNumber: string | null,
   today: string,
+  renewal: InvoiceRenewalInfo = FIRST_PURCHASE,
 ) {
   return {
     id: invoice.id,
     number: invoice.number,
     quotationId: invoice.quotationId,
     quotationNumber,
+    tenantId: invoice.tenantId,
+    isRenewal: renewal.isRenewal,
+    periodEnd: renewal.periodEnd,
     customerName: invoice.customerName,
     customerType: invoice.customerType,
     status: effectiveInvoiceStatus(invoice, today),
@@ -61,9 +69,10 @@ export function toInvoiceDetailView(
   quotationNumber: string | null,
   payments: StoredOnboardingPayment[],
   today: string,
+  renewal: InvoiceRenewalInfo = FIRST_PURCHASE,
 ) {
   return {
-    ...toInvoiceRowView(invoice, quotationNumber, today),
+    ...toInvoiceRowView(invoice, quotationNumber, today, renewal),
     billingEmail: invoice.billingEmail,
     taxRateBp: invoice.taxRateBp,
     lines: invoice.lines.map(toInvoiceLineView),

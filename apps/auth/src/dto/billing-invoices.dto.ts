@@ -6,13 +6,15 @@ import { QuotationLineSchema } from './billing-quotations.dto';
 
 const INVOICE_STATUSES = ['draft', 'issued', 'partially_paid', 'paid', 'overdue', 'cancelled'] as const;
 const PAYMENT_STATUSES = ['pending', 'successful', 'failed', 'requires_review', 'refunded'] as const;
-const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'other'] as const;
+const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'wallet', 'other'] as const;
 
 export class ListInvoicesQueryDto {
   @ApiPropertyOptional({ description: 'Matches the invoice number, customer name or quotation number.' })
   @IsOptional() @IsString() q?: string;
   @ApiPropertyOptional({ enum: INVOICE_STATUSES, description: 'Status with overdue derived from the due date.' })
   @IsOptional() @IsIn(INVOICE_STATUSES) status?: (typeof INVOICE_STATUSES)[number];
+  @ApiPropertyOptional({ enum: ['renewal', 'first'], description: 'Licence renewals or first-purchase invoices only.' })
+  @IsOptional() @IsIn(['renewal', 'first']) kind?: 'renewal' | 'first';
   @ApiPropertyOptional({ default: 1 }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @ApiPropertyOptional({ default: 20, maximum: 100 }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
 }
@@ -22,6 +24,9 @@ export class InvoiceRowSchema {
   @ApiProperty({ example: 'INV-2026-001' }) number!: string;
   @ApiProperty({ type: String, nullable: true }) quotationId!: string | null;
   @ApiProperty({ type: String, nullable: true }) quotationNumber!: string | null;
+  @ApiProperty({ type: String, nullable: true }) tenantId!: string | null;
+  @ApiProperty({ description: 'True for a licence renewal invoice.' }) isRenewal!: boolean;
+  @ApiProperty({ type: String, nullable: true, description: 'Licence end date a renewal invoice covers.' }) periodEnd!: string | null;
   @ApiProperty() customerName!: string;
   @ApiProperty() customerType!: string;
   @ApiProperty({ enum: INVOICE_STATUSES }) status!: string;

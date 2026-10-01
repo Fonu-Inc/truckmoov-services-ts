@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
 import { ActivityLogService } from './activity-log.service';
@@ -16,6 +16,7 @@ import {
   type TenantTerminationRepository,
 } from './tenant-termination.repository';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
+import { TENANT_ASSET_STORE, type TenantAssetStore } from './tenant-asset-store';
 
 
 export class TenantAlreadyTerminatedError extends Error {
@@ -58,6 +59,7 @@ export class TerminateSystemTenantUseCase {
     private readonly terminations: TenantTerminationRepository,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
     @Inject(EVENT_BUS) private readonly bus: EventBus,
+    @Optional() @Inject(TENANT_ASSET_STORE) private readonly assets?: TenantAssetStore,
   ) {}
 
   async execute(command: TerminateSystemTenantCommand) {
@@ -76,6 +78,7 @@ export class TerminateSystemTenantUseCase {
 
     const usersDisabled = await this.disableUsers(command.tenantId);
     const simsDeactivated = await this.deactivateSims(command.tenantId);
+    await this.assets?.clearHolds(command.tenantId);
 
     // Written after the work, carrying what was actually done rather than what
     // was intended, so the record cannot overstate the outcome.

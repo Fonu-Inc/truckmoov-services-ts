@@ -29,6 +29,8 @@ export class EventBusDeviceIdentityEventPublisher implements DeviceIdentityEvent
         model: event.model,
         vehicle_id: event.vehicle_id,
         action: event.action,
+        suspended: event.suspended ?? false,
+        suspension_cause: event.suspension_cause ?? null,
       },
     });
   }

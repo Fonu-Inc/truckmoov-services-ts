@@ -82,6 +82,8 @@ const CONFIGURABLE_LIFECYCLE_STATUSES: readonly DeviceLifecycleStatus[] = [
   "faulty",
 ];
 
+export type DeviceHoldCause = "non_payment" | "tenant_manual";
+
 export type DeviceProps = {
   id: string;
   imei: string;
@@ -108,6 +110,8 @@ export type DeviceProps = {
   suspendedAt?: string | null;
   suspensionReason?: string | null;
   suspendedBy?: SuspendedBy | null;
+  /** Set while the tenant's suspension holds this device. Independent of the lifecycle `suspended` status. */
+  holdCause?: DeviceHoldCause | null;
   /** The wire-protocol/vendor identity actually observed at ingest, e.g. "teltonika". Not the same taxonomy as `protocol`, which is what the installer configured. */
   reportedProtocol?: string | null;
   configuredAt?: string | null;
@@ -220,6 +224,7 @@ export class Device {
       suspendedAt: props.suspendedAt ?? null,
       suspensionReason: props.suspensionReason ?? null,
       suspendedBy: props.suspendedBy ?? null,
+      holdCause: props.holdCause ?? null,
       traccarDeviceId: props.traccarDeviceId ?? null,
       provisionStatus: props.provisionStatus ?? "pending",
       createdAt: props.createdAt ?? new Date().toISOString(),
@@ -333,6 +338,10 @@ export class Device {
 
   get suspendedBy(): SuspendedBy | null {
     return this.props.suspendedBy ?? null;
+  }
+
+  get holdCause(): DeviceHoldCause | null {
+    return this.props.holdCause ?? null;
   }
 
   get isSuspended(): boolean {
@@ -660,6 +669,7 @@ export class Device {
       suspendedAt: this.suspendedAt,
       suspensionReason: this.suspensionReason,
       suspendedBy: this.suspendedBy,
+      holdCause: this.holdCause,
       traccarDeviceId: this.traccarDeviceId,
       provisionStatus: this.provisionStatus,
       createdAt: this.createdAt,

@@ -11,6 +11,7 @@ import { runIfLockFree } from '@shared/db';
 import { sweepSafely } from '@shared/observability';
 import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import { ARREARS_REPOSITORY, type ArrearsRepository } from './arrears.repository';
 
 const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SIM_SWEEP_LOCK_ID = 8_246_113_070_002;
@@ -41,6 +42,7 @@ export class SimRecurringChargeService implements OnApplicationBootstrap, OnAppl
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(ChargeUsageUseCase) private readonly chargeUsage: ChargeUsageUseCase,
     @Inject(SIM_REPOSITORY) private readonly sims: SimRepository,
+    @Inject(ARREARS_REPOSITORY) private readonly arrears: ArrearsRepository,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -103,8 +105,29 @@ export class SimRecurringChargeService implements OnApplicationBootstrap, OnAppl
       });
       return result.charged && !result.replayed;
     } catch (error) {
+      await this.recordArrears(error, { tenantId, reference, month, quantity: activeSims });
       this.logFailureOnce(reference, tenantId, error);
       return false;
+    }
+  }
+
+  private async recordArrears(
+    error: unknown,
+    charge: { tenantId: string; reference: string; month: string; quantity: number },
+  ): Promise<void> {
+    if (!(error instanceof InsufficientWalletBalanceError) || error.requiredKobo <= 0) return;
+    try {
+      await this.arrears.record({
+        tenantId: charge.tenantId,
+        reference: charge.reference,
+        dueDate: `${charge.month}-01`,
+        amountKobo: error.requiredKobo,
+        quantity: charge.quantity,
+      });
+    } catch (failure) {
+      this.logger.error(
+        `arrears_record_failed:${charge.reference}:${failure instanceof Error ? failure.message : 'unknown'}`,
+      );
     }
   }
 

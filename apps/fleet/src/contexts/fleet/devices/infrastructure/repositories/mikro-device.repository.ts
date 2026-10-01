@@ -171,6 +171,7 @@ export class MikroDeviceRepository implements DeviceRepository {
       suspendedAt: record.suspendedAt?.toISOString() ?? null,
       suspensionReason: record.suspensionReason ?? null,
       suspendedBy: record.suspendedBy === "tenant" || record.suspendedBy === "platform" ? record.suspendedBy : null,
+      holdCause: record.holdCause === "non_payment" || record.holdCause === "tenant_manual" ? record.holdCause : null,
       traccarDeviceId: record.traccarDeviceId ?? null,
       provisionStatus:
         record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)

@@ -44,9 +44,12 @@ export type StoredInvoice = {
 
 export type InvoiceWithLines = StoredInvoice & { lines: StoredInvoiceLine[] };
 
+export type InvoiceKind = 'renewal' | 'first';
+
 export type InvoiceListFilter = {
   q?: string;
   status?: InvoiceStatus;
+  kind?: InvoiceKind;
   page: number;
   limit: number;
   today: string;
@@ -55,6 +58,32 @@ export type InvoiceListFilter = {
 export type InvoiceListRow = {
   invoice: StoredInvoice;
   quotationNumber: string | null;
+  isRenewal: boolean;
+};
+
+export type TenantInvoiceFilter = {
+  tenantId: string;
+  scope: 'open' | 'paid' | 'all';
+  page: number;
+  limit: number;
+};
+
+export type TenantInvoiceRow = { invoice: StoredInvoice; isRenewal: boolean };
+
+export type TenantInvoicePage = {
+  items: TenantInvoiceRow[];
+  total: number;
+  openTotalKobo: number;
+  nextDueDate: string | null;
+};
+
+export type RenewalAmounts = {
+  quantity: number;
+  unitPriceKobo: number;
+  subtotalKobo: number;
+  taxRateBp: number;
+  taxKobo: number;
+  totalKobo: number;
 };
 
 export interface InvoiceRepository {
@@ -74,6 +103,23 @@ export interface InvoiceRepository {
     total: number;
   }>;
   countOverdue(today: string): Promise<number>;
+  /**
+   * Inserts a renewal invoice and links it to the period in one transaction.
+   * created is false, and nothing is written, when the period already has one.
+   */
+  createRenewal(
+    invoice: InvoiceWithLines,
+    periodId: string,
+  ): Promise<{ invoice: InvoiceWithLines | null; created: boolean }>;
+  /** Renewal invoices still issued with nothing paid. */
+  listOpenRenewals(): Promise<InvoiceWithLines[]>;
+  /** Cancels only while issued with nothing paid; false otherwise. */
+  cancelRenewal(id: string): Promise<boolean>;
+  /** Rewrites the plan line and totals only while issued with nothing paid. */
+  updateRenewalAmounts(id: string, amounts: RenewalAmounts): Promise<boolean>;
+  /** Invoices owed by the tenant, whoever issued them, drafts and cancelled excluded. */
+  listForTenant(filter: TenantInvoiceFilter): Promise<TenantInvoicePage>;
+  findForTenant(tenantId: string, id: string): Promise<(InvoiceWithLines & { isRenewal: boolean }) | null>;
 }
 
 export const INVOICE_REPOSITORY = Symbol('INVOICE_REPOSITORY');
@@ -101,4 +147,12 @@ export function settledInvoiceStatus(
   paidKobo: number,
 ): InvoiceStatus {
   return paidKobo >= totalKobo ? 'paid' : 'partially_paid';
+}
+
+export function isRenewalInvoice(invoice: Pick<InvoiceWithLines, 'lines'>): boolean {
+  return invoice.lines.some((line) => line.kind === 'plan' && line.isRenewal);
+}
+
+export function outstandingKobo(invoice: Pick<StoredInvoice, 'totalKobo' | 'amountPaidKobo'>): number {
+  return Math.max(invoice.totalKobo - invoice.amountPaidKobo, 0);
 }

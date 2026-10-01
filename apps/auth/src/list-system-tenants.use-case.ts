@@ -22,6 +22,10 @@ import {
   type SubscriptionPlanRepository,
 } from './subscription-plan.repository';
 import {
+  TENANT_SUSPENSION_REPOSITORY,
+  type TenantSuspensionRepository,
+} from './tenant-suspension.repository';
+import {
   TENANT_TERMINATION_REPOSITORY,
   type TenantTerminationRepository,
 } from './tenant-termination.repository';
@@ -111,6 +115,9 @@ type SystemTenantRow = {
   monthlyRevenueNgn: number;
   createdAt: string;
   lastActiveAt: string | null;
+  suspendedAt: string | null;
+  suspendedByName: string | null;
+  suspensionReason: string | null;
   features: TenantFeatureFlags;
   invitationStatus: {
     hasPendingInvitation: boolean;
@@ -375,6 +382,8 @@ export class ListSystemTenantsUseCase {
     private readonly terminationRepository: TenantTerminationRepository,
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly entitlementsRepository: PlanEntitlementsRepository,
+    @Inject(TENANT_SUSPENSION_REPOSITORY)
+    private readonly suspensionRepository: TenantSuspensionRepository,
   ) {}
 
   async execute(accessToken: string, filters: SystemTenantFilters) {
@@ -400,7 +409,30 @@ export class ListSystemTenantsUseCase {
         ? await this.listInMemory()
         : await this.listDatabase();
     await this.resolvePlanTiers(tenants);
+    await this.attachSuspensions(tenants);
     return this.applyFilters(tenants, filters);
+  }
+
+  private async attachSuspensions(tenants: SystemTenantRow[]) {
+    const suspended = tenants.filter((tenant) => tenant.status === 'suspended');
+    if (suspended.length === 0) {
+      return;
+    }
+    const byTenantId = new Map(
+      (await this.suspensionRepository.findAll()).map((entry) => [entry.tenantId, entry]),
+    );
+    const names = new Map<string, string | null>();
+    for (const tenant of suspended) {
+      const entry = byTenantId.get(tenant.id);
+      if (!entry) continue;
+      if (!names.has(entry.suspendedBy)) {
+        const actor = await this.userRepository.findById(entry.suspendedBy);
+        names.set(entry.suspendedBy, actor ? (actor.profile?.fullName ?? actor.email) : null);
+      }
+      tenant.suspendedAt = entry.suspendedAt.toISOString();
+      tenant.suspendedByName = names.get(entry.suspendedBy) ?? null;
+      tenant.suspensionReason = entry.reason;
+    }
   }
 
   /** Resolves each tenant's plan tier from the DB catalog (codes are opaque). */
@@ -952,6 +984,9 @@ export class ListSystemTenantsUseCase {
       monthlyRevenueNgn: 0,
       createdAt: params.createdAt,
       lastActiveAt: params.lastActiveAt,
+      suspendedAt: null,
+      suspendedByName: null,
+      suspensionReason: null,
       features: params.onboarding?.features ?? { ...DEFAULT_TENANT_FEATURES },
       invitationStatus: {
         hasPendingInvitation,

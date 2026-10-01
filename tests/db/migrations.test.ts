@@ -77,6 +77,22 @@ describe.skipIf(!dbEnabled)("migrations on real postgres", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it.each(["enforcement_settings", "billing_arrears", "enforcement_notices", "enforcement_runs", "enforcement_waivers"])(
+    "enforcement table %s exists",
+    async (table) => {
+      const rows = await query(`select 1 from information_schema.tables where table_schema = 'public' and table_name = ?`, [
+        table,
+      ]);
+      expect(rows).toHaveLength(1);
+    },
+  );
+
+  it("enforcement settings are seeded with automatic suspension off", async () => {
+    const rows = await query(`select * from enforcement_settings where id = 'system'`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ grace_days: 3, auto_suspend_enabled: false, auto_suspend_cap_per_run: 10, paused: false });
+  });
+
   it("running the chain again is a no-op", async () => {
     const before = await query(`select name from mikro_migrations_auth order by id`);
     const executed = await orm.getMigrator().up();

@@ -349,9 +349,10 @@ describe("invoice and payment reads", () => {
 
     expect(page.total).toBe(2);
     expect(Object.keys(page.items[0]).sort()).toEqual([
-      "amountPaidNgn", "customerName", "customerType", "discountNgn", "dueDate", "emailedAt", "id", "issueDate", "number",
-      "outstandingNgn", "quotationId", "quotationNumber", "status", "subtotalNgn", "taxNgn", "totalNgn",
+      "amountPaidNgn", "customerName", "customerType", "discountNgn", "dueDate", "emailedAt", "id", "isRenewal", "issueDate", "number",
+      "outstandingNgn", "periodEnd", "quotationId", "quotationNumber", "status", "subtotalNgn", "taxNgn", "tenantId", "totalNgn",
     ]);
+    expect(page.items[0]).toMatchObject({ isRenewal: false, periodEnd: null });
     expect(page.items.map((i) => i.customerName).sort()).toEqual(["Alpha Freight", "Beta Haulage"]);
     expect(page.items[0]).toMatchObject({ totalNgn: 10_000, taxNgn: 697.67, outstandingNgn: 0, amountPaidNgn: 10_000 });
   });

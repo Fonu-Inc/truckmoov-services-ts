@@ -1573,14 +1573,24 @@ describe('Auth HTTP contract', () => {
     expect(detailRes.body.data.tenant.status).toBe('active');
     expect(detailRes.body.data.onboarding).toBeNull();
 
-    const suspendRes = await request(app.getHttpServer())
+    const noReasonRes = await request(app.getHttpServer())
       .patch(`/auth/system/tenants/${tenantId}/status`)
       .set('Authorization', `Bearer ${superadminToken}`)
       .send({ status: 'suspended' });
 
+    expect(noReasonRes.status).toBe(400);
+
+    const suspendRes = await request(app.getHttpServer())
+      .patch(`/auth/system/tenants/${tenantId}/status`)
+      .set('Authorization', `Bearer ${superadminToken}`)
+      .send({ status: 'suspended', reason: 'Invoice 30 days overdue' });
+
     expect(suspendRes.status).toBe(200);
     expect(suspendRes.body.message).toBe('Tenant suspended successfully');
     expect(suspendRes.body.data.tenant.status).toBe('suspended');
+    expect(suspendRes.body.data.tenant.suspensionReason).toBe('Invoice 30 days overdue');
+    expect(suspendRes.body.data.tenant.suspendedAt).toEqual(expect.any(String));
+    expect(suspendRes.body.data.tenant.suspendedByName).toEqual(expect.any(String));
 
     const suspendedLoginRes = await request(app.getHttpServer())
       .post('/auth/login')
@@ -1596,6 +1606,8 @@ describe('Auth HTTP contract', () => {
     expect(reactivateRes.status).toBe(200);
     expect(reactivateRes.body.message).toBe('Tenant reactivated successfully');
     expect(reactivateRes.body.data.tenant.status).toBe('active');
+    expect(reactivateRes.body.data.tenant.suspensionReason).toBeNull();
+    expect(reactivateRes.body.data.tenant.suspendedAt).toBeNull();
 
     const restoredLoginRes = await request(app.getHttpServer())
       .post('/auth/login')
@@ -1636,7 +1648,7 @@ describe('Auth HTTP contract', () => {
         `/auth/system/tenants/${pendingTenantRes.body.data.tenantId}/status`,
       )
       .set('Authorization', `Bearer ${superadminToken}`)
-      .send({ status: 'suspended' });
+      .send({ status: 'suspended', reason: 'Invoice 30 days overdue' });
 
     expect(pendingStatusRes.status).toBe(409);
   });

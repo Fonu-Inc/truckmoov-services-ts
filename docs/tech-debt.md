@@ -4,6 +4,195 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-12 — Anyone who can reach the message bus can publish as any service
+
+**Status:** open, recorded 1 October 2026. Follows the event signing work; that
+narrows the gap but cannot close it.
+
+### The problem
+
+NATS runs with no authentication, no TLS and no network restriction. Any pod or
+host that can reach port 4222 can publish and subscribe to every subject.
+
+- **No server-side auth.** `nats-statefulset.yaml` (three replicas) and the
+  docker-compose NATS have no users, accounts or credentials. The services
+  already read `NATS_USER` and `NATS_PASSWORD`, but nothing in the platform
+  repo sets them, so the server would ignore them anyway.
+- **Signing shares one secret.** Events are HMAC-signed with
+  `EVENT_SIGNING_SECRET`. That stops outsiders, but every service holds the
+  secret, so a compromised service can still sign a platform alert, suspend a
+  tenant or map a device to another tenant. Signing cannot express which
+  service may publish which subject.
+- **Replay.** A captured signed event can be published again. The Go
+  notification consumers for platform alerts and job offers dedupe by event id
+  (Redis claim, 30 days). Other consumers with side effects do not yet, and the
+  bus itself does not stop it.
+- **Subscribing is open.** Nothing stops a rogue client reading tenant events,
+  including positions and message text.
+- **No NetworkPolicy.** Nothing in k8s limits who may connect to 4222, 6222 or
+  8222.
+
+### Direction
+
+Enforce it at the broker, then keep signing as a second layer.
+
+- One NATS user (or nkey) per service: auth, fleet, realtime, notification,
+  tracking, dispatch. Publish and subscribe allow-lists limited to the subjects
+  each owns. For example only auth publishes `tm.*.tenant.suspended`,
+  `tm.system.alert.raised` and `tm.*.sim.changed`; only dispatch publishes
+  `job.offer.*` and `job.status.changed`; only tracking publishes
+  `vehicle.location.updated`; only notification publishes
+  `message.delivery.updated` and `tm.system.messaging.message.*`; realtime may
+  publish only the messaging commands and otherwise subscribe only.
+- Allow the JetStream API and inbox subjects clients need. Pre-create the
+  stream so services need no stream-admin rights.
+- Per-service credentials in Doppler. No code change: clients already pass
+  `NATS_USER` and `NATS_PASSWORD`.
+- TLS on 4222 and a NetworkPolicy so only service pods reach the NATS ports.
+- Update the docker-compose NATS command to load the same config for dev parity.
+- Known limit: the tenant segment of a subject is a wildcard, so an ACL cannot
+  tie a service to one tenant. A compromised service can still forge for any
+  tenant on subjects it may publish. Signing plus per-service ACLs bounds the
+  damage to that service's own subjects.
+
+### When this is picked up
+
+After the signing rollout has run with `EVENT_ACCEPT_UNSIGNED` removed. It
+needs changes in the platform repo (NATS config as a ConfigMap and Secret,
+StatefulSet args, service Deployments with credentials) and an agreed ACL list
+per service, which is easiest to derive from the publisher and consumer table
+in the signing contract. Roll out ACLs in a staging cluster first: a missing
+subject permission breaks a consumer silently.
+
+---
+
+## TD-11 — Suspending a customer does not tell the mobile network
+
+**Status:** open, recorded 1 October 2026. Follows the payment grace and
+suspension work; the admin pages say so honestly until this is built.
+
+### The problem
+
+Suspending a customer for non-payment (by hand or automatically after grace)
+marks their SIMs suspended in our database only. The mobile network is never
+told, so the SIMs stay live and keep being billed to us.
+
+- **No carrier call.** `suspend-system-sim.use-case.ts` and the suspension
+  cascade set a flag and publish `sim.changed`. Nothing calls MTN or any other
+  carrier, and no carrier integration exists in the codebase (see TD-8, which
+  records the same missing HLR link for termination).
+- **Devices keep their data session.** The tracking gate drops what a suspended
+  customer's devices send, but the SIM still connects and still uses data.
+- **Restore has no network side either.** Reinstating cannot fail because of the
+  carrier today, because the carrier is never involved.
+- **The admin pages must not overclaim.** They say "marked suspended in our
+  system; the mobile network has not been told". Keep that wording until this
+  ships.
+
+### What it needs
+
+1. **Carrier integration.** A barring and unbarring call per carrier (MTN HLR
+   first), with credentials per environment, rate limits and a per-SIM result.
+2. **A queue with retries.** Suspend and restore become tasks with status
+   (pending, done, failed), retried and visible to staff, so a carrier outage
+   never leaves the cascade half done silently.
+3. **Reconciliation.** A periodic check that our SIM status and the carrier's
+   agree, with disagreements shown to staff.
+4. **Honest states.** SIM status gains "barred at network" separate from
+   "marked suspended", and the cascade only reports network-level success once
+   the carrier confirms.
+5. **Safety.** Never bar a SIM whose vehicle is moving or with an open SOS;
+   reversible in one step; every call in the audit log.
+
+### When this is picked up
+
+After a carrier agreement and API access exist. TD-8 shares the same
+integration, so build it once for both.
+
+---
+
+## TD-10 — Theft protection and vehicle immobilisation do not exist
+
+**Status:** open, recorded 1 October 2026. Deferred by the owner: planned here,
+not built with the Security area rework.
+
+### The problem
+
+The Security area is built around payment lockout, device and SIM integrity and
+platform misuse. None of it can stop or detect a stolen vehicle. A customer
+whose truck is taken has the live map, a geofence and a support ticket.
+
+- **No way to send a command to a device.** Tracking is one way, device to
+  platform. There is no command route, queue, acknowledgement or audit model.
+  Traccar can send engine stop and resume commands; nothing in our code calls it.
+- **No tamper signals.** Traccar forwards alarm and power attributes (power cut,
+  tampering, jamming, SOS, low battery). The tracking adapter reads five keys and
+  discards the rest. Ignition, battery and signal reach the telemetry store but
+  not the event bus, so no other service can react to them.
+- **No SIM check.** Devices never report their own ICCID or IMSI. A SIM pulled
+  from a tracker is invisible; we only know the SIM we assigned.
+- **Unknown IMEIs are accepted.** An unregistered or cloned IMEI falls back to
+  the default tenant and is stored. Impossible jumps and out of order fixes are
+  dropped silently, which discards the clone and spoof signal.
+- **One shared ingest key.** `GPS_API_KEY` covers every device. If unset the
+  endpoints are open. Anyone holding it can post positions for any IMEI.
+- **Alerts are fragile.** Fleet alerts sit in an in-memory repository, are lost
+  on restart and cannot be read across tenants. The escalation sweep scans a
+  hard-coded tenant, so it escalates nothing real.
+- **No stolen state.** Marking a vehicle inactive is the only thing that arms
+  `unauthorized_usage`, and only when a geofence exists. No stolen flag,
+  recovery mode or case record.
+- **The device catalog cannot say which models can cut an engine.** Capability
+  flags are `obd2`, `fuel` and `sos`.
+
+### What it needs
+
+1. **Command channel.** A command service through Traccar (engine stop, engine
+   resume) or direct protocol, with queue, delivery status, acknowledgement and
+   relay-state read-back. A relay capability flag per model in the device
+   catalog, and a recorded fact per installation that a relay was fitted.
+2. **Detection.** Capture alarm, power, tamper, jamming, ICCID, IMSI and
+   ignition from telemetry and put them on the event bus. Typed alerts:
+   `power_cut`, `tamper`, `device_removed`, `jamming`, `sim_swap`, `sos`,
+   `moved_ignition_off`. Persist alerts and expose a platform read. Quarantine
+   unknown IMEIs instead of defaulting them. Per-device ingest authentication
+   instead of one key. Publish skipped fixes as counters.
+3. **Owner-verified request flow.** Only the verified owner, or a tenant admin
+   with 2FA and an identity check, can report a vehicle stolen or ask for a stop.
+   Staff confirm by callback before any command. A case record holds proof.
+4. **Safety rules.** Never cut while the vehicle moves above a few km/h. Warning
+   stage first where hardware supports it. Two-person approval. Time limited and
+   always reversible. Every command in the hash-chained audit log.
+5. **Customer side.** Report stolen, recovery mode (higher reporting rate, trail
+   shared with police beyond job lifetime), guard mode with allowed hours, alert
+   channels for owner-operators, who today cannot see the map or set alert
+   preferences.
+6. **Staff side.** Cross-tenant theft cases with status, owner contact, last
+   positions, command history, notes and police hand-off.
+7. **Legal review.** Contract consent, liability for an unsafe stop, data
+   protection for sharing location with police, the regulatory position on remote
+   immobilisation in each market, insurance.
+8. **Hardware.** Capability audit of the device models with the vendor, a pilot
+   on one model, an installer procedure for relay wiring.
+
+### Direction
+
+Phase it by risk. First, detection only: widen the Traccar adapter, put the
+signals on the bus, persist alerts, quarantine unknown IMEIs. This needs no new
+hardware and feeds a staff Watch List. Then the owner-verified stolen report and
+recovery mode, still without any command. Last, immobilisation, behind a feature
+flag, one pilot model, after the legal review.
+
+The Security area shows engine cut and theft as "Not monitored yet" until then,
+never a fake control or count.
+
+### When this is picked up
+
+After the owner decides the legal position on remote stops and a relay-capable
+device model is chosen. Detection can start earlier and waits for neither.
+
+---
+
 ## TD-9 — A tenant with no WhatsApp number of its own cannot message anyone
 
 **Status:** open, recorded 1 October 2026, waiting on a product decision.

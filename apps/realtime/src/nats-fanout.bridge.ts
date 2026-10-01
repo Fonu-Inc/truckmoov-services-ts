@@ -5,10 +5,9 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
-import { connect, type NatsConnection, type Subscription } from 'nats';
 import { AppConfigService } from '@shared/config';
-import { natsLogin } from '@shared/eventbus';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
+import { NatsLink } from './nats-link.service';
 import { PositionCoalescer, readPosition } from './position-coalescer';
 import { RealtimeGateway } from './realtime.gateway';
 import { tenantOfSubject } from './tenant-subject';
@@ -51,31 +50,19 @@ const COALESCED_SUBJECT_EVENT = 'vehicle.location.updated';
 @Injectable()
 export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(NatsFanoutBridge.name);
-  private connection: NatsConnection | null = null;
-  private readonly subscriptions: Subscription[] = [];
   private readonly coalescer = new PositionCoalescer();
   private frameTimer: NodeJS.Timeout | null = null;
 
   constructor(
-    @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(RealtimeGateway) private readonly gateway: RealtimeGateway,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(NatsLink) private readonly link: NatsLink,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     try {
-      this.connection = await connect({
-        servers: this.config.nats.url,
-        ...natsLogin(this.config.nats),
-        // Reconnects forever. A dropped link would otherwise leave the gateway
-        // holding sockets it can never deliver anything to, which looks healthy
-        // from outside and is not.
-        maxReconnectAttempts: -1,
-        reconnectTimeWait: 2_000,
-      });
-      this.watchConnection();
-
       for (const subject of FORWARDED_SUBJECTS) {
-        this.subscribe(subject);
+        await this.link.subscribe(subject, (name, body) => this.forward(name, body));
       }
       this.startFrameTimer();
       this.logger.log(`nats_fanout_ready:${FORWARDED_SUBJECTS.length} subjects`);
@@ -86,31 +73,9 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     }
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  onApplicationShutdown(): void {
     if (this.frameTimer) clearInterval(this.frameTimer);
     this.frameTimer = null;
-    for (const subscription of this.subscriptions) subscription.unsubscribe();
-    await this.connection?.drain().catch(() => {});
-    this.connection = null;
-  }
-
-  private subscribe(subject: string): void {
-    if (!this.connection) return;
-
-    const subscription = this.connection.subscribe(subject);
-    this.subscriptions.push(subscription);
-
-    void (async () => {
-      for await (const message of subscription) {
-        try {
-          this.forward(message.subject, message.json());
-        } catch (error) {
-          this.logger.warn(
-            `nats_fanout_bad_message:${message.subject}:${error instanceof Error ? error.message : 'unknown'}`,
-          );
-        }
-      }
-    })();
   }
 
   private forward(subject: string, envelope: unknown): void {
@@ -134,21 +99,6 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     // rebuilt client-side from the event, so a tenant never sees another
     // tenant's identifier even in a routing field.
     this.gateway.emitToTenant(tenantId, event, data?.data ?? {});
-  }
-
-  private watchConnection(): void {
-    if (!this.connection) return;
-
-    void (async () => {
-      for await (const status of this.connection!.status()) {
-        if (status.type === 'disconnect' || status.type === 'error') {
-          this.logger.warn(`nats_fanout_${status.type}`);
-        }
-        if (status.type === 'reconnect') {
-          this.logger.log('nats_fanout_reconnected');
-        }
-      }
-    })();
   }
 
   /**

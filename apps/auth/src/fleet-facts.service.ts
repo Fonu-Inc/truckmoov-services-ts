@@ -45,6 +45,8 @@ function isSafePathId(value: string): boolean {
 }
 
 export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission';
+export type TenantHoldCounts = { devices: number; vehicles: number; shareLinks: number };
+export type TenantHoldResult = ({ ok: true } & TenantHoldCounts) | { ok: false; message: string };
 
 @Injectable()
 export class FleetFactsService {
@@ -374,6 +376,92 @@ export class FleetFactsService {
       this.logger.warn(
         `fleet_context_snapshot_failed:${tenantId}:${resource}:${error instanceof Error ? error.message : 'unknown'}`,
       );
+      return null;
+    }
+  }
+  /**
+   * Holds a tenant's devices, vehicles and share links without detaching
+   * anything. Counts are what this call newly held, so a repeat reports zero.
+   */
+  async suspendTenantAssets(
+    tenantId: string,
+    body: { cause: 'manual' | 'non_payment'; reason: string; actor: { id: string; name: string } },
+  ): Promise<TenantHoldResult> {
+    return this.tenantHold(tenantId, 'suspend', body);
+  }
+
+  async reinstateTenantAssets(tenantId: string, cause: 'manual' | 'non_payment'): Promise<TenantHoldResult> {
+    return this.tenantHold(tenantId, 'reinstate', { cause });
+  }
+
+  private async tenantHold(
+    tenantId: string,
+    action: 'suspend' | 'reinstate',
+    body: Record<string, unknown>,
+  ): Promise<TenantHoldResult> {
+    if (!isSafePathId(tenantId)) return { ok: false, message: 'Tenant not found' };
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return { ok: false, message: 'Device service is not configured' };
+
+    try {
+      const response = await axios.post<{ data?: Partial<TenantHoldCounts>; message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/${action}`,
+        body,
+        { headers, timeout: 60000, validateStatus: () => true },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        return {
+          ok: false,
+          message: safeDownstreamMessage(response.data?.message, 'The device service refused the change'),
+        };
+      }
+      const data = response.data?.data ?? {};
+      return {
+        ok: true,
+        devices: Number(data.devices ?? 0),
+        vehicles: Number(data.vehicles ?? 0),
+        shareLinks: Number(data.shareLinks ?? 0),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_${action}_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return { ok: false, message: 'The device service could not be reached' };
+    }
+  }
+
+  /**
+   * What a suspension would hold, per tenant, in one call. Null when fleet
+   * could not be asked, which the caller shows as unknown rather than zero.
+   */
+  async previewTenantHold(tenantIds: string[]): Promise<Map<string, TenantHoldCounts> | null> {
+    const ids = tenantIds.filter(isSafePathId);
+    if (ids.length === 0) return new Map();
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    try {
+      const response = await axios.post<{
+        data?: { items?: Array<{ tenantId: string } & Partial<TenantHoldCounts>> };
+      }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/suspension-preview`,
+        { tenantIds: ids },
+        { headers, timeout: 15000, validateStatus: () => true },
+      );
+      if (response.status < 200 || response.status >= 300) return null;
+      const items = response.data?.data?.items ?? [];
+      return new Map(
+        items.map((item) => [
+          item.tenantId,
+          {
+            devices: Number(item.devices ?? 0),
+            vehicles: Number(item.vehicles ?? 0),
+            shareLinks: Number(item.shareLinks ?? 0),
+          },
+        ]),
+      );
+    } catch (error) {
+      this.logger.warn(`fleet_suspension_preview_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return null;
     }
   }

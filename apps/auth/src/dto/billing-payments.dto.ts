@@ -4,7 +4,7 @@ import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { StandardApiResponse } from '@shared/openapi';
 
 const PAYMENT_STATUSES = ['pending', 'successful', 'failed', 'requires_review', 'refunded'] as const;
-const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'other'] as const;
+const PAYMENT_METHODS = ['card', 'bank_transfer', 'mtn_momo', 'wallet', 'other'] as const;
 
 export class ListPaymentsQueryDto {
   @ApiPropertyOptional({ description: 'Matches the reference, customer name or quotation number.' })

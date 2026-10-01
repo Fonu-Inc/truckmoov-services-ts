@@ -7,7 +7,13 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
-import { EVENT_BUS, signNotification, type EventBus, type EventEnvelope } from '@shared/eventbus';
+import {
+  EVENT_BUS,
+  signNotification,
+  verifiedHandler,
+  type EventBus,
+  type EventEnvelope,
+} from '@shared/eventbus';
 import { USER_REPOSITORY } from './contexts/auth/session';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 
@@ -46,9 +52,16 @@ export class ComplianceReminderListener
     try {
       const unsub = await this.bus.subscribe(
         'tm.*.compliance.documents.expiring',
-        async (event) => {
-          await this.handle(event);
-        },
+        verifiedHandler(
+          async (event) => {
+            await this.handle(event);
+          },
+          {
+            secret: this.config.eventSigningSecret,
+            acceptUnsigned: this.config.eventAcceptUnsigned,
+            logger: this.logger,
+          },
+        ),
       );
       this.unsubs.push(unsub);
       this.logger.log('Compliance reminder listener active');

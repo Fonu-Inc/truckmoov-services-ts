@@ -38,6 +38,7 @@ export type AuditLogRow = {
   /** Which service recorded the entry. The Source column. */
   source: string;
   summary: string;
+  reason: string | null;
 };
 
 @Injectable()
@@ -175,6 +176,7 @@ export class VerifyAuditChainsUseCase {
 
 function toRow(entry: ActivityLogEntry): AuditLogRow {
   const ipAddress = entry.metadata?.['ipAddress'];
+  const reason = entry.metadata?.['reason'];
 
   return {
     id: entry.id,
@@ -193,5 +195,6 @@ function toRow(entry: ActivityLogEntry): AuditLogRow {
     ipAddress: typeof ipAddress === 'string' ? ipAddress : null,
     source: entry.service,
     summary: entry.summary,
+    reason: typeof reason === 'string' && reason.trim() ? reason : null,
   };
 }

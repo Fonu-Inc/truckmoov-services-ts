@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import axios from "axios";
 import { AppConfigService } from "@shared/config";
-import { EVENT_BUS, type EventBus } from "@shared/eventbus";
+import { EVENT_BUS, verifiedHandler, type BusHandler, type EventBus } from "@shared/eventbus";
 
 type CachedStatus = {
   active: boolean;
@@ -45,16 +45,16 @@ export class TenantStatusService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     try {
-      await this.bus.subscribe("tm.*.tenant.suspended", async (event) => {
+      await this.bus.subscribe("tm.*.tenant.suspended", this.verified(async (event) => {
         this.logger.warn(`tenant_suspended:${event.tenant_id}`);
         this.cache.set(event.tenant_id, { active: false, checkedAtMs: Date.now() });
-      });
-      await this.bus.subscribe("tm.*.tenant.reinstated", async (event) => {
+      }));
+      await this.bus.subscribe("tm.*.tenant.reinstated", this.verified(async (event) => {
         this.logger.log(`tenant_reinstated:${event.tenant_id}`);
         // Evicted rather than marked active, so the next request confirms the
         // reinstatement with auth instead of trusting the event on its own.
         this.cache.delete(event.tenant_id);
-      });
+      }));
     } catch (error) {
       // Without the subscription the cache TTL is the only mechanism left, so
       // this is worth a loud line rather than a silent degradation.
@@ -62,6 +62,14 @@ export class TenantStatusService implements OnApplicationBootstrap {
         `tenant_status_subscribe_failed:${error instanceof Error ? error.message : "unknown"}`,
       );
     }
+  }
+
+  private verified(handler: BusHandler): BusHandler {
+    return verifiedHandler(handler, {
+      secret: this.config.eventSigningSecret,
+      acceptUnsigned: this.config.eventAcceptUnsigned,
+      logger: this.logger,
+    });
   }
 
   async isActive(tenantId: string, accessToken: string): Promise<boolean> {

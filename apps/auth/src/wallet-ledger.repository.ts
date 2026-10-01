@@ -10,6 +10,7 @@ export const WALLET_LEDGER_CATEGORIES = [
   'voice',
   'ai',
   'sim_provisioning',
+  'subscription',
   'top_up',
   'refund',
   'adjustment',

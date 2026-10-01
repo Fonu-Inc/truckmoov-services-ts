@@ -2,15 +2,20 @@ import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { TenantStatusService } from '../../../apps/fleet/src/tenant-status.service';
 import { TenantActiveGuard } from '../../../apps/fleet/src/tenant-active.guard';
+import { signBusEvent } from '@shared/eventbus';
 import axios from 'axios';
 
 vi.mock('axios');
 const mockedGet = vi.mocked(axios.get);
 
+const SECRET = 'test-secret';
+
 function config(cacheSeconds = 30) {
   return {
     auth: { serviceUrl: 'http://auth:3001', tenantStatusCacheSeconds: cacheSeconds },
     persistence: { backend: 'mikro-orm' },
+    eventSigningSecret: SECRET,
+    eventAcceptUnsigned: false,
   } as never;
 }
 
@@ -19,7 +24,11 @@ type Handlers = Record<string, (event: Record<string, unknown>) => Promise<void>
 function bus(handlers: Handlers) {
   return {
     subscribe: vi.fn(async (subject: string, handler: never) => {
-      handlers[subject] = handler as never;
+      const raw = handler as (event: unknown, meta: { subject: string }) => Promise<void>;
+      const concrete = (event: Record<string, unknown>) => subject.replace('*', String(event.tenant_id));
+      handlers[subject] = async (event) =>
+        raw(signBusEvent(SECRET, concrete(event), event as never), { subject: concrete(event) });
+      handlers[`raw:${subject}`] = async (event) => raw(event, { subject: concrete(event) });
       return async () => {};
     }),
     publish: vi.fn(async () => {}),
@@ -85,6 +94,23 @@ describe('TenantStatusService', () => {
 
     await expect(service.isActive('tenant-a', 'token')).resolves.toBe(false);
     expect(mockedGet).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unsigned suspension event', async () => {
+    authReplies(true);
+
+    await handlers['raw:tm.*.tenant.suspended']({ tenant_id: 'tenant-a' });
+
+    await expect(service.isActive('tenant-a', 'token')).resolves.toBe(true);
+    expect(mockedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a suspension event with a wrong signature', async () => {
+    authReplies(true);
+
+    await handlers['raw:tm.*.tenant.suspended']({ tenant_id: 'tenant-a', bsig: 'f'.repeat(64) });
+
+    await expect(service.isActive('tenant-a', 'token')).resolves.toBe(true);
   });
 
   it('re-confirms a reinstatement with auth rather than trusting the event', async () => {

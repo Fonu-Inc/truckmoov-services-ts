@@ -9,7 +9,8 @@ export class MikroShareLinkRepository implements ShareLinkRepository {
 
   async save(link: StoredShareLink): Promise<void> {
     const em = await this.em();
-    await em.upsert(ShareLinkRecord, { ...link });
+    const { heldAt: _heldAt, ...writable } = link;
+    await em.upsert(ShareLinkRecord, writable);
   }
 
   async findByTokenHash(tokenHash: string): Promise<StoredShareLink | null> {
@@ -48,7 +49,7 @@ export class MikroShareLinkRepository implements ShareLinkRepository {
     await em
       .getConnection()
       .execute(
-        `update fleet_tracking_share_links set last_viewed_at = ?, view_count = view_count + 1 where id = ?`,
+        `update fleet_tracking_share_links set last_viewed_at = ?, view_count = view_count + 1 where id = ? and held_at is null`,
         [at, id],
       );
   }
@@ -77,5 +78,6 @@ function toStored(record: ShareLinkRecord): StoredShareLink {
     revokedAt: record.revokedAt ?? null,
     lastViewedAt: record.lastViewedAt ?? null,
     viewCount: record.viewCount ?? 0,
+    heldAt: record.heldAt ?? null,
   };
 }

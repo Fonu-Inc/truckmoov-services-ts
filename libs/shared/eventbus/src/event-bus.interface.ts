@@ -1,3 +1,4 @@
+import type { BusHandler } from "./bus-signature";
 import type { EventEnvelope } from "./event-envelope";
 
 export interface EventBus {
@@ -15,7 +16,7 @@ export interface EventBus {
    */
   subscribe(
     subject: string,
-    handler: (envelope: EventEnvelope) => Promise<void>,
+    handler: BusHandler,
     consumer?: string,
   ): Promise<() => Promise<void>>;
   /**
@@ -25,7 +26,7 @@ export interface EventBus {
    */
   subscribeEveryInstance?(
     subject: string,
-    handler: (envelope: EventEnvelope) => Promise<void>,
+    handler: BusHandler,
   ): Promise<() => Promise<void>>;
   isReady(): Promise<boolean>;
 }

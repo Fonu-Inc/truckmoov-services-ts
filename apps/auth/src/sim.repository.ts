@@ -36,6 +36,8 @@ export type StoredSim = {
   deviceType: string | null;
   vehicleId: string | null;
   suspensionReason: string | null;
+  suspensionCause?: string | null;
+  preSuspensionStatus?: string | null;
   notes: string | null;
   dataUsageMb: number;
   dataLimitMb: number;

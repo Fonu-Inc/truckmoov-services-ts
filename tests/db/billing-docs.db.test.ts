@@ -489,6 +489,8 @@ describe.skipIf(!dbEnabled)("billing documents on real postgres", () => {
         { list: async () => [] } as never,
         { countByStatus: async () => ({}) } as never,
         invoices,
+        { summary: async () => ({ inGrace: 0, pastGrace: 0 }) } as never,
+        { get: async () => ({ graceDays: 3 }) } as never,
       );
 
       const result = await useCase.execute("token");

@@ -377,7 +377,7 @@ export class ConfirmApplicationPaymentUseCase {
   }
 }
 
-function paidInFull(expectedKobo: number, paid?: PaidAmount): boolean {
+export function paidInFull(expectedKobo: number, paid?: PaidAmount): boolean {
   return (
     paid?.amountKobo === expectedKobo &&
     paid.currency?.toUpperCase() === PAID_CURRENCY

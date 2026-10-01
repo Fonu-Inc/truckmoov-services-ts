@@ -19,6 +19,9 @@ export type DeviceIdentityChangedEvent = {
   model: string;
   vehicle_id: string | null;
   action: DeviceIdentityAction;
+  /** Held by the tenant's suspension. Tracking drops data for a held device. */
+  suspended?: boolean;
+  suspension_cause?: "non_payment" | "tenant_manual" | null;
 };
 
 export interface DeviceIdentityEventPublisher {

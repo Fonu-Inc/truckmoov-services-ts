@@ -2,6 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import { AppConfigService } from "@shared/config";
 import { JsonLogger } from "@shared/logger";
 import { AppModule } from "./app.module";
+import { PlatformMessagingGateway } from "./platform-messaging/platform-messaging.gateway";
 import { RealtimeGateway } from "./realtime.gateway";
 
 async function bootstrap(): Promise<void> {
@@ -22,6 +23,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const gateway = app.get(RealtimeGateway);
+  const staffGateway = app.get(PlatformMessagingGateway);
   const drainMs = config.realtime.drainSeconds * 1000;
 
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
@@ -30,6 +32,7 @@ async function bootstrap(): Promise<void> {
       // Told to reconnect, with jitter applied client-side. A rolling deploy
       // otherwise returns every client at the same instant.
       gateway.server?.emit("reconnect_soon", { inMs: drainMs });
+      staffGateway.announceDrain(drainMs);
     });
   }
 

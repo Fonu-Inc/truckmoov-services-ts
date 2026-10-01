@@ -22,6 +22,8 @@ function toStored(record: IotSimRecord): StoredSim {
     deviceType: record.deviceType,
     vehicleId: record.vehicleId,
     suspensionReason: record.suspensionReason,
+    suspensionCause: record.suspensionCause ?? null,
+    preSuspensionStatus: record.preSuspensionStatus ?? null,
     notes: record.notes,
     dataUsageMb: Number(record.dataUsageMb),
     dataLimitMb: Number(record.dataLimitMb),

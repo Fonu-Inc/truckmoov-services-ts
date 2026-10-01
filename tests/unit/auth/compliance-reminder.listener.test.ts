@@ -1,7 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { signBusEvent } from '@shared/eventbus';
 import { ComplianceReminderListener } from '../../../apps/auth/src/compliance-reminder.listener';
 
-type Handler = (event: unknown) => Promise<void>;
+type Handler = (event: unknown, meta?: { subject: string }) => Promise<void>;
+
+const SECRET = 'test-secret';
+const subjectOf = (event: any) => `tm.${event.tenant_id}.compliance.documents.expiring`;
 
 function buildEvent(overrides: Record<string, unknown> = {}) {
   return {
@@ -34,12 +38,15 @@ function userRepoWith(users: Array<Record<string, unknown>>) {
 describe('ComplianceReminderListener', () => {
   let bus: { subscribe: ReturnType<typeof vi.fn>; publish: ReturnType<typeof vi.fn> };
   let handler: Handler;
+  let rawHandler: Handler;
 
   beforeEach(() => {
     handler = async () => {};
     bus = {
       subscribe: vi.fn().mockImplementation(async (_subject: string, fn: Handler) => {
-        handler = fn;
+        rawHandler = fn;
+        handler = async (event: any) =>
+          fn(signBusEvent(SECRET, subjectOf(event), event), { subject: subjectOf(event) });
         return async () => {};
       }),
       publish: vi.fn().mockResolvedValue(undefined),
@@ -48,7 +55,7 @@ describe('ComplianceReminderListener', () => {
 
   async function start(users: Array<Record<string, unknown>>) {
     const repo = userRepoWith(users);
-    const listener = new ComplianceReminderListener(bus as never, repo as never, { eventSigningSecret: 'test-secret' } as never);
+    const listener = new ComplianceReminderListener(bus as never, repo as never, { eventSigningSecret: SECRET, eventAcceptUnsigned: false } as never);
     await listener.onApplicationBootstrap();
     return { listener, repo };
   }
@@ -160,6 +167,26 @@ describe('ComplianceReminderListener', () => {
     await handler(buildEvent({ data: { documents: [] } }));
 
     expect(repo.findAllByTenant).not.toHaveBeenCalled();
+    expect(bus.publish).not.toHaveBeenCalled();
+  });
+
+  it('ignores an unsigned digest', async () => {
+    const { repo } = await start([{ id: 'u1', email: 'a@carrier.ng' }]);
+    const event = buildEvent();
+
+    await rawHandler(event, { subject: subjectOf(event) });
+
+    expect(repo.findAllByTenant).not.toHaveBeenCalled();
+    expect(bus.publish).not.toHaveBeenCalled();
+  });
+
+  it('ignores a signed digest replayed onto another tenant subject', async () => {
+    await start([{ id: 'u1', email: 'a@carrier.ng' }]);
+    const event = buildEvent();
+    const signed = signBusEvent(SECRET, subjectOf(event), event);
+
+    await rawHandler(signed, { subject: 'tm.tenant-b.compliance.documents.expiring' });
+
     expect(bus.publish).not.toHaveBeenCalled();
   });
 

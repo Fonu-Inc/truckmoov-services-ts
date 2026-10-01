@@ -95,6 +95,65 @@ import { SystemBillingQuotationsController } from './system-billing-quotations.c
 import { InvoiceSeriesQuotationNumbers } from './quotation-number.allocator';
 import { InvoiceSeriesInvoiceNumbers } from './invoice-number.allocator';
 import { SystemBillingInvoicesController } from './system-billing-invoices.controller';
+import { SystemBillingEnforcementController } from './system-billing-enforcement.controller';
+import { TenantBillingController } from './tenant-billing.controller';
+import { RenewalSweepService } from './renewal-sweep.service';
+import { RenewalAudit } from './renewal-audit';
+import { RenewalInvoiceService } from '@auth/onboarding/application/services/renewal-invoice.service';
+import { SettleRenewalPaymentUseCase } from '@auth/onboarding/application/settle-renewal-payment.use-case';
+import {
+  GetTenantInvoiceUseCase,
+  GetTenantLicenceUseCase,
+  ListTenantInvoicesUseCase,
+} from '@auth/onboarding/application/use-cases/billing/tenant-billing.use-cases';
+import {
+  PayRenewalByCardUseCase,
+  PayRenewalFromWalletUseCase,
+} from '@auth/onboarding/application/use-cases/billing/pay-renewal.use-cases';
+import {
+  LICENCE_PERIOD_REPOSITORY,
+  RENEWAL_FACTS_READER,
+} from '@auth/onboarding/domain/licence-period.repository';
+import { InMemoryLicencePeriodRepository, InMemoryRenewalFactsReader } from '@auth/onboarding/infrastructure/persistence/in-memory-licence-period.repository';
+import { MikroLicencePeriodRepository } from '@auth/onboarding/infrastructure/persistence/mikro-licence-period.repository';
+import { MikroRenewalFactsReader } from '@auth/onboarding/infrastructure/persistence/mikro-renewal-facts.reader';
+import { SuspensionsController } from './suspensions.controller';
+import { TenantSuspensionService } from './tenant-suspension.service';
+import { EnforcementPlanService } from './enforcement-plan.service';
+import { EnforcementAudit } from './enforcement-audit';
+import { EnforcementNoticeService } from './enforcement-notice.service';
+import { EnforcementRestoreService } from './enforcement-restore.service';
+import { EnforcementSweepService } from './enforcement-sweep.service';
+import { ARREARS_REPOSITORY, MikroArrearsRepository } from './arrears.repository';
+import {
+  ENFORCEMENT_NOTICE_REPOSITORY,
+  MikroEnforcementNoticeRepository,
+} from './enforcement-notice.repository';
+import {
+  ENFORCEMENT_RUN_REPOSITORY,
+  MikroEnforcementRunRepository,
+} from './enforcement-run.repository';
+import {
+  InMemoryArrearsRepository,
+  InMemoryEnforcementNoticeRepository,
+  InMemoryEnforcementRunRepository,
+} from './in-memory-enforcement-automation.repositories';
+import { ENFORCEMENT_NOTIFIER } from './contexts/onboarding/domain/ports/enforcement-notifier.port';
+import { MailerEnforcementNotifier } from './contexts/onboarding/infrastructure/notifications/mailer-enforcement.notifier';
+import { ENFORCEMENT_SETTINGS_REPOSITORY } from './enforcement-settings.repository';
+import { MikroEnforcementSettingsRepository } from './mikro-enforcement-settings.repository';
+import {
+  ENFORCEMENT_QUERIES_REPOSITORY,
+  MikroEnforcementQueriesRepository,
+} from './enforcement-queries.repository';
+import {
+  InMemoryEnforcementQueriesRepository,
+  InMemoryEnforcementSettingsRepository,
+} from './in-memory-enforcement.repositories';
+import { GetEnforcementSettingsUseCase } from '@auth/onboarding/application/use-cases/billing/get-enforcement-settings.use-case';
+import { UpdateEnforcementSettingsUseCase } from '@auth/onboarding/application/use-cases/billing/update-enforcement-settings.use-case';
+import { ListEnforcementUseCase } from '@auth/onboarding/application/use-cases/billing/list-enforcement.use-case';
+import { PreviewEnforcementUseCase } from '@auth/onboarding/application/use-cases/billing/preview-enforcement.use-case';
 import { ActivityLogBillingAudit, BillingActorResolver } from './billing-actor';
 import { SystemKycController } from './system-kyc.controller';
 import {
@@ -196,11 +255,17 @@ import {
   PreviewTicketContextUseCase,
 } from './my-support-export.use-cases';
 import { TerminateSystemTenantUseCase } from './terminate-system-tenant.use-case';
+import { TENANT_ASSET_STORE, defaultTenantAssetStore } from './tenant-asset-store';
 import {
   GetTenantAuditLogUseCase,
   GetTenantDocumentsUseCase,
   GetTenantResourceUseCase,
 } from './system-tenant-detail.use-cases';
+import { TENANT_SUSPENSION_REPOSITORY } from './tenant-suspension.repository';
+import {
+  InMemoryTenantSuspensionRepository,
+  MikroTenantSuspensionRepository,
+} from './mikro-tenant-suspension.repository';
 import { TENANT_TERMINATION_REPOSITORY } from './tenant-termination.repository';
 import {
   InMemoryTenantTerminationRepository,
@@ -444,6 +509,8 @@ import { accessProviders } from '@shared/access';
 import { AccessRefusedListener, AuthCallerAudience, AuthPermissions, AuthRefusalReporter } from './access-refusals';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import { ListStillReportingDevicesUseCase } from './list-still-reporting-devices.use-case';
+import { TrackingGateClient } from './tracking-gate.client';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
 import { MikroActivityLogRepository } from './mikro-activity-log.repository';
@@ -819,6 +886,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemBillingPricingController,
     SystemBillingQuotationsController,
     SystemBillingInvoicesController,
+    SystemBillingEnforcementController,
+    TenantBillingController,
+    SuspensionsController,
     SystemKycController,
     OnboardingController,
     TenantSimsController,
@@ -837,6 +907,21 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetSupportOptionsUseCase,
     PreviewTicketContextUseCase,
     ExportMySupportTicketsUseCase,
+    InMemoryTenantSuspensionRepository,
+    MikroTenantSuspensionRepository,
+    {
+      provide: TENANT_SUSPENSION_REPOSITORY,
+      inject: [
+        InMemoryTenantSuspensionRepository,
+        MikroTenantSuspensionRepository,
+        AppConfigService,
+      ],
+      useFactory: (
+        inMemory: InMemoryTenantSuspensionRepository,
+        mikro: MikroTenantSuspensionRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     InMemoryTenantTerminationRepository,
     MikroTenantTerminationRepository,
     {
@@ -853,6 +938,11 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     TerminateSystemTenantUseCase,
+    {
+      provide: TENANT_ASSET_STORE,
+      useFactory: defaultTenantAssetStore,
+      inject: [AppConfigService, USER_REPOSITORY, SIM_REPOSITORY],
+    },
     GetTenantResourceUseCase,
     GetTenantDocumentsUseCase,
     GetTenantAuditLogUseCase,
@@ -1515,6 +1605,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ...accessProviders({ callers: AuthCallerAudience, reporter: AuthRefusalReporter, permissions: AuthPermissions }),
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
+    ListStillReportingDevicesUseCase,
+    TrackingGateClient,
     GetSystemDeviceDetailUseCase,
     ListSystemFeatureFlagsUseCase,
     ListSystemTenantsUseCase,
@@ -1636,6 +1728,104 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemoryEnforcementSettingsRepository,
+    MikroEnforcementSettingsRepository,
+    {
+      provide: ENFORCEMENT_SETTINGS_REPOSITORY,
+      inject: [InMemoryEnforcementSettingsRepository, MikroEnforcementSettingsRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryEnforcementSettingsRepository,
+        mikro: MikroEnforcementSettingsRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryEnforcementQueriesRepository,
+    MikroEnforcementQueriesRepository,
+    {
+      provide: ENFORCEMENT_QUERIES_REPOSITORY,
+      inject: [InMemoryEnforcementQueriesRepository, MikroEnforcementQueriesRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryEnforcementQueriesRepository,
+        mikro: MikroEnforcementQueriesRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    EnforcementPlanService,
+    TenantSuspensionService,
+    InMemoryArrearsRepository,
+    MikroArrearsRepository,
+    {
+      provide: ARREARS_REPOSITORY,
+      inject: [InMemoryArrearsRepository, MikroArrearsRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryArrearsRepository,
+        mikro: MikroArrearsRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryEnforcementNoticeRepository,
+    MikroEnforcementNoticeRepository,
+    {
+      provide: ENFORCEMENT_NOTICE_REPOSITORY,
+      inject: [InMemoryEnforcementNoticeRepository, MikroEnforcementNoticeRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryEnforcementNoticeRepository,
+        mikro: MikroEnforcementNoticeRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryEnforcementRunRepository,
+    MikroEnforcementRunRepository,
+    {
+      provide: ENFORCEMENT_RUN_REPOSITORY,
+      inject: [InMemoryEnforcementRunRepository, MikroEnforcementRunRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryEnforcementRunRepository,
+        mikro: MikroEnforcementRunRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    MailerEnforcementNotifier,
+    { provide: ENFORCEMENT_NOTIFIER, useExisting: MailerEnforcementNotifier },
+    EnforcementAudit,
+    EnforcementNoticeService,
+    EnforcementRestoreService,
+    EnforcementSweepService,
+    InMemoryLicencePeriodRepository,
+    MikroLicencePeriodRepository,
+    {
+      provide: LICENCE_PERIOD_REPOSITORY,
+      inject: [InMemoryLicencePeriodRepository, MikroLicencePeriodRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryLicencePeriodRepository,
+        mikro: MikroLicencePeriodRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryRenewalFactsReader,
+    MikroRenewalFactsReader,
+    {
+      provide: RENEWAL_FACTS_READER,
+      inject: [InMemoryRenewalFactsReader, MikroRenewalFactsReader, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryRenewalFactsReader,
+        mikro: MikroRenewalFactsReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    RenewalAudit,
+    RenewalInvoiceService,
+    RenewalSweepService,
+    SettleRenewalPaymentUseCase,
+    ListTenantInvoicesUseCase,
+    GetTenantInvoiceUseCase,
+    GetTenantLicenceUseCase,
+    PayRenewalFromWalletUseCase,
+    PayRenewalByCardUseCase,
+    GetEnforcementSettingsUseCase,
+    UpdateEnforcementSettingsUseCase,
+    ListEnforcementUseCase,
+    PreviewEnforcementUseCase,
     ActivityLogBillingAudit,
     { provide: BILLING_AUDIT, useExisting: ActivityLogBillingAudit },
     BillingActorResolver,
