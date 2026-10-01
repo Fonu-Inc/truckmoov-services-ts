@@ -196,7 +196,7 @@ export class MikroOnboardingApplicationRepository
   }> {
     const em = await this.em();
     const where: Record<string, unknown> = {};
-    if (filters?.status) where.status = filters.status;
+    where.status = filters?.status ?? { $ne: 'draft' };
     if (filters?.applicantType) where.applicantType = filters.applicantType;
     if (filters?.search) {
       const term = `%${filters.search.trim().toLowerCase()}%`;

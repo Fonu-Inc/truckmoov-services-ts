@@ -341,6 +341,27 @@ describe('Onboarding applications HTTP contract', () => {
     });
   });
 
+  it('keeps drafts out of the review queue unless asked for', async () => {
+    const { id } = await startApplication('draft-queue@arne.com');
+    const accessToken = await systemToken();
+    const ids = async (query: string) => {
+      const res = await request(app.getHttpServer())
+        .get(`/auth/system/onboarding/applications${query}`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      expect(res.status).toBe(200);
+      return (res.body.data.items as Array<{ id: string }>).map((item) => item.id);
+    };
+
+    expect(await ids('')).not.toContain(id);
+    expect(await ids('?status=draft')).toContain(id);
+
+    const summary = await request(app.getHttpServer())
+      .get('/auth/system/onboarding/applications/summary')
+      .set('Authorization', `Bearer ${accessToken}`);
+    const queued = await ids('?limit=100');
+    expect(summary.body.data.total).toBe(queued.length);
+  });
+
   it('refuses a queue filter value outside its list', async () => {
     const accessToken = await systemToken();
 

@@ -259,6 +259,7 @@ export interface OnboardingApplicationRepository {
   findLiveByBusinessEmail(
     businessEmail: string,
   ): Promise<StoredOnboardingApplication | null>;
+  /** The review queue: drafts only when asked for by status. See inReviewQueue. */
   findForReview(filters?: OnboardingApplicationQueueFilters): Promise<{
     items: StoredOnboardingApplication[];
     total: number;
@@ -339,3 +340,14 @@ export interface OnboardingApplicationRepository {
 export const ONBOARDING_APPLICATION_REPOSITORY = Symbol(
   'ONBOARDING_APPLICATION_REPOSITORY',
 );
+
+/**
+ * A draft is still the applicant's, so the review queue leaves it out unless
+ * the reviewer asks for drafts by status.
+ */
+export function inReviewQueue(
+  status: OnboardingApplicationStatus,
+  wanted?: OnboardingApplicationStatus,
+): boolean {
+  return wanted ? status === wanted : status !== 'draft';
+}

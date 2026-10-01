@@ -9,6 +9,7 @@ import type {
   StoredOnboardingDeviceRequest,
   StoredOnboardingVerificationCode,
 } from '@auth/onboarding/domain/onboarding-application.repository';
+import { inReviewQueue } from '@auth/onboarding/domain/onboarding-application.repository';
 
 // The statuses the applicant can still act on, which is what makes an
 // untouched application abandoned rather than merely waiting on us.
@@ -79,7 +80,7 @@ export class InMemoryOnboardingApplicationRepository
     const search = filters?.search?.trim().toLowerCase();
     const matches = [...this.applications.values()]
       .filter((application) => {
-        if (filters?.status && application.status !== filters.status) return false;
+        if (!inReviewQueue(application.status, filters?.status)) return false;
         if (
           filters?.applicantType &&
           application.applicantType !== filters.applicantType

@@ -134,7 +134,12 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     description:
       'Returns the review queue of landing-page applications, oldest first.',
   })
-  @ApiQuery({ name: 'status', required: false, enum: [...ONBOARDING_APPLICATION_STATUSES] })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: [...ONBOARDING_APPLICATION_STATUSES],
+    description: 'Without it, every application except drafts. status=draft lists only drafts.',
+  })
   @ApiQuery({ name: 'applicantType', required: false, enum: [...ONBOARDING_APPLICANT_TYPES] })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
