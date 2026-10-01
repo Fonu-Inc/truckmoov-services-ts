@@ -342,11 +342,19 @@ export class VehicleListQueryDto {
 }
 
 export class RecommendDriversQueryDto {
+  @ApiPropertyOptional({ description: "Cargo weight in tonnes. Prefer requiredWeightKg." })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   requiredCapacity?: number;
+
+  @ApiPropertyOptional({ description: "Cargo weight in kg the driver's vehicle must carry. Wins over requiredCapacity." })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  requiredWeightKg?: number;
 
   @IsOptional()
   @IsIn(FLEET_VEHICLE_TYPES)

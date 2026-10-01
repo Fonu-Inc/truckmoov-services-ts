@@ -1,4 +1,5 @@
-import { Inject, Injectable, type NestMiddleware } from "@nestjs/common";
+import { Inject, Injectable, type NestMiddleware, UnauthorizedException } from "@nestjs/common";
+import { toErrorBody } from "@shared/openapi";
 import { AppConfigService } from "@shared/config";
 import {
   ACTING_FOR_TENANT_HEADER,
@@ -76,7 +77,7 @@ export class AuthContextMiddleware implements NestMiddleware {
   async use(req: MutableFleetRequest, res: MiddlewareResponse, next: MiddlewareNext): Promise<void> {
     const user = (await this.serviceCaller(req.headers)) ?? (await this.currentUser(req.headers.authorization));
     if (!user) {
-      res.status(401).json({ error: "missing or invalid authorization" });
+      res.status(401).json(toErrorBody(new UnauthorizedException("missing or invalid authorization")));
       return;
     }
 

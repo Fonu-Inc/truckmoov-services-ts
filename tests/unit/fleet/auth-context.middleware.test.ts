@@ -73,7 +73,12 @@ describe("AuthContextMiddleware", () => {
     await middleware.use(req, res as never, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: "missing or invalid authorization" });
+    expect(res.json).toHaveBeenCalledWith({
+      status: false,
+      message: "missing or invalid authorization",
+      error: "Unauthorized",
+      statusCode: 401,
+    });
     expect(next).not.toHaveBeenCalled();
   });
 

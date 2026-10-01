@@ -7,7 +7,9 @@ import { ACTIVE_JOB_STATUSES } from "../domain/active-job-statuses";
 import { haversineKm } from "../../../../utils/haversine";
 
 export type RecommendDriversQuery = {
+  /** Tonnes. Kept for older callers; requiredWeightKg wins when both are sent. */
   requiredCapacity?: number;
+  requiredWeightKg?: number;
   vehicleType?: string;
   pickupLat?: number;
   pickupLng?: number;
@@ -71,7 +73,14 @@ export class RecommendDriversUseCase {
 
   private rank(
     driver: { id: string; name: string; status: string; assignedVehicleId: string | null },
-    vehicle: { id: string; plateNumber: string; type: string | null; capacity: number | null; status: string } | null,
+    vehicle: {
+      id: string;
+      plateNumber: string;
+      type: string | null;
+      capacity: number | null;
+      capacityWeightKg: number | null;
+      status: string;
+    } | null,
     query: RecommendDriversQuery,
     onActiveJob: boolean,
   ): RecommendedDriver {
@@ -81,9 +90,10 @@ export class RecommendDriversUseCase {
     reasons.push(onActiveJob ? "on active dispatch job" : driver.status);
 
     let capacity = 0.7;
-    if (vehicle?.capacity != null && query.requiredCapacity != null && query.requiredCapacity > 0) {
-      capacity = vehicle.capacity >= query.requiredCapacity ? 1 : Math.max(0, vehicle.capacity / query.requiredCapacity);
-      reasons.push(`capacity ${vehicle.capacity}t vs ${query.requiredCapacity}t needed`);
+    const requiredKg = requiredWeightKg(query);
+    if (vehicle?.capacityWeightKg != null && requiredKg) {
+      capacity = vehicle.capacityWeightKg >= requiredKg ? 1 : Math.max(0, vehicle.capacityWeightKg / requiredKg);
+      reasons.push(`capacity ${vehicle.capacityWeightKg}kg vs ${requiredKg}kg needed`);
     } else if (!vehicle) {
       capacity = 0;
       reasons.push("no assigned vehicle");
@@ -135,4 +145,10 @@ export class RecommendDriversUseCase {
       reasons,
     };
   }
+}
+
+function requiredWeightKg(query: RecommendDriversQuery): number | null {
+  if (query.requiredWeightKg && query.requiredWeightKg > 0) return query.requiredWeightKg;
+  if (query.requiredCapacity && query.requiredCapacity > 0) return query.requiredCapacity * 1000;
+  return null;
 }

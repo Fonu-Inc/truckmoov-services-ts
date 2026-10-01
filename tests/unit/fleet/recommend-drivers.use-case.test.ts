@@ -97,3 +97,22 @@ describe("RecommendDriversUseCase", () => {
     expect(ranked.reasons).not.toContain("on active dispatch job");
   });
 });
+
+describe("capacity is compared in kg", () => {
+  // A vehicle's capacity is stored in its own unit; comparing the raw number
+  // against tonnes ranked a 5000 kg van as carrying 5000 t.
+  it("ranks a kg-rated vehicle against a weight in kg", async () => {
+    const van = Vehicle.create({
+      id: "v1", plateNumber: "P-v1", model: "Van", tenantId: "t1", status: "active", type: "van" as any,
+      capacity: 5000, capacityUnit: "kg", vin: null, make: null, year: null, assignedDriverId: null, gpsDevice: null,
+    } as never);
+    const { uc } = build([driver("d1", "available", "v1")], [van]);
+
+    const [small] = await uc.execute("t1", { requiredWeightKg: 8000 });
+    const [enough] = await uc.execute("t1", { requiredCapacity: 4 });
+
+    expect(small.reasons).toContain("capacity 5000kg vs 8000kg needed");
+    expect(enough.reasons).toContain("capacity 5000kg vs 4000kg needed");
+    expect(enough.score).toBeGreaterThan(small.score);
+  });
+});
