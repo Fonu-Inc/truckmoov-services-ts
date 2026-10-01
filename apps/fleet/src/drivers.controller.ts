@@ -876,6 +876,7 @@ export class DriversController extends BaseFleetController {
   @ApiOkResponse({ type: ScoredDriverResponse })
   async getDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<ScoredDriverResponse> {
     const tenantId = this.tenantIdFromRequest(req);
+    await this.assertDriverInScope(tenantId, req, id);
     const driver = await this.runFleetUseCase(() => this.getDriverUseCase.execute(id, tenantId));
     const scores = await this.driverBehaviorUseCase.scoresForDrivers(tenantId, [id]);
     const behaviorScore = scores.get(id)?.overall ?? null;
