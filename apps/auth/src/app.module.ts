@@ -507,6 +507,7 @@ import { GetSystemDeviceSetupRequestUseCase } from './get-system-device-setup-re
 import { AssignSystemDeviceSetupRequestUseCase } from './assign-system-device-setup-request.use-case';
 import {
   ReinstateSystemDeviceUseCase,
+  DecommissionSystemDeviceUseCase,
   SuspendSystemDeviceUseCase,
 } from './suspend-system-device.use-cases';
 import {
@@ -1574,6 +1575,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ApproveSystemDeviceSetupRequestUseCase,
     SuspendSystemDeviceUseCase,
     ReinstateSystemDeviceUseCase,
+    DecommissionSystemDeviceUseCase,
     GetSystemDeviceSetupSummaryUseCase,
     SuperAdminBootstrapService,
     // Onboarding repositories

@@ -18,7 +18,7 @@ describe('Downstream error messages', () => {
       data: { message: 'Cannot POST /fleet/internal/devices/abc/suspend' },
     } as never);
 
-    const result = await service().setDeviceSuspension('abc', 'suspend');
+    const result = await service().actOnDevice('abc', 'suspend');
 
     expect((result as { message: string }).message).not.toContain('/fleet/internal');
     post.mockRestore();
@@ -32,7 +32,7 @@ describe('Downstream error messages', () => {
       data: { message: 'Cannot POST /fleet/internal/devices/abc/reinstate' },
     } as never);
 
-    const result = await service().setDeviceSuspension('abc', 'reinstate');
+    const result = await service().actOnDevice('abc', 'reinstate');
 
     expect(result).toEqual({ ok: false, status: 503, message: 'The device service could not complete the change' });
     post.mockRestore();
@@ -44,7 +44,7 @@ describe('Downstream error messages', () => {
       data: { message: 'Device abc was not found' },
     } as never);
 
-    const result = await service().setDeviceSuspension('abc', 'suspend');
+    const result = await service().actOnDevice('abc', 'suspend');
 
     expect(result).toEqual({ ok: false, status: 404, message: 'Device abc was not found' });
     post.mockRestore();
@@ -56,7 +56,7 @@ describe('Downstream error messages', () => {
       data: { message: 'This device is already suspended' },
     } as never);
 
-    const result = await service().setDeviceSuspension('abc', 'suspend');
+    const result = await service().actOnDevice('abc', 'suspend');
 
     expect((result as { message: string }).message).toBe('This device is already suspended');
     post.mockRestore();

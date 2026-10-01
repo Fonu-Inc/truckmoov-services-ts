@@ -34,23 +34,23 @@ export class SuspendDeviceUseCase {
 
     const suspended = device.suspend(reason);
     await this.devices.save(suspended);
-    await this.detachFromVehicle(device);
+    await detachFromVehicle(this.vehicles, device);
     await emitDeviceIdentity(this.identityPublisher, suspended, "updated");
 
     return suspended.toPrimitives();
   }
+}
 
-  /**
-   * The vehicle stops showing this device as its tracker. Leaving the snapshot
-   * behind would keep a stale last-seen on the vehicle for a device that is no
-   * longer allowed to report.
-   */
-  private async detachFromVehicle(device: Device): Promise<void> {
-    if (!device.vehicleId) return;
-    const vehicle = await this.vehicles.findById(device.vehicleId, device.tenantId);
-    if (!vehicle || vehicle.gpsDevice?.imei !== device.imei) return;
-    await this.vehicles.save(vehicle.clearGpsDevice());
-  }
+/**
+ * The vehicle stops showing this device as its tracker. Leaving the snapshot
+ * behind would keep a stale last-seen on the vehicle for a device that is no
+ * longer allowed to report.
+ */
+export async function detachFromVehicle(vehicles: VehicleRepository, device: Device): Promise<void> {
+  if (!device.vehicleId) return;
+  const vehicle = await vehicles.findById(device.vehicleId, device.tenantId);
+  if (!vehicle || vehicle.gpsDevice?.imei !== device.imei) return;
+  await vehicles.save(vehicle.clearGpsDevice());
 }
 
 @Injectable()

@@ -51,7 +51,7 @@ describe('Fleet path safety', () => {
   it('refuses a traversal device id on suspension', async () => {
     const post = vi.spyOn(axios, 'post');
 
-    const result = await service().setDeviceSuspension('../../../tenants/x', 'suspend');
+    const result = await service().actOnDevice('../../../tenants/x', 'suspend');
 
     expect(result).toMatchObject({ ok: false, status: 404 });
     expect(post).not.toHaveBeenCalled();

@@ -52,14 +52,22 @@ export const VALID_DEVICE_LIFECYCLE_TRANSITIONS: Record<
   configured: ["verified_online", "faulty"],
   verified_online: ["assignable", "faulty"],
   assignable: ["assigned", "faulty"],
-  assigned: ["assignable", "faulty", "decommissioned"],
-  faulty: ["config_pending", "configured", "decommissioned"],
+  assigned: ["assignable", "faulty"],
+  // A repaired device goes back through configuration and must report again
+  // before it is assignable.
+  faulty: ["config_pending", "configured"],
   // Suspension is imposed and lifted by the platform, never walked to from the
   // install workflow, so it is unreachable in both directions here. `suspend`
   // and `reinstate` are the only ways in and out.
   suspended: [],
+  // Permanent, so only the platform retires a device, through `decommission`.
   decommissioned: [],
 };
+
+/** What a tenant may move a device to: the map's targets, less "assigned", which has its own route. */
+export const TENANT_LIFECYCLE_TARGETS = [
+  ...new Set(Object.values(VALID_DEVICE_LIFECYCLE_TRANSITIONS).flat()),
+].filter((status) => status !== "assigned");
 
 /**
  * A device can be configured before it has been fitted and again after a
@@ -396,8 +404,25 @@ export class Device {
       ...this.toPrimitives(),
       lifecycleStatus: nextStatus,
       status: deviceStatusFromLifecycle(nextStatus),
-      vehicleId: nextStatus === "decommissioned" ? null : this.vehicleId,
-      assignedAt: nextStatus === "decommissioned" ? null : this.assignedAt,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  /** Retires the device for good, on the platform's instruction. */
+  decommission(): Device {
+    if (this.lifecycleStatus === "decommissioned") {
+      throw new FleetRuleError("device is already decommissioned");
+    }
+
+    return Device.create({
+      ...this.toPrimitives(),
+      lifecycleStatus: "decommissioned",
+      status: deviceStatusFromLifecycle("decommissioned"),
+      preSuspensionLifecycleStatus: null,
+      suspendedAt: null,
+      suspensionReason: null,
+      vehicleId: null,
+      assignedAt: null,
       updatedAt: new Date().toISOString(),
     });
   }

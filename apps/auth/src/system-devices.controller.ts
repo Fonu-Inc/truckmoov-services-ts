@@ -37,6 +37,7 @@ import { ActivityLogService } from './activity-log.service';
 import {
   DeviceSuspensionRefusedError,
   ReinstateSystemDeviceUseCase,
+  DecommissionSystemDeviceUseCase,
   SuspendSystemDeviceUseCase,
 } from './suspend-system-device.use-cases';
 import { BaseAuthController } from './base.controller';
@@ -83,6 +84,8 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(ExportSystemDeviceCatalogUseCase) private readonly exportSystemDeviceCatalogUseCase: ExportSystemDeviceCatalogUseCase,
     @Inject(SuspendSystemDeviceUseCase) private readonly suspendSystemDeviceUseCase: SuspendSystemDeviceUseCase,
     @Inject(ReinstateSystemDeviceUseCase) private readonly reinstateSystemDeviceUseCase: ReinstateSystemDeviceUseCase,
+    @Inject(DecommissionSystemDeviceUseCase)
+    private readonly decommissionSystemDeviceUseCase: DecommissionSystemDeviceUseCase,
   ) {
     super(activityLogService);
   }
@@ -563,6 +566,41 @@ export class SystemDevicesController extends BaseAuthController {
         entityType: 'device',
         entityId: deviceId,
         summary: 'Device reinstated',
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  @Post(':deviceId/decommission')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Decommission a device',
+    description:
+      'Retires a device permanently and releases any vehicle assignment. One-way: nothing moves a device out of decommissioned. Tenants cannot do this; they can only mark a device faulty.',
+  })
+  @ApiOkResponse({ description: 'The decommissioned device' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to decommission devices' })
+  @ApiNotFoundResponse({ description: 'Device not found' })
+  @ApiBadRequestResponse({ description: 'The device is already decommissioned' })
+  async decommissionSystemDevice(
+    @Param('deviceId') deviceId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.decommissionSystemDeviceUseCase.execute(accessToken, deviceId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.decommissioned',
+        entityType: 'device',
+        entityId: deviceId,
+        summary: 'Device decommissioned',
       });
       return result;
     } catch (error) {

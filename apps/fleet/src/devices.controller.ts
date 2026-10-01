@@ -383,7 +383,8 @@ export class DevicesController extends BaseFleetController {
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
     summary: "Set device lifecycle status",
-    description: "Advances or changes a device through the installation lifecycle used by the Devices page.",
+    description:
+      "Allowed moves: registered → config_pending or configured; config_pending → configured or faulty; configured → verified_online or faulty; verified_online → assignable or faulty; assignable → faulty (assigned only through PATCH /assignment); assigned → assignable or faulty; faulty → config_pending or configured, so a repaired device is reconfigured and verified again. Decommissioning is permanent and platform-only. Suspension has its own route. Any other move is a 400.",
   })
   @ApiOkResponse({ type: DeviceResponse })
   async setDeviceLifecycleStatus(

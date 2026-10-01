@@ -36,7 +36,7 @@ export class SuspendSystemDeviceUseCase {
       forbiddenMessage: 'You are not permitted to suspend devices',
     });
 
-    const result = await this.fleet.setDeviceSuspension(deviceId, 'suspend', reason ?? null);
+    const result = await this.fleet.actOnDevice(deviceId, 'suspend', reason ?? null);
     if (!result.ok) throw new DeviceSuspensionRefusedError(result.status, result.message);
 
     return { status: true, message: 'Device suspended', data: result.device };
@@ -57,9 +57,31 @@ export class ReinstateSystemDeviceUseCase {
       forbiddenMessage: 'You are not permitted to reinstate devices',
     });
 
-    const result = await this.fleet.setDeviceSuspension(deviceId, 'reinstate');
+    const result = await this.fleet.actOnDevice(deviceId, 'reinstate');
     if (!result.ok) throw new DeviceSuspensionRefusedError(result.status, result.message);
 
     return { status: true, message: 'Device reinstated', data: result.device };
+  }
+}
+
+@Injectable()
+export class DecommissionSystemDeviceUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+  ) {}
+
+  /** Permanent, so it is the platform's call; a tenant can only mark a device faulty. */
+  async execute(accessToken: string, deviceId: string) {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      allowedRoles: SYSTEM_MUTATOR_ROLES,
+      forbiddenMessage: 'You are not permitted to decommission devices',
+    });
+
+    const result = await this.fleet.actOnDevice(deviceId, 'decommission');
+    if (!result.ok) throw new DeviceSuspensionRefusedError(result.status, result.message);
+
+    return { status: true, message: 'Device decommissioned', data: result.device };
   }
 }

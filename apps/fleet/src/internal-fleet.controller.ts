@@ -29,6 +29,7 @@ import {
 import {
   DEVICE_REPOSITORY,
   ReinstateDeviceUseCase,
+  DecommissionDeviceUseCase,
   SuspendDeviceUseCase,
 } from "./contexts/fleet/devices";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
@@ -75,6 +76,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(ReinstateDeviceUseCase) private readonly reinstateDeviceUseCase: ReinstateDeviceUseCase,
     @Inject(DEVICE_CATALOG_PORT) private readonly catalog: DeviceCatalogPort,
     @Inject(InstallationHandoverUseCases) private readonly handover: InstallationHandoverUseCases,
+    @Inject(DecommissionDeviceUseCase) private readonly decommissionDeviceUseCase: DecommissionDeviceUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -138,6 +140,14 @@ export class InternalFleetController extends BaseFleetController {
   async reinstateDevice(@Param("deviceId") deviceId: string) {
     const data = await this.runDeviceAction(() => this.reinstateDeviceUseCase.execute(deviceId));
     return { status: true, message: "Device reinstated", data };
+  }
+
+  /** Permanent, so platform-only like suspension; tenants can only mark a device faulty. */
+  @Post("devices/:deviceId/decommission")
+  @UseGuards(PlatformActorGuard)
+  async decommissionDevice(@Param("deviceId") deviceId: string) {
+    const data = await this.runDeviceAction(() => this.decommissionDeviceUseCase.execute(deviceId));
+    return { status: true, message: "Device decommissioned", data };
   }
 
   private async runDeviceAction<T>(action: () => Promise<T>): Promise<T> {

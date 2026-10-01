@@ -1,4 +1,4 @@
-import { ApiPropertyOptional, OmitType, PartialType } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsArray,
@@ -17,6 +17,8 @@ import {
 } from "class-validator";
 import {
   DEVICE_LIFECYCLE_STATUSES,
+  TENANT_LIFECYCLE_TARGETS,
+  type DeviceLifecycleStatus,
 } from "../contexts/fleet/devices/domain/entities/device.entity";
 import { DEVICE_STATUS_FILTERS } from "../contexts/fleet/devices/domain/device-inventory";
 import { FLEET_ASSET_STATUSES } from "../contexts/fleet/shared/domain/fleet-status";
@@ -176,7 +178,7 @@ export class CreateDeviceDto {
   lifecycleStatus?: typeof DEVICE_LIFECYCLE_STATUSES[number];
 }
 
-export class UpdateDeviceDto extends PartialType(OmitType(CreateDeviceDto, ["imei"] as const)) {
+export class UpdateDeviceDto extends PartialType(OmitType(CreateDeviceDto, ["imei", "lifecycleStatus"] as const)) {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -197,8 +199,9 @@ export class UpdateDeviceDto extends PartialType(OmitType(CreateDeviceDto, ["ime
 }
 
 export class SetDeviceLifecycleStatusDto {
-  @IsIn(DEVICE_LIFECYCLE_STATUSES)
-  lifecycleStatus!: typeof DEVICE_LIFECYCLE_STATUSES[number];
+  @ApiProperty({ enum: TENANT_LIFECYCLE_TARGETS })
+  @IsIn(TENANT_LIFECYCLE_TARGETS)
+  lifecycleStatus!: DeviceLifecycleStatus;
 }
 
 const LAST_SEEN_BUCKETS = ["5min", "1hr", "24hr", "7day", "never"] as const;

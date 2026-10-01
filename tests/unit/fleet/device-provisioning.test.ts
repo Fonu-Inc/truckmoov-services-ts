@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CreateDeviceUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/create-device.use-case";
 import { SetDeviceLifecycleStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/set-device-lifecycle-status.use-case";
+import { DecommissionDeviceUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/decommission-device.use-case";
 import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/entities/device.entity";
 import { InMemoryDeviceRepository } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/repositories/in-memory-device.repository";
 import type { TraccarDeviceProvisioner } from "../../../apps/fleet/src/contexts/fleet/devices/domain/ports/traccar-device.port";
@@ -86,7 +87,7 @@ describe("CreateDeviceUseCase provisioning + identity emit", () => {
   });
 });
 
-describe("SetDeviceLifecycleStatusUseCase decommission", () => {
+describe("DecommissionDeviceUseCase", () => {
   it("deregisters from traccar, clears provisioning state, and emits decommissioned", async () => {
     const repo = new InMemoryDeviceRepository();
     await repo.save(
@@ -120,11 +121,7 @@ describe("SetDeviceLifecycleStatusUseCase decommission", () => {
     const publisher = new RecordingPublisher();
     const vehicleRepo = { findById: async () => null, save: async () => {} } as unknown as never;
 
-    const result = await new SetDeviceLifecycleStatusUseCase(repo, vehicleRepo, provisioner, publisher).execute({
-      id: "d-9",
-      tenantId: "t1",
-      lifecycleStatus: "decommissioned",
-    });
+    const result = await new DecommissionDeviceUseCase(repo, vehicleRepo, provisioner, publisher).execute("d-9");
 
     expect(result.provisionStatus).toBe("pending");
     expect(result.traccarDeviceId).toBeNull();
@@ -133,5 +130,38 @@ describe("SetDeviceLifecycleStatusUseCase decommission", () => {
     const persisted = await repo.findById("d-9", "t1");
     expect(persisted?.provisionStatus).toBe("pending");
     expect(persisted?.traccarDeviceId).toBeNull();
+  });
+});
+
+describe("tenant lifecycle moves", () => {
+  // Decommissioning is permanent, so it is the platform's call.
+  it("refuses to decommission a device", async () => {
+    const repo = new InMemoryDeviceRepository();
+    await repo.save(
+      Device.create({
+        id: "d-10", imei: "359779090012399", manufacturer: "Teltonika", model: "FMC130", firmwareVersion: "3.28.07",
+        tenantId: "t1", lifecycleStatus: "faulty", vehicleId: null, signalStrength: null, batteryLevel: null,
+        lastSeen: null, assignedAt: null,
+      }),
+    );
+
+    await expect(
+      new SetDeviceLifecycleStatusUseCase(repo).execute({ id: "d-10", tenantId: "t1", lifecycleStatus: "decommissioned" }),
+    ).rejects.toThrow(/cannot transition from faulty to decommissioned/);
+  });
+
+  it("brings a repaired faulty device back through configuration", async () => {
+    const repo = new InMemoryDeviceRepository();
+    await repo.save(
+      Device.create({
+        id: "d-11", imei: "359779090012398", manufacturer: "Teltonika", model: "FMC130", firmwareVersion: "3.28.07",
+        tenantId: "t1", lifecycleStatus: "faulty", vehicleId: null, signalStrength: null, batteryLevel: null,
+        lastSeen: null, assignedAt: null,
+      }),
+    );
+
+    const result = await new SetDeviceLifecycleStatusUseCase(repo).execute({ id: "d-11", tenantId: "t1", lifecycleStatus: "configured" });
+
+    expect(result.lifecycleStatus).toBe("configured");
   });
 });

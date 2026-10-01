@@ -44,6 +44,8 @@ function isSafePathId(value: string): boolean {
   return SAFE_PATH_ID.test(value);
 }
 
+export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission';
+
 @Injectable()
 export class FleetFactsService {
   private readonly logger = new Logger(FleetFactsService.name);
@@ -94,9 +96,9 @@ export class FleetFactsService {
    * itself. A copy of that rule here would be a second definition of what
    * suspension means.
    */
-  async setDeviceSuspension(
+  async actOnDevice(
     deviceId: string,
-    action: 'suspend' | 'reinstate',
+    action: PlatformDeviceAction,
     reason?: string | null,
   ): Promise<{ ok: true; device: Record<string, unknown> } | { ok: false; status: number; message: string }> {
     if (!isSafePathId(deviceId)) {
@@ -120,7 +122,7 @@ export class FleetFactsService {
       );
 
       if (response.status < 200 || response.status >= 300) {
-        return this.suspensionRefusal(deviceId, action, response.status, response.data?.message);
+        return this.deviceActionRefusal(deviceId, action, response.status, response.data?.message);
       }
       return { ok: true, device: response.data?.data ?? {} };
     } catch (error) {
@@ -135,9 +137,9 @@ export class FleetFactsService {
    * A 404 naming no device is fleet missing the route, or refusing the caller
    * as one: the device service is at fault, not the device.
    */
-  private suspensionRefusal(
+  private deviceActionRefusal(
     deviceId: string,
-    action: 'suspend' | 'reinstate',
+    action: PlatformDeviceAction,
     status: number,
     raw: string | undefined,
   ): { ok: false; status: number; message: string } {
