@@ -23,6 +23,15 @@ function build() {
 }
 
 describe("InviteUserUseCase", () => {
+  it("refuses to invite an enterprise admin", async () => {
+    const { uc, inviteRepo } = build();
+
+    await expect(
+      uc.execute({ email: "a@x.com", role: Role.ENTERPRISE_ADMIN, accessToken: "tok" }),
+    ).rejects.toThrow("Cannot invite users with this role");
+    expect(await inviteRepo.listPendingByTenant("t1")).toHaveLength(0);
+  });
+
   it("re-inviting the same email refreshes one pending invite instead of duplicating", async () => {
     const { uc, inviteRepo } = build();
 

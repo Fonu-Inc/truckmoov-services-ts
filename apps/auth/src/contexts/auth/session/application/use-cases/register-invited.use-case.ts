@@ -47,9 +47,9 @@ export class RegisterInvitedUseCase {
       throw new InviteNotFoundError();
     }
 
-    if (invite.role === Role.ENTERPRISE_ADMIN) {
-      throw new ForbiddenError("Cannot register as Enterprise Admin via invitation");
-    }
+    // ENTERPRISE_ADMIN is not refused here: tenants cannot invite it (see
+    // INVITABLE_ROLES), and the system's own setup link for a new enterprise
+    // tenant's first admin is exactly such an invite.
     // Re-checked here, not only when the invite was issued: invites created
     // before tenants lost the ability to grant system roles are still pending.
     if (holdsMisplacedSystemRole({ role: invite.role, tenantId: invite.tenantId })) {

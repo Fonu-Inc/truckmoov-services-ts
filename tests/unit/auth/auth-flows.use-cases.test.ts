@@ -580,16 +580,16 @@ describe("RegisterInvitedUseCase", () => {
     expect(await userRepo.findByEmail("different@co.com")).toBeNull();
   });
 
-  it("rejects invite if role is ENTERPRISE_ADMIN", async () => {
+  it("accepts the setup link for a new enterprise tenant's first admin", async () => {
     await inviteRepo.save({
-      id: "inv-3", email: "sneaky@co.com", role: Role.ENTERPRISE_ADMIN,
-      tenantId: "t-1", token: "admin-invite", invitedBy: "admin-1",
+      id: "inv-3", email: "owner@co.com", role: Role.ENTERPRISE_ADMIN,
+      tenantId: "t-1", token: "admin-invite", invitedBy: "system",
       status: "pending", expiresAt: new Date(Date.now() + 86400000), createdAt: new Date(),
     });
 
-    await expect(
-      uc.execute({ inviteToken: "admin-invite", email: "sneaky@co.com", password: "Pass1234!" }),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    const result = await uc.execute({ inviteToken: "admin-invite", fullName: "Ada Owner", password: "Pass1234!" });
+
+    expect(result.user).toMatchObject({ email: "owner@co.com", role: Role.ENTERPRISE_ADMIN, tenantId: "t-1" });
   });
 
   it("rejects a pending tenant invite naming platform admin", async () => {
