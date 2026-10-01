@@ -45,10 +45,12 @@ describe.skipIf(!dbEnabled)("bundles purchase (db)", () => {
         : null,
   } as any;
   const limit = new SpendingLimitService(new MikroSpendingLimitRepository(config), { publish: async () => {} } as any);
+  const carriers = { findById: async (id: string) => (id === "c" ? { id: "c", name: "Test", active: true } : null) } as any;
+  const sims = { findByMsisdns: async (_t: string, msisdns: string[]) => msisdns.map((msisdn) => ({ msisdn })) } as any;
   let orm: Awaited<ReturnType<typeof getOrm>>;
 
   const build = (allocRepo: MikroBundleAllocationRepository = allocations) =>
-    new AllocateBundleUseCase({} as any, {} as any, catalog, wallets, allocRepo, transactions, limit);
+    new AllocateBundleUseCase({} as any, {} as any, catalog, wallets, allocRepo, transactions, limit, carriers, sims);
 
   async function fundedTenant(balanceKobo: number) {
     const tenantId = uniqueId("bundles-t");
@@ -186,7 +188,7 @@ describe.skipIf(!dbEnabled)("bundles purchase (db)", () => {
   it("insufficient balance leaves nothing behind", async () => {
     const tenantId = await fundedTenant(PRICE - 1);
     const key = uniqueId("bundles-k");
-    await expect(build().execute(tenantId, payload({ idempotencyKey: key }))).rejects.toThrow("Insufficient wallet balance");
+    await expect(build().execute(tenantId, payload({ idempotencyKey: key }))).rejects.toThrow("Wallet balance does not cover");
     expect(await balance(tenantId)).toBe(PRICE - 1);
     expect(await allocations.findByPaymentReference(tenantId, key)).toEqual([]);
   });
@@ -198,7 +200,7 @@ describe.skipIf(!dbEnabled)("bundles purchase (db)", () => {
     const found = await realCatalog.findById(id);
     expect(Number(found!.priceKobo)).toBe(250000);
     const tenantId = await fundedTenant(1_000_000);
-    const uc = new AllocateBundleUseCase({} as any, {} as any, realCatalog, wallets, allocations, transactions, limit);
+    const uc = new AllocateBundleUseCase({} as any, {} as any, realCatalog, wallets, allocations, transactions, limit, carriers, sims);
     const key = uniqueId("bundles-k");
     const res = await uc.execute(tenantId, { carrierId: "c", planType: "p", bundleId: id, mobileNumbers: ["2348000000009"], idempotencyKey: key });
     expect(res.data.totalAmount).toBe(2500);

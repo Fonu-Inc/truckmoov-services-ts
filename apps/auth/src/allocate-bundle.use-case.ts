@@ -11,6 +11,7 @@ import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from '.
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 import { BUNDLE_CARRIER_REPOSITORY, type BundleCarrierRepository } from './bundle-carrier.repository';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import { InsufficientWalletBalanceError } from './charge-usage.use-case';
 
 type Payload = { carrierId: string; planType: string; bundleId: string; mobileNumbers: string[]; idempotencyKey?: string };
 type Allocation = Awaited<ReturnType<BundleAllocationRepository['findByPaymentReference']>>[number];
@@ -22,6 +23,13 @@ export class AllocationReferenceError extends Error {
     message: string,
   ) {
     super(message);
+  }
+}
+
+/** A retried purchase whose first attempt failed and was refunded; the key cannot be reused. */
+export class PurchaseRefundedError extends Error {
+  constructor() {
+    super('Purchase failed and was refunded, use a new idempotency key');
   }
 }
 
@@ -55,12 +63,14 @@ export class AllocateBundleUseCase {
     const key = payload.idempotencyKey ?? randomUUID();
 
     const bundle = await this.resolveBundle(payload.carrierId, payload.bundleId);
+    // One SIM is charged once, however many times the request names it.
+    const mobileNumbers = [...new Set(payload.mobileNumbers.map((n) => n.trim()))];
 
     const existing = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
-    const count = payload.mobileNumbers.length;
+    const count = mobileNumbers.length;
     if (existing.length > 0) return this.settlePrior(tenantId, key, bundle, count, existing);
 
-    await this.assertTenantSims(tenantId, payload.mobileNumbers);
+    await this.assertTenantSims(tenantId, mobileNumbers);
 
     const totalCostKobo = bundle.priceKobo * count;
 
@@ -74,14 +84,14 @@ export class AllocateBundleUseCase {
       reference: bundle.id,
       idempotencyKey: `bundle:${tenantId}:${key}`,
     });
-    if (!debited.ok) throw new Error('Insufficient wallet balance');
+    if (!debited.ok) throw new InsufficientWalletBalanceError(totalCostKobo);
     if (debited.replayed) {
       const prior = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
       return this.settlePrior(tenantId, key, bundle, count, prior);
     }
 
     try {
-      const allocationIds = await this.persistPurchase(tenantId, key, bundle, payload.mobileNumbers);
+      const allocationIds = await this.persistPurchase(tenantId, key, bundle, mobileNumbers);
       await this.spendingLimitService.recordSpend(tenantId, totalCostKobo);
       return this.toResponse(bundle, allocationIds);
     } catch (err) {
@@ -95,6 +105,7 @@ export class AllocateBundleUseCase {
     if (!carrier) throw new AllocationReferenceError('carrierId', 'Carrier not found');
     const bundle = await this.bundleCatalogRepository.findById(bundleId);
     if (!bundle) throw new AllocationReferenceError('bundleId', 'Bundle not found');
+    if (!carrier.active || !bundle.active) throw new AllocationReferenceError('bundleId', 'Bundle is not available');
     if (bundle.carrierId !== carrier.id) throw new AllocationReferenceError('bundleId', 'Bundle does not belong to this carrier');
     return bundle;
   }
@@ -110,7 +121,7 @@ export class AllocateBundleUseCase {
     const complete = prior.length >= count && prior.every((a) => a.status !== 'cancelled');
     if (complete) return this.toResponse(bundle, prior.map((a) => a.id));
     await this.refundPurchase(tenantId, key, bundle, bundle.priceKobo * count, count);
-    throw new Error('Purchase failed and was refunded, use a new idempotency key');
+    throw new PurchaseRefundedError();
   }
 
   private async tryRefund(tenantId: string, key: string, bundle: Bundle, count: number, cause: unknown) {

@@ -8,7 +8,7 @@ export class InMemorySimRepository implements SimRepository {
   async findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }> {
     let sims = [...this.store.values()];
     if (filters?.status) sims = sims.filter((s) => s.status === filters.status);
-    if (filters?.carrier) sims = sims.filter((s) => s.carrier === filters.carrier);
+    if (filters?.carrier) sims = sims.filter((s) => s.carrier.toLowerCase() === filters.carrier!.toLowerCase());
     if (filters?.tenantId) sims = sims.filter((s) => s.tenantId === filters.tenantId);
     if (filters?.operators?.length) sims = sims.filter((s) => filters.operators!.includes(s.carrier));
     if (filters?.search) {

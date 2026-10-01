@@ -16,6 +16,8 @@ import {
   Query,
   UseGuards,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -28,7 +30,8 @@ import {
 } from '@nestjs/swagger';
 import { RequireIdempotency, IdempotencyGuard } from '@shared/rbac';
 import { ActivityLogService } from './activity-log.service';
-import { AllocateBundleUseCase, AllocationReferenceError } from './allocate-bundle.use-case';
+import { AllocateBundleUseCase, AllocationReferenceError, PurchaseRefundedError } from './allocate-bundle.use-case';
+import { InsufficientWalletBalanceError } from './charge-usage.use-case';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
 import { SpendingLimitExceededError } from './spending-limit.service';
@@ -345,7 +348,9 @@ export class DataBundlesController extends BaseAuthController {
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof AllocationReferenceError) throw new BadRequestException({ message: error.message, field: error.field });
       if (error instanceof SpendingLimitExceededError) throw new ConflictException(error.message);
-      if (error instanceof Error && error.message.includes('Insufficient')) throw new BadRequestException(error.message);
+      if (error instanceof PurchaseRefundedError) throw new ConflictException(error.message);
+      // 402: the request was sound and the shared wallet is short, as on usage charges.
+      if (error instanceof InsufficientWalletBalanceError) throw new HttpException(error.message, HttpStatus.PAYMENT_REQUIRED);
       throw error;
     }
   }
