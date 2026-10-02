@@ -10,6 +10,7 @@ import {
   type OnboardingPaymentRepository,
   type StoredOnboardingPayment,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
+import { resolveOnboardingPayment } from './support/resolve-onboarding-payment';
 import { ApplicationNotFoundError } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
@@ -27,10 +28,16 @@ export class PaymentNotInMismatchError extends Error {
   }
 }
 
-export function toPaymentReviewView(payment: StoredOnboardingPayment | null) {
-  if (!payment || payment.status !== 'mismatch') return null;
+export function toPaymentReviewView(payment: StoredOnboardingPayment) {
+  const refunded = payment.status === 'refunded' && payment.reviewOutcome === 'refund_needed';
+  if (payment.status !== 'mismatch' && !refunded) return null;
   return {
+    paymentId: payment.id,
     reference: payment.reference,
+    status: refunded ? ('refunded' as const) : ('mismatch' as const),
+    refundedAt: payment.refundedAt?.toISOString() ?? null,
+    refundError: payment.refundError ?? null,
+    refundProcessing: !refunded && Boolean(payment.refundPendingAt),
     expectedNgn: payment.amountKobo / 100,
     paidNgn:
       payment.receivedAmountKobo === null ||
@@ -43,6 +50,11 @@ export function toPaymentReviewView(payment: StoredOnboardingPayment | null) {
     reviewedBy: payment.reviewedBy ?? null,
     reviewedAt: payment.reviewedAt?.toISOString() ?? null,
   };
+}
+
+export function toPaymentReviewViews(payments: StoredOnboardingPayment[]) {
+  const views = payments.flatMap((payment) => toPaymentReviewView(payment) ?? []);
+  return [...views.filter((v) => v.status === 'mismatch'), ...views.filter((v) => v.status !== 'mismatch')];
 }
 
 @Injectable()
@@ -61,6 +73,7 @@ export class ReviewOnboardingPaymentMismatchUseCase {
   async execute(input: {
     accessToken: string;
     applicationId: string;
+    paymentId?: string;
     outcome?: unknown;
     note?: string;
   }) {
@@ -75,10 +88,11 @@ export class ReviewOnboardingPaymentMismatchUseCase {
 
     const application = await this.applications.findById(input.applicationId);
     if (!application) throw new ApplicationNotFoundError();
-    const payment = await this.payments.findLatestForApplication(application.id);
-    if (!payment || payment.status !== 'mismatch') {
-      throw new PaymentNotInMismatchError();
-    }
+    const payment = await resolveOnboardingPayment(this.payments, application.id, {
+      paymentId: input.paymentId,
+      includeRefunded: false,
+    });
+    if (!payment) throw new PaymentNotInMismatchError();
 
     const reviewedAt = new Date();
     const saved = await this.payments.reviewMismatch(payment.id, {
@@ -100,6 +114,7 @@ export class ReviewOnboardingPaymentMismatchUseCase {
           : 'Marked as resolved',
       data: {
         applicationId: application.id,
+        paymentId: payment.id,
         reference: payment.reference,
         outcome,
         note,
@@ -118,8 +133,8 @@ function reviewOutcome(value: unknown): MismatchReviewOutcome {
   return value as MismatchReviewOutcome;
 }
 
-function reviewNote(value: string | undefined): string {
-  const note = value?.trim() ?? '';
+export function reviewNote(value: unknown): string {
+  const note = typeof value === 'string' ? value.trim() : '';
   if (note.length < NOTE_MIN || note.length > NOTE_MAX) {
     throw new OnboardingValidationError(
       'note',

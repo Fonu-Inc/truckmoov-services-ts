@@ -141,7 +141,14 @@ export class ReviewDocumentSchema {
 }
 
 export class ReviewPaymentSchema {
+  @ApiProperty() paymentId!: string;
   @ApiProperty() reference!: string;
+  @ApiProperty({ enum: ['mismatch', 'refunded'] }) status!: string;
+  @ApiProperty(NULLABLE_DATE_TIME) refundedAt!: string | null;
+  @ApiProperty({ ...NULLABLE_STRING, description: 'Why the provider refused the last refund attempt.' })
+  refundError!: string | null;
+  @ApiProperty({ description: 'True while the provider has accepted a refund but not finished it.' })
+  refundProcessing!: boolean;
   @ApiProperty({ description: 'Amount asked for, in naira.' }) expectedNgn!: number;
   @ApiProperty({ type: Number, nullable: true, description: 'Amount the provider reported, in naira.' })
   paidNgn!: number | null;
@@ -157,9 +164,14 @@ export class ReviewApplicationSchema extends ReviewApplicationSummarySchema {
   @ApiProperty({
     type: ReviewPaymentSchema,
     nullable: true,
-    description: 'Set only while the latest payment has a wrong-amount mismatch.',
+    description: 'The newest wrong-amount onboarding payment, or null. Kept for older clients; read paymentReviews.',
   })
   paymentReview!: ReviewPaymentSchema | null;
+  @ApiProperty({
+    type: [ReviewPaymentSchema],
+    description: 'Every onboarding payment with a wrong-amount mismatch, newest first, then the refunded ones.',
+  })
+  paymentReviews!: ReviewPaymentSchema[];
   @ApiProperty() vehicleCount!: number;
   @ApiProperty() deviceCount!: number;
   @ApiProperty({ type: [ReviewVehicleSchema] }) vehicles!: ReviewVehicleSchema[];
@@ -264,6 +276,7 @@ export class ProvisionedResponse extends StandardApiResponse<ProvisionedSchema> 
 
 export class PaymentReviewedSchema {
   @ApiProperty() applicationId!: string;
+  @ApiProperty() paymentId!: string;
   @ApiProperty() reference!: string;
   @ApiProperty({ enum: ['resolved', 'refund_needed'] }) outcome!: string;
   @ApiProperty() note!: string;
@@ -271,4 +284,18 @@ export class PaymentReviewedSchema {
 
 export class PaymentReviewedResponse extends StandardApiResponse<PaymentReviewedSchema> {
   @ApiProperty({ type: PaymentReviewedSchema }) data!: PaymentReviewedSchema;
+}
+
+export class PaymentRefundedSchema {
+  @ApiProperty() applicationId!: string;
+  @ApiProperty() paymentId!: string;
+  @ApiProperty() reference!: string;
+  @ApiProperty(NULLABLE_STRING) refundReference!: string | null;
+  @ApiProperty() note!: string;
+  @ApiProperty({ enum: ['refunded', 'processing'] }) refundStatus!: string;
+  @ApiProperty() alreadyRefunded!: boolean;
+}
+
+export class PaymentRefundedResponse extends StandardApiResponse<PaymentRefundedSchema> {
+  @ApiProperty({ type: PaymentRefundedSchema }) data!: PaymentRefundedSchema;
 }

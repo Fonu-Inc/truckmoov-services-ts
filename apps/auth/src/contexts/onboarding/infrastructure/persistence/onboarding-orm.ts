@@ -15,6 +15,7 @@ export class OnboardingApplicationRecord {
   setupLinkSentAt?: Date | null;
   setupLinkError?: string | null;
   setupLinkAttempts?: number;
+  paymentNotifiedAt?: Date | null;
   id!: string;
   reference!: string;
   tokenHash!: string;
@@ -51,6 +52,7 @@ export const OnboardingApplicationRecordSchema =
       setupLinkSentAt: { fieldName: 'setup_link_sent_at', type: 'datetime', nullable: true },
       setupLinkError: { fieldName: 'setup_link_error', type: 'text', nullable: true },
       setupLinkAttempts: { fieldName: 'setup_link_attempts', type: 'number', default: 0 },
+      paymentNotifiedAt: { fieldName: 'payment_notified_at', type: 'datetime', nullable: true },
       applicantType: { fieldName: 'applicant_type', type: 'string', length: 32 },
       organizationName: { fieldName: 'organization_name', type: 'string', length: 160 },
       businessEmail: { fieldName: 'business_email', type: 'string', length: 254, index: true },
@@ -434,6 +436,7 @@ export const OnboardingVerificationResultRecordSchema =
 export class OnboardingPaymentRecord {
   id!: string;
   applicationId!: string;
+  tenantId!: string | null;
   reference!: string;
   provider!: string;
   amountKobo!: number;
@@ -456,6 +459,12 @@ export class OnboardingPaymentRecord {
   reviewNote!: string | null;
   reviewedBy!: string | null;
   reviewedAt!: Date | null;
+  refundedAt!: Date | null;
+  refundReference!: string | null;
+  refundError!: string | null;
+  refundPendingAt!: Date | null;
+  refundNote!: string | null;
+  refundRequestedBy!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -467,6 +476,7 @@ export const OnboardingPaymentRecordSchema =
     properties: {
       id: { type: 'string', primary: true },
       applicationId: { fieldName: 'application_id', type: 'string', length: 64, index: true },
+      tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, nullable: true, index: true },
       reference: { type: 'string', length: 64, unique: true },
       provider: { type: 'string', length: 40 },
       amountKobo: { fieldName: 'amount_kobo', type: 'bigint' },
@@ -489,6 +499,12 @@ export const OnboardingPaymentRecordSchema =
       reviewNote: { fieldName: 'review_note', type: 'text', nullable: true },
       reviewedBy: { fieldName: 'reviewed_by', type: 'string', length: 64, nullable: true },
       reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
+      refundedAt: { fieldName: 'refunded_at', type: 'datetime', nullable: true },
+      refundReference: { fieldName: 'refund_reference', type: 'string', length: 64, nullable: true },
+      refundError: { fieldName: 'refund_error', type: 'text', nullable: true },
+      refundPendingAt: { fieldName: 'refund_pending_at', type: 'datetime', nullable: true },
+      refundNote: { fieldName: 'refund_note', type: 'string', length: 500, nullable: true },
+      refundRequestedBy: { fieldName: 'refund_requested_by', type: 'string', length: 64, nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },

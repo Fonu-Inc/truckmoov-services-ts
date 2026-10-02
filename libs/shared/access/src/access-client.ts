@@ -16,6 +16,8 @@ export type RemoteAccess = {
 };
 
 const CACHE_TTL_MS = 30_000;
+const NO_USER_TTL_MS = 10_000;
+const USER_NOT_FOUND_TEXT = "user not found";
 
 /**
  * Asks auth what a user may do right now, so a suspension or a role change
@@ -44,15 +46,17 @@ export class AccessClient {
    */
   async get(userId: string): Promise<RemoteAccess | null | undefined> {
     const cached = this.cache.get(userId);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.access;
+    if (cached && Date.now() - cached.at < (cached.access ? CACHE_TTL_MS : NO_USER_TTL_MS)) {
+      return cached.access;
+    }
     const headers = this.caller.headers("auth");
     if (!headers) return cached?.access;
     try {
-      const response = await axios.get<{ data?: RemoteAccess }>(
+      const response = await axios.get<{ data?: RemoteAccess; message?: unknown }>(
         `${this.authUrl}/auth/internal/access/${encodeURIComponent(userId)}`,
         { headers, timeout: 2000, validateStatus: () => true },
       );
-      if (response.status === 404) return this.remember(userId, null);
+      if (response.status === 404 && isUserNotFound(response.data)) return this.remember(userId, null);
       if (response.status !== 200 || !response.data?.data) return cached?.access;
       return this.remember(userId, response.data.data);
     } catch {
@@ -64,4 +68,9 @@ export class AccessClient {
     this.cache.set(userId, { access, at: Date.now() });
     return access;
   }
+}
+
+function isUserNotFound(body: unknown): boolean {
+  const message = (body as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message.trim().toLowerCase() === USER_NOT_FOUND_TEXT;
 }

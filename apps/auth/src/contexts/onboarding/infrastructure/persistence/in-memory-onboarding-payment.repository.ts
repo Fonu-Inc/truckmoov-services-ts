@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  MismatchReview,
-  OnboardingPaymentRepository,
-  OnboardingPaymentStatus,
-  SettleDetails,
-  StoredOnboardingPayment,
+import {
+  isOnboardingPayment,
+  type MismatchReview,
+  type OnboardingPaymentRepository,
+  type OnboardingPaymentStatus,
+  type RefundClaim,
+  type RefundRecord,
+  type SettleDetails,
+  type StoredOnboardingPayment,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
 
 @Injectable()
@@ -39,6 +42,21 @@ export class InMemoryOnboardingPaymentRepository
         .filter((payment) => payment.applicationId === applicationId)
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
     );
+  }
+
+  async listMismatchedForApplication(
+    applicationId: string,
+    includeRefunded = false,
+  ): Promise<StoredOnboardingPayment[]> {
+    const wanted = includeRefunded ? ['mismatch', 'refunded'] : ['mismatch'];
+    return [...this.payments.values()]
+      .filter(
+        (payment) =>
+          payment.applicationId === applicationId &&
+          wanted.includes(payment.status) &&
+          isOnboardingPayment(payment),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async findByQuotationId(
@@ -93,6 +111,7 @@ export class InMemoryOnboardingPaymentRepository
     const payment = this.payments.get(id);
     const from = status === 'paid' ? ['pending', 'failed', 'mismatch'] : ['pending'];
     if (!payment || !from.includes(payment.status)) return false;
+    if (status === 'paid' && payment.refundPendingAt) return false;
     payment.status = status;
     payment.paidAt = paidAt;
     payment.method = details.method;
@@ -114,6 +133,48 @@ export class InMemoryOnboardingPaymentRepository
     payment.reviewedAt = review.reviewedAt;
     payment.updatedAt = new Date();
     return true;
+  }
+
+  async claimRefund(id: string, claim: RefundClaim): Promise<boolean> {
+    const payment = this.payments.get(id);
+    if (payment?.status !== 'mismatch' || payment.reviewOutcome !== 'refund_needed') return false;
+    if (payment.refundPendingAt) return false;
+    payment.refundPendingAt = new Date();
+    payment.refundNote = claim.note;
+    payment.refundRequestedBy = claim.requestedBy;
+    payment.refundError = null;
+    return true;
+  }
+
+  async recordRefundAccepted(id: string, providerRefundId: string | null): Promise<void> {
+    const payment = this.payments.get(id);
+    if (payment?.status !== 'mismatch') return;
+    payment.refundReference = providerRefundId;
+    payment.updatedAt = new Date();
+  }
+
+  async flagForReview(id: string, note: string): Promise<void> {
+    const payment = this.payments.get(id);
+    if (payment) payment.refundError = note.slice(0, 500);
+  }
+
+  async markRefunded(id: string, refund: RefundRecord): Promise<boolean> {
+    const payment = this.payments.get(id);
+    if (payment?.status !== 'mismatch') return false;
+    payment.status = 'refunded';
+    payment.refundedAt = refund.refundedAt;
+    payment.refundReference = refund.refundReference;
+    payment.refundError = null;
+    payment.refundPendingAt = null;
+    payment.updatedAt = new Date();
+    return true;
+  }
+
+  async recordRefundError(id: string, error: string): Promise<void> {
+    const payment = this.payments.get(id);
+    if (payment?.status !== 'mismatch') return;
+    payment.refundError = error.slice(0, 500);
+    payment.refundPendingAt = null;
   }
 
   async linkInvoice(id: string, invoiceId: string): Promise<void> {

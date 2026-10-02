@@ -1,13 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
-import type {
-  MismatchReview,
-  MismatchReviewOutcome,
-  OnboardingPaymentRepository,
-  OnboardingPaymentStatus,
-  SettleDetails,
-  StoredOnboardingPayment,
+import {
+  isOnboardingPayment,
+  type MismatchReview,
+  type MismatchReviewOutcome,
+  type OnboardingPaymentRepository,
+  type OnboardingPaymentStatus,
+  type RefundClaim,
+  type RefundRecord,
+  type SettleDetails,
+  type StoredOnboardingPayment,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
 import type { OnboardingOrderSummary } from '@auth/onboarding/domain/onboarding-order';
 import type { PaymentMethod } from '@auth/onboarding/domain/payment-method';
@@ -17,6 +20,7 @@ function toStored(r: OnboardingPaymentRecord): StoredOnboardingPayment {
   return {
     id: r.id,
     applicationId: r.applicationId,
+    tenantId: r.tenantId ?? null,
     reference: r.reference,
     provider: r.provider,
     amountKobo: Number(r.amountKobo),
@@ -42,6 +46,12 @@ function toStored(r: OnboardingPaymentRecord): StoredOnboardingPayment {
     reviewNote: r.reviewNote ?? null,
     reviewedBy: r.reviewedBy ?? null,
     reviewedAt: r.reviewedAt ?? null,
+    refundedAt: r.refundedAt ?? null,
+    refundReference: r.refundReference ?? null,
+    refundError: r.refundError ?? null,
+    refundPendingAt: r.refundPendingAt ?? null,
+    refundNote: r.refundNote ?? null,
+    refundRequestedBy: r.refundRequestedBy ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -89,6 +99,19 @@ export class MikroOnboardingPaymentRepository
       { orderBy: { createdAt: 'desc' } },
     );
     return record ? toStored(record) : null;
+  }
+
+  async listMismatchedForApplication(
+    applicationId: string,
+    includeRefunded = false,
+  ): Promise<StoredOnboardingPayment[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingPaymentRecord,
+      { applicationId, status: { $in: includeRefunded ? ['mismatch', 'refunded'] : ['mismatch'] } },
+      { orderBy: { createdAt: 'desc' } },
+    );
+    return records.map(toStored).filter(isOnboardingPayment);
   }
 
   async findByQuotationId(
@@ -161,7 +184,9 @@ export class MikroOnboardingPaymentRepository
              received_amount_kobo = coalesce(?, received_amount_kobo),
              received_currency = coalesce(?, received_currency),
              updated_at = now()
-       where id = ? and status in (${from.map(() => '?').join(', ')})
+       where id = ? and status in (${from.map(() => '?').join(', ')})${
+         status === 'paid' ? ' and refund_pending_at is null' : ''
+       }
        returning id`,
       [
         status,
@@ -187,6 +212,56 @@ export class MikroOnboardingPaymentRepository
       [review.outcome, review.note, review.reviewedBy, review.reviewedAt, id],
     );
     return rows.length === 1;
+  }
+
+  async claimRefund(id: string, claim: RefundClaim): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
+      `update onboarding_payments
+         set refund_pending_at = now(), refund_note = ?, refund_requested_by = ?, refund_error = null, updated_at = now()
+       where id = ? and status = 'mismatch' and review_outcome = 'refund_needed' and refund_pending_at is null
+       returning id`,
+      [claim.note, claim.requestedBy, id],
+    );
+    return rows.length === 1;
+  }
+
+  async recordRefundAccepted(id: string, providerRefundId: string | null): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(
+      `update onboarding_payments set refund_reference = ?, updated_at = now()
+       where id = ? and status = 'mismatch'`,
+      [providerRefundId, id],
+    );
+  }
+
+  async flagForReview(id: string, note: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(
+      `update onboarding_payments set refund_error = ?, updated_at = now() where id = ?`,
+      [note.slice(0, 500), id],
+    );
+  }
+
+  async markRefunded(id: string, refund: RefundRecord): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
+      `update onboarding_payments
+         set status = 'refunded', refunded_at = ?, refund_reference = ?, refund_error = null, refund_pending_at = null, updated_at = now()
+       where id = ? and status = 'mismatch'
+       returning id`,
+      [refund.refundedAt, refund.refundReference, id],
+    );
+    return rows.length === 1;
+  }
+
+  async recordRefundError(id: string, error: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(
+      `update onboarding_payments set refund_error = ?, refund_pending_at = null, updated_at = now()
+       where id = ? and status = 'mismatch'`,
+      [error.slice(0, 500), id],
+    );
   }
 
   async linkInvoice(id: string, invoiceId: string): Promise<void> {

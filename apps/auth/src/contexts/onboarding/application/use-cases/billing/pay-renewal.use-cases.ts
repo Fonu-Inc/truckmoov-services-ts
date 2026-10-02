@@ -62,6 +62,7 @@ function pendingPayment(
   return {
     ...fields,
     applicationId: invoice.applicationId as string,
+    tenantId: invoice.tenantId,
     authorizationUrl: null,
     billingEmail: invoice.billingEmail,
     planCode: line?.planCode ?? '',

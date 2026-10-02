@@ -145,6 +145,8 @@ export type StoredOnboardingApplication = {
   setupLinkSentAt: Date | null;
   setupLinkError: string | null;
   setupLinkAttempts: number;
+  /** When the applicant was emailed that payment is open; set once, never cleared. */
+  paymentNotifiedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -283,6 +285,8 @@ export interface OnboardingApplicationRepository {
     attemptedBefore: Date,
     limit: number,
   ): Promise<StoredOnboardingApplication[]>;
+  /** Records that the payment-open email is being sent; true for the first caller only. */
+  claimPaymentNotice(id: string, at: Date): Promise<boolean>;
   /** Removes the application and everything filed against it. */
   deleteApplication(id: string): Promise<void>;
 

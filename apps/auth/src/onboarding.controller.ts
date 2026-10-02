@@ -46,7 +46,7 @@ import { ActivateSubscriptionUseCase, OnboardingNotFoundError } from './activate
 import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { SettleRenewalPaymentUseCase } from '@auth/onboarding/application/settle-renewal-payment.use-case';
 import { EnforcementRestoreService } from './enforcement-restore.service';
-import { ConfirmApplicationPaymentUseCase } from '@auth/onboarding';
+import { ConfirmApplicationPaymentUseCase, RefundSettlementService } from '@auth/onboarding';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
@@ -88,9 +88,10 @@ import {
 } from './dto/onboarding.dto';
 import { Portals, OnResource, Requires, SignedIn } from '@shared/access';
 import { PaystackWebhookDto } from './dto/paystack-webhook.dto';
-import { PaymentGatewayRegistry, type PaidAmount, type PaymentCallback } from './contexts/payments';
+import { PaymentGatewayRegistry, type PaidAmount, type PaymentCallback, type RefundCallback } from './contexts/payments';
 import { StorageQuotaService } from './storage-quota.service';
 import { StorageQuotaExceededError } from './storage-usage.repository';
+import { QuotaExceededError } from './entitlement.service';
 import { TOKEN_SERVICE } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
@@ -101,7 +102,6 @@ import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
 import { ImportSimsCsvUseCase, InvalidCsvError } from './import-sims-csv.use-case';
 import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
 import { PaymentEventService } from './payment-event.service';
-import { DuplicateSimIccidError } from './sim.repository';
 import { RegisterSimsUseCase } from './register-sims.use-case';
 import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
 import { OnboardingNotFoundForFeaturesError, SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
@@ -133,6 +133,8 @@ export class OnboardingController extends BaseAuthController {
     @Inject(PaymentEventService) private readonly paymentEventService: PaymentEventService,
     @Inject(ConfirmApplicationPaymentUseCase)
     private readonly confirmApplicationPayment: ConfirmApplicationPaymentUseCase,
+    @Inject(RefundSettlementService)
+    private readonly refundSettlement: RefundSettlementService,
     @Inject(SubmitEnterpriseEnquiryUseCase) private readonly submitEnterpriseEnquiryUseCase: SubmitEnterpriseEnquiryUseCase,
     @Inject(GetSubscriptionCapsUseCase) private readonly getSubscriptionCapsUseCase: GetSubscriptionCapsUseCase,
     @Inject(GetBusinessInfoUseCase) private readonly getBusinessInfoUseCase: GetBusinessInfoUseCase,
@@ -235,6 +237,8 @@ export class OnboardingController extends BaseAuthController {
     const callback = this.gatewayRegistry.parse(payload, req.headers, body);
     if (!callback) throw new ForbiddenException('Invalid webhook signature');
 
+    if (callback.refund) return this.acknowledgeRefund(callback.reference, callback.refund);
+
     const paid: PaidAmount = {
       amountKobo: callback.amountKobo,
       currency: callback.currency,
@@ -251,6 +255,12 @@ export class OnboardingController extends BaseAuthController {
       throw new ServiceUnavailableException('Payment settlement failed, retry later');
     }
 
+    return { received: true };
+  }
+
+  private async acknowledgeRefund(reference: string, refund: RefundCallback) {
+    const failed = await this.settle(`refund ${reference}`, () => this.refundSettlement.onCallback(reference, refund));
+    if (failed) throw new ServiceUnavailableException('Refund settlement failed, retry later');
     return { received: true };
   }
 
@@ -564,7 +574,7 @@ export class OnboardingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof DuplicateSimIccidError) throw new ConflictException(error.message);
+      if (error instanceof QuotaExceededError) throw new ConflictException(error.message);
       throw error;
     }
   }

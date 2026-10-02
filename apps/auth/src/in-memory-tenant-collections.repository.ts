@@ -69,6 +69,7 @@ export class InMemoryTenantCollectionsRepository implements TenantCollectionsRep
   }
 
   private async tenantOf(payment: StoredOnboardingPayment): Promise<string | null> {
+    if (payment.tenantId) return payment.tenantId;
     const invoice = payment.invoiceId ? await this.invoices.findById(payment.invoiceId) : null;
     if (invoice?.tenantId) return invoice.tenantId;
     return (await this.applications.findById(payment.applicationId))?.tenantId ?? null;

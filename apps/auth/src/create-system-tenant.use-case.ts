@@ -38,6 +38,7 @@ import {
 import { validateTenantDeviceProvisioningSelection } from './system-device-catalog.validation';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { trialEndsAfter } from './tenant-trial';
+import { TrialDaysResolver } from './trial-days.resolver';
 import { TENANT_TRIAL_REPOSITORY, type TenantTrialRepository } from './tenant-trial.repository';
 
 const SYSTEM_CREATOR_ROLES = new Set<string>([
@@ -109,6 +110,8 @@ export class CreateSystemTenantUseCase {
     private readonly tenantOnboardingRepository: TenantOnboardingRepository,
     @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
     private readonly planRepository: SubscriptionPlanRepository,
+    @Inject(TrialDaysResolver)
+    private readonly trialDaysResolver: TrialDaysResolver,
     @Optional()
     @Inject(TENANT_TRIAL_REPOSITORY)
     private readonly trials?: TenantTrialRepository,
@@ -226,8 +229,9 @@ export class CreateSystemTenantUseCase {
 
     await this.tenantOnboardingRepository.save(onboarding);
     await this.organizationSettingsRepository.save(settings);
-    if (plan.trialDays && plan.trialDays > 0) {
-      await this.trials?.startIfAbsent(tenantId, now, trialEndsAfter(now, plan.trialDays));
+    const trialDays = await this.trialDaysResolver.resolve(plan);
+    if (trialDays && trialDays > 0) {
+      await this.trials?.startIfAbsent(tenantId, now, trialEndsAfter(now, trialDays));
     }
     await this.inviteRepository.save({
       id: this.idGenerator.generate(),

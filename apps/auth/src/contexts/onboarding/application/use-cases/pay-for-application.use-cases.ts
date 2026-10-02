@@ -235,6 +235,7 @@ export class CreateApplicationPaymentUseCase {
     const payment: StoredOnboardingPayment = {
       id: this.idGenerator.generate(),
       applicationId: application.id,
+      tenantId: application.tenantId,
       // Prefixed by application rather than tenant: no tenant exists yet, and
       // the callback has to find its way back to an application.
       reference: `FPA-${application.reference}-${randomBytes(6).toString('hex')}`,
@@ -343,6 +344,12 @@ export class ConfirmApplicationPaymentUseCase {
 
     if (!paidInFull(payment.amountKobo, paid)) {
       await this.recordMismatch(payment, paid);
+      return;
+    }
+
+    if (payment.refundPendingAt) {
+      await this.payments.flagForReview(payment.id, 'review: charge succeeded during refund');
+      this.logger.error(`onboarding_payment_settle_skipped_refund_in_flight:${reference}`);
       return;
     }
 

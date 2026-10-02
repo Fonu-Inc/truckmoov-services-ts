@@ -6,6 +6,7 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
 import { assertStageAdvance } from '@auth/onboarding/domain/onboarding-stage';
+import { ApplicationPaymentNoticeService } from './application-payment-notice.service';
 import { OnboardingDeviceInventoryService } from './onboarding-device-inventory.service';
 
 @Injectable()
@@ -15,6 +16,8 @@ export class OnboardingProvisioningService {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(OnboardingDeviceInventoryService)
     private readonly inventory: OnboardingDeviceInventoryService,
+    @Inject(ApplicationPaymentNoticeService)
+    private readonly notices: ApplicationPaymentNoticeService,
   ) {}
 
   async stockCovers(application: StoredOnboardingApplication): Promise<boolean> {
@@ -32,6 +35,7 @@ export class OnboardingProvisioningService {
     assertStageAdvance(application.stage, 'payment');
     const advanced = { ...application, stage: 'payment' as const, updatedAt: now };
     await this.applications.save(advanced);
+    await this.notices.paymentOpened(advanced, now);
     return advanced;
   }
 }

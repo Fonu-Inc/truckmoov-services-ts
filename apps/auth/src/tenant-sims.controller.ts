@@ -41,7 +41,7 @@ import {
   TenantSimRequestsListResponse,
   IdResponse,
   CarriersListResponse,
-  ImportSimsResponse,
+  ImportTenantSimsResponse,
   BundlePlansListResponse,
   TenantSimRequestDetailResponse,
   RequestIdResponse,
@@ -153,7 +153,7 @@ export class TenantSimsController extends BaseAuthController {
   @Post('import')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Import SIMs from CSV' })
-  @ApiCreatedResponse({ type: ImportSimsResponse })
+  @ApiCreatedResponse({ type: ImportTenantSimsResponse })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_CSV_IMPORT_BYTES)))
   async importTenantSimsCsv(@UploadedFile() file: { buffer: Buffer }, @Headers('authorization') authorization?: string) {

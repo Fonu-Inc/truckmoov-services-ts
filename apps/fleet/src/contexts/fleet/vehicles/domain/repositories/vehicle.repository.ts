@@ -20,6 +20,8 @@ export type VehicleFilters = {
 export interface VehicleRepository {
   save(vehicle: Vehicle): Promise<void>;
   findAll(filters: VehicleFilters): Promise<Vehicle[]>;
+  /** Ids only, for callers that need to know what exists and nothing about it. */
+  listIdsByTenant(tenantId: string): Promise<string[]>;
   findById(id: string, tenantId: string): Promise<Vehicle | null>;
   findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null>;
   findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null>;

@@ -6,238 +6,215 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ## TD-21 — Onboarding, jobs, SIM, tracking and index batch leftovers
 
-**Status:** open, recorded 2 October 2026. Follows the batch that fixed
-onboarding payments and sweep, job attachments and instructions, the SIM ICCID
-race, tracking ingest and quarantine, and the first index migrations. Each fix
-works; the items below are the parts left on purpose or that need an outside
-system. Related: TD-9, TD-10, TD-13, TD-14. Later review of campaigns, jobs, tracking
-ingest and the event bus added items 21 to 35.
+**Status:** open, updated 2 October 2026. Most of the batch is fixed (payment
+tenant column, refunds, payment-open email, trial override, SIM duplicates and
+paging, device provision badge, campaign pausing and retry, instruction
+outcomes, dead-letter store and replay, quarantine dismiss, block and unblock,
+IMEI identity resolution). The items below are what remains: outside systems, owner
+decisions, and web or follow-up pieces. Related: TD-9, TD-10, TD-13, TD-14.
 
 ### Where the code is
 
-- **Auth:** `apps/auth/src/`: onboarding payment and sweep use cases
-  (`ReviewOnboardingPaymentMismatchUseCase`, `OnboardingStageSweepService`,
-  `CompleteProvisioningUseCase`, `ApproveOnboardingApplicationUseCase`),
-  `in-memory-sim.repository.ts`, `register-sims.use-case.ts`,
-  `export-bundle-transactions.use-case.ts`, `export-bundle-rates.use-case.ts`;
-  `Migration20261007100000` in auth and fleet.
-- **Go:** `internal/notification/application/`
-  (`consume_driver_job_instruction.go`, `send_job_instruction.go`,
-  `consume_job_offer_notification.go`), `internal/dispatch/`
-  (`infrastructure/job_attachment_store.go`, `application/eta_monitor.go`),
-  tracking ingest, `tracking_quarantine` and Redis `tracking:imei-identity`.
-- **Go (review leftovers):** campaign runner and scheduler, job repositories
-  (`internal/dispatch`), `internal/eventbus`, `httpx.Metrics`; TS
-  `libs/shared/access/src/access-client.ts`.
-- **Fleet / web:** `apps/fleet/src/live-tracking-counts.service.ts`,
-  `fleet-financials.use-case.ts`; admin Devices page and device lists.
+- **Auth:** `apps/auth/src/`: `RefundOnboardingPaymentUseCase`,
+  `ApplicationPaymentNoticeService`, `ApproveOnboardingApplicationUseCase`,
+  `ManageUnrecognisedDeviceUseCase`; enforcement setting
+  `onboardingTrialDaysOverride`; `Migration20261008010000`.
+- **Go:** `internal/notification/application/` (campaign runner, instruction
+  outcome sweep, dead letters, `notification_preferences`),
+  `internal/dispatch/` (`job_attachment_store.go`), `internal/tracking`
+  (ingest, `tracking_quarantine`, `tracking:device-sim:*` keys), `httpx.Metrics`
+  and `httpx.AlertRoute`, `pkg/eventbus`.
+- **Web:** `apps/main` Campaigns page, admin Devices page,
+  `packages/api/src/notification/campaign-types.ts`, admin `campaignDisplay.ts`.
+- **Runbook:** `docs/index-build-runbook.md`.
 
 ### The problem
 
 **Onboarding**
-1. `onboarding_payments` has no `tenant_id`; tenant is derived by joining
-   `onboarding_applications`, null until provisioning. Tenant-level payment
-   queries and row-level security cannot apply directly.
-2. Wrong-amount payments flagged `refund_needed` only record a flag, note and
-   audit entry; no provider refund runs. Resolving a payment only records the
-   decision; the applicant must pay again or staff confirm out of band.
-3. No email when the sweep or provisioning moves an application to payment,
-   though the status screen says "we'll email you".
-4. Self-serve trial length uses the starter plan `trialDays` (14 by default);
-   the owner has not confirmed that is the right plan.
+1. The payment-open email is not sent when approval itself lands the
+   application on payment (stock already covers the order); only the sweep and
+   staff provisioning send it. It is at-most-once: the sent flag is set before
+   sending and mailer errors are swallowed. Each notice rotates the applicant's
+   token, and the emailed link (`/onboarding/resume?application=&token=`, also
+   used by the resume and changes-requested emails) is not served by the web
+   app, which adopts `/apply?token=&applicationId=`.
+2. The Paystack refund call is built (`POST /refund`, staff "Issue refund"
+   button) but has not been run against Paystack. Marking `refund_needed` does
+   not refund by itself, and only full refunds are possible.
+3. The self-serve trial length reads the starter plan `trialDays`
+   (`system_subscription_plans.trial_days`), which is null in every seed and has
+   no edit path, so no self-serve trial starts unless
+   `onboardingTrialDaysOverride` is set (API only, no admin field). The plan
+   entitlements `trialDays` is read by no trial code. The owner has not decided
+   whether the trial follows the plan activated later or the licence bought.
 
 **Jobs and messaging**
-5. Driver job instruction needs a Meta-approved `job_assignment` template
+4. Driver job instruction needs a Meta-approved `job_assignment` template
    (`JOB_INSTRUCTION_TEMPLATE`, default `job_assignment_v1`, `{{1}}..{{6}}`) on
    each tenant WABA. Tenants with no number get "not sent: no WhatsApp number"
    (TD-9).
-6. The template path skips the delivery log, and the outcome callback to
-   dispatch is not retried; a dispatch outage leaves the timeline silent.
-7. Job attachments are BYTEA in Postgres (3 MB, 10 per job): not counted in
+5. An instruction outcome is abandoned after 30 attempts (about 24 hours of
+   backoff) with an error log. Whether dispatch should be retried forever is an
+   owner decision.
+6. Job attachments are BYTEA in Postgres (3 MB, 10 per job): not counted in
    the tenant storage quota, no virus scan, no single delete.
-8. Offer alerts are email only. No WhatsApp, SMS or push, no per-tenant
-   preference, no offers UI.
-9. ETA monitor dedupe is an in-memory map: late alerts can repeat after a
-   restart and the map never shrinks.
-10. Delivered jobs from before this change have no `delivered_at`; analytics
-    fall back to `updated_at`, so historical revenue months can move on edit.
-    Notification `FindMessageByProviderMessageID` and dispatch relationship and
-    settlement lookups by id stay id-only (callers check tenant afterwards).
+7. Offer alerts have a per-tenant channel choice (email, WhatsApp, SMS) through
+   `GET/PUT /notify/preferences`, but there is no push channel, no offers UI
+   and no web preference screen.
 
 **SIM and data**
-11. The in-memory SIM repository does not enforce unique ICCID (only the Mikro
-    path raises `DuplicateSimIccidError`); fixtures may repeat ICCIDs.
-12. `register-sims` throws 409 on the first duplicate, so a batch can be
-    partly saved. The transactions export ignores the carriers filter and the
-    rates export filters carriers in JS; the list endpoints filter in SQL.
-13. The tenant CSV import returns `skippedCount` and `skipped[]`, and the SIM
-    requests list is paged (default 50, max 100). The web client shows only
-    the first 50 requests and does not show skipped rows.
-14. Index migrations use plain `CREATE INDEX IF NOT EXISTS` (the framework runs
-    in a transaction, so no `CONCURRENTLY`); each build write-locks its table.
-    Only the indexes named in the task plus two fleet indexes exist. The rest
-    of the DB audit high-priority index plan is not reconciled.
+8. The DB audit high-priority index plan is not in the repo, so it is not
+   reconciled against both `Migration20261007100000` files. The runbook lists
+   only the indexes that exist. The `onboarding_payments` backfill runs inside
+   the migration transaction (framework limit).
 
 **Tracking**
-15. `GPS_API_KEY` must be set on every environment's tracking service and on
-    Traccar's forwarder (gitops). Tracking returns 503 on ingest when unset
-    (dev override `ALLOW_UNAUTHENTICATED_INGEST`, ignored in production).
-16. One shared key for all devices; Traccar's HTTP forwarder holds one key, so
+9. `GPS_API_KEY` must be set on every environment's tracking service and on
+   Traccar's forwarder (gitops). Tracking returns 503 on ingest when unset
+   (dev override `ALLOW_UNAUTHENTICATED_INGEST`, ignored in production).
+10. One shared key for all devices; Traccar's HTTP forwarder holds one key, so
     per-device secrets need a protocol-level scheme or a gateway.
-17. Quarantine is a read-only list: no dismiss or block, no retention, no alert
-    on a noisy unknown IMEI.
-18. The IMEI identity cache (90-day TTL, fed only by fleet events) has no
-    backfill; a registered device with an expired or missed entry is
-    quarantined as unknown.
-19. API returns `provisionStatus`, `provisionAttempts`,
-    `provisionNextAttemptAt`, `provisionError`, but no screen shows them and
-    there is no manual retry.
-20. Status-bar counts cover only vehicles that have reported since fleet
-    started (in-memory tracked set, `in_progress` from dispatch).
-
-**Campaigns**
-21. A scheduled tenant campaign whose wallet is refused is retried every
-    scheduler tick (one refused charge call, logged as a warning) until the
-    tenant tops up. It is not throttled or paused.
-22. Recipients interrupted mid-send are marked failed and retried only on
-    request.
-23. Retry-failed runs skip the campaign-level claim and rely on the
-    per-recipient claim, so they can race a concurrent run's final
-    `SaveCampaign` status write. Harmless today.
-24. The text job instruction is recorded in the conversation after the send. If
-    recording fails it is only logged (reply-to-job context is lost); a
-    redelivery after a crash between send and record resends the message (the
-    charge is idempotent).
-
-**Jobs and ids**
-25. `FindByTenantAndID` returns `(Job, bool)` and treats a DB error as not
-    found, so `newJobID` can think a chosen id is free and `Save` upserts over
-    it. The Redis job repo also skips index entries whose payload is missing or
-    undecodable.
-26. A transfer or offer accept to a carrier tenant that already has a job with
-    the same id fails on the primary key, rolls back and surfaces as a generic
-    error.
-27. Tables keyed by `job_id` in `internal/notification` (instruction
-    conversations) and `internal/tracking` were not audited for tenant keying.
-    The ratings unique index on (operator_tenant_id, job_id) fails at startup
-    if existing rows already share a pair (unlikely).
-
-**Tracking ingest**
-28. The WS bridge (`internal/tracking/interfaces/ws/bridge.go`) builds
-    `IngestLocationCommand` with `SystemTenantID` and the IMEI as vehicle and
-    device, bypassing IMEI identity resolution (admin audience only).
-29. Redis keys `tracking:device-sim:{deviceId}` are now tenant-scoped; old keys
+11. Quarantine has dismiss, block, unblock (auth and tracking endpoints),
+    30-day pruning and an alert, but no admin action for unblock, and a
+    dismissed sender stays dismissed while it keeps sending (counts still
+    update) until the prune.
+12. The device provision badge exists in the tenant app only. There is no
+    manual retry (the fleet API has no retry endpoint) and the admin Devices
+    page does not show the badge.
+13. Redis keys `tracking:device-sim:{deviceId}` are tenant-scoped; old keys
     expire by TTL, so a device's SIM overview is empty until its next
-    `sim.changed` event.
-30. Generic ingest now requires `imei`; clients that omit it get 400 (no
-    producer found in the repo). Filter-skip drops (`invalid_coordinates`,
-    `impossible_jump`, `out_of_order`) are only debug-logged and returned as
-    `skip_reason`, with no counter.
+    `sim.changed` event. Auth has no per-device SIM endpoint for a fallback.
+14. A missing `imei` returns 400 and is counted, but the other filter-skip
+    drops (`invalid_coordinates`, `impossible_jump`, `out_of_order`) are only
+    debug-logged with no metric, and no handler test covers the 400 body.
+
+**Campaigns and web**
+15. The web does not know the campaign status `paused_no_funds` (tenant
+    Campaigns page uses a local status union) and has no "Retry interrupted"
+    button (`POST /notify/campaigns/{id}/retry?scope=interrupted`). Adding the
+    status to `CampaignStatus` breaks the exhaustive admin
+    `Record<CampaignStatus,string>`, so the admin labels change with it.
+16. Only WhatsApp interrupted recipients are retried automatically; SMS and
+    email never return a message id, so they stay failed until the operator
+    retries. The platform campaign retry endpoint has no `?scope=interrupted`.
+
+**Jobs, ids and tracking tables**
+17. Tracking tables keyed by `job_id` were not audited for tenant keying. The
+    ratings unique index on (operator_tenant_id, job_id) fails at startup if
+    existing rows already share a pair (unlikely).
 
 **Event bus and alerting**
-31. Dead letters are logged at error (`event_abandoned`,
-    `event_dead_letter_failed`) but no counter exists: the Prometheus registry
-    is private to each service inside `httpx.Metrics`.
-32. Nothing replays or alerts on `tm.system.dlq.*`, and the stream keeps them 7
-    days (MaxAge).
-33. The TS `AccessClient` (`libs/shared/access/src/access-client.ts`) caches
-    any 404 as no-user; the Go client now checks the "user not found" body.
-34. The alert route label is the id-collapsed URL path, not the mux pattern
-    (the pattern is set on a request copy the outer middleware cannot see).
-35. Eight commit subjects in history are over the 100-character commitlint
+18. No Prometheus dead-letter counter exists: the registry is private to each
+    service inside `httpx.Metrics`. Dead letters are stored, listed, replayable
+    and alert at more than 10 an hour, so paging is covered.
+19. Only the notification service wraps its mux in `httpx.AlertRoute`; the
+    other Go services (dispatch, tracking, fleet and others) still report the
+    id-collapsed path as the alert route.
+20. Eight commit subjects in history are over the 100-character commitlint
     limit. Not fixable.
+
+**Tests**
+21. No unit test for `ManageUnrecognisedDeviceUseCase` or its reason-length DTO
+    validation; the DB tests (`tests/db`) were not updated for the new
+    onboarding columns.
 
 ### What it needs
 
-1. Add `onboarding_payments.tenant_id`, backfill, set at provisioning, filter
-   payment repositories on it. Acceptance: column exists, backfilled, set on
-   provisioning, queries filter on it.
-2. Call the Paystack refund API from `refund_needed`, add a `refunded` status
-   and applicant email. Acceptance: marking it triggers a refund and the
-   applicant is emailed.
-3. Add a mailer template and notifier call on provisioning to payment.
-   Acceptance: one email with a resume link on reaching payment.
-4. Owner decides whether trial follows the plan activated later or the licence
-   bought. Acceptance: rule documented, trial length matches.
-5. Provision the approved template on every tenant WABA plus the TD-9 fallback.
+1. Send the email from the approval path as well and make the send retryable.
+   Acceptance: every application reaching payment gets one email.
+2. Exercise the refund against Paystack with a test key; decide on automatic
+   refund on `refund_needed` and partial refunds. Acceptance: a test-mode
+   refund marks the payment refunded and emails the applicant.
+3. Owner decides the trial rule; add an admin field for the override and
+   document the rule. Acceptance: rule documented, trial length matches.
+4. Provision the approved template on every tenant WABA plus the TD-9 fallback.
    Acceptance: a driver outside the 24h window gets the template and the
    timeline shows "Message sent to the driver".
-6. Write the template path to the delivery log and retry or outbox the
-   dispatch callback. Acceptance: every instruction is logged; a failed
-   callback is retried until recorded.
-7. Move attachments to object storage, count bytes in
+5. Owner decides a retry limit for instruction outcomes. Acceptance: decision
+   recorded, limit matches.
+6. Move attachments to object storage, count bytes in
    `/auth/internal/usage/storage`, add virus scan and single delete.
    Acceptance: files in object storage, usage in the storage report.
-8. Add WhatsApp, SMS or push for offers with a per-tenant preference.
-   Acceptance: a carrier not in the app is reached on its chosen channel.
-9. Persist alert state (or a `late_alerted` marker) and prune finished jobs.
-   Acceptance: restart does not re-alert; memory does not grow.
-10. One-off backfill of `delivered_at` from the timeline status entry.
-    Acceptance: old delivered jobs no longer move months when edited.
-11. Make in-memory save reject a duplicate ICCID under another id and fix
-    fixtures. Acceptance: test shows rejection.
-12. Give exports the same carrier filter as the lists; make `register-sims`
-    skip duplicates per row or run in one transaction. Acceptance: no partial
-    batch; exports match list filters.
-13. Web: page through SIM requests and show CSV import skipped rows.
-    Acceptance: all requests reachable; skipped rows listed.
-14. Build indexes out of band with `CONCURRENTLY` before deploy (or run in a
-    quiet window) and diff the DB audit index plan against both
-    `Migration20261007100000` files. Acceptance: every high-priority audit
-    index exists.
-15. Set `GPS_API_KEY` in Doppler and gitops for dev, staging, prod. Acceptance:
-    Traccar ingest returns 202 in each; 503 with the key removed.
-16. Per-device or per-tenant ingest credential with rotation. Acceptance: a
-    key leaked for device A cannot post as device B; rotation without downtime.
-17. Dismiss or block an IMEI, expire old rows, staff alert for a noisy unknown
-    device. Acceptance: all three work from the admin Devices page.
-18. Rebuild identities from a fleet endpoint on start and on lookup miss.
-    Acceptance: expired entries do not cause quarantine.
-19. Show a badge ("Could not register with the tracking network, retrying at
-    HH:MM" or "Gave up, contact support") and a retry button in apps/main and
-    apps/admin. Acceptance: failed device shows reason and next retry.
-20. Seed the tracked set from the snapshot at startup and count never-reported
-    vehicles. Acceptance: counts match the snapshot endpoint after restart.
-21. Decide pause versus notify, then throttle or pause scheduled campaigns
-    whose wallet is repeatedly refused. Acceptance: a refused campaign stops
-    retrying each tick and the tenant is told.
-22. Decide auto-retry or operator surfacing for interrupted recipients.
-    Acceptance: none stay silently failed.
-23. Add a status compare-and-set on the final campaign save. Acceptance: a
-    retry run cannot overwrite a concurrent run's status.
-24. Give the conversation message a deterministic id so recording is
-    idempotent. Acceptance: a redelivery records once; a record failure is
-    retried.
-25. Change the job repository port to return an error and propagate it through
-    `newJobID`, `Save` callers and Redis listing (log and count stale entries
-    or drop Redis). Acceptance: a DB error never reads as free or overwrites.
-26. Decide remap the id or return a typed conflict. Acceptance: accept with a
-    colliding id gives a clear result, not a rollback.
-27. Audit `job_id` keying in notification and tracking; check ratings for
-    duplicate pairs before the index deploys. Acceptance: every such table is
-    keyed by tenant.
-28. Resolve identity through the IMEI resolver in the WS bridge (product
-    decision on admin ingest). Acceptance: no fixed system tenant on ingest.
-29. Backfill or replay SIM overview entries from auth after deploy.
-    Acceptance: overview is populated without waiting for an event.
-30. Confirm no producer omits `imei`; add a counter per skip reason.
+7. Add push and an offers UI, and a web preference screen for the channels.
+   Acceptance: a carrier not in the app is reached on its chosen channel and
+   can change it.
+8. Diff the DB audit index plan against both `Migration20261007100000` files
+   and add the missing indexes to the runbook. Acceptance: every high-priority
+   audit index exists.
+9. Set `GPS_API_KEY` in Doppler and gitops for dev, staging, prod. Acceptance:
+   Traccar ingest returns 202 in each; 503 with the key removed.
+10. Per-device or per-tenant ingest credential with rotation. Acceptance: a key
+    leaked for device A cannot post as device B; rotation without downtime.
+11. Decide re-arm of dismissed senders; add the admin action for unblock.
+    Acceptance: a blocked or dismissed IMEI can be restored from the admin
+    Devices page.
+12. Add a fleet retry endpoint, a retry button, and the badge on the admin
+    Devices page. Acceptance: failed device shows reason and next retry in both
+    apps and can be retried.
+13. Add an auth per-device SIM endpoint and a tracking fallback client, or
+    replay entries after deploy. Acceptance: overview is populated without
+    waiting for an event.
+14. Add a counter per skip reason and a handler test for the missing-imei 400.
     Acceptance: skips visible as metrics.
-31. Expose a shared Prometheus registry to eventbus and count dead letters.
+15. Add `paused_no_funds` (for example "Paused, wallet empty") to the web
+    status types and labels, and a "Retry interrupted" button. Acceptance: a
+    paused campaign is labelled and interrupted recipients can be retried from
+    the page.
+16. Decide whether SMS and email interrupted recipients are retried
+    automatically; add `?scope=interrupted` to the platform retry endpoint.
+    Acceptance: none stay silently failed.
+17. Audit `job_id` keying in tracking; check ratings for duplicate pairs before
+    the index deploys. Acceptance: every such table is keyed by tenant.
+18. Expose a shared Prometheus registry to eventbus and count dead letters.
     Acceptance: a DLQ counter is scrapeable and alertable.
-32. DLQ consumer or alert, and retention beyond 7 days (ops decision).
-    Acceptance: a dead letter pages someone and survives past a week.
-33. Match the "user not found" body in the TS client after the auth change
-    deploys. Acceptance: other 404s are not cached as no-user.
-34. Carry the mux pattern up to the outer middleware. Acceptance: alert route
-    is the pattern.
-35. None; history cannot be rewritten.
+19. Add `httpx.AlertRoute(mux)` to each Go `main.go`. Acceptance: alert route is
+    the pattern in every service.
+20. None; history cannot be rewritten.
+21. Add the missing unit tests and DB test updates. Acceptance: tests cover the
+    reason validation and the new columns.
+
+### Deploy notes
+
+- Auth: run `Migration20261008010000` (`onboarding_payments` tenant_id,
+  refunded_at, refund_reference, refund_error, refund_pending_at, refund_note,
+  refund_requested_by; `onboarding_applications` payment_notified_at;
+  `enforcement_settings` onboarding_trial_days_override; tenant_id backfill).
+  The migration holds an exclusive lock on `onboarding_payments` until it
+  commits. Build the indexes out of band first per
+  `docs/index-build-runbook.md`, auth statements first, then fleet.
+- The refund endpoint needs `PAYSTACK_SECRET_KEY` on the auth service (already
+  used for charges).
+- Go tables and columns are created on startup by `EnsureSchema`: new tables
+  `job_instruction_outcomes`, `notification_preferences`, `dead_letters`; new
+  columns `campaigns.consecutive_refusals`, `campaign_recipients.interrupted`
+  and `auto_retried`, `dispatch_jobs.late_alerted`, `job_offers.carrier_job_id`,
+  `tracking_quarantine.status` and `handled_at`. The `delivered_at` backfill
+  runs at dispatch startup. No manual Go migration.
+- NATS credentials for the notification service must allow subscribing to
+  `tm.system.dlq.>` and publishing to every original subject (replay) and
+  `tm.system.alert.raised`. `EVENT_SIGNING_SECRET` must be set (notification
+  and tracking).
+- New durable consumer `dead-letters`; new loops: instruction-outcome sweep
+  (30s), dead-letter purge (hourly); interrupted-retry runs on the 20s
+  scheduler tick.
+- Configure recipients for the `security_alerts` alert setting in auth, or the
+  noisy-IMEI alert is suppressed.
+- Order: auth (migration) first, then tracking with auth and admin web
+  together (the new auth device routes call the new tracking routes), then
+  admin and tenant web (they use the new `packages/api` types and requests).
+  Fleet needs no migration.
+- New routes: `/notify/preferences`, `/notify/system/dead-letters`,
+  `/notify/system/dead-letters/{id}/replay`, tracking quarantine
+  `dismiss`, `block` and `unblock`, auth
+  `/auth/system/devices/unrecognised/:imei/dismiss`, `/block` and `/unblock`,
+  `/auth/system/onboarding/applications/:id/payment/refund`.
+  WhatsApp and SMS offer alerts are charged to the tenant wallet.
 
 ### When picked up
 
-Items 15 and 14 (the out-of-band index build) before the next deploy. Items 2,
-5, 8 and 16 wait on outside systems (Paystack refund API, Meta approval,
-messaging channels, Traccar). Items 21, 22, 26, 28 and 32 need a product or
-ops decision first. The rest need no external work and are
+Items 9 and 8 before the next deploy. Items 2, 4, 7, 10 wait on outside
+systems (Paystack, Meta approval, messaging channels, Traccar). Items 3, 5, 11,
+16 need an owner decision first. The rest need no external work and are
 independent.
 
 ---
@@ -734,8 +711,9 @@ Each item now works end to end; the notes below are what it does not do.
   SMS per day) and "payment method on file" do not exist anywhere, so the card
   does not show them. Convert only records the plan the tenant is on; it does
   not raise an invoice or start a licence. Self-serve tenants now get a trial
-  row at onboarding approval (starter plan `trialDays`; the plan source is in
-  TD-21). Tenants that existed before this change have no trial row, and there
+  row at onboarding approval (starter plan `trialDays`, or the
+  `onboardingTrialDaysOverride` setting when set; the open rule is in TD-21).
+  Tenants that existed before this change have no trial row, and there
   is no "start a trial" action.
 
 **2. The data export is built inside the request.**

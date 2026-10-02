@@ -7,6 +7,9 @@ export {
   type PaidAmount,
   type PaymentCallback,
   type PaymentGateway,
+  type RefundCallback,
+  type RefundResult,
+  type RefundStatus,
 } from './payment-gateway.port';
 export { PaystackGateway } from './paystack.gateway';
 export { PaymentGatewayRegistry } from './payment-gateway.registry';

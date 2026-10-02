@@ -2586,7 +2586,21 @@ export class BundleRatesListResponse extends StandardApiResponse<BundleRatesList
 export class ImportSimsDataSchema {
   @ApiProperty() imported!: number;
   @ApiProperty() skipped!: number;
-  @ApiProperty() failed!: number;
+}
+
+export class ImportTenantSimsDataSchema {
+  @ApiProperty() importedCount!: number;
+  @ApiProperty() skippedCount!: number;
+  @ApiProperty() failedCount!: number;
+  @ApiProperty({ required: false, description: 'Rows that could not be read, one entry per row', type: [Object] })
+  errors?: Array<{ row: number; field: string; message: string }>;
+  @ApiProperty({ required: false, description: 'Rows left out because the SIM could not be added, such as an ICCID already registered', type: [Object] })
+  skipped?: Array<{ row: number; field: string; message: string }>;
+}
+
+export class ImportTenantSimsResponse extends StandardApiResponse<ImportTenantSimsDataSchema> {
+  @ApiProperty({ type: ImportTenantSimsDataSchema })
+  data!: ImportTenantSimsDataSchema;
 }
 
 export class ImportSimsResponse extends StandardApiResponse<ImportSimsDataSchema> {
@@ -2686,6 +2700,8 @@ export class IdResponse extends StandardApiResponse<IdDataSchema> {
 
 export class RegisterSimsResultDataSchema {
   @ApiProperty({ description: 'Number of SIMs registered' }) registered!: number;
+  @ApiProperty({ description: 'SIMs saved, one per accepted row', type: [Object] }) created!: Array<{ id: string; iccid: string }>;
+  @ApiProperty({ description: 'Rows not saved, for example an ICCID that already exists', type: [Object] }) skipped!: Array<{ iccid: string; reason: string }>;
 }
 
 export class RegisterSimsResultResponse extends StandardApiResponse<RegisterSimsResultDataSchema> {

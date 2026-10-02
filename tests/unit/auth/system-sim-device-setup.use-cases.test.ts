@@ -157,7 +157,7 @@ describe('SIM per-row action use-cases', () => {
   });
 
   it('returns SIM to the pool when tenant cleared', async () => {
-    await repo.save(buildSim({ id: 'sim-2', tenantId: 'tenant-1', deviceId: 'd', status: 'assigned' }));
+    await repo.save(buildSim({ id: 'sim-2', iccid: '8923400000000000002', tenantId: 'tenant-1', deviceId: 'd', status: 'assigned' }));
     const useCase = new ReassignSystemSimUseCase(systemActor() as never, systemUserRepo() as never, repo);
     const result = await useCase.execute(TOKEN, 'sim-2', { tenantId: null });
     expect(result.data.tenantId).toBeNull();

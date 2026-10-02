@@ -8,6 +8,8 @@ import {
   type ChargeInitiated,
   type ChargeRequest,
   type PaymentGateway,
+  type RefundResult,
+  type RefundStatus,
 } from './payment-gateway.port';
 
 type PaystackInitializeResponse = {
@@ -15,6 +17,22 @@ type PaystackInitializeResponse = {
   data?: { authorization_url: string; access_code: string; reference: string };
   message?: string;
 };
+
+type PaystackRefundResponse = {
+  status: boolean;
+  data?: { id?: number | string; status?: string };
+  message?: string;
+};
+
+function refundStatus(value: unknown): RefundStatus {
+  if (value === 'processed') return 'processed';
+  if (value === 'failed') return 'failed';
+  return 'pending';
+}
+
+const REFUND_EVENTS = ['refund.pending', 'refund.processed', 'refund.failed'];
+
+const REFUND_TIMEOUT_MS = 15_000;
 
 @Injectable()
 export class PaystackGateway implements PaymentGateway {
@@ -66,6 +84,45 @@ export class PaystackGateway implements PaymentGateway {
     };
   }
 
+  async refund(reference: string, amountKobo?: number): Promise<RefundResult> {
+    if (!this.isConfigured()) {
+      throw new PaymentGatewayError(this.name, 'Paystack is not configured');
+    }
+
+    const data = await this.postRefund(reference, amountKobo);
+
+    if (!data?.status) {
+      throw new PaymentGatewayError(this.name, data?.message ?? 'Paystack refused the refund');
+    }
+    const id = data.data?.id;
+    return {
+      status: refundStatus(data.data?.status),
+      providerRefundId: id === undefined ? null : String(id),
+    };
+  }
+
+  private async postRefund(reference: string, amountKobo?: number): Promise<PaystackRefundResponse | undefined> {
+    const baseUrl = this.config.payment.paystackBaseUrl.replace(/\/+$/, '');
+    try {
+      const { data } = await axios.post<PaystackRefundResponse>(
+        `${baseUrl}/refund`,
+        { transaction: reference, ...(amountKobo ? { amount: amountKobo } : {}) },
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.payment.paystackSecretKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: REFUND_TIMEOUT_MS,
+          validateStatus: () => true,
+        },
+      );
+      return data;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      throw new PaymentGatewayError(this.name, `Paystack did not answer (${reason}). Check the transaction on Paystack before retrying.`);
+    }
+  }
+
   verifyCallbackSignature(rawBody: string | Buffer, signature: string | undefined): boolean {
     const secretKey = this.config.payment.paystackSecretKey;
     if (!secretKey || !signature) return false;
@@ -83,6 +140,8 @@ export class PaystackGateway implements PaymentGateway {
 
   parseCallback(body: Record<string, unknown>): PaymentCallback | null {
     const data = body['data'] as Record<string, unknown> | undefined;
+    const event = body['event'];
+    if (typeof event === 'string' && REFUND_EVENTS.includes(event)) return this.parseRefund(event, data);
     const reference = typeof data?.['reference'] === 'string' ? data['reference'] : null;
     if (!reference) return null;
 
@@ -95,6 +154,25 @@ export class PaystackGateway implements PaymentGateway {
       amountKobo: Number.isInteger(data?.['amount']) ? (data?.['amount'] as number) : null,
       currency: typeof data?.['currency'] === 'string' ? data['currency'] : null,
       channel: typeof data?.['channel'] === 'string' ? data['channel'] : null,
+    };
+  }
+
+  private parseRefund(event: string, data: Record<string, unknown> | undefined): PaymentCallback {
+    const transaction = data?.['transaction_reference'];
+    const reference = typeof transaction === 'string' ? transaction : '';
+    const id = data?.['refund_reference'] ?? data?.['id'];
+    return {
+      provider: this.name,
+      succeeded: false,
+      reference,
+      refund: {
+        status: refundStatus(event.slice('refund.'.length)),
+        providerRefundId: typeof id === 'string' || typeof id === 'number' ? String(id) : null,
+      },
+      metadata: {},
+      amountKobo: null,
+      currency: null,
+      channel: null,
     };
   }
 }

@@ -129,3 +129,59 @@ export const NEW_APPLICATION_ALERT_TEMPLATE = `
 </body>
 </html>
 `;
+
+export const APPLICATION_PAYMENT_OPEN_SUBJECT =
+  'Your Fleet Pro application is ready for payment — TruckMoov';
+
+export const APPLICATION_PAYMENT_OPEN_TEMPLATE = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${SHELL_STYLES}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="body">
+      <h2>You can pay now</h2>
+      <p>Good news: the devices for {{organizationName}} are ready and your Fleet Pro application is waiting for payment. Pay to move on to booking your installation.</p>
+      <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Continue to payment</a></div>
+      <p class="fallback">{{resumeLink}}</p>
+      <p>This link replaces any earlier one, so older links no longer work. It is as good as a password: anyone holding it can see and change your application.</p>
+      <p class="meta">Application reference: {{reference}}</p>
+    </div>
+    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+  </div>
+</body>
+</html>
+`;
+
+export const APPLICATION_PAYMENT_REFUNDED_SUBJECT =
+  'Your payment has been refunded — TruckMoov';
+
+export const APPLICATION_PAYMENT_REFUNDED_TEMPLATE = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>${SHELL_STYLES}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="body">
+      <h2>Your payment is being refunded</h2>
+      <p>The payment we received for the Fleet Pro application for {{organizationName}} did not match the amount due, so we have refunded it. Your bank can take a few working days to show the money.</p>
+      <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Open my application</a></div>
+      <p class="fallback">{{resumeLink}}</p>
+      <p>To go ahead, open your application and pay the amount shown there. This link replaces any earlier one.</p>
+      <p class="meta">Application reference: {{reference}}</p>
+    </div>
+    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+  </div>
+</body>
+</html>
+`;

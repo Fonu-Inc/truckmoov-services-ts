@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DuplicateSimIccidError } from './sim.repository';
 import type { SimFilters, SimRepository, StoredSim, TenantSimCount } from './sim.repository';
 
 @Injectable()
@@ -55,6 +56,8 @@ export class InMemorySimRepository implements SimRepository {
   }
 
   async save(sim: StoredSim): Promise<void> {
+    const clash = [...this.store.values()].find((s) => s.iccid === sim.iccid && s.id !== sim.id);
+    if (clash) throw new DuplicateSimIccidError(sim.iccid);
     this.store.set(sim.id, sim);
   }
 

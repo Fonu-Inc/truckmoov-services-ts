@@ -23,6 +23,17 @@ export type ChargeInitiated = {
   provider: string;
 };
 
+export type RefundStatus = 'pending' | 'processed' | 'failed';
+
+export type RefundResult = {
+  status: RefundStatus;
+  /** The provider's id for the refund; null when it does not give one. */
+  providerRefundId: string | null;
+};
+
+/** A provider's report on a refund it was asked to make earlier. */
+export type RefundCallback = RefundResult;
+
 export class PaymentGatewayError extends Error {
   constructor(
     readonly provider: string,
@@ -40,6 +51,8 @@ export type PaymentCallback = {
   /** True only for an explicit provider failure event; other events are ignored. */
   failed?: boolean;
   reference: string;
+  /** Set for refund events, which carry the refunded charge's reference. */
+  refund?: RefundCallback;
   metadata: Record<string, unknown>;
   /** Kobo the provider says it collected; null when the event does not say. */
   amountKobo: number | null;
@@ -66,6 +79,8 @@ export interface PaymentGateway {
   /** False when credentials are absent, so a caller can degrade rather than throw. */
   isConfigured(): boolean;
   initiateCharge(request: ChargeRequest): Promise<ChargeInitiated>;
+  /** Asks the provider to return money taken on a charge. Omit the amount to refund it in full. A queued refund answers pending and is finished by a callback. Throws PaymentGatewayError when refused. */
+  refund(reference: string, amountKobo?: number): Promise<RefundResult>;
   /** Whether a callback body genuinely came from this provider. */
   verifyCallbackSignature(rawBody: string | Buffer, signature: string | undefined): boolean;
   /** Reads a verified callback into the shape the platform acts on. */

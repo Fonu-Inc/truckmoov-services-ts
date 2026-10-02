@@ -372,4 +372,27 @@ describe("Payment step", () => {
     await expect(pay.execute(billing)).rejects.toBeInstanceOf(ChargeRefusedError);
     expect(await payments.findLatestForApplication("app-1")).toBeNull();
   });
+
+  it("stamps the application's tenant on the payment it records", async () => {
+    await seed({ billingEmailVerifiedAt: new Date(), tenantId: "tenant-1" });
+    const gateway = {
+      name: "paystack",
+      isConfigured: () => true,
+      initiateCharge: async () => ({ reference: "r", authorizationUrl: "https://pay/here", provider: "paystack" }),
+    } as unknown as PaymentGateway;
+    const pay = new CreateApplicationPaymentUseCase(
+      applications,
+      plans,
+      payments,
+      gateway,
+      getView,
+      { generate: () => "pay-1" },
+      settings,
+      buildQuotationKit(plans, settings, payments).service,
+    );
+
+    await pay.execute(billing);
+
+    expect((await payments.findLatestForApplication("app-1"))?.tenantId).toBe("tenant-1");
+  });
 });

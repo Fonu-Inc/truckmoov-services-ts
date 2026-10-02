@@ -21,16 +21,13 @@ export class ExportBundleRatesUseCase {
   async execute(accessToken: string, filters?: Filters) {
     await resolveActorUser(accessToken, this.tokenService, this.userRepository);
 
-    const { items: allItems } = await this.bundleCatalogRepository.findAll({
+    const { items } = await this.bundleCatalogRepository.findAll({
       search: filters?.search,
       billingCycle: filters?.planType,
+      carrierIds: filters?.carriers?.length ? filters.carriers : undefined,
       activeOnly: true,
       limit: 10000,
     });
-
-    const items = filters?.carriers?.length
-      ? allItems.filter((b) => filters.carriers!.includes(b.carrierId))
-      : allItems;
 
     const rows = items.map((b) => [
       b.id,

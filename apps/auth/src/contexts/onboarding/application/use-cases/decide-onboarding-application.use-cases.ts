@@ -59,6 +59,7 @@ import {
   type TenantTrialRepository,
 } from '../../../../tenant-trial.repository';
 import { trialEndsAfter } from '../../../../tenant-trial';
+import { TrialDaysResolver } from '../../../../trial-days.resolver';
 
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;
@@ -126,6 +127,8 @@ export class ApproveOnboardingApplicationUseCase {
     private readonly subscriptionPlans: SubscriptionPlanRepository,
     @Inject(TENANT_TRIAL_REPOSITORY)
     private readonly trials: TenantTrialRepository,
+    @Inject(TrialDaysResolver)
+    private readonly trialDaysResolver: TrialDaysResolver,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -271,16 +274,14 @@ export class ApproveOnboardingApplicationUseCase {
   /**
    * Self-serve tenants get the same trial an admin-created tenant gets from
    * its plan. The licence an applicant buys carries no trial; the starter
-   * subscription plan, which every new tenant begins on, does.
+   * subscription plan, which every new tenant begins on, does. See
+   * TrialDaysResolver for the order the length is decided in.
    */
   private async startTrial(tenantId: string, now: Date): Promise<void> {
-    const plan = await this.subscriptionPlans.findByTier('starter');
-    if (!plan?.trialDays || plan.trialDays <= 0) return;
-    await this.trials.startIfAbsent(
-      tenantId,
-      now,
-      trialEndsAfter(now, plan.trialDays),
-    );
+    const starter = await this.subscriptionPlans.findByTier('starter');
+    const trialDays = await this.trialDaysResolver.resolve(starter);
+    if (!trialDays || trialDays <= 0) return;
+    await this.trials.startIfAbsent(tenantId, now, trialEndsAfter(now, trialDays));
   }
 
   private assertDocumentsSettled(

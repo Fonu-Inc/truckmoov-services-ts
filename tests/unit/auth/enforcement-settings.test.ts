@@ -52,6 +52,24 @@ describe("enforcement settings", () => {
     });
   });
 
+  it("defaults the self-serve trial override to none, then sets and clears it", async () => {
+    const { get, update, entries } = setup();
+    expect((await get.execute(actor("SUPER_ADMIN"))).data.onboardingTrialDaysOverride).toBeNull();
+
+    const set = await update.execute(actor("SYSTEM_ADMIN"), { onboardingTrialDaysOverride: 30, reason });
+    expect(set.data.onboardingTrialDaysOverride).toBe(30);
+
+    const cleared = await update.execute(actor("SYSTEM_ADMIN"), { onboardingTrialDaysOverride: null, reason });
+    expect(cleared.data.onboardingTrialDaysOverride).toBeNull();
+    expect(entries).toHaveLength(2);
+  });
+
+  it("rejects a trial override outside 1 to 90 days", async () => {
+    const { update } = setup();
+    await expect(update.execute(actor("SYSTEM_ADMIN"), { onboardingTrialDaysOverride: 0, reason })).rejects.toThrow();
+    await expect(update.execute(actor("SYSTEM_ADMIN"), { onboardingTrialDaysOverride: 91, reason })).rejects.toThrow();
+  });
+
   it("writes nothing when values are unchanged", async () => {
     const { update, entries } = setup();
     await update.execute(actor("SUPER_ADMIN"), { graceDays: 3, paused: false, reason });

@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Body,
   ConflictException,
@@ -29,6 +30,7 @@ import {
   ApprovedApplicationResponse,
   ChangesRequestedResponse,
   DocumentDecisionResponse,
+  PaymentRefundedResponse,
   PaymentReviewedResponse,
   ProvisionedResponse,
   RejectedApplicationResponse,
@@ -57,7 +59,12 @@ import {
   OnboardingValidationError,
   ONBOARDING_APPLICANT_TYPES,
   PaymentNotInMismatchError,
+  PaymentNotRefundableError,
   ProvisioningReasonRequiredError,
+  RefundInProgressError,
+  RefundOnboardingPaymentUseCase,
+  RefundRefusedError,
+  RefundStateConflictError,
   ONBOARDING_APPLICATION_STATUSES,
   RejectOnboardingApplicationUseCase,
   RequestOnboardingApplicationChangesUseCase,
@@ -135,6 +142,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly completeProvisioning: CompleteProvisioningUseCase,
     @Inject(ReviewOnboardingPaymentMismatchUseCase)
     private readonly reviewPayment: ReviewOnboardingPaymentMismatchUseCase,
+    @Inject(RefundOnboardingPaymentUseCase)
+    private readonly refundPayment: RefundOnboardingPaymentUseCase,
   ) {
     super(activityLogService);
   }
@@ -457,7 +466,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     });
   }
 
-  @Post(':applicationId/payment/review')
+  @Post([':applicationId/payment/review', ':applicationId/payment/:paymentId/review'])
   @ApiOperation({
     summary: 'Review a wrong-amount payment',
     description:
@@ -479,6 +488,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
   @ApiErrorResponse(409, '"This application has no payment waiting for review"')
   async reviewPaymentMismatch(
     @Param('applicationId') applicationId: string,
+    @Param('paymentId') paymentId: string | undefined,
     @Body(BodyOrDataPipe) payload: { outcome?: string; note?: string },
     @Headers('authorization') authorization?: string,
   ) {
@@ -487,6 +497,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       const result = await this.reviewPayment.execute({
         accessToken,
         applicationId,
+        paymentId,
         outcome: payload?.outcome,
         note: payload?.note,
       });
@@ -494,8 +505,56 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         accessToken,
         applicationId,
         'payment.mismatch_reviewed',
-        { outcome: result.data.outcome, note: result.data.note, reference: result.data.reference },
+        { outcome: result.data.outcome, note: result.data.note, reference: result.data.reference, paymentId: result.data.paymentId },
       );
+      return result;
+    });
+  }
+
+  @Post([':applicationId/payment/refund', ':applicationId/payment/:paymentId/refund'])
+  @ApiOperation({
+    summary: 'Refund a wrong-amount payment',
+    description:
+      'Asks the payment provider to send the money back for a payment marked as needing a refund. Without a paymentId it targets the newest onboarding payment in mismatch. The applicant is emailed once the provider confirms the refund, which can take a while: until then the response says processing. Safe to repeat: a refunded payment answers success. If the provider refuses, the reason is kept on the payment. Renewal payments are refused.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['note'],
+      properties: { note: { type: 'string', example: 'Customer paid the old price; refunding in full' } },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Refund issued', type: PaymentRefundedResponse })
+  @ApiErrorResponse(400, 'note is not 5 to 500 characters; field names which.', OnboardingFieldErrorBody)
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, '"Only a wrong-amount payment marked as needing a refund can be refunded", "Refund already in progress", or the provider refunded a payment that is no longer in mismatch (flagged for review)')
+  @ApiErrorResponse(502, '"The payment provider refused the refund: <reason>"')
+  async refundPaymentMismatch(
+    @Param('applicationId') applicationId: string,
+    @Param('paymentId') paymentId: string | undefined,
+    @Body(BodyOrDataPipe) payload: { note?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      const { actorId, ...result } = await this.refundPayment.execute({
+        accessToken,
+        applicationId,
+        paymentId,
+        note: payload?.note,
+      });
+      const metadata = {
+        paymentId: result.data.paymentId,
+        refundStatus: result.data.refundStatus,
+        note: result.data.note,
+        reference: result.data.reference,
+        refundReference: result.data.refundReference,
+        alreadyRefunded: result.data.alreadyRefunded,
+      };
+      const recorded = await this.recordDecision(accessToken, applicationId, 'payment.refunded', metadata);
+      if (!recorded) {
+        this.logger.error(`onboarding_refund_audit_lost:${applicationId}:actor=${actorId}:${JSON.stringify(metadata)}`);
+      }
       return result;
     });
   }
@@ -511,16 +570,13 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     applicationId: string,
     action: string,
     metadata: Record<string, unknown> = {},
-  ): Promise<void> {
-    await this.tryRecordActivity({
-      tenantId: 'system',
+  ): Promise<boolean> {
+    return this.tryRecordActivityFromAccessToken(accessToken, {
       service: 'auth',
       action: `onboarding.${action}`,
       entityType: 'onboarding_application',
       entityId: applicationId,
       summary: `Onboarding ${action.replace(/[._]/g, ' ')}`,
-      actorId: null,
-      actorRole: null,
       metadata: { applicationId, ...metadata },
     });
   }
@@ -550,11 +606,15 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         error instanceof ApplicationNotUnderReviewError ||
         error instanceof ApplicationNotProvisionableError ||
         error instanceof PaymentNotInMismatchError ||
+        error instanceof PaymentNotRefundableError ||
+        error instanceof RefundInProgressError ||
+        error instanceof RefundStateConflictError ||
         error instanceof BusinessEmailInUseError ||
         error instanceof SetupLinkNotResendableError
       ) {
         throw new ConflictException(error.message);
       }
+      if (error instanceof RefundRefusedError) throw new BadGatewayException(error.message);
       throw error;
     }
   }

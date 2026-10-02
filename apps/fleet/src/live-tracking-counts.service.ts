@@ -9,9 +9,17 @@ import { randomUUID } from "node:crypto";
 import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
+  VEHICLE_REPOSITORY,
+  type VehicleRepository,
+} from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import {
   DISPATCH_JOBS_READER,
   type DispatchJobsReader,
 } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
+import {
+  VEHICLE_POSITIONS_READER,
+  type VehiclePositionsReader,
+} from "./contexts/fleet/reports/domain/ports/vehicle-positions-reader.port";
 import { activeJobByVehicle } from "./contexts/fleet/tracking/domain/active-jobs";
 import {
   countLiveStatuses,
@@ -25,7 +33,7 @@ const ACTIVE_JOBS_REFRESH_MS = 30_000;
 
 type TrackedVehicle = {
   tenantId: string;
-  lastFixAt: string;
+  lastFixAt: string | null;
   speedKph: number | null;
   hasActiveJob: boolean;
   status: LiveVehicleStatus;
@@ -56,6 +64,8 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
+    @Inject(VEHICLE_REPOSITORY) private readonly vehicleList: VehicleRepository,
+    @Inject(VEHICLE_POSITIONS_READER) private readonly positions: VehiclePositionsReader,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -102,6 +112,7 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
     const last = this.jobsRefreshedAt.get(tenantId) ?? 0;
     if (this.jobsRefreshing.has(tenantId) || Date.now() - last < ACTIVE_JOBS_REFRESH_MS) return;
     this.jobsRefreshing.add(tenantId);
+    await this.seedVehicles(tenantId);
     try {
       const jobs = await this.dispatchJobs.listJobs(tenantId);
       this.jobsRefreshedAt.set(tenantId, Date.now());
@@ -112,6 +123,47 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
       );
     } finally {
       this.jobsRefreshing.delete(tenantId);
+    }
+  }
+
+  /**
+   * Adds the tenant's registered vehicles it has not heard from since starting,
+   * from their latest stored positions so a restart does not read as offline,
+   * and drops never-reported ones that no longer exist.
+   */
+  private async seedVehicles(tenantId: string): Promise<void> {
+    try {
+      const ids = new Set(await this.vehicleList.listIdsByTenant(tenantId));
+      const unseen = [...ids].filter((id) => !this.vehicles.has(this.keyFor(tenantId, id)));
+      if (unseen.length > 0) await this.seedUnseen(tenantId, unseen);
+      this.dropRemovedVehicles(tenantId, ids);
+    } catch (error) {
+      this.logger.warn(
+        `tracking_counts_vehicles_seed_failed:${tenantId}:${error instanceof Error ? error.message : "unknown"}`,
+      );
+    }
+  }
+
+  private async seedUnseen(tenantId: string, ids: string[]): Promise<void> {
+    const latest = await this.positions.listLatestPositions(tenantId);
+    const byVehicle = new Map(latest.map((position) => [String(position.vehicleId), position]));
+    for (const id of ids) {
+      const position = byVehicle.get(id);
+      const fixedAt = position && Number.isNaN(Date.parse(position.recordedAt)) ? null : (position?.recordedAt ?? null);
+      this.vehicles.set(this.keyFor(tenantId, id), {
+        tenantId,
+        lastFixAt: fixedAt,
+        speedKph: fixedAt && typeof position?.speedKph === "number" ? position.speedKph : null,
+        hasActiveJob: false,
+        status: "offline",
+      });
+    }
+  }
+
+  private dropRemovedVehicles(tenantId: string, registeredIds: Set<string>): void {
+    for (const [key, tracked] of this.vehicles) {
+      if (tracked.tenantId !== tenantId || tracked.lastFixAt !== null) continue;
+      if (!registeredIds.has(key.slice(tenantId.length + 1))) this.vehicles.delete(key);
     }
   }
 

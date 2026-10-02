@@ -22,14 +22,14 @@ const asDate = (value: unknown) => new Date(value as string | number | Date);
 const asNullableString = (value: unknown) => (value == null ? null : String(value));
 
 const SOURCE = `from (
-  select p.id, p.application_id, p.reference, p.provider, p.amount_kobo,
+  select p.id, p.application_id, p.tenant_id, p.reference, p.provider, p.amount_kobo,
     p.authorization_url, p.billing_email, p.plan_code, p.device_count, p.order_summary,
     p.quotation_id, p.invoice_id, p.method, p.note, p.auto_reconciled, p.status,
     p.paid_at, p.created_at, p.updated_at, p.customer_name as stored_customer_name,
     coalesce(p.customer_name, q.customer_name, a.organization_name, '') as customer_name,
     q.number as quotation_number, i.number as invoice_number,
     coalesce(p.order_summary->>'planName', m.name, p.plan_code) as product_name,
-    coalesce(i.tenant_id, q.tenant_id, a.tenant_id) as owner_tenant_id,
+    coalesce(p.tenant_id, i.tenant_id, q.tenant_id, a.tenant_id) as owner_tenant_id,
     exists (select 1 from billing_invoice_lines l
              where l.invoice_id = p.invoice_id and l.kind = 'plan' and l.is_renewal) as is_renewal
   from onboarding_payments p
@@ -103,6 +103,7 @@ function toPayment(r: Row): StoredOnboardingPayment {
   return {
     id: String(r.id),
     applicationId: String(r.application_id),
+    tenantId: asNullableString(r.tenant_id),
     reference: String(r.reference),
     provider: String(r.provider),
     amountKobo: Number(r.amount_kobo),

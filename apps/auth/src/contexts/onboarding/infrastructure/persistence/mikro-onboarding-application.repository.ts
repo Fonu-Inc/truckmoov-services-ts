@@ -62,6 +62,7 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     setupLinkSentAt: r.setupLinkSentAt ?? null,
     setupLinkError: r.setupLinkError ?? null,
     setupLinkAttempts: r.setupLinkAttempts ?? 0,
+    paymentNotifiedAt: r.paymentNotifiedAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -163,6 +164,17 @@ export class MikroOnboardingApplicationRepository
     Object.assign(target, application);
     if (!existing) em.persist(target);
     await em.flush();
+  }
+
+  async claimPaymentNotice(id: string, at: Date): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
+      `update onboarding_applications set payment_notified_at = ?
+       where id = ? and payment_notified_at is null
+       returning id`,
+      [at, id],
+    );
+    return rows.length === 1;
   }
 
   async findById(id: string): Promise<StoredOnboardingApplication | null> {

@@ -69,7 +69,7 @@ describe("single SIM suspension keeps its own cause", () => {
   it("a tenant can reactivate its own SIM but not one the billing hold paused", async () => {
     const repo = new InMemorySimRepository();
     await repo.save(sim({ id: "own", status: "suspended", suspensionCause: "asset_manual", preSuspensionStatus: "assigned" }));
-    await repo.save(sim({ id: "held", status: "suspended", suspensionCause: "non_payment", preSuspensionStatus: "assigned" }));
+    await repo.save(sim({ id: "held", iccid: "i2", status: "suspended", suspensionCause: "non_payment", preSuspensionStatus: "assigned" }));
     const { publisher } = events();
     const useCase = new ReactivateTenantSimUseCase(tenantTokens as never, tenantUser as never, repo, publisher);
 

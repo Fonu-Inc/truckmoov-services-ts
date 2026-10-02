@@ -26,4 +26,6 @@ export interface OnboardingDecisionNotifier {
   sendRejected(input: ApplicationDecisionEmail): Promise<void>;
   sendChangesRequested(input: ApplicationChangesRequestedEmail): Promise<void>;
   sendResumeLink(input: ApplicationResumeEmail): Promise<void>;
+  sendPaymentOpen(input: ApplicationResumeEmail): Promise<void>;
+  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<void>;
 }

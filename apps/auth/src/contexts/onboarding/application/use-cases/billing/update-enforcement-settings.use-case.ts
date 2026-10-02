@@ -19,13 +19,14 @@ export type UpdateEnforcementSettingsInput = {
   autoSuspendEnabled?: unknown;
   autoSuspendCapPerRun?: unknown;
   paused?: unknown;
+  onboardingTrialDaysOverride?: unknown;
   reason?: unknown;
 };
 
 type SettingKey = keyof EnforcementSettingsPatch;
-type Change = { key: SettingKey; from: number | boolean; to: number | boolean };
+type Change = { key: SettingKey; from: number | boolean | null; to: number | boolean | null };
 
-const SETTING_KEYS: SettingKey[] = ['graceDays', 'renewalLeadDays', 'autoSuspendEnabled', 'autoSuspendCapPerRun', 'paused'];
+const SETTING_KEYS: SettingKey[] = ['graceDays', 'renewalLeadDays', 'autoSuspendEnabled', 'autoSuspendCapPerRun', 'paused', 'onboardingTrialDaysOverride'];
 
 const LABELS: Record<SettingKey, string> = {
   graceDays: 'grace days',
@@ -33,6 +34,7 @@ const LABELS: Record<SettingKey, string> = {
   autoSuspendEnabled: 'automatic suspension',
   autoSuspendCapPerRun: 'customers per run limit',
   paused: 'pause all automatic actions',
+  onboardingTrialDaysOverride: 'self-serve trial length (days, empty follows the starter plan)',
 };
 
 function wholeNumber(value: unknown, range: { min: number; max: number }, label: string): number {
@@ -69,6 +71,16 @@ export function parseEnforcementPatch(input: UpdateEnforcementSettingsInput): En
   }
   if (input.autoSuspendEnabled !== undefined) {
     patch.autoSuspendEnabled = flag(input.autoSuspendEnabled, 'Automatic suspension');
+  }
+  if (input.onboardingTrialDaysOverride !== undefined) {
+    patch.onboardingTrialDaysOverride =
+      input.onboardingTrialDaysOverride === null
+        ? null
+        : wholeNumber(
+            input.onboardingTrialDaysOverride,
+            ENFORCEMENT_LIMITS.onboardingTrialDaysOverride,
+            'Self-serve trial length',
+          );
   }
   if (input.paused !== undefined) patch.paused = flag(input.paused, 'Pause all automatic actions');
   if (Object.keys(patch).length === 0) {
@@ -108,6 +120,7 @@ export function assertMayApply(actor: BillingActor, changes: Change[]): void {
 }
 
 function describe(change: Change): string {
+  if (change.to === null) return `${LABELS[change.key]} cleared`;
   if (typeof change.to === 'boolean') {
     const state = change.to ? 'on' : 'off';
     return `${LABELS[change.key]} turned ${state}`;

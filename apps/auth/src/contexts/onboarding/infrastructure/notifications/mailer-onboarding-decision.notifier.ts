@@ -4,6 +4,10 @@ import { MailerService } from '@shared/mailer';
 import {
   APPLICATION_CHANGES_REQUESTED_SUBJECT,
   APPLICATION_CHANGES_REQUESTED_TEMPLATE,
+  APPLICATION_PAYMENT_OPEN_SUBJECT,
+  APPLICATION_PAYMENT_OPEN_TEMPLATE,
+  APPLICATION_PAYMENT_REFUNDED_SUBJECT,
+  APPLICATION_PAYMENT_REFUNDED_TEMPLATE,
   APPLICATION_REJECTED_SUBJECT,
   APPLICATION_REJECTED_TEMPLATE,
   APPLICATION_RESUME_SUBJECT,
@@ -59,21 +63,25 @@ export class MailerOnboardingDecisionNotifier
     );
   }
 
-  async sendResumeLink(input: ApplicationResumeEmail): Promise<void> {
-    await this.send(
-      input.email,
-      APPLICATION_RESUME_SUBJECT,
-      APPLICATION_RESUME_TEMPLATE,
-      {
-        organizationName: input.organizationName,
-        reference: input.reference,
-        resumeLink: this.buildResumeLink(
-          input.applicationId,
-          input.applicationToken,
-        ),
-        year: String(new Date().getFullYear()),
-      },
-    );
+  sendResumeLink(input: ApplicationResumeEmail): Promise<void> {
+    return this.sendLink(input, APPLICATION_RESUME_SUBJECT, APPLICATION_RESUME_TEMPLATE);
+  }
+
+  sendPaymentOpen(input: ApplicationResumeEmail): Promise<void> {
+    return this.sendLink(input, APPLICATION_PAYMENT_OPEN_SUBJECT, APPLICATION_PAYMENT_OPEN_TEMPLATE);
+  }
+
+  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<void> {
+    return this.sendLink(input, APPLICATION_PAYMENT_REFUNDED_SUBJECT, APPLICATION_PAYMENT_REFUNDED_TEMPLATE);
+  }
+
+  private sendLink(input: ApplicationResumeEmail, subject: string, template: string): Promise<void> {
+    return this.send(input.email, subject, template, {
+      organizationName: input.organizationName,
+      reference: input.reference,
+      resumeLink: this.buildResumeLink(input.applicationId, input.applicationToken),
+      year: String(new Date().getFullYear()),
+    });
   }
 
   /**
@@ -82,9 +90,9 @@ export class MailerOnboardingDecisionNotifier
    * verified during the application.
    */
   private buildResumeLink(applicationId: string, applicationToken: string): string {
-    const link = new URL('/onboarding/resume', this.config.app.tenantAppUrl);
-    link.searchParams.set('application', applicationId);
+    const link = new URL('/apply', this.config.app.tenantAppUrl);
     link.searchParams.set('token', applicationToken);
+    link.searchParams.set('applicationId', applicationId);
     return link.toString();
   }
 

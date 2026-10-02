@@ -7,7 +7,7 @@ import type { TenantCollectionsRepository, TenantLastPayment } from './tenant-co
 type Row = Record<string, unknown>;
 
 const ATTRIBUTED_PAYMENTS = `
-  select coalesce(i.tenant_id, a.tenant_id) as tenant_id, p.amount_kobo, p.paid_at, p.method
+  select coalesce(p.tenant_id, i.tenant_id, a.tenant_id) as tenant_id, p.amount_kobo, p.paid_at, p.method
   from onboarding_payments p
   left join billing_invoices i on i.id = p.invoice_id
   left join onboarding_applications a on a.id = p.application_id

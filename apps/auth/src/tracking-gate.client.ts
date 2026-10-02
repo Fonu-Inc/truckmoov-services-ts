@@ -3,6 +3,8 @@ import axios from 'axios';
 import { AppConfigService } from '@shared/config';
 import { type ServiceCaller, SYSTEM_TENANT_ID, createServiceCaller } from '@shared/identity';
 
+const QUARANTINE_NOT_FOUND_TEXT = 'unrecognised device not found';
+
 export type GateBlockedDevice = {
   deviceId: string;
   imei: string;
@@ -33,7 +35,15 @@ export type QuarantinedDevice = {
   firstSeenAt: string;
   lastSeenAt: string;
   messageCount: number;
+  status: 'active' | 'dismissed' | 'blocked';
+  handledAt?: string;
 };
+
+export type QuarantineAction = 'dismiss' | 'block' | 'unblock';
+
+export type QuarantineActionResult =
+  | { ok: true; status: QuarantinedDevice['status'] }
+  | { ok: false; status: number; message: string };
 
 @Injectable()
 export class TrackingGateClient {
@@ -95,6 +105,29 @@ export class TrackingGateClient {
     } catch (error) {
       this.logger.warn(`tracking_quarantine_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return null;
+    }
+  }
+
+  async actOnQuarantined(imei: string, action: QuarantineAction): Promise<QuarantineActionResult> {
+    const headers = this.caller.headers('tracking', { tenantId: SYSTEM_TENANT_ID, legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return { ok: false, status: 503, message: 'Tracking cannot be reached right now' };
+    try {
+      const response = await axios.post<{ message?: string; data?: { status?: QuarantinedDevice['status'] } }>(
+        `${this.config.auth.trackingServiceUrl}/tracking/internal/quarantine/${encodeURIComponent(imei)}/${action}`,
+        undefined,
+        { headers, timeout: 4000, validateStatus: () => true },
+      );
+      if (response.status === 200) return { ok: true, status: response.data?.data?.status ?? 'active' };
+      if (response.status === 409) {
+        return { ok: false, status: 409, message: response.data?.message ?? 'The device cannot take that action' };
+      }
+      if (response.status === 404 && response.data?.message?.trim().toLowerCase() === QUARANTINE_NOT_FOUND_TEXT) {
+        return { ok: false, status: 404, message: 'That device is no longer in the list' };
+      }
+      return { ok: false, status: 503, message: 'Tracking could not update the device' };
+    } catch (error) {
+      this.logger.warn(`tracking_quarantine_action_failed:${error instanceof Error ? error.message : 'unknown'}`);
+      return { ok: false, status: 503, message: 'Tracking cannot be reached right now' };
     }
   }
 }

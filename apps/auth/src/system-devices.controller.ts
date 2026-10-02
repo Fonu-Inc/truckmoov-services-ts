@@ -70,9 +70,18 @@ import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { ListStillReportingDevicesUseCase } from './list-still-reporting-devices.use-case';
 import { ListUnrecognisedDevicesUseCase } from './list-unrecognised-devices.use-case';
+import { ManageUnrecognisedDeviceUseCase } from './manage-unrecognised-device.use-case';
+import { UnrecognisedDeviceActionDto } from './dto/unrecognised-device-action.dto';
+import type { QuarantineAction } from './tracking-gate.client';
 import { SystemDeviceModelConflictError, SystemDeviceModelNotFoundError } from './system-device-model.errors';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
 import { Portals, OnResource } from '@shared/access';
+
+const QUARANTINE_AUDIT: Record<QuarantineAction, { action: string; summary: string }> = {
+  dismiss: { action: 'dismissed', summary: 'Unrecognised device dismissed' },
+  block: { action: 'blocked', summary: 'Unrecognised device blocked' },
+  unblock: { action: 'unblocked', summary: 'Unrecognised device unblocked' },
+};
 
 @ApiTags('System Devices')
 @Portals('admin')
@@ -94,6 +103,7 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(UpdateSystemDeviceModelUseCase) private readonly updateSystemDeviceModelUseCase: UpdateSystemDeviceModelUseCase,
     @Inject(ListStillReportingDevicesUseCase) private readonly listStillReportingDevicesUseCase: ListStillReportingDevicesUseCase,
     @Inject(ListUnrecognisedDevicesUseCase) private readonly listUnrecognisedDevicesUseCase: ListUnrecognisedDevicesUseCase,
+    @Inject(ManageUnrecognisedDeviceUseCase) private readonly manageUnrecognisedDeviceUseCase: ManageUnrecognisedDeviceUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
     @Inject(ExportSystemDeviceCatalogUseCase) private readonly exportSystemDeviceCatalogUseCase: ExportSystemDeviceCatalogUseCase,
     @Inject(SuspendSystemDeviceUseCase) private readonly suspendSystemDeviceUseCase: SuspendSystemDeviceUseCase,
@@ -300,6 +310,87 @@ export class SystemDevicesController extends BaseAuthController {
         throw new ForbiddenException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('unrecognised/:imei/dismiss')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Dismiss an unrecognised device',
+    description: 'Marks the sender as reviewed. Its data stays held back and it is cleared after 30 days.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to manage unrecognised devices' })
+  @ApiNotFoundResponse({ description: 'The sender is not in the list' })
+  async dismissUnrecognised(
+    @Param('imei') imei: string,
+    @Body(BodyOrDataPipe) payload: UnrecognisedDeviceActionDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.actOnUnrecognised(imei, 'dismiss', payload, authorization);
+  }
+
+  @Post('unrecognised/:imei/block')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Block an unrecognised device',
+    description: 'Refuses the sender at ingest from now on. Its messages are no longer counted or listed again.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to manage unrecognised devices' })
+  @ApiNotFoundResponse({ description: 'The sender is not in the list' })
+  async blockUnrecognised(
+    @Param('imei') imei: string,
+    @Body(BodyOrDataPipe) payload: UnrecognisedDeviceActionDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.actOnUnrecognised(imei, 'block', payload, authorization);
+  }
+
+  @Post('unrecognised/:imei/unblock')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Unblock an unrecognised device',
+    description: 'Lifts the block and puts the sender back in the open list. It is held back, not stored, until it is registered.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to manage unrecognised devices' })
+  @ApiNotFoundResponse({ description: 'The sender is not in the list' })
+  async unblockUnrecognised(
+    @Param('imei') imei: string,
+    @Body(BodyOrDataPipe) payload: UnrecognisedDeviceActionDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.actOnUnrecognised(imei, 'unblock', payload, authorization);
+  }
+
+  private async actOnUnrecognised(
+    imei: string,
+    action: QuarantineAction,
+    payload: UnrecognisedDeviceActionDto,
+    authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const { actorId, ...result } = await this.manageUnrecognisedDeviceUseCase.execute(accessToken, imei, action, payload?.reason);
+      const reason = payload.reason.trim();
+      const recorded = await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: `system.device.unrecognised.${QUARANTINE_AUDIT[action].action}`,
+        entityType: 'device',
+        entityId: imei,
+        summary: QUARANTINE_AUDIT[action].summary,
+        metadata: { reason },
+      });
+      if (!recorded) {
+        this.logger.error(`quarantine_audit_lost:${action}:${imei}:actor=${actorId}:reason=${reason}`);
+      }
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
       throw error;
     }
   }
@@ -750,6 +841,7 @@ export class SystemDevicesController extends BaseAuthController {
     if (error instanceof DeviceSuspensionRefusedError) {
       if (error.httpStatus === 404) throw new NotFoundException(error.message);
       if (error.httpStatus === 400) throw new BadRequestException(error.message);
+      if (error.httpStatus === 409) throw new ConflictException(error.message);
       throw new ServiceUnavailableException(error.message);
     }
   }

@@ -46,6 +46,13 @@ export class InMemoryOnboardingApplicationRepository
     this.applications.set(application.id, { ...application });
   }
 
+  async claimPaymentNotice(id: string, at: Date): Promise<boolean> {
+    const application = this.applications.get(id);
+    if (!application || application.paymentNotifiedAt) return false;
+    application.paymentNotifiedAt = at;
+    return true;
+  }
+
   async findById(id: string): Promise<StoredOnboardingApplication | null> {
     return this.applications.get(id) ?? null;
   }

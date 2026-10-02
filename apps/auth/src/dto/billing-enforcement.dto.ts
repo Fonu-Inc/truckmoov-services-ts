@@ -16,6 +16,12 @@ export class UpdateEnforcementSettingsDto {
   @IsOptional() autoSuspendCapPerRun?: number;
   @ApiPropertyOptional({ description: 'Pause all automatic notices and suspensions. Resuming needs a super admin.' })
   @IsOptional() paused?: boolean;
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Trial days for self-serve tenants, 1 to 90. Null follows the starter plan.',
+  })
+  @IsOptional() onboardingTrialDaysOverride?: number | null;
   @ApiProperty({ description: 'Why the change is made, 5 to 500 characters.' })
   @IsOptional() reason?: string;
 }
@@ -41,6 +47,7 @@ class LimitsSchema {
   @ApiProperty({ type: LimitSchema }) graceDays!: LimitSchema;
   @ApiProperty({ type: LimitSchema }) renewalLeadDays!: LimitSchema;
   @ApiProperty({ type: LimitSchema }) autoSuspendCapPerRun!: LimitSchema;
+  @ApiProperty({ type: LimitSchema }) onboardingTrialDaysOverride!: LimitSchema;
 }
 
 export class EnforcementSettingsSchema {
@@ -49,6 +56,7 @@ export class EnforcementSettingsSchema {
   @ApiProperty() autoSuspendEnabled!: boolean;
   @ApiProperty() autoSuspendCapPerRun!: number;
   @ApiProperty() paused!: boolean;
+  @ApiProperty({ type: Number, nullable: true }) onboardingTrialDaysOverride!: number | null;
   @ApiProperty({ type: String, nullable: true }) updatedAt!: string | null;
   @ApiProperty({ type: String, nullable: true }) updatedBy!: string | null;
   @ApiProperty({ type: LimitsSchema }) limits!: LimitsSchema;

@@ -22,6 +22,9 @@ class OtherGateway implements PaymentGateway {
   async initiateCharge(): Promise<never> {
     throw new Error('not used');
   }
+  async refund(): Promise<never> {
+    throw new Error('not used');
+  }
   verifyCallbackSignature(rawBody: string | Buffer, signature: string | undefined): boolean {
     if (!signature) return false;
     return createHmac('sha512', OTHER_SECRET).update(rawBody).digest('hex') === signature;

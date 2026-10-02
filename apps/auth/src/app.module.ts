@@ -150,6 +150,7 @@ import {
 } from './in-memory-enforcement-automation.repositories';
 import { ENFORCEMENT_NOTIFIER } from './contexts/onboarding/domain/ports/enforcement-notifier.port';
 import { MailerEnforcementNotifier } from './contexts/onboarding/infrastructure/notifications/mailer-enforcement.notifier';
+import { TrialDaysResolver } from './trial-days.resolver';
 import { ENFORCEMENT_SETTINGS_REPOSITORY } from './enforcement-settings.repository';
 import { MikroEnforcementSettingsRepository } from './mikro-enforcement-settings.repository';
 import {
@@ -561,6 +562,7 @@ import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { ListStillReportingDevicesUseCase } from './list-still-reporting-devices.use-case';
 import { ListUnrecognisedDevicesUseCase } from './list-unrecognised-devices.use-case';
+import { ManageUnrecognisedDeviceUseCase } from './manage-unrecognised-device.use-case';
 import { TrackingGateClient } from './tracking-gate.client';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
@@ -723,6 +725,9 @@ import {
   OnboardingProvisioningService,
   OnboardingStageSweepService,
   ReviewOnboardingPaymentMismatchUseCase,
+  RefundOnboardingPaymentUseCase,
+  ApplicationPaymentNoticeService,
+  RefundSettlementService,
   ApplyAutomatedDecisionUseCase,
   DojahKybAdapter,
   InMemoryVerificationResultRepository,
@@ -1468,6 +1473,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     CreateSystemAdminUseCase,
     CreateSystemAdminInviteUseCase,
     CreateSystemTenantUseCase,
+    TrialDaysResolver,
     CreateSystemDeviceModelUseCase,
     CancelSystemAdminInviteUseCase,
     DeleteSystemTenantUseCase,
@@ -1689,6 +1695,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListSystemDeviceInventoryUseCase,
     ListStillReportingDevicesUseCase,
     ListUnrecognisedDevicesUseCase,
+    ManageUnrecognisedDeviceUseCase,
     TrackingGateClient,
     GetSystemDeviceDetailUseCase,
     ListSystemFeatureFlagsUseCase,
@@ -2251,6 +2258,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     OnboardingProvisioningService,
     OnboardingStageSweepService,
     ReviewOnboardingPaymentMismatchUseCase,
+    RefundOnboardingPaymentUseCase,
+    ApplicationPaymentNoticeService,
+    RefundSettlementService,
     HttpDocumentExtractor,
     { provide: DOCUMENT_EXTRACTOR, useExisting: HttpDocumentExtractor },
     QoreIdKybAdapter,

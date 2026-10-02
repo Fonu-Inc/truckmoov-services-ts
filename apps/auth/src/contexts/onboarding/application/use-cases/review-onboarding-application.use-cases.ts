@@ -29,7 +29,7 @@ import {
   ONBOARDING_PAYMENT_REPOSITORY,
   type OnboardingPaymentRepository,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
-import { toPaymentReviewView } from './review-onboarding-payment.use-case';
+import { toPaymentReviewViews } from './review-onboarding-payment.use-case';
 import {
   VERIFICATION_RESULT_REPOSITORY,
   type VerificationResultRepository,
@@ -184,14 +184,16 @@ export class GetOnboardingApplicationForReviewUseCase {
     const application = await this.applications.findById(applicationId);
     if (!application) throw new ApplicationNotFoundError();
 
-    const [documents, vehicles, deviceRequests, verifications, payment] =
+    const [documents, vehicles, deviceRequests, verifications, reviewablePayments] =
       await Promise.all([
         this.applications.findDocumentsByApplicationId(application.id),
         this.applications.findVehiclesByApplicationId(application.id),
         this.applications.findDeviceRequestsByApplicationId(application.id),
         this.verificationResults.findByApplicationId(application.id),
-        this.payments.findLatestForApplication(application.id),
+        this.payments.listMismatchedForApplication(application.id, true),
       ]);
+
+    const paymentReviews = toPaymentReviewViews(reviewablePayments);
 
     return {
       status: true,
@@ -199,7 +201,8 @@ export class GetOnboardingApplicationForReviewUseCase {
       data: {
         ...summarize(application),
         progress: stageProgress(application.stage),
-        paymentReview: toPaymentReviewView(payment),
+        paymentReview: paymentReviews[0] ?? null,
+        paymentReviews,
         vehicleCount: vehicles.length,
         deviceCount: requestedDeviceCount(deviceRequests),
         vehicles: vehicles.map((vehicle) => ({

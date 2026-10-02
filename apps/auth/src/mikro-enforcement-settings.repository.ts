@@ -16,6 +16,7 @@ const COLUMNS: Record<keyof EnforcementSettingsPatch, string> = {
   autoSuspendEnabled: 'auto_suspend_enabled',
   autoSuspendCapPerRun: 'auto_suspend_cap_per_run',
   paused: 'paused',
+  onboardingTrialDaysOverride: 'onboarding_trial_days_override',
 };
 
 export function toEnforcementSettings(row: Row | undefined): EnforcementSettings {
@@ -26,6 +27,8 @@ export function toEnforcementSettings(row: Row | undefined): EnforcementSettings
     autoSuspendEnabled: Boolean(row.auto_suspend_enabled),
     autoSuspendCapPerRun: Number(row.auto_suspend_cap_per_run),
     paused: Boolean(row.paused),
+    onboardingTrialDaysOverride:
+      row.onboarding_trial_days_override == null ? null : Number(row.onboarding_trial_days_override),
     updatedAt: row.updated_at ? new Date(row.updated_at as string | Date).toISOString() : null,
     updatedBy: (row.updated_by as string | null) ?? null,
   };

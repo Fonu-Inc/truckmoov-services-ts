@@ -295,6 +295,21 @@ describe("Onboarding payment settlement", () => {
     expect((await payments.findByReference(reference))!.status).toBe("paid");
   });
 
+  it("does not settle a correct success while a refund is in flight, and flags the payment", async () => {
+    const { reference } = await startPayment();
+    await confirm.execute(reference, true, { amountKobo: TOTAL_KOBO - 1, currency: "NGN" });
+    const stored = (await payments.findByReference(reference))!;
+    await payments.save({ ...stored, reviewOutcome: "refund_needed" });
+    await payments.claimRefund(stored.id, { note: "refunding", requestedBy: "staff-1" });
+
+    await confirm.execute(reference, true, { amountKobo: TOTAL_KOBO, currency: "NGN" });
+
+    const after = (await payments.findByReference(reference))!;
+    expect(after.status).toBe("mismatch");
+    expect(after.refundError).toBe("review: charge succeeded during refund");
+    expect((await applications.findById("app-1"))!.stage).toBe("payment");
+  });
+
   it("does not let a late failure undo a paid payment", async () => {
     const { reference } = await startPayment();
     await confirm.execute(reference, true, { amountKobo: TOTAL_KOBO, currency: "NGN" });

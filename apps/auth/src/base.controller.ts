@@ -83,26 +83,30 @@ export abstract class BaseAuthController {
 
   protected async tryRecordActivity(
     command: Parameters<ActivityLogService['record']>[0],
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await this.activityLogService.record(command);
+      return true;
     } catch (error) {
       this.logger.warn(
         `activity_log_record_failed:${command.action}:${(error as Error).message}`,
       );
+      return false;
     }
   }
 
   protected async tryRecordActivityFromAccessToken(
     accessToken: string,
     command: Parameters<ActivityLogService['recordFromAccessToken']>[1],
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await this.activityLogService.recordFromAccessToken(accessToken, command);
+      return true;
     } catch (error) {
       this.logger.warn(
         `activity_log_record_failed:${command.action}:${(error as Error).message}`,
       );
+      return false;
     }
   }
 }

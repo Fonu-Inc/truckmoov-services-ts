@@ -178,6 +178,15 @@ export {
   PaymentNotInMismatchError,
   ReviewOnboardingPaymentMismatchUseCase,
 } from "./application/use-cases/review-onboarding-payment.use-case";
+export {
+  PaymentNotRefundableError,
+  RefundInProgressError,
+  RefundOnboardingPaymentUseCase,
+  RefundRefusedError,
+  RefundStateConflictError,
+} from "./application/use-cases/refund-onboarding-payment.use-case";
+export { RefundSettlementService } from "./application/services/refund-settlement.service";
+export { ApplicationPaymentNoticeService } from "./application/services/application-payment-notice.service";
 export { OnboardingProvisioningService } from "./application/services/onboarding-provisioning.service";
 export { OnboardingStageSweepService } from "./infrastructure/sweeps/onboarding-stage-sweep.service";
 export { DeleteOnboardingApplicationDocumentUseCase } from "./application/use-cases/delete-onboarding-application-document.use-case";

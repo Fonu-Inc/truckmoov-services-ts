@@ -59,6 +59,50 @@ describe('PaystackGateway', () => {
     ).rejects.toBeInstanceOf(PaymentGatewayError);
   });
 
+  it('refunds a transaction by its reference and returns the provider refund id', async () => {
+    mockedPost.mockResolvedValue({ data: { status: true, data: { id: 4411, status: 'processed' } } } as never);
+
+    const result = await gateway().refund('FPA-1');
+
+    expect(mockedPost.mock.calls[0][0]).toBe('https://api.paystack.co/refund');
+    expect(mockedPost.mock.calls[0][1]).toEqual({ transaction: 'FPA-1' });
+    expect(result).toEqual({ status: 'processed', providerRefundId: '4411' });
+  });
+
+  it('reports a queued refund as pending, not finished', async () => {
+    mockedPost.mockResolvedValue({ data: { status: true, data: { id: 4412, status: 'pending' } } } as never);
+
+    expect(await gateway().refund('FPA-1')).toEqual({ status: 'pending', providerRefundId: '4412' });
+  });
+
+  it('reads refund webhooks by the transaction reference', () => {
+    const parsed = (event: string) =>
+      gateway().parseCallback({ event, data: { transaction_reference: 'FPA-1', refund_reference: 'rf-9', status: 'x' } });
+
+    expect(parsed('refund.processed')).toMatchObject({ reference: 'FPA-1', refund: { status: 'processed', providerRefundId: 'rf-9' } });
+    expect(parsed('refund.failed')).toMatchObject({ reference: 'FPA-1', refund: { status: 'failed' } });
+    expect(parsed('refund.pending')?.refund?.status).toBe('pending');
+    expect(parsed('refund.processed')?.succeeded).toBe(false);
+  });
+
+  it('still answers a signed refund event that names no transaction', () => {
+    expect(gateway().parseCallback({ event: 'refund.failed', data: {} })).toMatchObject({ reference: '', refund: { status: 'failed' } });
+  });
+
+  it('raises a provider error when a refund is refused or the gateway is unconfigured', async () => {
+    mockedPost.mockResolvedValue({ data: { status: false, message: 'Transaction not found' } } as never);
+
+    await expect(gateway().refund('FPA-1')).rejects.toThrow('Transaction not found');
+    await expect(gateway(null).refund('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
+  });
+
+  it('reports a refund that never reached Paystack as a provider error with a timeout set', async () => {
+    mockedPost.mockRejectedValue(new Error('socket hang up'));
+
+    await expect(gateway().refund('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
+    expect(mockedPost.mock.calls[0][2]).toMatchObject({ timeout: expect.any(Number) });
+  });
+
   it('accepts a signature it computed itself', () => {
     const body = '{"event":"charge.success"}';
     const signature = createHmac('sha512', SECRET).update(body).digest('hex');

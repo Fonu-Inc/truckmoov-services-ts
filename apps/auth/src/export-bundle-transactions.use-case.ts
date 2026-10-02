@@ -4,9 +4,10 @@ import { resolveActorUser } from './contexts/auth/session/application/use-cases/
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
+import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 import { buildExport } from './export.helper';
 
-type Filters = { search?: string; status?: string; startDate?: string; endDate?: string; format?: 'csv' | 'xlsx' };
+type Filters = { search?: string; carriers?: string[]; status?: string; startDate?: string; endDate?: string; format?: 'csv' | 'xlsx' };
 
 const HEADERS = ['ID', 'Date', 'Mobile Number', 'Bundle ID', 'Amount (NGN)', 'Status', 'Reference'];
 
@@ -16,6 +17,7 @@ export class ExportBundleTransactionsUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(BUNDLE_TRANSACTION_REPOSITORY) private readonly bundleTransactionRepository: BundleTransactionRepository,
+    @Inject(BUNDLE_CATALOG_REPOSITORY) private readonly bundleCatalogRepository: BundleCatalogRepository,
   ) {}
 
   async execute(accessToken: string, filters?: Filters) {
@@ -26,6 +28,7 @@ export class ExportBundleTransactionsUseCase {
       tenantId: actor.tenantId!,
       search: filters?.search,
       status: filters?.status,
+      bundleIds: await this.bundleIdsForCarriers(filters?.carriers),
       startDate: filters?.startDate ? new Date(filters.startDate) : undefined,
       endDate: filters?.endDate ? new Date(filters.endDate) : undefined,
       limit: 10000,
@@ -46,5 +49,11 @@ export class ExportBundleTransactionsUseCase {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
     return { buffer, contentType, ext, filename: `bundle-transactions-${timestamp}.${ext}` };
+  }
+
+  private async bundleIdsForCarriers(carriers?: string[]): Promise<string[] | undefined> {
+    if (!carriers?.length) return undefined;
+    const { items } = await this.bundleCatalogRepository.findAll({ carrierIds: carriers, limit: 10000 });
+    return items.map((b) => b.id);
   }
 }

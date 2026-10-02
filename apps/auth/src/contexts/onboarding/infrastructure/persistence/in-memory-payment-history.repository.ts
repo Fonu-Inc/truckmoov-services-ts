@@ -113,7 +113,7 @@ export class InMemoryPaymentHistoryRepository implements PaymentHistoryRepositor
     return {
       ...row,
       isRenewal: invoice ? isRenewalInvoice(invoice) : false,
-      ownerTenantId: invoice?.tenantId ?? quotation?.tenantId ?? application?.tenantId ?? null,
+      ownerTenantId: source.tenantId ?? invoice?.tenantId ?? quotation?.tenantId ?? application?.tenantId ?? null,
     };
   }
 
