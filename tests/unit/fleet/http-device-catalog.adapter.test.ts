@@ -5,7 +5,7 @@ import { HttpDeviceCatalogAdapter } from "../../../apps/fleet/src/contexts/fleet
 const config = {
   auth: { serviceUrl: "http://auth", jwtSecret: "secret" },
   fleet: { deviceCatalogCacheSeconds: 300, defaultTenant: "default" },
-  serviceAuth: { secret: "secret" },
+  identity: { legacySecret: "secret", serviceTokenDir: "/nonexistent", serviceAuthDevSecret: "" },
 } as never;
 
 function adapter() {

@@ -308,6 +308,7 @@ export class SystemSupportController extends BaseAuthController {
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!payload?.installerId?.trim()) throw new BadRequestException('installerId is required');
     try {
       const result = await this.assignSystemDeviceSetupRequestUseCase.execute(accessToken, requestId, payload.installerId);
       await this.tryRecordActivityFromAccessToken(accessToken, {
