@@ -36,6 +36,19 @@ import {
 import { UNLIMITED, type PlanEntitlements } from './plan-entitlements';
 import { LEGACY_PLAN_CODE_TO_TIER } from './system-subscription-plans';
 import {
+  LICENCE_PERIOD_REPOSITORY,
+  type LicencePeriodRepository,
+} from '@auth/onboarding/domain/licence-period.repository';
+import {
+  M2M_LICENSE_PLAN_REPOSITORY,
+  type M2mLicensePlanRepository,
+} from '@auth/onboarding/domain/m2m-license-plan.repository';
+import {
+  TENANT_COLLECTIONS_REPOSITORY,
+  lagosMonthBounds,
+  type TenantCollectionsRepository,
+} from './tenant-collections.repository';
+import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
   type StoredTenantOnboarding,
@@ -77,6 +90,7 @@ type SystemTenantFilters = {
   search?: string;
   status?: SystemTenantStatus;
   plan?: SystemTenantPlan;
+  planCode?: string;
   organizationType?: TenantOrganizationType;
   kycStatus?: SystemTenantKycStatus;
   revenueFrom?: number;
@@ -94,7 +108,10 @@ type SystemTenantRow = {
   address: string | null;
   billingEmail: string | null;
   plan: SystemTenantPlan;
+  /** The licence plan the tenant is on; null when none is assigned. */
   planCode: string | null;
+  planName: string | null;
+  planAssigned: boolean;
   status: SystemTenantStatus;
   organizationType: TenantOrganizationType | null;
   organizationTypes: TenantOrganizationType[];
@@ -103,8 +120,8 @@ type SystemTenantRow = {
   deviceCount: number;
   simCount: number;
   /**
-   * What the tenant's plan allows. Null is unlimited, which is not zero, and
-   * an absent plan leaves every limit null rather than guessing at one.
+   * What the tenant's plan allows. A null limit is unlimited, which is not
+   * zero. Read planAssigned to tell unlimited from no plan.
    */
   quotas: {
     vehicles: number | null;
@@ -112,6 +129,9 @@ type SystemTenantRow = {
     devices: number | null;
     sims: number | null;
   };
+  /** Cash collected this Africa/Lagos calendar month, in naira. */
+  collectedThisMonthNgn: number;
+  /** Deprecated alias of collectedThisMonthNgn. */
   monthlyRevenueNgn: number;
   createdAt: string;
   lastActiveAt: string | null;
@@ -361,6 +381,17 @@ function toBoolean(value: unknown): boolean {
   );
 }
 
+function earliestCreatedAt(
+  users: Array<{ createdAt?: string | Date | null }>,
+): string | null {
+  return (
+    users
+      .map((user) => toIsoString(user.createdAt ?? null))
+      .filter((value): value is string => Boolean(value))
+      .sort()[0] ?? null
+  );
+}
+
 @Injectable()
 export class ListSystemTenantsUseCase {
   constructor(
@@ -384,6 +415,12 @@ export class ListSystemTenantsUseCase {
     private readonly entitlementsRepository: PlanEntitlementsRepository,
     @Inject(TENANT_SUSPENSION_REPOSITORY)
     private readonly suspensionRepository: TenantSuspensionRepository,
+    @Inject(LICENCE_PERIOD_REPOSITORY)
+    private readonly licencePeriods: LicencePeriodRepository,
+    @Inject(M2M_LICENSE_PLAN_REPOSITORY)
+    private readonly m2mPlans: M2mLicensePlanRepository,
+    @Inject(TENANT_COLLECTIONS_REPOSITORY)
+    private readonly collections: TenantCollectionsRepository,
   ) {}
 
   async execute(accessToken: string, filters: SystemTenantFilters) {
@@ -408,7 +445,8 @@ export class ListSystemTenantsUseCase {
       this.config.persistence.backend === 'in-memory'
         ? await this.listInMemory()
         : await this.listDatabase();
-    await this.resolvePlanTiers(tenants);
+    await this.resolvePlans(tenants);
+    await this.attachCollections(tenants);
     await this.attachSuspensions(tenants);
     return this.applyFilters(tenants, filters);
   }
@@ -435,15 +473,46 @@ export class ListSystemTenantsUseCase {
     }
   }
 
-  /** Resolves each tenant's plan tier from the DB catalog (codes are opaque). */
-  private async resolvePlanTiers(tenants: SystemTenantRow[]) {
+  private async attachCollections(tenants: SystemTenantRow[]) {
     if (tenants.length === 0) {
       return;
     }
-    const plans = await this.planRepository.findAll();
-    const tierByCode = new Map(plans.map((plan) => [plan.code, plan.tier]));
+    const { from, to } = lagosMonthBounds(new Date());
+    const kobo = await this.collections.collectedKoboByTenant(from, to);
     for (const tenant of tenants) {
-      tenant.plan = this.resolvePlanTier(tenant.planCode, tierByCode);
+      tenant.collectedThisMonthNgn = (kobo.get(tenant.id) ?? 0) / 100;
+      tenant.monthlyRevenueNgn = tenant.collectedThisMonthNgn;
+    }
+  }
+
+  /**
+   * Sets each tenant's plan from its licence period, falling back to the plan
+   * named at onboarding, then reads name, tier and limits off that code.
+   * Catalogs are loaded once, not per tenant.
+   */
+  private async resolvePlans(tenants: SystemTenantRow[]) {
+    if (tenants.length === 0) {
+      return;
+    }
+    const [plans, licenceCodes, m2m, entitlements] = await Promise.all([
+      this.planRepository.findAll(),
+      this.licencePeriods.currentPlanCodes(),
+      this.m2mPlans.list({ status: 'all', page: 1, limit: 1000 }),
+      this.entitlementsRepository.findAll().catch(() => []),
+    ]);
+    const tierByCode = new Map(plans.map((plan) => [plan.code, plan.tier]));
+    const nameByCode = new Map([
+      ...plans.map((plan) => [plan.code, plan.name] as const),
+      ...m2m.items.map((plan) => [plan.code, plan.name] as const),
+    ]);
+    const entitlementsByCode = new Map(entitlements.map((entry) => [entry.planCode, entry]));
+    for (const tenant of tenants) {
+      const planCode = licenceCodes.get(tenant.id) ?? (tenant.planCode || null);
+      tenant.planCode = planCode;
+      tenant.planAssigned = planCode !== null;
+      tenant.planName = planCode ? (nameByCode.get(planCode) ?? null) : null;
+      tenant.plan = this.resolvePlanTier(planCode, tierByCode);
+      tenant.quotas = toQuotaLimits(planCode ? (entitlementsByCode.get(planCode) ?? null) : null);
     }
   }
 
@@ -499,6 +568,8 @@ export class ListSystemTenantsUseCase {
         (tenant.billingEmail?.toLowerCase().includes(search) ?? false);
       const matchesStatus = !filters.status || tenant.status === filters.status;
       const matchesPlan = !filters.plan || tenant.plan === filters.plan;
+      const matchesPlanCode =
+        !filters.planCode || tenant.planCode === filters.planCode;
       const matchesOrganizationType =
         !filters.organizationType ||
         tenant.organizationTypes.includes(filters.organizationType) ||
@@ -508,10 +579,10 @@ export class ListSystemTenantsUseCase {
         tenant.businessInfo.verificationStatus === filters.kycStatus;
       const matchesRevenueFrom =
         filters.revenueFrom == null ||
-        tenant.monthlyRevenueNgn >= filters.revenueFrom;
+        tenant.collectedThisMonthNgn >= filters.revenueFrom;
       const matchesRevenueTo =
         filters.revenueTo == null ||
-        tenant.monthlyRevenueNgn <= filters.revenueTo;
+        tenant.collectedThisMonthNgn <= filters.revenueTo;
       const lastActiveTime = tenant.lastActiveAt
         ? new Date(tenant.lastActiveAt).getTime()
         : null;
@@ -525,6 +596,7 @@ export class ListSystemTenantsUseCase {
         matchesSearch &&
         matchesStatus &&
         matchesPlan &&
+        matchesPlanCode &&
         matchesOrganizationType &&
         matchesKyc &&
         matchesRevenueFrom &&
@@ -566,13 +638,6 @@ export class ListSystemTenantsUseCase {
       onboardings.map((onboarding) => [onboarding.tenantId, onboarding]),
     );
     const terminatedTenantIds = new Set(await this.terminationRepository.listTenantIds());
-    // Loaded once and keyed by plan, not per tenant: a hundred tenants share a
-    // handful of plans between them.
-    const entitlementsByPlanCode = new Map(
-      (await this.entitlementsRepository.findAll().catch(() => [])).map(
-        (entitlements) => [entitlements.planCode, entitlements],
-      ),
-    );
 
     const rows = await Promise.all(
       [...tenantIds].map(async (tenantId) => {
@@ -600,7 +665,6 @@ export class ListSystemTenantsUseCase {
         return this.composeTenantRow({
           tenantId,
           terminated: terminatedTenantIds.has(tenantId),
-          entitlements: entitlementsFor(onboarding, entitlementsByPlanCode),
           onboarding,
           users: tenantUsers,
           enabledUsersCount: enabledUsers.length,
@@ -613,7 +677,10 @@ export class ListSystemTenantsUseCase {
             ? [onboarding.company.organizationType]
             : [],
           lastActiveAt: lastActiveAt?.toISOString() ?? null,
-          createdAt: lastActiveAt?.toISOString() ?? new Date().toISOString(),
+          createdAt:
+            onboarding?.createdAt.toISOString() ??
+            lastActiveAt?.toISOString() ??
+            new Date().toISOString(),
           invitationAccepted: Boolean(acceptedUser),
         });
       }),
@@ -831,13 +898,6 @@ export class ListSystemTenantsUseCase {
     ]);
     tenantIds.delete('');
     const terminatedTenantIds = new Set(await this.terminationRepository.listTenantIds());
-    // Loaded once and keyed by plan, not per tenant: a hundred tenants share a
-    // handful of plans between them.
-    const entitlementsByPlanCode = new Map(
-      (await this.entitlementsRepository.findAll().catch(() => [])).map(
-        (entitlements) => [entitlements.planCode, entitlements],
-      ),
-    );
 
     const rows = [...tenantIds].map((tenantId) => {
       const tenantUsers = usersByTenantId.get(tenantId) ?? [];
@@ -852,16 +912,11 @@ export class ListSystemTenantsUseCase {
               onboarding.invitedEmail.toLowerCase(),
           ) ?? null)
         : null;
-      const firstUserCreatedAt =
-        tenantUsers
-          .map((user) => toIsoString(user.createdAt ?? null))
-          .filter((value): value is string => Boolean(value))
-          .sort()[0] ?? null;
+      const firstUserCreatedAt = earliestCreatedAt(tenantUsers);
 
       return this.composeTenantRow({
         tenantId,
         terminated: terminatedTenantIds.has(tenantId),
-        entitlements: entitlementsFor(onboarding, entitlementsByPlanCode),
         onboarding,
         users: tenantUsers,
         enabledUsersCount: enabledUsers.length,
@@ -887,7 +942,6 @@ export class ListSystemTenantsUseCase {
 
   private composeTenantRow(params: {
     terminated?: boolean;
-    entitlements?: PlanEntitlements | null;
     tenantId: string;
     onboarding: StoredTenantOnboarding | null;
     users: Array<StoredUser & { createdAt?: string | Date | null }>;
@@ -912,7 +966,7 @@ export class ListSystemTenantsUseCase {
       : organizationType
         ? [organizationType]
         : [];
-    const planCode = params.onboarding?.subscription.planCode ?? null;
+    const planCode = params.onboarding?.subscription.planCode || null;
     const plan = normalizePlan(planCode);
     const name =
       params.onboarding?.company.companyName ??
@@ -973,6 +1027,8 @@ export class ListSystemTenantsUseCase {
       billingEmail,
       plan,
       planCode,
+      planName: null,
+      planAssigned: planCode !== null,
       status,
       organizationType: organizationType ?? null,
       organizationTypes,
@@ -980,7 +1036,8 @@ export class ListSystemTenantsUseCase {
       driverCount: params.driverCount,
       deviceCount: params.deviceCount,
       simCount: params.onboarding?.simAssignment.numberOfSims ?? 0,
-      quotas: toQuotaLimits(params.entitlements ?? null),
+      quotas: toQuotaLimits(null),
+      collectedThisMonthNgn: 0,
       monthlyRevenueNgn: 0,
       createdAt: params.createdAt,
       lastActiveAt: params.lastActiveAt,
@@ -1110,15 +1167,6 @@ export type {
  * resource does not restrict it, and unlimited is null rather than a number so
  * a client cannot render it as a full bar.
  */
-function entitlementsFor(
-  onboarding: StoredTenantOnboarding | null | undefined,
-  byPlanCode: Map<string, PlanEntitlements>,
-): PlanEntitlements | null {
-  const planCode = onboarding?.subscription?.planCode;
-  if (!planCode) return null;
-  return byPlanCode.get(planCode) ?? null;
-}
-
 function toQuotaLimits(entitlements: PlanEntitlements | null) {
   const limit = (resource: 'vehicles' | 'drivers' | 'devices' | 'sims'): number | null => {
     const quota = entitlements?.quotas?.[resource];

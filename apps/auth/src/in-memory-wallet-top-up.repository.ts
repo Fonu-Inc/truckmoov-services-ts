@@ -5,6 +5,10 @@ import type { StoredWalletTopUp, WalletTopUpRepository } from './wallet-top-up.r
 export class InMemoryWalletTopUpRepository implements WalletTopUpRepository {
   private readonly store = new Map<string, StoredWalletTopUp>();
 
+  all(): StoredWalletTopUp[] {
+    return [...this.store.values()];
+  }
+
   async findAllByTenantId(tenantId: string): Promise<StoredWalletTopUp[]> {
     return [...this.store.values()]
       .filter((t) => t.tenantId === tenantId)

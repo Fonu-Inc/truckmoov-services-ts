@@ -7,7 +7,8 @@ export class InMemorySimRepository implements SimRepository {
 
   async findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }> {
     let sims = [...this.store.values()];
-    if (filters?.status) sims = sims.filter((s) => s.status === filters.status);
+    if (filters?.status === 'unassigned') sims = sims.filter((s) => s.tenantId === null);
+    else if (filters?.status) sims = sims.filter((s) => s.status === filters.status);
     if (filters?.carrier) sims = sims.filter((s) => s.carrier.toLowerCase() === filters.carrier!.toLowerCase());
     if (filters?.tenantId) sims = sims.filter((s) => s.tenantId === filters.tenantId);
     if (filters?.operators?.length) sims = sims.filter((s) => filters.operators!.includes(s.carrier));
@@ -17,11 +18,13 @@ export class InMemorySimRepository implements SimRepository {
         (s) =>
           s.iccid.toLowerCase().includes(q) ||
           (s.msisdn && s.msisdn.toLowerCase().includes(q)) ||
-          s.carrier.toLowerCase().includes(q),
+          s.carrier.toLowerCase().includes(q) ||
+          (s.tenantId !== null && !!filters.tenantIds?.includes(s.tenantId)),
       );
     }
     sims = sims.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const total = sims.length;
+    if (filters?.unpaged) return { items: sims, total };
     if (filters?.page !== undefined && filters?.limit !== undefined) {
       const offset = (filters.page - 1) * filters.limit;
       sims = sims.slice(offset, offset + filters.limit);
@@ -33,6 +36,14 @@ export class InMemorySimRepository implements SimRepository {
 
   async findById(id: string): Promise<StoredSim | null> {
     return this.store.get(id) ?? null;
+  }
+
+  async findByIccid(iccid: string): Promise<StoredSim | null> {
+    return [...this.store.values()].find((s) => s.iccid === iccid) ?? null;
+  }
+
+  async findByIccids(iccids: string[]): Promise<StoredSim[]> {
+    return [...this.store.values()].filter((s) => iccids.includes(s.iccid));
   }
 
   async findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]> {

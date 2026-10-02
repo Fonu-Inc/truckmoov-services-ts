@@ -526,6 +526,10 @@ import { MikroSystemFeatureFlagRepository } from './mikro-system-feature-flag.re
 import { MikroSystemSettingsRepository } from './mikro-system-settings.repository';
 import { MikroTenantOnboardingRepository } from './mikro-tenant-onboarding.repository';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
+import { GetSystemTenantBillingUseCase } from './get-system-tenant-billing.use-case';
+import { TENANT_COLLECTIONS_REPOSITORY } from './tenant-collections.repository';
+import { MikroTenantCollectionsRepository } from './mikro-tenant-collections.repository';
+import { InMemoryTenantCollectionsRepository } from './in-memory-tenant-collections.repository';
 import { CancelSystemAdminInviteUseCase } from './cancel-system-admin-invite.use-case';
 import { CreateSystemAdminInviteUseCase } from './create-system-admin-invite.use-case';
 import { GetSystemSettingsUseCase } from './get-system-settings.use-case';
@@ -564,6 +568,10 @@ import { GetSystemSimDetailUseCase } from './get-system-sim-detail.use-case';
 import { UpdateSystemSimUseCase } from './update-system-sim.use-case';
 import { ReassignSystemSimUseCase } from './reassign-system-sim.use-case';
 import { SuspendSystemSimUseCase } from './suspend-system-sim.use-case';
+import { CreateSystemSimUseCase } from './create-system-sim.use-case';
+import { ImportSystemSimsUseCase } from './import-system-sims.use-case';
+import { DeleteSystemSimUseCase } from './delete-system-sim.use-case';
+import { BulkSystemSimStatusUseCase } from './bulk-system-sim-status.use-case';
 import { GetSystemSimRequestsSummaryUseCase } from './get-system-sim-requests-summary.use-case';
 import { ExportSystemSimRequestsUseCase } from './export-system-sim-requests.use-case';
 import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
@@ -1615,6 +1623,18 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     GetSystemDeviceDetailUseCase,
     ListSystemFeatureFlagsUseCase,
     ListSystemTenantsUseCase,
+    GetSystemTenantBillingUseCase,
+    InMemoryTenantCollectionsRepository,
+    MikroTenantCollectionsRepository,
+    {
+      provide: TENANT_COLLECTIONS_REPOSITORY,
+      inject: [InMemoryTenantCollectionsRepository, MikroTenantCollectionsRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantCollectionsRepository,
+        mikro: MikroTenantCollectionsRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     GetSystemTenantsSummaryUseCase,
     GetSystemTenantUseCase,
     GetSystemTenantOnboardingReferenceDataUseCase,
@@ -1660,6 +1680,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateSystemSimUseCase,
     ReassignSystemSimUseCase,
     SuspendSystemSimUseCase,
+    CreateSystemSimUseCase,
+    ImportSystemSimsUseCase,
+    DeleteSystemSimUseCase,
+    BulkSystemSimStatusUseCase,
     GetSystemSimRequestsSummaryUseCase,
     ExportSystemSimRequestsUseCase,
     ApproveSystemSimRequestUseCase,

@@ -57,6 +57,14 @@ class FakeSimRepository implements SimRepository {
     return this.store.get(id) ?? null;
   }
 
+  async findByIccid() {
+    return null;
+  }
+
+  async findByIccids() {
+    return [];
+  }
+
   async findByDeviceIds() {
     return [];
   }

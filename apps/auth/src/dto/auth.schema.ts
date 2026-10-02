@@ -673,6 +673,12 @@ export class SystemTenantListItemSchema {
   @ApiProperty({ nullable: true })
   planCode!: string | null;
 
+  @ApiProperty({ nullable: true })
+  planName!: string | null;
+
+  @ApiProperty({ description: 'False when no plan is assigned; null quota limits then mean no plan, not unlimited.' })
+  planAssigned!: boolean;
+
   @ApiProperty({ enum: ['active', 'pending', 'suspended', 'inactive'] })
   status!: 'active' | 'pending' | 'suspended' | 'inactive';
 
@@ -694,7 +700,10 @@ export class SystemTenantListItemSchema {
   @ApiProperty()
   simCount!: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Cash collected this Africa/Lagos month, in naira.' })
+  collectedThisMonthNgn!: number;
+
+  @ApiProperty({ description: 'Deprecated alias of collectedThisMonthNgn.' })
   monthlyRevenueNgn!: number;
 
   @ApiProperty({ type: String, format: 'date-time' })
@@ -1404,12 +1413,17 @@ export class SystemSimSchema {
   @ApiProperty() status!: string;
   @ApiProperty({ nullable: true }) tenantId!: string | null;
   @ApiProperty({ nullable: true }) deviceId!: string | null;
+  @ApiProperty({ nullable: true }) deviceImei!: string | null;
+  @ApiProperty({ nullable: true }) suspensionReason!: string | null;
+  @ApiPropertyOptional({ nullable: true, description: 'Present on list and export' }) tenantName?: string | null;
   @ApiProperty() dataUsageMb!: number;
   @ApiProperty() dataLimitMb!: number;
   @ApiProperty() smsUsage!: number;
   @ApiProperty() smsLimit!: number;
   @ApiProperty() monthlyCostNgn!: number;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) activationDate!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) expiryDate!: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) lastActivity!: string | null;
   @ApiProperty({ nullable: true }) signalStrength!: number | null;
   @ApiProperty({ nullable: true }) networkType!: string | null;
   @ApiProperty() roaming!: boolean;
@@ -1426,6 +1440,57 @@ export class SystemSimsListDataSchema {
 export class SystemSimsListResponse extends StandardApiResponse<SystemSimsListDataSchema> {
   @ApiProperty({ type: SystemSimsListDataSchema })
   data!: SystemSimsListDataSchema;
+}
+
+export class SystemSimImportRowResultSchema {
+  @ApiProperty() row!: number;
+  @ApiProperty() iccid!: string;
+  @ApiProperty({ enum: ['imported', 'skipped', 'failed'] }) outcome!: string;
+  @ApiProperty({ nullable: true }) reason!: string | null;
+  @ApiProperty({ nullable: true }) simId!: string | null;
+}
+
+export class SystemSimImportDataSchema {
+  @ApiProperty() imported!: number;
+  @ApiProperty() skipped!: number;
+  @ApiProperty() failed!: number;
+  @ApiProperty({ type: SystemSimImportRowResultSchema, isArray: true }) results!: SystemSimImportRowResultSchema[];
+}
+
+export class SystemSimImportResponse extends StandardApiResponse<SystemSimImportDataSchema> {
+  @ApiProperty({ type: SystemSimImportDataSchema })
+  data!: SystemSimImportDataSchema;
+}
+
+export class SystemSimStatusItemResultSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ nullable: true }) iccid!: string | null;
+  @ApiProperty({ enum: ['changed', 'skipped', 'failed'] }) outcome!: string;
+  @ApiProperty({ nullable: true }) reason!: string | null;
+  @ApiProperty({ nullable: true }) status!: string | null;
+}
+
+export class SystemSimBulkStatusDataSchema {
+  @ApiProperty({ enum: ['activate', 'suspend', 'reinstate'] }) action!: string;
+  @ApiProperty() changed!: number;
+  @ApiProperty() skipped!: number;
+  @ApiProperty() failed!: number;
+  @ApiProperty({ type: SystemSimStatusItemResultSchema, isArray: true }) results!: SystemSimStatusItemResultSchema[];
+}
+
+export class SystemSimBulkStatusResponse extends StandardApiResponse<SystemSimBulkStatusDataSchema> {
+  @ApiProperty({ type: SystemSimBulkStatusDataSchema })
+  data!: SystemSimBulkStatusDataSchema;
+}
+
+export class SystemSimDeleteDataSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() iccid!: string;
+}
+
+export class SystemSimDeleteResponse extends StandardApiResponse<SystemSimDeleteDataSchema> {
+  @ApiProperty({ type: SystemSimDeleteDataSchema })
+  data!: SystemSimDeleteDataSchema;
 }
 
 export class SystemSimDetailResponse extends StandardApiResponse<SystemSimSchema> {

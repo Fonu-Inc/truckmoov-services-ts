@@ -61,9 +61,11 @@ export type SimFilters = {
   carrier?: string;
   tenantId?: string;
   search?: string;
+  tenantIds?: string[];
   operators?: string[];
   page?: number;
   limit?: number;
+  unpaged?: boolean;
 };
 
 export type TenantSimCount = { tenantId: string; activeSims: number };
@@ -71,6 +73,8 @@ export type TenantSimCount = { tenantId: string; activeSims: number };
 export interface SimRepository {
   findAll(filters?: SimFilters): Promise<{ items: StoredSim[]; total: number }>;
   findById(id: string): Promise<StoredSim | null>;
+  findByIccid(iccid: string): Promise<StoredSim | null>;
+  findByIccids(iccids: string[]): Promise<StoredSim[]>;
   findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]>;
   findByMsisdns(tenantId: string, msisdns: string[]): Promise<StoredSim[]>;
   save(sim: StoredSim): Promise<void>;

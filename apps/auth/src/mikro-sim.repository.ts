@@ -58,14 +58,17 @@ export class MikroSimRepository implements SimRepository {
 
     if (filters?.search) {
       const q = `%${filters.search}%`;
-      conditions.push(`(iccid ilike ? or msisdn ilike ? or carrier ilike ?)`);
+      const byTenant = filters.tenantIds?.length ? ` or tenant_id in (?)` : '';
+      conditions.push(`(iccid ilike ? or msisdn ilike ? or carrier ilike ?${byTenant})`);
       params.push(q, q, q);
+      if (byTenant) params.push(filters.tenantIds);
     }
-    if (filters?.status) { conditions.push(`status = ?`); params.push(filters.status); }
+    if (filters?.status === 'unassigned') conditions.push(`tenant_id is null`);
+    else if (filters?.status) { conditions.push(`status = ?`); params.push(filters.status); }
     if (filters?.carrier) { conditions.push(`lower(carrier) = lower(?)`); params.push(filters.carrier); }
     if (filters?.tenantId) { conditions.push(`tenant_id = ?`); params.push(filters.tenantId); }
     if (filters?.operators?.length) {
-      conditions.push(`carrier = ANY(?)`);
+      conditions.push(`carrier in (?)`);
       params.push(filters.operators);
     }
 
@@ -76,15 +79,20 @@ export class MikroSimRepository implements SimRepository {
     );
     const total = Number(countRows[0]?.count ?? 0);
 
-    const page = filters?.page ?? 1;
-    const limit = filters?.limit ?? 50;
-    const offset = (page - 1) * limit;
-    const rows = await conn.execute<IotSimRecord[]>(
-      `select * from iot_sims ${where} order by created_at desc limit ? offset ?`,
-      [...params, limit, offset],
+    const paging = filters?.unpaged ? '' : ' limit ? offset ?';
+    const pagingParams = filters?.unpaged ? [] : this.pageParams(filters);
+    const rows = await conn.execute<Record<string, unknown>[]>(
+      `select * from iot_sims ${where} order by created_at desc, id${paging}`,
+      [...params, ...pagingParams],
     );
 
-    return { items: rows.map((r) => toStored(r as unknown as IotSimRecord)), total };
+    const em = orm.em.fork();
+    return { items: rows.map((r) => toStored(em.map(IotSimRecord, r))), total };
+  }
+
+  private pageParams(filters?: SimFilters): number[] {
+    const limit = filters?.limit ?? 50;
+    return [limit, ((filters?.page ?? 1) - 1) * limit];
   }
 
   async findById(id: string): Promise<StoredSim | null> {
@@ -92,6 +100,19 @@ export class MikroSimRepository implements SimRepository {
     const em = orm.em.fork();
     const record = await em.findOne(IotSimRecord, { id });
     return record ? toStored(record) : null;
+  }
+
+  async findByIccid(iccid: string): Promise<StoredSim | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const record = await orm.em.fork().findOne(IotSimRecord, { iccid });
+    return record ? toStored(record) : null;
+  }
+
+  async findByIccids(iccids: string[]): Promise<StoredSim[]> {
+    if (iccids.length === 0) return [];
+    const orm = await getAuthOrm(this.config.db);
+    const records = await orm.em.fork().find(IotSimRecord, { iccid: { $in: iccids } });
+    return records.map(toStored);
   }
 
   async findByDeviceIds(deviceIds: string[]): Promise<StoredSim[]> {

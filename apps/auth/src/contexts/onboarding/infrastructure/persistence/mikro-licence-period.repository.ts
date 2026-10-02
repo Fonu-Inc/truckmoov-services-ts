@@ -54,6 +54,14 @@ export class MikroLicencePeriodRepository implements LicencePeriodRepository {
     return (await this.em()).getConnection().execute<Row[]>(sql, params);
   }
 
+  async currentPlanCodes(): Promise<Map<string, string>> {
+    const rows = await this.run(
+      `select distinct on (tenant_id) tenant_id, plan_code from tenant_licence_periods
+        order by tenant_id, (status = 'active') desc, period_end desc`,
+    );
+    return new Map(rows.map((row) => [String(row.tenant_id), String(row.plan_code)]));
+  }
+
   async purchaseSeeds(): Promise<PurchaseSeed[]> {
     const rows = await this.run(
       `select distinct on (a.tenant_id) a.tenant_id, i.application_id, l.plan_code, l.quantity,

@@ -6,6 +6,8 @@
  */
 export interface TenantNameReader {
   organizationNameFor(tenantId: string): Promise<string | null>;
+  organizationNamesFor(tenantIds: string[]): Promise<Map<string, string>>;
+  tenantIdsMatching(search: string): Promise<string[]>;
 }
 
 export const TENANT_NAME_READER = Symbol('TENANT_NAME_READER');

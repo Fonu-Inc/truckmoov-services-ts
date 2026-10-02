@@ -51,6 +51,9 @@ function build() {
     new InMemoryTenantTerminationRepository(),
     { findAll: async () => [] } as never,
     suspensions,
+    { currentPlanCodes: async () => new Map() } as never,
+    { list: async () => ({ items: [], total: 0 }) } as never,
+    { collectedKoboByTenant: async () => new Map() } as never,
   );
   const get = { execute: (token: string, id: string) => list.list(token, {}).then((rows) => ({ data: { tenant: rows.find((r) => r.id === id) } })) };
   const sims = new InMemorySimRepository();

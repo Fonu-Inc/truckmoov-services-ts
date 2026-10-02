@@ -5,6 +5,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor, SYSTEM_MUTATOR_ROLES } from './system-authz';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 import { SimNotFoundError, serializeSim } from './get-system-sim-detail.use-case';
+import { NETWORK_NOT_TOLD } from './sim-status-action';
 import { reactivatedSim, suspendedSim } from './sim-suspension';
 import {
   SIM_CHANGED_EVENT_PUBLISHER,
@@ -43,7 +44,9 @@ export class SuspendSystemSimUseCase {
 
     return {
       status: true,
-      message: shouldSuspend ? 'SIM suspended' : 'SIM reactivated',
+      message: shouldSuspend
+        ? `SIM marked suspended in our system; ${NETWORK_NOT_TOLD}`
+        : `SIM marked active in our system; ${NETWORK_NOT_TOLD}`,
       data: serializeSim(sim),
     };
   }

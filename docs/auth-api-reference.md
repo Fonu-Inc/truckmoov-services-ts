@@ -97,6 +97,9 @@
   - `GET /auth/system/sims/summary` — Get system SIM summary
   - `GET /auth/system/sims` — List system SIM inventory
   - `GET /auth/system/sims/export` — Export system SIM inventory
+  - `POST /auth/system/sims` — Register SIM
+  - `POST /auth/system/sims/import` — Import SIMs
+  - `POST /auth/system/sims/bulk-status` — Activate, suspend or reinstate several SIMs
   - `GET /auth/system/sims/requests` — List SIM provisioning requests
   - `GET /auth/system/sims/requests/summary` — SIM approval queue summary
   - `GET /auth/system/sims/requests/export` — Export SIM provisioning requests
@@ -111,6 +114,8 @@
   - `PATCH /auth/system/sims/{simId}` — Update SIM
   - `PATCH /auth/system/sims/{simId}/reassign` — Reassign SIM
   - `PATCH /auth/system/sims/{simId}/suspend` — Suspend or reactivate SIM
+  - `PATCH /auth/system/sims/{simId}/activate` — Activate SIM
+  - `DELETE /auth/system/sims/{simId}` — Delete SIM
   - `GET /auth/system/support/dashboard` — Support dashboard stats
   - `GET /auth/system/support/escalated` — List escalated tickets grouped by escalation party
   - `GET /auth/system/support/device-setup` — List device setup requests

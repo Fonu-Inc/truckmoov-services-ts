@@ -12,6 +12,7 @@ import {
   Headers,
   StreamableFile,
   Patch,
+  Delete,
   UnauthorizedException,
   Query,
 } from '@nestjs/common';
@@ -44,13 +45,25 @@ import {
   SystemSimBatchDetailResponse,
   SystemSimBatchesListResponse,
   SystemSimsListResponse,
+  SystemSimImportResponse,
+  SystemSimBulkStatusResponse,
+  SystemSimDeleteResponse,
 } from './dto/auth.schema';
 import {
+  BulkSystemSimStatusDto,
+  CreateSystemSimDto,
+  ImportSystemSimsDto,
   UpdateSystemSimDto,
   SuspendSystemSimDto,
   ReassignSystemSimDto,
   RejectSimRequestDto,
 } from './dto/system-sim.dto';
+import { BulkSystemSimStatusUseCase, SimStatusNotAllowedError } from './bulk-system-sim-status.use-case';
+import { CreateSystemSimUseCase } from './create-system-sim.use-case';
+import { DeleteSystemSimUseCase } from './delete-system-sim.use-case';
+import { ImportSystemSimsUseCase } from './import-system-sims.use-case';
+import { simStatusVerb } from './sim-status-action';
+import { DuplicateSimIccidError, SimInUseError } from './system-sim-input';
 import { ExportSystemSimBatchesUseCase } from './export-system-sim-batches.use-case';
 import { ExportSystemSimRequestsUseCase } from './export-system-sim-requests.use-case';
 import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
@@ -93,6 +106,10 @@ export class SystemSimsController extends BaseAuthController {
     @Inject(GetSystemSimBatchDetailUseCase) private readonly getSystemSimBatchDetailUseCase: GetSystemSimBatchDetailUseCase,
     @Inject(ExportSystemSimBatchesUseCase) private readonly exportSystemSimBatchesUseCase: ExportSystemSimBatchesUseCase,
     @Inject(RetrySystemSimBatchUseCase) private readonly retrySystemSimBatchUseCase: RetrySystemSimBatchUseCase,
+    @Inject(CreateSystemSimUseCase) private readonly createSystemSimUseCase: CreateSystemSimUseCase,
+    @Inject(ImportSystemSimsUseCase) private readonly importSystemSimsUseCase: ImportSystemSimsUseCase,
+    @Inject(DeleteSystemSimUseCase) private readonly deleteSystemSimUseCase: DeleteSystemSimUseCase,
+    @Inject(BulkSystemSimStatusUseCase) private readonly bulkSystemSimStatusUseCase: BulkSystemSimStatusUseCase,
   ) {
     super(activityLogService);
   }
@@ -122,6 +139,8 @@ export class SystemSimsController extends BaseAuthController {
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'carrier', required: false, type: String })
   @ApiQuery({ name: 'tenantId', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: '1-based; with limit enables paging' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Default 25, max 100' })
   @ApiOkResponse({ type: SystemSimsListResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM inventory' })
@@ -131,11 +150,19 @@ export class SystemSimsController extends BaseAuthController {
     @Query('status') status?: string,
     @Query('carrier') carrier?: string,
     @Query('tenantId') tenantId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      return await this.listSystemSimsUseCase.execute(accessToken, { search, status, carrier, tenantId });
+      return await this.listSystemSimsUseCase.execute(accessToken, {
+        search,
+        status,
+        carrier,
+        tenantId,
+        ...this.parsePaging(page, limit),
+      });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
@@ -483,6 +510,100 @@ export class SystemSimsController extends BaseAuthController {
     }
   }
 
+  @Post()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Register SIM', description: 'Adds one unassigned SIM to the platform inventory.' })
+  @ApiOkResponse({ type: SystemSimDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to register SIMs' })
+  @ApiBadRequestResponse({ description: 'Invalid SIM details' })
+  @ApiConflictResponse({ description: 'ICCID already exists' })
+  async createSystemSim(
+    @Body(BodyOrDataPipe) payload: CreateSystemSimDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.createSystemSimUseCase.execute(accessToken, payload);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sim.created',
+        entityType: 'sim',
+        entityId: result.data.id,
+        summary: 'SIM registered',
+        metadata: { iccid: result.data.iccid, carrier: result.data.carrier },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowSimError(error);
+    }
+  }
+
+  @Post('import')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Import SIMs',
+    description: 'Adds up to 1000 unassigned SIMs. Existing ICCIDs are skipped; every row gets its own outcome.',
+  })
+  @ApiOkResponse({ type: SystemSimImportResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to import SIMs' })
+  @ApiBadRequestResponse({ description: 'Invalid import payload' })
+  async importSystemSims(
+    @Body(BodyOrDataPipe) payload: ImportSystemSimsDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.importSystemSimsUseCase.execute(accessToken, payload.rows);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sims.imported',
+        entityType: 'sim',
+        entityId: 'system-sim-inventory',
+        summary: result.message,
+        metadata: {
+          imported: result.data.imported,
+          skipped: result.data.skipped,
+          failed: result.data.failed,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowSimError(error);
+    }
+  }
+
+  @Post('bulk-status')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Activate, suspend or reinstate several SIMs',
+    description:
+      'Changes status in our system only. The mobile network is not told. Every SIM gets its own outcome.',
+  })
+  @ApiOkResponse({ type: SystemSimBulkStatusResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to change SIM status' })
+  @ApiBadRequestResponse({ description: 'Invalid bulk status payload' })
+  async bulkSystemSimStatus(
+    @Body(BodyOrDataPipe) payload: BulkSystemSimStatusDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.bulkSystemSimStatusUseCase.execute(accessToken, payload.ids, payload.action);
+      for (const item of result.data.results.filter((r) => r.outcome === 'changed')) {
+        await this.recordStatusChange(accessToken, item.id, payload.action, { bulk: true, iccid: item.iccid });
+      }
+      return result;
+    } catch (error) {
+      this.rethrowSimError(error);
+    }
+  }
+
   // Declared AFTER every literal system/sims/* route so :simId cannot swallow
   // `summary`, `export`, `requests`, or `batches`.
 
@@ -511,7 +632,8 @@ export class SystemSimsController extends BaseAuthController {
 
   @Patch(':simId')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update SIM', description: 'Edit plan, carrier, or data/SMS limits.' })
+  @ApiOperation({ summary: 'Update SIM', description: 'Edit ICCID, phone number, IMSI, carrier, plan, or data/SMS limits.' })
+  @ApiConflictResponse({ description: 'ICCID already exists' })
   @ApiOkResponse({ type: SystemSimDetailResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   @ApiForbiddenResponse({ description: 'Caller is not permitted to update SIMs' })
@@ -532,13 +654,11 @@ export class SystemSimsController extends BaseAuthController {
         entityType: 'sim',
         entityId: simId,
         summary: 'SIM updated',
+        metadata: { changedFields: Object.keys(payload) },
       });
       return result;
     } catch (error) {
-      this.rethrowInvalidAccessToken(error);
-      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
-      if (error instanceof SimNotFoundError) throw new NotFoundException(error.message);
-      throw error;
+      this.rethrowSimError(error);
     }
   }
 
@@ -608,6 +728,92 @@ export class SystemSimsController extends BaseAuthController {
       if (error instanceof SimNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
+  }
+
+  @Patch(':simId/activate')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Activate SIM', description: 'Marks the SIM active in our system. The mobile network is not told.' })
+  @ApiOkResponse({ type: SystemSimDetailResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to change SIM status' })
+  @ApiNotFoundResponse({ description: 'SIM not found' })
+  @ApiConflictResponse({ description: 'SIM cannot be activated in its current state' })
+  async activateSystemSim(
+    @Param('simId') simId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.bulkSystemSimStatusUseCase.executeOne(accessToken, simId, 'activate');
+      await this.recordStatusChange(accessToken, simId, 'activate', { iccid: result.data.iccid });
+      return result;
+    } catch (error) {
+      this.rethrowSimError(error);
+    }
+  }
+
+  @Delete(':simId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete SIM', description: 'Removes a SIM that is not assigned to any tenant or device.' })
+  @ApiOkResponse({ type: SystemSimDeleteResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to delete SIMs' })
+  @ApiNotFoundResponse({ description: 'SIM not found' })
+  @ApiConflictResponse({ description: 'SIM is assigned to a tenant or device' })
+  async deleteSystemSim(
+    @Param('simId') simId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.deleteSystemSimUseCase.execute(accessToken, simId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.sim.deleted',
+        entityType: 'sim',
+        entityId: simId,
+        summary: 'SIM deleted',
+        metadata: { iccid: result.data.iccid },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowSimError(error);
+    }
+  }
+
+  private recordStatusChange(
+    accessToken: string,
+    simId: string,
+    action: 'activate' | 'suspend' | 'reinstate',
+    metadata: { bulk?: boolean; iccid: string | null },
+  ) {
+    return this.tryRecordActivityFromAccessToken(accessToken, {
+      service: 'auth',
+      action: action === 'activate' ? 'system.sim.activated' : 'system.sim.suspension_changed',
+      entityType: 'sim',
+      entityId: simId,
+      summary: `SIM marked ${simStatusVerb(action)} in our system`,
+      metadata: { ...metadata, action, networkNotified: false },
+    });
+  }
+
+  private parsePaging(page?: string, limit?: string) {
+    if (page === undefined && limit === undefined) return {};
+    const parsedPage = Math.max(1, Math.floor(Number(page)) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, Math.floor(Number(limit)) || 25));
+    return { page: parsedPage, limit: parsedLimit };
+  }
+
+  private rethrowSimError(error: unknown): never {
+    this.rethrowInvalidAccessToken(error);
+    if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+    if (error instanceof SimNotFoundError) throw new NotFoundException(error.message);
+    if (error instanceof DuplicateSimIccidError) throw new ConflictException(error.message);
+    if (error instanceof SimInUseError) throw new ConflictException(error.message);
+    if (error instanceof SimStatusNotAllowedError) throw new ConflictException(error.message);
+    throw error;
   }
 
   /** Updates organization-level settings for current tenant (enterprise admin only). */

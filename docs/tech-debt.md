@@ -4,6 +4,113 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-13 — Some SIM Inventory items are only partly built
+
+**Status:** open, recorded 2 October 2026. Follows the SIM Inventory tab
+catch-up against the reference app. Every control exists and works inside our
+system; the items below stop at the edge of our database or are small known
+rough edges.
+
+### Where the code is
+
+- **Web:** `truckmoov-web/apps/admin/src/components/sims/inventory/`
+  (`SimInventoryTab.tsx`, `SimBulkBar.tsx`, `SimRowMenu.tsx`,
+  `useSimSuspension.tsx`, `dialogs/`). Page shell:
+  `apps/admin/src/pages/platform/PlatformSIMs.tsx`. Typed client:
+  `packages/api/src/auth` (system sims requests and hooks).
+- **Backend:** `truckmoov-services-ts/apps/auth/src/`:
+  `system-sims.controller.ts` (routes under `/auth/system/sims`),
+  `suspend-system-sim.use-case.ts`, `bulk-system-sim-status.use-case.ts`,
+  `create`/`import-system-sims.use-case.ts`, `delete-system-sim.use-case.ts`,
+  `mikro-sim.repository.ts`, ORM record `iot_sims` in
+  `contexts/auth/session/infrastructure/persistence/auth-orm.ts`.
+- **Reference:** the inventory tab of `PlatformSIMs.tsx` in the fleetflow-pro
+  reference app. The reference is a demo with no backend, so its behaviour is
+  what the buttons look like, not proof the real thing works.
+
+### The problem
+
+**1. Suspend, activate and reinstate only change our own records.**
+- *Reference:* the buttons change the SIM's status and the SIM stops or starts
+  working.
+- *Exists now:* the status changes in `iot_sims`, an audit row is written
+  (`system.sim.suspension_changed` or `system.sim.activated`, metadata
+  `networkNotified:false`, `bulk:true` for bulk), and a `sim.changed` event is
+  published. The UI says "marked suspended in our system; the mobile network
+  has not been told" (`NETWORK_NOTE` in `useSimSuspension.tsx`).
+- *Missing:* the call to the carrier that bars or un-bars the SIM. A suspended
+  SIM can still use mobile data and is still billed to us. No carrier
+  integration exists. Same gap as TD-11 (customer suspension) and TD-8
+  (termination).
+
+**2. Usage, signal, network type and last activity have no live source.**
+- *Reference:* shows live values per SIM (data used against the limit, signal
+  bars, 4G/5G, last seen).
+- *Exists now:* the columns exist (`data_usage_mb`, `sms_usage`,
+  `signal_strength`, `network_type`, `last_activity`) and the table, usage bar,
+  signal icon, details sheet and CSV export show whatever is stored. Nothing
+  writes to these columns after a SIM is created, so usage stays 0 and Last
+  Activity shows "Never".
+- *Missing:* a feed from the carrier (or the SIM platform vendor) that updates
+  them. It needs the carrier API.
+
+**3. Bulk Activate skips SIMs that have no tenant (owner decision).**
+- *Plain terms:* a SIM can sit in our inventory owned by nobody (just
+  registered or imported, no customer assigned). The reference's bulk
+  **Activate** button switches every selected SIM to active, even these.
+  Ours skips them and reports "Assign to a tenant first", because suspend and
+  reinstate already only work on SIMs that belong to a customer, and an active
+  SIM nobody owns can start using data that nobody pays for.
+- *Exists now:* bulk Activate acts only on SIMs with a tenant; the button is
+  disabled when none of the selection qualifies. Single activate
+  (`PATCH /auth/system/sims/:simId/activate`) behaves the same way.
+- *Decision needed:* keep the rule (recommended), or match the reference and
+  allow activating unowned SIMs.
+
+**4. Two people registering the same ICCID at the same moment.** Create and
+import first check "does this ICCID exist" and then insert. If two requests
+race, both pass the check; the second hits the unique index and surfaces as a
+500 instead of the clean 409 "ICCID already registered". No data is corrupted.
+
+**5. Selection works only within one page.** Selected SIMs are cleared when the
+page, search, status or filters change. Selecting "all 300 matching SIMs" for a
+bulk action is not possible.
+
+### What it needs
+
+1. **Carrier barring (item 1).** Build together with TD-11 and TD-8: a carrier
+   client (barring and unbarring per SIM, credentials per environment, rate
+   limits), a queue with retries and visible status (pending, done, failed),
+   and a "barred at network" SIM state. Success sets `networkNotified:true` in
+   the audit metadata. Until then keep the honest wording. Acceptance: bulk
+   suspend of 50 SIMs returns per-SIM carrier results; a carrier outage leaves
+   SIMs marked "bar pending", never silently half done.
+2. **Carrier usage feed (item 2).** A scheduled pull, or a carrier webhook,
+   that updates the five columns on `iot_sims`. No UI change is needed. Add a
+   "last updated" time so a stale value is never mistaken for a live one.
+   Acceptance: usage and Last Activity change without anyone touching the SIM.
+3. **Bulk Activate rule (item 3).** Owner decides. To follow the reference,
+   remove the tenant check in `bulk-system-sim-status.use-case.ts` (activate
+   branch) and `activatableCount` in `SimBulkBar.tsx`, and decide what status
+   an unowned active SIM should show.
+4. **ICCID race (item 4).** In the Mikro repository save used by
+   `CreateSystemSimUseCase` and `ImportSystemSimsUseCase`, catch
+   `UniqueConstraintViolationException` and map it to the existing ICCID-taken
+   conflict (409; for import, a per-row `skipped`). Add a concurrent-insert
+   test in `tests/db`.
+5. **Cross-page selection (item 5).** Keep selected ids in state across pages
+   and add "select all N matching the filter". The bulk-status endpoint takes
+   an ids list capped at 1000, so a larger selection needs a "by filter"
+   variant or chunking.
+
+### When this is picked up
+
+Items 1 and 2 after a carrier agreement and API access exist (shared with
+TD-11 and TD-8). Items 3 to 5 need no external work and can go in any
+inventory cleanup.
+
+---
+
 ## TD-12 — Anyone who can reach the message bus can publish as any service
 
 **Status:** open, recorded 1 October 2026. Follows the event signing work; that

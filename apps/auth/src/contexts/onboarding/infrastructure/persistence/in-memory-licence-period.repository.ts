@@ -37,6 +37,18 @@ export class InMemoryLicencePeriodRepository implements LicencePeriodRepository 
     return { ...period, renewalInvoiceId: this.invoices.linkedInvoiceId(period.id) };
   }
 
+  async currentPlanCodes(): Promise<Map<string, string>> {
+    const ranked = [...this.periods.values()].sort(
+      (a, b) =>
+        Number(b.status === 'active') - Number(a.status === 'active') || b.periodEnd.localeCompare(a.periodEnd),
+    );
+    const codes = new Map<string, string>();
+    for (const period of ranked) {
+      if (!codes.has(period.tenantId)) codes.set(period.tenantId, period.planCode);
+    }
+    return codes;
+  }
+
   async purchaseSeeds(): Promise<PurchaseSeed[]> {
     const known = new Set([...this.periods.values()].map((period) => period.tenantId));
     return this.seeds.filter((seed) => !known.has(seed.tenantId));

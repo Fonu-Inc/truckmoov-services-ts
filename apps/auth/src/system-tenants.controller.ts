@@ -63,6 +63,7 @@ import { UpdateSystemTenantStatusDto } from './dto/update-system-tenant-status.d
 import { UpdateSystemTenantDto } from './dto/update-system-tenant.dto';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetSystemTenantUseCase, SystemTenantNotFoundError } from './get-system-tenant.use-case';
+import { GetSystemTenantBillingUseCase } from './get-system-tenant-billing.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import { SystemTenantInviteResendConflictError, ResendSystemTenantInviteUseCase } from './resend-system-tenant-invite.use-case';
@@ -85,6 +86,7 @@ export class SystemTenantsController extends BaseAuthController {
     @Inject(ExportSystemTenantsUseCase) private readonly exportSystemTenantsUseCase: ExportSystemTenantsUseCase,
     @Inject(GetSystemTenantsSummaryUseCase) private readonly getSystemTenantsSummaryUseCase: GetSystemTenantsSummaryUseCase,
     @Inject(GetSystemTenantUseCase) private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
+    @Inject(GetSystemTenantBillingUseCase) private readonly getSystemTenantBillingUseCase: GetSystemTenantBillingUseCase,
     @Inject(ListSystemTenantsUseCase) private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
     @Inject(ResendSystemTenantInviteUseCase) private readonly resendSystemTenantInviteUseCase: ResendSystemTenantInviteUseCase,
     @Inject(UpdateSystemTenantStatusUseCase) private readonly updateSystemTenantStatusUseCase: UpdateSystemTenantStatusUseCase,
@@ -208,6 +210,12 @@ export class SystemTenantsController extends BaseAuthController {
     enum: ['starter', 'professional', 'enterprise'],
   })
   @ApiQuery({
+    name: 'planCode',
+    required: false,
+    type: String,
+    description: 'Exact licence plan code. The legacy plan tier filter still works and combines with this one.',
+  })
+  @ApiQuery({
     name: 'organizationType',
     required: false,
     enum: ['fleet_provider', 'enterprise', 'aggregator', 'owner_operator'],
@@ -231,6 +239,7 @@ export class SystemTenantsController extends BaseAuthController {
     @Query('search') search?: string,
     @Query('status') status?: 'active' | 'pending' | 'suspended' | 'inactive',
     @Query('plan') plan?: 'starter' | 'professional' | 'enterprise',
+    @Query('planCode') planCode?: string,
     @Query('organizationType')
     organizationType?:
       | 'fleet_provider'
@@ -257,6 +266,7 @@ export class SystemTenantsController extends BaseAuthController {
         search,
         status,
         plan,
+        planCode: planCode?.trim() || undefined,
         organizationType,
         kycStatus,
         revenueFrom: this.parseNumericQuery(revenueFrom),
@@ -293,6 +303,12 @@ export class SystemTenantsController extends BaseAuthController {
     enum: ['starter', 'professional', 'enterprise'],
   })
   @ApiQuery({
+    name: 'planCode',
+    required: false,
+    type: String,
+    description: 'Exact licence plan code. The legacy plan tier filter still works and combines with this one.',
+  })
+  @ApiQuery({
     name: 'organizationType',
     required: false,
     enum: ['fleet_provider', 'enterprise', 'aggregator', 'owner_operator'],
@@ -321,6 +337,7 @@ export class SystemTenantsController extends BaseAuthController {
     @Query('status')
     status: 'active' | 'pending' | 'suspended' | 'inactive' | undefined,
     @Query('plan') plan: 'starter' | 'professional' | 'enterprise' | undefined,
+    @Query('planCode') planCode: string | undefined,
     @Query('organizationType')
     organizationType:
       | 'fleet_provider'
@@ -353,6 +370,7 @@ export class SystemTenantsController extends BaseAuthController {
           search,
           status,
           plan,
+          planCode: planCode?.trim() || undefined,
           organizationType,
           kycStatus,
           revenueFrom: this.parseNumericQuery(revenueFrom),
@@ -619,6 +637,33 @@ export class SystemTenantsController extends BaseAuthController {
         throw new BadRequestException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get(':tenantId/billing')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'A tenant billing facts',
+    description:
+      'Plan, licence end, open invoice, last payment, enforcement stage, wallet and cash collected this month. Anything not on record is null.',
+  })
+  @ApiOkResponse({ description: 'The tenant billing facts' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async getTenantBilling(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemTenantBillingUseCase.execute(accessToken, tenantId);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof UserNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }

@@ -148,4 +148,9 @@ export class EnforcementPlanService {
     const staged = await this.queries.candidates(settings.graceDays, today);
     return buildEnforcementPlan(staged, settings, today);
   }
+
+  async rowFor(tenantId: string, now: Date = new Date()): Promise<PlanRow | null> {
+    const plan = await this.plan(now);
+    return plan.rows.find((row) => row.tenantId === tenantId) ?? null;
+  }
 }

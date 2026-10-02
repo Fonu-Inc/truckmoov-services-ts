@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ListSystemSimsUseCase } from './list-system-sims.use-case';
+import { ListSystemSimsUseCase, type SystemSimListFilters } from './list-system-sims.use-case';
 
 function escapeCsvValue(value: unknown) {
   if (value == null) return '';
@@ -8,6 +8,16 @@ function escapeCsvValue(value: unknown) {
   return normalized;
 }
 
+const iso = (date: Date | null) => date?.toISOString() ?? '';
+
+export const SIM_EXPORT_HEADERS = [
+  'id', 'iccid', 'imsi', 'msisdn', 'carrier', 'plan', 'status',
+  'tenantId', 'tenantName', 'deviceId', 'deviceImei', 'dataUsageMb', 'dataLimitMb',
+  'smsUsage', 'smsLimit', 'monthlyCostNgn', 'activationDate', 'expiryDate',
+  'lastActivity', 'signalStrength', 'networkType', 'roaming',
+  'fonuStatus', 'createdAt',
+];
+
 @Injectable()
 export class ExportSystemSimsUseCase {
   constructor(
@@ -15,38 +25,22 @@ export class ExportSystemSimsUseCase {
     private readonly listSimsUseCase: ListSystemSimsUseCase,
   ) {}
 
-  async execute(
-    accessToken: string,
-    filters: {
-      status?: string;
-      carrier?: string;
-      tenantId?: string;
-      search?: string;
-    },
-  ) {
+  async execute(accessToken: string, filters: SystemSimListFilters) {
     const sims = await this.listSimsUseCase.list(accessToken, filters);
-
-    const headers = [
-      'id', 'iccid', 'imsi', 'msisdn', 'carrier', 'plan', 'status',
-      'tenantId', 'deviceId', 'dataUsageMb', 'dataLimitMb',
-      'monthlyCostNgn', 'activationDate', 'networkType', 'roaming',
-      'fonuStatus', 'createdAt',
-    ];
 
     const rows = sims.map((s) =>
       [
-        s.id, s.iccid, s.imsi ?? '', s.msisdn ?? '', s.carrier, s.plan,
-        s.status, s.tenantId ?? '', s.deviceId ?? '', s.dataUsageMb,
-        s.dataLimitMb, s.monthlyCostNgn,
-        s.activationDate?.toISOString() ?? '',
-        s.networkType ?? '', s.roaming,
-        s.fonuStatus ?? '', s.createdAt.toISOString(),
+        s.id, s.iccid, s.imsi, s.msisdn, s.carrier, s.plan, s.status,
+        s.tenantId, s.tenantName, s.deviceId, s.deviceImei, s.dataUsageMb, s.dataLimitMb,
+        s.smsUsage, s.smsLimit, s.monthlyCostNgn, iso(s.activationDate), iso(s.expiryDate),
+        iso(s.lastActivity), s.signalStrength, s.networkType, s.roaming,
+        s.fonuStatus, iso(s.createdAt),
       ]
         .map(escapeCsvValue)
         .join(','),
     );
 
-    const csv = [headers.join(','), ...rows].join('\n');
+    const csv = [SIM_EXPORT_HEADERS.join(','), ...rows].join('\n');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
     return { csv, filename: `sim-inventory-${timestamp}.csv` };

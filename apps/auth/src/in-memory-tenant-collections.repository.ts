@@ -1,0 +1,62 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { INVOICE_REPOSITORY, type InvoiceRepository } from '@auth/onboarding/domain/invoice.repository';
+import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from '@auth/onboarding/domain/onboarding-application.repository';
+import type { StoredOnboardingPayment } from '@auth/onboarding/domain/onboarding-payment.repository';
+import { InMemoryOnboardingPaymentRepository } from '@auth/onboarding/infrastructure/persistence/in-memory-onboarding-payment.repository';
+import { InMemoryWalletTopUpRepository } from './in-memory-wallet-top-up.repository';
+import type { TenantCollectionsRepository, TenantLastPayment } from './tenant-collections.repository';
+
+type AttributedPayment = { tenantId: string | null; payment: StoredOnboardingPayment & { paidAt: Date } };
+
+@Injectable()
+export class InMemoryTenantCollectionsRepository implements TenantCollectionsRepository {
+  constructor(
+    @Inject(InMemoryOnboardingPaymentRepository) private readonly payments: InMemoryOnboardingPaymentRepository,
+    @Inject(INVOICE_REPOSITORY) private readonly invoices: InvoiceRepository,
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY) private readonly applications: OnboardingApplicationRepository,
+    @Inject(InMemoryWalletTopUpRepository) private readonly topUps: InMemoryWalletTopUpRepository,
+  ) {}
+
+  async collectedKoboByTenant(from: Date, to: Date): Promise<Map<string, number>> {
+    const totals = new Map<string, number>();
+    const add = (tenantId: string | null, kobo: number) => {
+      if (!tenantId || tenantId === 'system') return;
+      totals.set(tenantId, (totals.get(tenantId) ?? 0) + kobo);
+    };
+    const inRange = (at: Date) => at >= from && at < to;
+
+    for (const { tenantId, payment } of await this.paidPayments()) {
+      if (payment.method !== 'wallet' && inRange(payment.paidAt)) add(tenantId, payment.amountKobo);
+    }
+    for (const topUp of this.topUps.all()) {
+      if (topUp.status === 'success' && topUp.settledAt && inRange(topUp.settledAt)) {
+        add(topUp.tenantId, topUp.amountKobo);
+      }
+    }
+    return totals;
+  }
+
+  async lastPaymentForTenant(tenantId: string): Promise<TenantLastPayment | null> {
+    const latest = (await this.paidPayments())
+      .filter((entry) => entry.tenantId === tenantId)
+      .sort((a, b) => b.payment.paidAt.getTime() - a.payment.paidAt.getTime())[0];
+    if (!latest) return null;
+    return { amountKobo: latest.payment.amountKobo, paidAt: latest.payment.paidAt, method: latest.payment.method };
+  }
+
+  private async paidPayments(): Promise<AttributedPayment[]> {
+    const paid = this.payments
+      .all()
+      .filter((payment): payment is AttributedPayment['payment'] => payment.status === 'paid' && payment.paidAt !== null);
+    return Promise.all(paid.map(async (payment) => ({ tenantId: await this.tenantOf(payment), payment })));
+  }
+
+  private async tenantOf(payment: StoredOnboardingPayment): Promise<string | null> {
+    const invoice = payment.invoiceId ? await this.invoices.findById(payment.invoiceId) : null;
+    if (invoice?.tenantId) return invoice.tenantId;
+    return (await this.applications.findById(payment.applicationId))?.tenantId ?? null;
+  }
+}
