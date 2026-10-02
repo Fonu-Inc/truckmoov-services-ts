@@ -32,6 +32,7 @@ import {
   DEVICE_REPOSITORY,
   ReinstateDeviceUseCase,
   DecommissionDeviceUseCase,
+  DeviceIdentityDirectory,
   SuspendDeviceUseCase,
   deviceHeartbeat,
   heartbeatWindow,
@@ -74,6 +75,8 @@ const DRAWER_ROW_LIMIT = 25;
 const MAX_DEVICE_IDS = 100;
 /** Tracking pages the held-device list; this is the most it may take at once. */
 const MAX_HELD_PAGE = 5000;
+const DEFAULT_IDENTITY_PAGE = 1000;
+const MAX_IDENTITY_PAGE = 5000;
 
 /** The forms a number is stored in: bare digits, with a plus, and, for Nigeria, with a local leading zero. */
 function phoneVariants(raw: string | undefined): string[] {
@@ -103,6 +106,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(DecommissionDeviceUseCase) private readonly decommissionDeviceUseCase: DecommissionDeviceUseCase,
     @Inject(TenantHoldUseCases) private readonly tenantHolds: TenantHoldUseCases,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(DeviceIdentityDirectory) private readonly identities: DeviceIdentityDirectory,
   ) {
     super(auditLog, bus);
   }
@@ -218,6 +222,24 @@ export class InternalFleetController extends BaseFleetController {
   async suspendedDevices(@Query("limit") limit?: string, @Query("cursor") cursor?: string) {
     const size = Math.min(Math.max(Number.parseInt(limit ?? "", 10) || MAX_HELD_PAGE, 1), MAX_HELD_PAGE);
     const data = await this.tenantHolds.heldDevices(size, cursor?.trim() || null);
+    return { status: true, message: "success", data };
+  }
+
+  /** Every live device's identity, paged by device id, so tracking can fill its IMEI cache. */
+  @Get("device-identities")
+  @UseGuards(PlatformOrTrackingGuard)
+  async deviceIdentities(@Query("limit") limit?: string, @Query("cursor") cursor?: string) {
+    const size = Math.min(Math.max(Number.parseInt(limit ?? "", 10) || DEFAULT_IDENTITY_PAGE, 1), MAX_IDENTITY_PAGE);
+    const data = await this.identities.page(size, cursor?.trim() || null);
+    return { status: true, message: "success", data };
+  }
+
+  /** One device's identity by IMEI, for tracking's read-through on a cache miss. */
+  @Get("device-identities/:imei")
+  @UseGuards(PlatformOrTrackingGuard)
+  async deviceIdentity(@Param("imei") imei: string) {
+    const data = await this.identities.byImei(imei);
+    if (!data) throw new NotFoundException("Device not found");
     return { status: true, message: "success", data };
   }
 

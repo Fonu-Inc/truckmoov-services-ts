@@ -115,6 +115,26 @@ export class MikroDeviceRepository implements DeviceRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async listLiveAfter(afterId: string | null, limit: number): Promise<Device[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(
+      DeviceRecord,
+      { lifecycleStatus: { $ne: "decommissioned" }, imei: { $ne: "" }, id: { $gt: afterId ?? "" } },
+      { orderBy: { id: "asc" }, limit },
+    );
+    return records.map((record) => this.toDomain(record));
+  }
+
+  async findLiveByImei(imei: string): Promise<Device | null> {
+    const orm = await getFleetOrm(this.config.db);
+    const record = await orm.em.fork().findOne(
+      DeviceRecord,
+      { imei: imei.trim(), lifecycleStatus: { $ne: "decommissioned" } },
+      { orderBy: { createdAt: "asc" } },
+    );
+    return record ? this.toDomain(record) : null;
+  }
+
   async findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();

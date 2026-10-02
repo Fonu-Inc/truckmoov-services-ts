@@ -45,6 +45,7 @@ export {
   ReinstateDeviceUseCase,
   SuspendDeviceUseCase,
 } from "./application/use-cases/suspend-device.use-cases";
+export { DeviceIdentityDirectory } from "./application/use-cases/device-identity-directory.use-case";
 export { DecommissionDeviceUseCase } from "./application/use-cases/decommission-device.use-case";
 export {
   DEVICE_QUOTA_READER,

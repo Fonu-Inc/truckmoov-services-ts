@@ -37,6 +37,10 @@ export interface DeviceRepository {
   /** Every device on the platform. Only platform-wide sweeps call this. */
   findAllAcrossTenants(): Promise<Device[]>;
   findByImei(imei: string, tenantId: string): Promise<Device | null>;
+  /** Devices that still carry an IMEI, by id, across tenants. Only tracking's identity snapshot calls this. */
+  listLiveAfter(afterId: string | null, limit: number): Promise<Device[]>;
+  /** The live (not decommissioned) device holding this IMEI, whatever tenant. */
+  findLiveByImei(imei: string): Promise<Device | null>;
   findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null>;
   deleteById(id: string, tenantId: string): Promise<void>;
   /**

@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { NotFoundException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
 import { DiscoveryService, Reflector } from "@nestjs/core";
 import { MODULE_METADATA } from "@nestjs/common/constants";
@@ -6,6 +7,7 @@ import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/en
 import { InMemoryDeviceRepository } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/repositories/in-memory-device.repository";
 import { Vehicle } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/entities/vehicle.entity";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
+import { DeviceIdentityDirectory } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/device-identity-directory.use-case";
 import { InternalFleetController } from "../../../apps/fleet/src/internal-fleet.controller";
 import { assertTenantScopedControllers } from "../../../apps/fleet/src/assert-tenant-scoped";
 import { AppModule } from "../../../apps/fleet/src/app.module";
@@ -83,6 +85,55 @@ describe("support ticket context snapshot", () => {
     const controller = await harness();
 
     await expect(controller.contextSnapshot("tenant-b", "device", IMEI)).rejects.toThrow("Record not found");
+  });
+});
+
+async function identityHarness() {
+  const devices = new InMemoryDeviceRepository();
+  await devices.save(device("dev-1", "tenant-a"));
+  await devices.save(Device.create({ ...device("dev-2", "tenant-a").toPrimitives(), imei: "359779090012347", lifecycleStatus: "assigned", vehicleId: "veh-2" }));
+  await devices.save(Device.create({ ...device("dev-3", "tenant-b").toPrimitives(), imei: "359779090012348", lifecycleStatus: "decommissioned" }));
+  return new InternalFleetController(
+    {} as never, {} as never, {} as never, {} as never, devices, {} as never, {} as never, {} as never, {} as never, {} as never,
+    {} as never, {} as never, new DeviceIdentityDirectory(devices),
+  );
+}
+
+describe("device identity snapshot", () => {
+  it("pages live devices by id and skips decommissioned ones", async () => {
+    const controller = await identityHarness();
+
+    const first = await controller.deviceIdentities("1");
+    expect(first.data.identities).toEqual([
+      { imei: IMEI, tenantId: "tenant-a", vehicleId: null, deviceId: "dev-1", status: expect.any(String) },
+    ]);
+    expect(first.data.nextCursor).toBe("dev-1");
+
+    const second = await controller.deviceIdentities("1", first.data.nextCursor!);
+    expect(second.data.identities.map((entry) => entry.deviceId)).toEqual(["dev-2"]);
+    expect(second.data.identities[0].vehicleId).toBe("veh-2");
+
+    const rest = await controller.deviceIdentities("5", "dev-2");
+    expect(rest.data.identities).toEqual([]);
+    expect(rest.data.nextCursor).toBeNull();
+  });
+
+  it("caps the page size", async () => {
+    const controller = await identityHarness();
+    const result = await controller.deviceIdentities("999999");
+    expect(result.data.identities).toHaveLength(2);
+  });
+
+  it("looks one device up by IMEI", async () => {
+    const controller = await identityHarness();
+    const result = await controller.deviceIdentity("359779090012347");
+    expect(result.data).toMatchObject({ deviceId: "dev-2", tenantId: "tenant-a", vehicleId: "veh-2" });
+  });
+
+  it("answers 404 for an unknown or decommissioned IMEI", async () => {
+    const controller = await identityHarness();
+    await expect(controller.deviceIdentity("000000000000000")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.deviceIdentity("359779090012348")).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

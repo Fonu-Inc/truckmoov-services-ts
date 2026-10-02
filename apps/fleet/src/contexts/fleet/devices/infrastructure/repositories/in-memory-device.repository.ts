@@ -103,6 +103,22 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     return this.data.get(id) ?? null;
   }
 
+  async listLiveAfter(afterId: string | null, limit: number): Promise<Device[]> {
+    return Array.from(this.data.values())
+      .filter((device) => device.lifecycleStatus !== "decommissioned" && device.imei !== "" && device.id > (afterId ?? ""))
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .slice(0, limit);
+  }
+
+  async findLiveByImei(imei: string): Promise<Device | null> {
+    const wanted = imei.trim();
+    return (
+      Array.from(this.data.values()).find(
+        (device) => device.imei === wanted && device.lifecycleStatus !== "decommissioned",
+      ) ?? null
+    );
+  }
+
   async findByImei(imei: string, tenantId: string): Promise<Device | null> {
     const normalizedImei = imei.trim();
     return (
