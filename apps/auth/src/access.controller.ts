@@ -26,7 +26,7 @@ export class InternalAccessController {
       throw new UnauthorizedException('Invalid service token');
     }
     const access = await this.resolver.resolve(this.users, userId);
-    if (!access) throw new NotFoundException();
+    if (!access) throw new NotFoundException('user not found');
     return { status: true, message: 'success', data: access };
   }
 }

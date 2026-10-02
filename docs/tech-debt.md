@@ -10,7 +10,8 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 onboarding payments and sweep, job attachments and instructions, the SIM ICCID
 race, tracking ingest and quarantine, and the first index migrations. Each fix
 works; the items below are the parts left on purpose or that need an outside
-system. Related: TD-9, TD-10, TD-13, TD-14.
+system. Related: TD-9, TD-10, TD-13, TD-14. Later review of campaigns, jobs, tracking
+ingest and the event bus added items 21 to 35.
 
 ### Where the code is
 
@@ -25,6 +26,9 @@ system. Related: TD-9, TD-10, TD-13, TD-14.
   `consume_job_offer_notification.go`), `internal/dispatch/`
   (`infrastructure/job_attachment_store.go`, `application/eta_monitor.go`),
   tracking ingest, `tracking_quarantine` and Redis `tracking:imei-identity`.
+- **Go (review leftovers):** campaign runner and scheduler, job repositories
+  (`internal/dispatch`), `internal/eventbus`, `httpx.Metrics`; TS
+  `libs/shared/access/src/access-client.ts`.
 - **Fleet / web:** `apps/fleet/src/live-tracking-counts.service.ts`,
   `fleet-financials.use-case.ts`; admin Devices page and device lists.
 
@@ -91,6 +95,58 @@ system. Related: TD-9, TD-10, TD-13, TD-14.
 20. Status-bar counts cover only vehicles that have reported since fleet
     started (in-memory tracked set, `in_progress` from dispatch).
 
+**Campaigns**
+21. A scheduled tenant campaign whose wallet is refused is retried every
+    scheduler tick (one refused charge call, logged as a warning) until the
+    tenant tops up. It is not throttled or paused.
+22. Recipients interrupted mid-send are marked failed and retried only on
+    request.
+23. Retry-failed runs skip the campaign-level claim and rely on the
+    per-recipient claim, so they can race a concurrent run's final
+    `SaveCampaign` status write. Harmless today.
+24. The text job instruction is recorded in the conversation after the send. If
+    recording fails it is only logged (reply-to-job context is lost); a
+    redelivery after a crash between send and record resends the message (the
+    charge is idempotent).
+
+**Jobs and ids**
+25. `FindByTenantAndID` returns `(Job, bool)` and treats a DB error as not
+    found, so `newJobID` can think a chosen id is free and `Save` upserts over
+    it. The Redis job repo also skips index entries whose payload is missing or
+    undecodable.
+26. A transfer or offer accept to a carrier tenant that already has a job with
+    the same id fails on the primary key, rolls back and surfaces as a generic
+    error.
+27. Tables keyed by `job_id` in `internal/notification` (instruction
+    conversations) and `internal/tracking` were not audited for tenant keying.
+    The ratings unique index on (operator_tenant_id, job_id) fails at startup
+    if existing rows already share a pair (unlikely).
+
+**Tracking ingest**
+28. The WS bridge (`internal/tracking/interfaces/ws/bridge.go`) builds
+    `IngestLocationCommand` with `SystemTenantID` and the IMEI as vehicle and
+    device, bypassing IMEI identity resolution (admin audience only).
+29. Redis keys `tracking:device-sim:{deviceId}` are now tenant-scoped; old keys
+    expire by TTL, so a device's SIM overview is empty until its next
+    `sim.changed` event.
+30. Generic ingest now requires `imei`; clients that omit it get 400 (no
+    producer found in the repo). Filter-skip drops (`invalid_coordinates`,
+    `impossible_jump`, `out_of_order`) are only debug-logged and returned as
+    `skip_reason`, with no counter.
+
+**Event bus and alerting**
+31. Dead letters are logged at error (`event_abandoned`,
+    `event_dead_letter_failed`) but no counter exists: the Prometheus registry
+    is private to each service inside `httpx.Metrics`.
+32. Nothing replays or alerts on `tm.system.dlq.*`, and the stream keeps them 7
+    days (MaxAge).
+33. The TS `AccessClient` (`libs/shared/access/src/access-client.ts`) caches
+    any 404 as no-user; the Go client now checks the "user not found" body.
+34. The alert route label is the id-collapsed URL path, not the mux pattern
+    (the pattern is set on a request copy the outer middleware cannot see).
+35. Eight commit subjects in history are over the 100-character commitlint
+    limit. Not fixable.
+
 ### What it needs
 
 1. Add `onboarding_payments.tenant_id`, backfill, set at provisioning, filter
@@ -142,12 +198,46 @@ system. Related: TD-9, TD-10, TD-13, TD-14.
     apps/admin. Acceptance: failed device shows reason and next retry.
 20. Seed the tracked set from the snapshot at startup and count never-reported
     vehicles. Acceptance: counts match the snapshot endpoint after restart.
+21. Decide pause versus notify, then throttle or pause scheduled campaigns
+    whose wallet is repeatedly refused. Acceptance: a refused campaign stops
+    retrying each tick and the tenant is told.
+22. Decide auto-retry or operator surfacing for interrupted recipients.
+    Acceptance: none stay silently failed.
+23. Add a status compare-and-set on the final campaign save. Acceptance: a
+    retry run cannot overwrite a concurrent run's status.
+24. Give the conversation message a deterministic id so recording is
+    idempotent. Acceptance: a redelivery records once; a record failure is
+    retried.
+25. Change the job repository port to return an error and propagate it through
+    `newJobID`, `Save` callers and Redis listing (log and count stale entries
+    or drop Redis). Acceptance: a DB error never reads as free or overwrites.
+26. Decide remap the id or return a typed conflict. Acceptance: accept with a
+    colliding id gives a clear result, not a rollback.
+27. Audit `job_id` keying in notification and tracking; check ratings for
+    duplicate pairs before the index deploys. Acceptance: every such table is
+    keyed by tenant.
+28. Resolve identity through the IMEI resolver in the WS bridge (product
+    decision on admin ingest). Acceptance: no fixed system tenant on ingest.
+29. Backfill or replay SIM overview entries from auth after deploy.
+    Acceptance: overview is populated without waiting for an event.
+30. Confirm no producer omits `imei`; add a counter per skip reason.
+    Acceptance: skips visible as metrics.
+31. Expose a shared Prometheus registry to eventbus and count dead letters.
+    Acceptance: a DLQ counter is scrapeable and alertable.
+32. DLQ consumer or alert, and retention beyond 7 days (ops decision).
+    Acceptance: a dead letter pages someone and survives past a week.
+33. Match the "user not found" body in the TS client after the auth change
+    deploys. Acceptance: other 404s are not cached as no-user.
+34. Carry the mux pattern up to the outer middleware. Acceptance: alert route
+    is the pattern.
+35. None; history cannot be rewritten.
 
 ### When picked up
 
 Items 15 and 14 (the out-of-band index build) before the next deploy. Items 2,
 5, 8 and 16 wait on outside systems (Paystack refund API, Meta approval,
-messaging channels, Traccar). The rest need no external work and are
+messaging channels, Traccar). Items 21, 22, 26, 28 and 32 need a product or
+ops decision first. The rest need no external work and are
 independent.
 
 ---
