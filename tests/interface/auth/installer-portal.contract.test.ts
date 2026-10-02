@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
+import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -35,6 +35,7 @@ describe('Installer portal over HTTP (auth)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('auth');
+    app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
     await app.init();
 
     const staff = await http().post('/auth/system/login').send({ email: 'superadmin@truckmoov.com', password: 'SuperAdmin123!' });
