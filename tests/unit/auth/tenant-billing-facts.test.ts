@@ -60,7 +60,7 @@ describe("GetSystemTenantBillingUseCase", () => {
       { resolveAccessToken: () => ({ id: "s" }) } as never,
       { findById: async () => ({ ...actor, role: over.actorRole ?? actor.role }) } as never,
       { list: async () => over.tenants ?? [row] } as never,
-      { findActiveByTenant: async () => ({ status: "active", periodStart: "2025-11-01", periodEnd: "2026-10-31" }) } as never,
+      { findActiveByTenant: async () => ({ status: "active", deviceCount: 5, periodStart: "2025-11-01", periodEnd: "2026-10-31" }) } as never,
       {
         listForTenant: async () => ({
           items: [{ invoice: dueLater, isRenewal: false }, { invoice: dueSoon, isRenewal: true }],
@@ -70,6 +70,9 @@ describe("GetSystemTenantBillingUseCase", () => {
       { lastPaymentForTenant: async () => ({ amountKobo: 250_000, paidAt: inMonth, method: "card" }) } as never,
       { rowFor: async () => ({ stage: "in_grace", dueDate: "2026-10-01", graceEndsOn: "2026-10-08", owedKobo: 400_000, suspended: false, suspensionCause: null }) } as never,
       { findByTenantId: async () => ({ balanceKobo: 150_000, lowBalanceThresholdKobo: 200_000, creditEnabled: false, creditLimitKobo: null }) } as never,
+      { findByPlanCode: async () => ({ paymentModel: "prepaid" }) } as never,
+      { findByTenantId: async () => null } as never,
+      { findByTenant: async () => null } as never,
     );
   }
 
@@ -78,6 +81,8 @@ describe("GetSystemTenantBillingUseCase", () => {
     expect(data).toEqual({
       tenantId: "t1",
       plan: { code: "gold", name: "Gold" },
+      billingModel: { kind: "per_device_licence", paymentModel: "prepaid", billingCycle: null, deviceCount: 5 },
+      trial: null,
       licence: { status: "active", periodStart: "2025-11-01", validUntil: "2026-10-31" },
       openInvoice: { id: "i1", number: "INV-1", dueDate: "2026-11-01", status: "issued", isRenewal: true, amountOwedNgn: 4000 },
       totalOwedNgn: 9000,
@@ -95,9 +100,11 @@ describe("GetSystemTenantBillingUseCase", () => {
     (useCase as any).collections = { lastPaymentForTenant: async () => null };
     (useCase as any).enforcement = { rowFor: async () => null };
     (useCase as any).wallets = { findByTenantId: async () => null };
+    (useCase as any).entitlements = { findByPlanCode: async () => null };
     const { data } = await useCase.execute("tok", "t1");
     expect(data).toMatchObject({
-      plan: null, licence: null, openInvoice: null, totalOwedNgn: 0, lastPayment: null, enforcement: null, wallet: null,
+      plan: null, billingModel: { kind: null, paymentModel: null, billingCycle: null, deviceCount: null },
+      trial: null, licence: null, openInvoice: null, totalOwedNgn: 0, lastPayment: null, enforcement: null, wallet: null,
     });
   });
 

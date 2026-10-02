@@ -327,6 +327,17 @@ describe("tenant views", () => {
     expect((await h.tenantViews.licence.execute(TENANT, h.clock.now)).data).toEqual({
       planCode: "m2m_standard", planName: "Standard", deviceCount: 5, periodStart: "2025-10-09",
       periodEnd: "2026-10-08", daysLeft: 7, status: "active", renewalInvoiceId: invoice.id,
+      pricePerDeviceNgn: null, renewalPricePerDeviceNgn: 6_000, totalPaidNgn: null, validityDays: 365, invoiceNumber: null,
+      devicesInUse: null, vehiclesInUse: null, simsInUse: null,
+    });
+  });
+
+  it("reports what the tenant has in use now", async () => {
+    const h = await buildRenewals();
+    await issued(h);
+    h.fieldActivity.usageCounts = async () => ({ vehicles: 4, drivers: 2, devices: 3, sims: 5 });
+    expect((await h.tenantViews.licence.execute(TENANT, h.clock.now)).data).toMatchObject({
+      devicesInUse: 3, vehiclesInUse: 4, simsInUse: 5,
     });
   });
 });

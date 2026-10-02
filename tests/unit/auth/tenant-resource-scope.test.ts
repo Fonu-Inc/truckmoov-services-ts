@@ -5,7 +5,7 @@ import { SystemTenantNotFoundError } from '../../../apps/auth/src/get-system-ten
 const ACTOR = { id: 'admin-1', tenantId: 'system', role: 'SUPER_ADMIN' };
 
 function useCase(options: {
-  tenants?: Array<{ id: string; planCode: string | null }>;
+  tenants?: Array<{ id: string; planCode: string | null; quotas?: Record<string, number | null> }>;
   fleet?: { total: number; items: unknown[] } | null;
   quotas?: Record<string, unknown>;
 }) {
@@ -18,7 +18,7 @@ function useCase(options: {
     { tenantResource } as never,
     { findAll: async () => ({ items: [], total: 0 }) } as never,
     { findByPlanCode } as never,
-    { list: async () => options.tenants ?? [] } as never,
+    { list: async () => (options.tenants ?? []).map((row) => ({ quotas: {}, ...row })) } as never,
   );
   return { instance, tenantResource, findByPlanCode };
 }
@@ -49,13 +49,12 @@ describe('Tenant resource tab', () => {
   // The caller should not have to know the tenant's plan to get its limit.
   it('takes the plan from the tenant when no planCode is passed', async () => {
     const { instance, findByPlanCode } = useCase({
-      tenants: [{ id: 'tenant-1', planCode: 'starter' }],
+      tenants: [{ id: 'tenant-1', planCode: 'starter', quotas: { vehicles: 10 } }],
       fleet: { total: 3, items: [] },
-      quotas: { vehicles: 10 },
     });
 
     const result = await instance.execute('token', 'tenant-1', 'vehicles', null);
-    expect(findByPlanCode).toHaveBeenCalledWith('starter');
+    expect(findByPlanCode).not.toHaveBeenCalled();
     expect(result.data).toMatchObject({ available: true, total: 3, used: 3, limit: 10 });
   });
 

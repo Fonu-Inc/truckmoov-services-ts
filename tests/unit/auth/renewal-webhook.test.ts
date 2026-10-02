@@ -92,7 +92,7 @@ describe("tenant billing routes", () => {
       path: Reflect.getMetadata(PATH_METADATA, proto[name]) as string,
     }));
 
-  it("publishes the five tenant endpoints under billing", () => {
+  it("publishes the tenant endpoints under billing", () => {
     expect(Reflect.getMetadata(PATH_METADATA, TenantBillingController)).toBe("billing");
     expect(routes).toEqual(
       expect.arrayContaining([
@@ -101,9 +101,15 @@ describe("tenant billing routes", () => {
         { method: "GET", path: "licence" },
         { method: "POST", path: "invoices/:id/pay-wallet" },
         { method: "POST", path: "invoices/:id/pay-card" },
+        { method: "GET", path: "quotations" },
+        { method: "GET", path: "quotations/:id" },
+        { method: "GET", path: "payments" },
+        { method: "GET", path: "payments/:id" },
+        { method: "GET", path: "overview" },
+        { method: "GET", path: "activity" },
       ]),
     );
-    expect(routes).toHaveLength(5);
+    expect(routes).toHaveLength(11);
   });
 
   it("serves only the tenant portal and needs the wallet top-up permission to pay", () => {

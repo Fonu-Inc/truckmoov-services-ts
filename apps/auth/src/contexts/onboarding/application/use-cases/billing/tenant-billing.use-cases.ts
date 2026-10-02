@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { BillingNotFoundError } from '@auth/onboarding/domain/billing-errors';
+import { BillingNotFoundError, BillingValidationError } from '@auth/onboarding/domain/billing-errors';
 import { clampPage } from '@auth/onboarding/domain/billing-pricing';
 import { daysBetween } from '@auth/onboarding/domain/enforcement-stage';
 import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
@@ -42,10 +42,18 @@ export type ListTenantInvoicesInput = {
   pageSize?: number;
 };
 
+const INVOICE_SCOPES: readonly TenantInvoiceScope[] = ['open', 'paid', 'all'];
+
 function resolveStatus(status: ListTenantInvoicesInput['status']) {
   const state = TENANT_INVOICE_STATES.find((candidate) => candidate === status);
   if (state) return { scope: 'all' as const, state };
-  return { scope: (status ?? 'all') as TenantInvoiceScope, state: undefined };
+  if (status === undefined) return { scope: 'all' as const, state: undefined };
+  const scope = INVOICE_SCOPES.find((candidate) => candidate === status);
+  if (!scope) {
+    const allowed = [...INVOICE_SCOPES, ...TENANT_INVOICE_STATES].join(', ');
+    throw new BillingValidationError('status', `status is not one of: ${allowed}`);
+  }
+  return { scope, state: undefined };
 }
 
 @Injectable()

@@ -8,6 +8,7 @@ import {
   InMemoryLicencePeriodRepository,
   InMemoryRenewalFactsReader,
 } from "@auth/onboarding/infrastructure/persistence/in-memory-licence-period.repository";
+import { InMemoryTenantFieldActivityReader } from "@auth/onboarding/infrastructure/persistence/in-memory-tenant-field-activity.reader";
 import { RenewalInvoiceService } from "@auth/onboarding/application/services/renewal-invoice.service";
 import { SettleRenewalPaymentUseCase } from "@auth/onboarding/application/settle-renewal-payment.use-case";
 import {
@@ -102,10 +103,11 @@ export async function buildRenewals(start = "2026-10-01T09:00:00+01:00") {
   };
   const payWallet = new PayRenewalFromWalletUseCase(invoices, payments, wallet, settle, settings, idGenerator);
   const payCard = new PayRenewalByCardUseCase(invoices, payments, gateway as never, idGenerator);
+  const fieldActivity = new InMemoryTenantFieldActivityReader();
   const tenantViews = {
     list: new ListTenantInvoicesUseCase(invoices, periods, settings),
     get: new GetTenantInvoiceUseCase(invoices, payments, periods, settings),
-    licence: new GetTenantLicenceUseCase(periods, plans, invoices),
+    licence: new GetTenantLicenceUseCase(periods, plans, invoices, fieldActivity),
   };
 
   const at = (date: string, hour = 9) => {
@@ -143,7 +145,7 @@ export async function buildRenewals(start = "2026-10-01T09:00:00+01:00") {
   factsReader.byTenant.set(TENANT, facts());
 
   return {
-    clock, payments, invoices, periods, factsReader, plans, billingSettings, settings, wallet, billingAudit, audit,
+    clock, fieldActivity, payments, invoices, periods, factsReader, plans, billingSettings, settings, wallet, billingAudit, audit,
     notices, mail, mailer, noticeService, service, settle, restore, events, emitted, gateway, payWallet, payCard,
     tenantViews, at, addPeriod, sweep, openInvoices, gatewayPayment, paidCallback,
   };
