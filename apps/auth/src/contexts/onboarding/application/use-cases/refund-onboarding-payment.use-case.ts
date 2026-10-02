@@ -98,7 +98,7 @@ export class RefundOnboardingPaymentUseCase {
     assertRefundable(payment);
 
     if (payment.status === 'refunded') {
-      return this.result(application.id, payment, note, payment.refundReference ?? null, 'refunded', actor.id);
+      return this.result(application.id, payment, note, payment.refundReference ?? null, 'refunded', actor.id, true);
     }
 
     const claimed = await this.claim(payment, note, actor.id);
@@ -133,7 +133,7 @@ export class RefundOnboardingPaymentUseCase {
   ) {
     const current = await this.payments.findByReference(payment.reference);
     if (current?.status === 'refunded') {
-      return this.result(applicationId, current, note, current.refundReference ?? null, 'refunded', actorId);
+      return this.result(applicationId, current, note, current.refundReference ?? null, 'refunded', actorId, true);
     }
     if (current?.status === 'mismatch' && current.refundPendingAt) throw new RefundInProgressError();
     throw new PaymentNotRefundableError();
@@ -168,6 +168,7 @@ export class RefundOnboardingPaymentUseCase {
     refundReference: string | null,
     refundStatus: 'refunded' | 'processing',
     actorId: string,
+    alreadyRefunded = false,
   ) {
     return {
       actorId,
@@ -183,7 +184,7 @@ export class RefundOnboardingPaymentUseCase {
         refundReference,
         note,
         refundStatus,
-        alreadyRefunded: payment.status === 'refunded',
+        alreadyRefunded,
       },
     };
   }
