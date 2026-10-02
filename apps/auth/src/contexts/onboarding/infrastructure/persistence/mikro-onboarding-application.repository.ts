@@ -63,6 +63,9 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     setupLinkError: r.setupLinkError ?? null,
     setupLinkAttempts: r.setupLinkAttempts ?? 0,
     paymentNotifiedAt: r.paymentNotifiedAt ?? null,
+    paymentNoticeError: r.paymentNoticeError ?? null,
+    paymentNoticeAttempts: r.paymentNoticeAttempts ?? 0,
+    paymentNoticeAttemptedAt: r.paymentNoticeAttemptedAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -166,15 +169,62 @@ export class MikroOnboardingApplicationRepository
     await em.flush();
   }
 
-  async claimPaymentNotice(id: string, at: Date): Promise<boolean> {
-    const orm = await getAuthOrm(this.config.db);
-    const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
-      `update onboarding_applications set payment_notified_at = ?
-       where id = ? and payment_notified_at is null
+  async claimPaymentNoticeAttempt(id: string, at: Date, notBefore: Date): Promise<boolean> {
+    const rows = await this.run<{ id: string }>(
+      `update onboarding_applications set last_notice_attempt_at = ?
+       where id = ? and (last_notice_attempt_at is null or last_notice_attempt_at < ?)
        returning id`,
-      [at, id],
+      [at, id, notBefore],
     );
     return rows.length === 1;
+  }
+
+  async completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void> {
+    await this.run(
+      `update onboarding_applications
+         set token_hash = ?, payment_notified_at = coalesce(payment_notified_at, ?),
+             last_notice_error = null, updated_at = ?
+       where id = ?`,
+      [tokenHash, at, at, id],
+    );
+  }
+
+  async recordPaymentNoticeFailure(id: string, error: string): Promise<number> {
+    const rows = await this.run<{ notice_attempts: number }>(
+      `update onboarding_applications
+         set notice_attempts = notice_attempts + 1, last_notice_error = ?
+       where id = ?
+       returning notice_attempts`,
+      [error.slice(0, 500), id],
+    );
+    return rows[0]?.notice_attempts ?? 0;
+  }
+
+  async replaceTokenHash(id: string, tokenHash: string): Promise<void> {
+    await this.run(`update onboarding_applications set token_hash = ?, updated_at = now() where id = ?`, [
+      tokenHash,
+      id,
+    ]);
+  }
+
+  async findPaymentNoticePending(maxAttempts: number, limit: number): Promise<StoredOnboardingApplication[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingApplicationRecord,
+      {
+        status: 'approved',
+        stage: 'payment',
+        paymentNotifiedAt: null,
+        paymentNoticeAttempts: { $lt: maxAttempts },
+      },
+      { orderBy: { updatedAt: 'asc' }, limit },
+    );
+    return records.map(toStored);
+  }
+
+  private async run<T = unknown>(sql: string, params: unknown[]): Promise<T[]> {
+    const orm = await getAuthOrm(this.config.db);
+    return orm.em.getConnection().execute<T[]>(sql, params);
   }
 
   async findById(id: string): Promise<StoredOnboardingApplication | null> {

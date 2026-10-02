@@ -46,11 +46,48 @@ export class InMemoryOnboardingApplicationRepository
     this.applications.set(application.id, { ...application });
   }
 
-  async claimPaymentNotice(id: string, at: Date): Promise<boolean> {
+  async claimPaymentNoticeAttempt(id: string, at: Date, notBefore: Date): Promise<boolean> {
     const application = this.applications.get(id);
-    if (!application || application.paymentNotifiedAt) return false;
-    application.paymentNotifiedAt = at;
+    if (!application) return false;
+    const last = application.paymentNoticeAttemptedAt;
+    if (last && last >= notBefore) return false;
+    application.paymentNoticeAttemptedAt = at;
     return true;
+  }
+
+  async completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void> {
+    const application = this.applications.get(id);
+    if (!application) return;
+    application.tokenHash = tokenHash;
+    application.paymentNotifiedAt = application.paymentNotifiedAt ?? at;
+    application.paymentNoticeError = null;
+    application.updatedAt = at;
+  }
+
+  async recordPaymentNoticeFailure(id: string, error: string): Promise<number> {
+    const application = this.applications.get(id);
+    if (!application) return 0;
+    application.paymentNoticeAttempts = (application.paymentNoticeAttempts ?? 0) + 1;
+    application.paymentNoticeError = error.slice(0, 500);
+    return application.paymentNoticeAttempts;
+  }
+
+  async replaceTokenHash(id: string, tokenHash: string): Promise<void> {
+    const application = this.applications.get(id);
+    if (application) application.tokenHash = tokenHash;
+  }
+
+  async findPaymentNoticePending(maxAttempts: number, limit: number): Promise<StoredOnboardingApplication[]> {
+    return [...this.applications.values()]
+      .filter(
+        (application) =>
+          application.status === 'approved' &&
+          application.stage === 'payment' &&
+          !application.paymentNotifiedAt &&
+          (application.paymentNoticeAttempts ?? 0) < maxAttempts,
+      )
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .slice(0, limit);
   }
 
   async findById(id: string): Promise<StoredOnboardingApplication | null> {

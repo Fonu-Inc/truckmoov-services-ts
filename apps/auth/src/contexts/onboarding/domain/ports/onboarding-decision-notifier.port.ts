@@ -22,10 +22,13 @@ export type ApplicationResumeEmail = {
   applicationToken: string;
 };
 
+/** Whether the mail transport accepted the message. A failure carries why. */
+export type MailDelivery = { delivered: true } | { delivered: false; error: string };
+
 export interface OnboardingDecisionNotifier {
-  sendRejected(input: ApplicationDecisionEmail): Promise<void>;
-  sendChangesRequested(input: ApplicationChangesRequestedEmail): Promise<void>;
-  sendResumeLink(input: ApplicationResumeEmail): Promise<void>;
-  sendPaymentOpen(input: ApplicationResumeEmail): Promise<void>;
-  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<void>;
+  sendRejected(input: ApplicationDecisionEmail): Promise<MailDelivery>;
+  sendChangesRequested(input: ApplicationChangesRequestedEmail): Promise<MailDelivery>;
+  sendResumeLink(input: ApplicationResumeEmail): Promise<MailDelivery>;
+  sendPaymentOpen(input: ApplicationResumeEmail): Promise<MailDelivery>;
+  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<MailDelivery>;
 }

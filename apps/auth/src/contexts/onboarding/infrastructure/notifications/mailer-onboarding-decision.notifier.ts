@@ -17,6 +17,7 @@ import type {
   ApplicationChangesRequestedEmail,
   ApplicationDecisionEmail,
   ApplicationResumeEmail,
+  MailDelivery,
   OnboardingDecisionNotifier,
 } from '@auth/onboarding/domain/ports/onboarding-decision-notifier.port';
 
@@ -31,8 +32,8 @@ export class MailerOnboardingDecisionNotifier
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async sendRejected(input: ApplicationDecisionEmail): Promise<void> {
-    await this.send(input.email, APPLICATION_REJECTED_SUBJECT, APPLICATION_REJECTED_TEMPLATE, {
+  async sendRejected(input: ApplicationDecisionEmail): Promise<MailDelivery> {
+    return this.send(input.email, APPLICATION_REJECTED_SUBJECT, APPLICATION_REJECTED_TEMPLATE, {
       organizationName: input.organizationName,
       reference: input.reference,
       reason: input.reason,
@@ -43,13 +44,13 @@ export class MailerOnboardingDecisionNotifier
 
   async sendChangesRequested(
     input: ApplicationChangesRequestedEmail,
-  ): Promise<void> {
+  ): Promise<MailDelivery> {
     const resumeLink = this.buildResumeLink(
       input.applicationId,
       input.applicationToken,
     );
 
-    await this.send(
+    return this.send(
       input.email,
       APPLICATION_CHANGES_REQUESTED_SUBJECT,
       APPLICATION_CHANGES_REQUESTED_TEMPLATE,
@@ -63,19 +64,19 @@ export class MailerOnboardingDecisionNotifier
     );
   }
 
-  sendResumeLink(input: ApplicationResumeEmail): Promise<void> {
+  sendResumeLink(input: ApplicationResumeEmail): Promise<MailDelivery> {
     return this.sendLink(input, APPLICATION_RESUME_SUBJECT, APPLICATION_RESUME_TEMPLATE);
   }
 
-  sendPaymentOpen(input: ApplicationResumeEmail): Promise<void> {
+  sendPaymentOpen(input: ApplicationResumeEmail): Promise<MailDelivery> {
     return this.sendLink(input, APPLICATION_PAYMENT_OPEN_SUBJECT, APPLICATION_PAYMENT_OPEN_TEMPLATE);
   }
 
-  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<void> {
+  sendPaymentRefunded(input: ApplicationResumeEmail): Promise<MailDelivery> {
     return this.sendLink(input, APPLICATION_PAYMENT_REFUNDED_SUBJECT, APPLICATION_PAYMENT_REFUNDED_TEMPLATE);
   }
 
-  private sendLink(input: ApplicationResumeEmail, subject: string, template: string): Promise<void> {
+  private sendLink(input: ApplicationResumeEmail, subject: string, template: string): Promise<MailDelivery> {
     return this.send(input.email, subject, template, {
       organizationName: input.organizationName,
       reference: input.reference,
@@ -101,17 +102,14 @@ export class MailerOnboardingDecisionNotifier
     subject: string,
     template: string,
     variables: Record<string, string>,
-  ): Promise<void> {
+  ): Promise<MailDelivery> {
     try {
       await this.mailer.send({ to, subject, template, variables });
+      return { delivered: true };
     } catch (error) {
-      // A decision is already recorded by the time this runs. Failing the whole
-      // request would leave the admin unable to retry without double-deciding.
-      this.logger.error(
-        `Onboarding decision email to ${to} failed: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      this.logger.error(`Onboarding decision email to ${to} failed: ${reason}`);
+      return { delivered: false, error: reason };
     }
   }
 }

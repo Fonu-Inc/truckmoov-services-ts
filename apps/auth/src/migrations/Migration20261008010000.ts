@@ -11,7 +11,10 @@ export class Migration20261008010000 extends Migration {
       add column if not exists "refund_note" varchar(500) null,
       add column if not exists "refund_requested_by" varchar(64) null;`);
     this.addSql(`alter table "onboarding_applications"
-      add column if not exists "payment_notified_at" timestamptz null;`);
+      add column if not exists "payment_notified_at" timestamptz null,
+      add column if not exists "last_notice_error" text null,
+      add column if not exists "notice_attempts" int not null default 0,
+      add column if not exists "last_notice_attempt_at" timestamptz null;`);
     this.addSql(`alter table "enforcement_settings"
       add column if not exists "onboarding_trial_days_override" int null;`);
     this.addSql(`update "onboarding_payments" p set "tenant_id" = a."tenant_id"
@@ -23,7 +26,11 @@ export class Migration20261008010000 extends Migration {
 
   override async down(): Promise<void> {
     this.addSql(`alter table "enforcement_settings" drop column if exists "onboarding_trial_days_override";`);
-    this.addSql(`alter table "onboarding_applications" drop column if exists "payment_notified_at";`);
+    this.addSql(`alter table "onboarding_applications"
+      drop column if exists "payment_notified_at",
+      drop column if exists "last_notice_error",
+      drop column if exists "notice_attempts",
+      drop column if exists "last_notice_attempt_at";`);
     this.addSql(`drop index if exists "onboarding_payments_tenant_id_idx";`);
     this.addSql(`alter table "onboarding_payments"
       drop column if exists "tenant_id",

@@ -60,9 +60,13 @@ export type StoredOnboardingPayment = {
 
 const RENEWAL_REFERENCE_PREFIX = 'RNW-';
 
+export function isRenewalReference(reference: string): boolean {
+  return reference.startsWith(RENEWAL_REFERENCE_PREFIX);
+}
+
 /** Renewal payments share the application id but are billed through invoices, never refunded here. */
 export function isOnboardingPayment(payment: Pick<StoredOnboardingPayment, 'reference' | 'invoiceId'>): boolean {
-  return !payment.reference.startsWith(RENEWAL_REFERENCE_PREFIX) && !payment.invoiceId;
+  return !isRenewalReference(payment.reference) && !payment.invoiceId;
 }
 
 export const MISMATCH_REVIEW_OUTCOMES = ['resolved', 'refund_needed'] as const;
@@ -95,9 +99,12 @@ export type RefundClaim = {
 export interface OnboardingPaymentRepository {
   save(payment: StoredOnboardingPayment): Promise<void>;
   findByReference(reference: string): Promise<StoredOnboardingPayment | null>;
+  /** The newest onboarding payment. Renewal payments share the application id and never count; a paid onboarding payment keeps counting after its invoice is linked. */
   findLatestForApplication(
     applicationId: string,
   ): Promise<StoredOnboardingPayment | null>;
+  /** Onboarding payments whose refund claim was taken before `claimedBefore` and is still unresolved, oldest claim first. */
+  findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]>;
   /** Onboarding payments in mismatch, newest first; refunded ones follow when asked for. Renewals are never listed. */
   listMismatchedForApplication(
     applicationId: string,
@@ -129,8 +136,8 @@ export interface OnboardingPaymentRepository {
   flagForReview(id: string, note: string): Promise<void>;
   /** Moves a reviewed mismatch to refunded; false when it is not in mismatch. */
   markRefunded(id: string, refund: RefundRecord): Promise<boolean>;
-  /** Keeps the provider's refusal on a mismatch payment and releases the claim so staff can retry. */
-  recordRefundError(id: string, error: string): Promise<void>;
+  /** Keeps the provider's refusal on a mismatch payment and releases the claim so staff can retry. With `onlyIfClaimedBefore`, a claim taken since then is left alone. */
+  recordRefundError(id: string, error: string, onlyIfClaimedBefore?: Date): Promise<void>;
   /** Links a payment to its invoice once; a payment already linked is left alone. */
   linkInvoice(id: string, invoiceId: string): Promise<void>;
   deleteUnstarted(id: string): Promise<void>;

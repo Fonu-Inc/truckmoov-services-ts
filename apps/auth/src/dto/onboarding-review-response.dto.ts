@@ -286,6 +286,19 @@ export class PaymentReviewedResponse extends StandardApiResponse<PaymentReviewed
   @ApiProperty({ type: PaymentReviewedSchema }) data!: PaymentReviewedSchema;
 }
 
+export class PaymentLinkResentSchema {
+  @ApiProperty() applicationId!: string;
+  @ApiProperty() reference!: string;
+  @ApiProperty({ description: 'False when the email could not be sent; the previous link still works.' })
+  delivered!: boolean;
+  @ApiProperty() resentBy!: string;
+  @ApiProperty({ format: 'date-time' }) resentAt!: string;
+}
+
+export class PaymentLinkResentResponse extends StandardApiResponse<PaymentLinkResentSchema> {
+  @ApiProperty({ type: PaymentLinkResentSchema }) data!: PaymentLinkResentSchema;
+}
+
 export class PaymentRefundedSchema {
   @ApiProperty() applicationId!: string;
   @ApiProperty() paymentId!: string;

@@ -145,8 +145,12 @@ export type StoredOnboardingApplication = {
   setupLinkSentAt: Date | null;
   setupLinkError: string | null;
   setupLinkAttempts: number;
-  /** When the applicant was emailed that payment is open; set once, never cleared. */
+  /** When the applicant was emailed that payment is open; set only once the mail was accepted. */
   paymentNotifiedAt?: Date | null;
+  /** Why the last payment-open mail failed; cleared on success. */
+  paymentNoticeError?: string | null;
+  paymentNoticeAttempts?: number;
+  paymentNoticeAttemptedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -285,8 +289,16 @@ export interface OnboardingApplicationRepository {
     attemptedBefore: Date,
     limit: number,
   ): Promise<StoredOnboardingApplication[]>;
-  /** Records that the payment-open email is being sent; true for the first caller only. */
-  claimPaymentNotice(id: string, at: Date): Promise<boolean>;
+  /** Approved applications at payment whose payment-open email has not gone out and has failed fewer than `maxAttempts` times. */
+  findPaymentNoticePending(maxAttempts: number, limit: number): Promise<StoredOnboardingApplication[]>;
+  /** Takes the right to send a payment mail now; false when another attempt began after `notBefore`. */
+  claimPaymentNoticeAttempt(id: string, at: Date, notBefore: Date): Promise<boolean>;
+  /** The mail was accepted: stores the token it carried and marks the notice sent. */
+  completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void>;
+  /** The mail was not accepted: keeps why and counts the attempt; returns the attempts so far. */
+  recordPaymentNoticeFailure(id: string, error: string): Promise<number>;
+  /** Replaces the applicant token alone, leaving every other field as it is. */
+  replaceTokenHash(id: string, tokenHash: string): Promise<void>;
   /** Removes the application and everything filed against it. */
   deleteApplication(id: string): Promise<void>;
 

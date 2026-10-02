@@ -7,6 +7,7 @@ import axios from 'axios';
 
 vi.mock('axios');
 const mockedPost = vi.mocked(axios.post);
+const mockedGet = vi.mocked(axios.get);
 
 const SECRET = 'sk_test_secret';
 
@@ -101,6 +102,47 @@ describe('PaystackGateway', () => {
 
     await expect(gateway().refund('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
     expect(mockedPost.mock.calls[0][2]).toMatchObject({ timeout: expect.any(Number) });
+  });
+
+  describe('getRefundStatus', () => {
+    const answer = (status: number, body: unknown) => mockedGet.mockResolvedValue({ status, data: body } as never);
+
+    it.each([
+      ['processed', 'processed'],
+      ['failed', 'failed'],
+      ['pending', 'pending'],
+      ['processing', 'pending'],
+      ['needs-attention', 'pending'],
+    ])('maps paystack %s to %s', async (provider, expected) => {
+      answer(200, { status: true, data: { id: 77, status: provider } });
+
+      expect(await gateway().getRefundStatus('FPA-1')).toEqual({ status: expected, providerRefundId: '77' });
+      expect(mockedGet.mock.calls[0][0]).toBe('https://api.paystack.co/refund/FPA-1');
+      expect(mockedGet.mock.calls[0][1]).toMatchObject({ timeout: expect.any(Number) });
+    });
+
+    it('reads the first refund when paystack answers a list', async () => {
+      answer(200, { status: true, data: [{ id: 5, status: 'processed' }] });
+
+      expect(await gateway().getRefundStatus('FPA-1')).toEqual({ status: 'processed', providerRefundId: '5' });
+    });
+
+    it('answers unknown for a 404 or an empty answer', async () => {
+      answer(404, { status: false, message: 'Refund not found' });
+      expect(await gateway().getRefundStatus('FPA-1')).toEqual({ status: 'unknown', providerRefundId: null });
+
+      answer(200, { status: true, data: null });
+      expect(await gateway().getRefundStatus('FPA-1')).toEqual({ status: 'unknown', providerRefundId: null });
+    });
+
+    it('raises a provider error for a server error, a network failure or missing keys', async () => {
+      answer(500, { status: false, message: 'boom' });
+      await expect(gateway().getRefundStatus('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
+
+      mockedGet.mockRejectedValue(new Error('socket hang up'));
+      await expect(gateway().getRefundStatus('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
+      await expect(gateway(null).getRefundStatus('FPA-1')).rejects.toBeInstanceOf(PaymentGatewayError);
+    });
   });
 
   it('accepts a signature it computed itself', () => {

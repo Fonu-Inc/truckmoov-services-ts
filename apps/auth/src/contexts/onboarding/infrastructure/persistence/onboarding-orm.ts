@@ -16,6 +16,9 @@ export class OnboardingApplicationRecord {
   setupLinkError?: string | null;
   setupLinkAttempts?: number;
   paymentNotifiedAt?: Date | null;
+  paymentNoticeError?: string | null;
+  paymentNoticeAttempts?: number;
+  paymentNoticeAttemptedAt?: Date | null;
   id!: string;
   reference!: string;
   tokenHash!: string;
@@ -53,6 +56,9 @@ export const OnboardingApplicationRecordSchema =
       setupLinkError: { fieldName: 'setup_link_error', type: 'text', nullable: true },
       setupLinkAttempts: { fieldName: 'setup_link_attempts', type: 'number', default: 0 },
       paymentNotifiedAt: { fieldName: 'payment_notified_at', type: 'datetime', nullable: true },
+      paymentNoticeError: { fieldName: 'last_notice_error', type: 'text', nullable: true },
+      paymentNoticeAttempts: { fieldName: 'notice_attempts', type: 'number', default: 0 },
+      paymentNoticeAttemptedAt: { fieldName: 'last_notice_attempt_at', type: 'datetime', nullable: true },
       applicantType: { fieldName: 'applicant_type', type: 'string', length: 32 },
       organizationName: { fieldName: 'organization_name', type: 'string', length: 160 },
       businessEmail: { fieldName: 'business_email', type: 'string', length: 254, index: true },

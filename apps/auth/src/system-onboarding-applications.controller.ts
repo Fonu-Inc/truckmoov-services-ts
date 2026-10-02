@@ -6,6 +6,8 @@ import {
   Controller,
   Get,
   Headers,
+  HttpException,
+  HttpStatus,
   Inject,
   NotFoundException,
   Param,
@@ -30,6 +32,7 @@ import {
   ApprovedApplicationResponse,
   ChangesRequestedResponse,
   DocumentDecisionResponse,
+  PaymentLinkResentResponse,
   PaymentRefundedResponse,
   PaymentReviewedResponse,
   ProvisionedResponse,
@@ -58,6 +61,8 @@ import {
   ListOnboardingApplicationsUseCase,
   OnboardingValidationError,
   ONBOARDING_APPLICANT_TYPES,
+  PaymentLinkNotResendableError,
+  PaymentLinkResentTooSoonError,
   PaymentNotInMismatchError,
   PaymentNotRefundableError,
   ProvisioningReasonRequiredError,
@@ -69,6 +74,7 @@ import {
   RejectOnboardingApplicationUseCase,
   RequestOnboardingApplicationChangesUseCase,
   ResendOnboardingSetupLinkUseCase,
+  ResendPaymentLinkUseCase,
   ReviewOnboardingApplicationDocumentUseCase,
   ReviewOnboardingPaymentMismatchUseCase,
   SetupLinkNotResendableError,
@@ -138,6 +144,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly requestChanges: RequestOnboardingApplicationChangesUseCase,
     @Inject(ResendOnboardingSetupLinkUseCase)
     private readonly resendSetupLink: ResendOnboardingSetupLinkUseCase,
+    @Inject(ResendPaymentLinkUseCase)
+    private readonly resendPaymentLink: ResendPaymentLinkUseCase,
     @Inject(CompleteProvisioningUseCase)
     private readonly completeProvisioning: CompleteProvisioningUseCase,
     @Inject(ReviewOnboardingPaymentMismatchUseCase)
@@ -423,6 +431,34 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     });
   }
 
+  @Post(':applicationId/payment-link/resend')
+  @ApiOperation({
+    summary: 'Resend the payment link',
+    description:
+      'Emails the applicant a new link to pay and replaces the previous one once the email is accepted. Only for an approved application at the payment stage. Limited to one send every two minutes.',
+  })
+  @ApiCreatedResponse({
+    description:
+      'A failed send is still a 201: message is "The payment link could not be delivered", data.delivered is false and the previous link keeps working.',
+    type: PaymentLinkResentResponse,
+  })
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, '"Only an approved application waiting for payment has a payment link"')
+  @ApiErrorResponse(429, '"A payment link was sent a moment ago. Wait two minutes before sending another."')
+  async resendPayment(
+    @Param('applicationId') applicationId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      const result = await this.resendPaymentLink.execute({ accessToken, applicationId });
+      await this.recordDecision(accessToken, applicationId, 'payment_link_resent', {
+        delivered: result.data.delivered,
+      });
+      return result;
+    });
+  }
+
   @Post(':applicationId/provisioned')
   @ApiOperation({
     summary: 'Open payment for an application waiting on devices',
@@ -610,10 +646,12 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         error instanceof RefundInProgressError ||
         error instanceof RefundStateConflictError ||
         error instanceof BusinessEmailInUseError ||
-        error instanceof SetupLinkNotResendableError
+        error instanceof SetupLinkNotResendableError ||
+        error instanceof PaymentLinkNotResendableError
       ) {
         throw new ConflictException(error.message);
       }
+      if (error instanceof PaymentLinkResentTooSoonError) throw new HttpException(error.message, HttpStatus.TOO_MANY_REQUESTS);
       if (error instanceof RefundRefusedError) throw new BadGatewayException(error.message);
       throw error;
     }

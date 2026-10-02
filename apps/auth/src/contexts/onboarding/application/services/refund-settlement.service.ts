@@ -10,6 +10,7 @@ import { PlatformAlertPublisher } from '../../../../platform-alert.publisher';
 import { ApplicationPaymentNoticeService } from './application-payment-notice.service';
 
 export const REFUND_ANOMALY_NOTE = 'refunded at provider but status changed';
+export const REFUND_NOT_FOUND_NOTE = 'no refund found at provider: check Paystack before retrying';
 export const REFUND_FAILED_NOTE = 'The payment provider could not complete the refund';
 
 @Injectable()
@@ -42,9 +43,21 @@ export class RefundSettlementService {
   }
 
   /** The provider gave up on a queued refund: release the claim so staff can try again. */
-  async failed(payment: StoredOnboardingPayment, reason: string): Promise<void> {
-    await this.payments.recordRefundError(payment.id, reason);
+  async failed(payment: StoredOnboardingPayment, reason: string, onlyIfClaimedBefore?: Date): Promise<void> {
+    await this.payments.recordRefundError(payment.id, reason, onlyIfClaimedBefore);
     this.logger.warn(`onboarding_refund_failed:${payment.reference}:${reason}`);
+  }
+
+  /** The provider has no record of the refund long after it was claimed: release it and ask staff to check by hand. */
+  async missingAtProvider(payment: StoredOnboardingPayment, onlyIfClaimedBefore: Date): Promise<void> {
+    await this.failed(payment, REFUND_NOT_FOUND_NOTE, onlyIfClaimedBefore);
+    await this.alerts.raise({
+      alertType: 'billing_alerts',
+      severity: 'high',
+      subject: `Onboarding refund not found at provider (${payment.reference})`,
+      body: 'A refund was requested but the payment provider has no record of it. Check the transaction on Paystack before retrying, or the customer may be refunded twice.',
+      context: { applicationId: payment.applicationId, reference: payment.reference },
+    });
   }
 
   async onCallback(reference: string, refund: RefundCallback): Promise<void> {

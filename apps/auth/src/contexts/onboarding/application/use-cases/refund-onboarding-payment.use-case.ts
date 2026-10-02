@@ -20,6 +20,7 @@ import {
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { REFUND_FAILED_NOTE, RefundSettlementService } from '../services/refund-settlement.service';
+import { RefundReconciliationService } from '../services/refund-reconciliation.service';
 import { reviewNote } from './review-onboarding-payment.use-case';
 import { resolveOnboardingPayment } from './support/resolve-onboarding-payment';
 
@@ -70,6 +71,8 @@ export class RefundOnboardingPaymentUseCase {
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     @Inject(RefundSettlementService)
     private readonly settlement: RefundSettlementService,
+    @Inject(RefundReconciliationService)
+    private readonly reconciliation: RefundReconciliationService,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
   ) {}
@@ -98,7 +101,7 @@ export class RefundOnboardingPaymentUseCase {
       return this.result(application.id, payment, note, payment.refundReference ?? null, 'refunded', actor.id);
     }
 
-    const claimed = await this.payments.claimRefund(payment.id, { note, requestedBy: actor.id });
+    const claimed = await this.claim(payment, note, actor.id);
     if (!claimed) return this.answerLostClaim(application.id, payment, note, actor.id);
 
     const refund = await this.refundThroughProvider(payment);
@@ -110,6 +113,16 @@ export class RefundOnboardingPaymentUseCase {
     }
     await this.payments.recordRefundAccepted(payment.id, refund.providerRefundId);
     return this.result(application.id, payment, note, refund.providerRefundId, 'processing', actor.id);
+  }
+
+  /** A held claim is only ever released by reconciliation, and never before it is 30 minutes old. */
+  private async claim(payment: StoredOnboardingPayment, note: string, actorId: string): Promise<boolean> {
+    const claim = { note, requestedBy: actorId };
+    if (await this.payments.claimRefund(payment.id, claim)) return true;
+    const current = await this.payments.findByReference(payment.reference);
+    if (!current) return false;
+    await this.reconciliation.reconcile(current);
+    return this.payments.claimRefund(payment.id, claim);
   }
 
   private async answerLostClaim(

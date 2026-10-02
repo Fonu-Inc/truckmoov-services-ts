@@ -3,6 +3,7 @@ import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
   isOnboardingPayment,
+  isRenewalReference,
   type MismatchReview,
   type MismatchReviewOutcome,
   type OnboardingPaymentRepository,
@@ -95,10 +96,20 @@ export class MikroOnboardingPaymentRepository
     const em = await this.em();
     const record = await em.findOne(
       OnboardingPaymentRecord,
-      { applicationId },
+      { applicationId, reference: { $not: { $like: 'RNW-%' } } },
       { orderBy: { createdAt: 'desc' } },
     );
     return record ? toStored(record) : null;
+  }
+
+  async findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingPaymentRecord,
+      { status: 'mismatch', refundPendingAt: { $lt: claimedBefore } },
+      { orderBy: { refundPendingAt: 'asc' }, limit },
+    );
+    return records.map(toStored).filter((payment) => !isRenewalReference(payment.reference) && !payment.invoiceId);
   }
 
   async listMismatchedForApplication(
@@ -255,12 +266,12 @@ export class MikroOnboardingPaymentRepository
     return rows.length === 1;
   }
 
-  async recordRefundError(id: string, error: string): Promise<void> {
+  async recordRefundError(id: string, error: string, onlyIfClaimedBefore?: Date): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     await orm.em.getConnection().execute(
       `update onboarding_payments set refund_error = ?, refund_pending_at = null, updated_at = now()
-       where id = ? and status = 'mismatch'`,
-      [error.slice(0, 500), id],
+       where id = ? and status = 'mismatch'${onlyIfClaimedBefore ? ' and refund_pending_at < ?' : ''}`,
+      onlyIfClaimedBefore ? [error.slice(0, 500), id, onlyIfClaimedBefore] : [error.slice(0, 500), id],
     );
   }
 

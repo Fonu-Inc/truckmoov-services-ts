@@ -15,6 +15,7 @@ import {
 } from "@auth/onboarding/application/use-cases/review-onboarding-payment.use-case";
 import { ApplicationPaymentNoticeService } from "@auth/onboarding/application/services/application-payment-notice.service";
 import { RefundSettlementService } from "@auth/onboarding/application/services/refund-settlement.service";
+import { RefundReconciliationService } from "@auth/onboarding/application/services/refund-reconciliation.service";
 import {
   PaymentNotRefundableError,
   RefundInProgressError,
@@ -119,6 +120,7 @@ describe("Onboarding provisioning and payment review", () => {
   let raised: RaisedAlert[];
   let notifier: { sendPaymentOpen: ReturnType<typeof vi.fn>; sendPaymentRefunded: ReturnType<typeof vi.fn> };
   let notices: ApplicationPaymentNoticeService;
+  let alerts: PlatformAlertPublisher;
 
   beforeEach(async () => {
     applications = new InMemoryOnboardingApplicationRepository();
@@ -128,8 +130,12 @@ describe("Onboarding provisioning and payment review", () => {
     const inventory = {
       availability: async () => ({ tracked: true, availableQuantity }),
     } as unknown as OnboardingDeviceInventoryService;
-    notifier = { sendPaymentOpen: vi.fn(async () => undefined), sendPaymentRefunded: vi.fn(async () => undefined) };
-    notices = new ApplicationPaymentNoticeService(applications, notifier as never);
+    notifier = {
+      sendPaymentOpen: vi.fn(async () => ({ delivered: true })),
+      sendPaymentRefunded: vi.fn(async () => ({ delivered: true })),
+    };
+    alerts = { raise: async (alert: RaisedAlert) => void raised.push(alert) } as unknown as PlatformAlertPublisher;
+    notices = new ApplicationPaymentNoticeService(applications, notifier as never, alerts);
     provisioning = new OnboardingProvisioningService(applications, inventory, notices);
     await applications.save(application());
     await applications.saveDeviceRequest({
@@ -272,8 +278,8 @@ describe("Onboarding provisioning and payment review", () => {
     const gateway = (refund: () => Promise<{ status: "pending" | "processed" | "failed"; providerRefundId: string | null }>) => ({
       name: "paystack",
       refund: vi.fn(refund),
+      getRefundStatus: vi.fn(async () => ({ status: "pending" as const, providerRefundId: null })),
     });
-    const alerts = { raise: async (alert: RaisedAlert) => void raised.push(alert) } as unknown as PlatformAlertPublisher;
     const settlement = () => new RefundSettlementService(payments, notices, alerts);
     const refundUseCase = (gw: ReturnType<typeof gateway>) =>
       new RefundOnboardingPaymentUseCase(
@@ -281,6 +287,7 @@ describe("Onboarding provisioning and payment review", () => {
         payments,
         gw as never,
         settlement(),
+        new RefundReconciliationService(gw as never, settlement()),
         tokenService as never,
         users as never,
       );

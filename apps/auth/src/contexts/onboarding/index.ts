@@ -185,10 +185,18 @@ export {
   RefundRefusedError,
   RefundStateConflictError,
 } from "./application/use-cases/refund-onboarding-payment.use-case";
+export {
+  PaymentLinkNotResendableError,
+  PaymentLinkResentTooSoonError,
+  ResendPaymentLinkUseCase,
+} from "./application/use-cases/resend-payment-link.use-case";
 export { RefundSettlementService } from "./application/services/refund-settlement.service";
+export { RefundReconciliationService } from "./application/services/refund-reconciliation.service";
 export { ApplicationPaymentNoticeService } from "./application/services/application-payment-notice.service";
 export { OnboardingProvisioningService } from "./application/services/onboarding-provisioning.service";
 export { OnboardingStageSweepService } from "./infrastructure/sweeps/onboarding-stage-sweep.service";
+export { RefundReconciliationSweep } from "./infrastructure/sweeps/refund-reconciliation-sweep.service";
+export { PaymentNoticeRetrySweep } from "./infrastructure/sweeps/payment-notice-retry-sweep.service";
 export { DeleteOnboardingApplicationDocumentUseCase } from "./application/use-cases/delete-onboarding-application-document.use-case";
 export { ApplyAutomatedDecisionUseCase } from "./application/use-cases/apply-automated-decision.use-case";
 export { DuplicateIdentityError } from "./application/use-cases/support/enforce-identity-claims";

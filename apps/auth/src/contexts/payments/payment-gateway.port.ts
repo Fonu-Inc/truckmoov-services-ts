@@ -31,6 +31,11 @@ export type RefundResult = {
   providerRefundId: string | null;
 };
 
+export type RefundLookup = {
+  status: RefundStatus | 'unknown';
+  providerRefundId: string | null;
+};
+
 /** A provider's report on a refund it was asked to make earlier. */
 export type RefundCallback = RefundResult;
 
@@ -81,6 +86,8 @@ export interface PaymentGateway {
   initiateCharge(request: ChargeRequest): Promise<ChargeInitiated>;
   /** Asks the provider to return money taken on a charge. Omit the amount to refund it in full. A queued refund answers pending and is finished by a callback. Throws PaymentGatewayError when refused. */
   refund(reference: string, amountKobo?: number): Promise<RefundResult>;
+  /** Asks the provider where a refund stands, by the charge's reference. Unknown when the provider has no such refund. Throws PaymentGatewayError when it cannot be asked. */
+  getRefundStatus(reference: string): Promise<RefundLookup>;
   /** Whether a callback body genuinely came from this provider. */
   verifyCallbackSignature(rawBody: string | Buffer, signature: string | undefined): boolean;
   /** Reads a verified callback into the shape the platform acts on. */

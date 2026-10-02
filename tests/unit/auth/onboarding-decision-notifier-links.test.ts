@@ -41,3 +41,24 @@ describe("applicant mail links", () => {
     expect(link.searchParams.get("token")).toBe("tok-new");
   });
 });
+
+describe("applicant mail delivery result", () => {
+  it("reports delivery when the transport accepts the mail", async () => {
+    const { notifier } = build();
+
+    expect(await notifier.sendPaymentOpen(email)).toEqual({ delivered: true });
+  });
+
+  it("reports the failure instead of swallowing it", async () => {
+    const send = vi.fn(async () => {
+      throw new Error("smtp down");
+    });
+    const notifier = new MailerOnboardingDecisionNotifier(
+      { send } as never,
+      { app: { tenantAppUrl: "https://app.truckmoov.test" } } as never,
+    );
+
+    expect(await notifier.sendPaymentOpen(email)).toEqual({ delivered: false, error: "smtp down" });
+    expect(await notifier.sendPaymentRefunded(email)).toEqual({ delivered: false, error: "smtp down" });
+  });
+});

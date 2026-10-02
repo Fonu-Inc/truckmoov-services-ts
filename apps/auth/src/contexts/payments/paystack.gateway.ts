@@ -8,6 +8,7 @@ import {
   type ChargeInitiated,
   type ChargeRequest,
   type PaymentGateway,
+  type RefundLookup,
   type RefundResult,
   type RefundStatus,
 } from './payment-gateway.port';
@@ -23,6 +24,14 @@ type PaystackRefundResponse = {
   data?: { id?: number | string; status?: string };
   message?: string;
 };
+
+type PaystackRefundLookupResponse = {
+  status?: boolean;
+  data?: PaystackRefundRecord | PaystackRefundRecord[] | null;
+  message?: string;
+};
+
+type PaystackRefundRecord = { id?: number | string; status?: string };
 
 function refundStatus(value: unknown): RefundStatus {
   if (value === 'processed') return 'processed';
@@ -98,6 +107,41 @@ export class PaystackGateway implements PaymentGateway {
     return {
       status: refundStatus(data.data?.status),
       providerRefundId: id === undefined ? null : String(id),
+    };
+  }
+
+  async getRefundStatus(reference: string): Promise<RefundLookup> {
+    if (!this.isConfigured()) {
+      throw new PaymentGatewayError(this.name, 'Paystack is not configured');
+    }
+    const baseUrl = this.config.payment.paystackBaseUrl.replace(/\/+$/, '');
+    let response: { status: number; data: PaystackRefundLookupResponse | undefined };
+    try {
+      response = await axios.get<PaystackRefundLookupResponse>(
+        `${baseUrl}/refund/${encodeURIComponent(reference)}`,
+        {
+          headers: { Authorization: `Bearer ${this.config.payment.paystackSecretKey}` },
+          timeout: REFUND_TIMEOUT_MS,
+          validateStatus: () => true,
+        },
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      throw new PaymentGatewayError(this.name, `Paystack did not answer (${reason})`);
+    }
+    return this.toLookup(response.status, response.data);
+  }
+
+  private toLookup(httpStatus: number, body: PaystackRefundLookupResponse | undefined): RefundLookup {
+    if (httpStatus === 404) return { status: 'unknown', providerRefundId: null };
+    if (httpStatus >= 400 || !body?.status) {
+      throw new PaymentGatewayError(this.name, body?.message ?? `Paystack answered ${httpStatus}`);
+    }
+    const record = Array.isArray(body.data) ? body.data[0] : body.data;
+    if (!record) return { status: 'unknown', providerRefundId: null };
+    return {
+      status: refundStatus(record.status),
+      providerRefundId: record.id === undefined ? null : String(record.id),
     };
   }
 

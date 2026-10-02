@@ -8,6 +8,7 @@ export {
   type PaymentCallback,
   type PaymentGateway,
   type RefundCallback,
+  type RefundLookup,
   type RefundResult,
   type RefundStatus,
 } from './payment-gateway.port';

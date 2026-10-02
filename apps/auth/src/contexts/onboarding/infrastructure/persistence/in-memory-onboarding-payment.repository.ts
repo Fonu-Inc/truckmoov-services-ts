@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   isOnboardingPayment,
+  isRenewalReference,
   type MismatchReview,
   type OnboardingPaymentRepository,
   type OnboardingPaymentStatus,
@@ -39,9 +40,22 @@ export class InMemoryOnboardingPaymentRepository
   ): Promise<StoredOnboardingPayment | null> {
     return (
       [...this.payments.values()]
-        .filter((payment) => payment.applicationId === applicationId)
+        .filter((payment) => payment.applicationId === applicationId && !isRenewalReference(payment.reference))
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
     );
+  }
+
+  async findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]> {
+    return [...this.payments.values()]
+      .filter(
+        (payment) =>
+          payment.status === 'mismatch' &&
+          isOnboardingPayment(payment) &&
+          payment.refundPendingAt != null &&
+          payment.refundPendingAt < claimedBefore,
+      )
+      .sort((a, b) => a.refundPendingAt!.getTime() - b.refundPendingAt!.getTime())
+      .slice(0, limit);
   }
 
   async listMismatchedForApplication(
@@ -170,9 +184,10 @@ export class InMemoryOnboardingPaymentRepository
     return true;
   }
 
-  async recordRefundError(id: string, error: string): Promise<void> {
+  async recordRefundError(id: string, error: string, onlyIfClaimedBefore?: Date): Promise<void> {
     const payment = this.payments.get(id);
     if (payment?.status !== 'mismatch') return;
+    if (onlyIfClaimedBefore && !(payment.refundPendingAt && payment.refundPendingAt < onlyIfClaimedBefore)) return;
     payment.refundError = error.slice(0, 500);
     payment.refundPendingAt = null;
   }
