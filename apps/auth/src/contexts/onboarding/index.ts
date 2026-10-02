@@ -186,6 +186,11 @@ export {
   RefundStateConflictError,
 } from "./application/use-cases/refund-onboarding-payment.use-case";
 export {
+  ChangesLinkNotResendableError,
+  ChangesLinkResentTooSoonError,
+  ResendChangesRequestedLinkUseCase,
+} from "./application/use-cases/resend-changes-requested-link.use-case";
+export {
   PaymentLinkNotResendableError,
   PaymentLinkResentTooSoonError,
   ResendPaymentLinkUseCase,

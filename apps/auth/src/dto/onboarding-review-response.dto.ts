@@ -242,6 +242,21 @@ export class ChangesRequestedSchema {
   @ApiProperty() reference!: string;
   @ApiProperty({ enum: ['changes_requested'] }) status!: string;
   @ApiProperty() decisionReason!: string;
+  @ApiProperty({ description: 'False when the email could not be sent; use the resend endpoint.' })
+  delivered!: boolean;
+}
+
+export class ChangesLinkResentSchema {
+  @ApiProperty() applicationId!: string;
+  @ApiProperty() reference!: string;
+  @ApiProperty({ description: 'False when the email could not be sent; the previous link still works.' })
+  delivered!: boolean;
+  @ApiProperty() resentBy!: string;
+  @ApiProperty({ format: 'date-time' }) resentAt!: string;
+}
+
+export class ChangesLinkResentResponse extends StandardApiResponse<ChangesLinkResentSchema> {
+  @ApiProperty({ type: ChangesLinkResentSchema }) data!: ChangesLinkResentSchema;
 }
 
 export class ChangesRequestedResponse extends StandardApiResponse<ChangesRequestedSchema> {

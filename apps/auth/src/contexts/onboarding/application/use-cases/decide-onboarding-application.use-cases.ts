@@ -34,8 +34,6 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import {
   ApplicationNotFoundError,
-  generateApplicationToken,
-  hashApplicationToken,
   missingDocumentTypes,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import {
@@ -49,6 +47,7 @@ import {
 } from '@auth/onboarding/domain/ports/onboarding-decision-notifier.port';
 import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
+import { sendWithRotatedToken } from '../services/send-with-rotated-token';
 import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
 import {
   SUBSCRIPTION_PLAN_REPOSITORY,
@@ -99,6 +98,27 @@ function informationRequestSection(value: unknown): InformationRequestSection {
     throw new DecisionReasonRequiredError();
   }
   return value as InformationRequestSection;
+}
+
+export const CHANGES_EMAIL_FAILED_MESSAGE =
+  'Status updated but the email could not be sent: use Resend';
+
+export function sendChangesRequestedLink(
+  applications: OnboardingApplicationRepository,
+  notifier: OnboardingDecisionNotifier,
+  application: StoredOnboardingApplication,
+  reason: string,
+) {
+  return sendWithRotatedToken(applications, application.id, (token) =>
+    notifier.sendChangesRequested({
+      email: application.businessEmail,
+      organizationName: application.organizationName,
+      reference: application.reference,
+      reason,
+      applicationId: application.id,
+      applicationToken: token,
+    }),
+  );
 }
 
 const INFORMATION_REQUEST_SECTION_LABEL: Record<InformationRequestSection, string> = {
@@ -416,34 +436,30 @@ export class RequestOnboardingApplicationChangesUseCase {
       throw new ApplicationNotUnderReviewError(application.status);
     }
 
-    // The applicant's original token was never stored in the clear, so a fresh
-    // one is minted for the resume link. The old one stops working here, which
-    // is what we want of a link that has been sitting in an inbox.
-    const applicationToken = generateApplicationToken();
     const now = new Date();
     await this.applications.save({
       ...application,
       status: 'changes_requested',
-      tokenHash: hashApplicationToken(applicationToken),
       decisionReason: sectionedReason,
       reviewedBy: actor.id,
       reviewedAt: now,
       updatedAt: now,
     });
 
-    await this.notifier.sendChangesRequested({
-      email: application.businessEmail,
-      organizationName: application.organizationName,
-      reference: application.reference,
-      reason: sectionedReason,
-      applicationId: application.id,
-      applicationToken,
-    });
+    const delivery = await sendChangesRequestedLink(
+      this.applications,
+      this.notifier,
+      application,
+      sectionedReason,
+    );
 
     return {
       status: true,
-      message: 'Changes requested from the applicant',
+      message: delivery.delivered
+        ? 'Changes requested from the applicant'
+        : CHANGES_EMAIL_FAILED_MESSAGE,
       data: {
+        delivered: delivery.delivered,
         applicationId: application.id,
         reference: application.reference,
         status: 'changes_requested',

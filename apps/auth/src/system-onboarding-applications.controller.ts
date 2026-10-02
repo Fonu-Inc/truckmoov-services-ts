@@ -32,6 +32,7 @@ import {
   ApprovedApplicationResponse,
   ChangesRequestedResponse,
   DocumentDecisionResponse,
+  ChangesLinkResentResponse,
   PaymentLinkResentResponse,
   PaymentRefundedResponse,
   PaymentReviewedResponse,
@@ -61,7 +62,10 @@ import {
   ListOnboardingApplicationsUseCase,
   OnboardingValidationError,
   ONBOARDING_APPLICANT_TYPES,
+  ChangesLinkNotResendableError,
+  ChangesLinkResentTooSoonError,
   PaymentLinkNotResendableError,
+  ResendChangesRequestedLinkUseCase,
   PaymentLinkResentTooSoonError,
   PaymentNotInMismatchError,
   PaymentNotRefundableError,
@@ -146,6 +150,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly resendSetupLink: ResendOnboardingSetupLinkUseCase,
     @Inject(ResendPaymentLinkUseCase)
     private readonly resendPaymentLink: ResendPaymentLinkUseCase,
+    @Inject(ResendChangesRequestedLinkUseCase)
+    private readonly resendChangesLink: ResendChangesRequestedLinkUseCase,
     @Inject(CompleteProvisioningUseCase)
     private readonly completeProvisioning: CompleteProvisioningUseCase,
     @Inject(ReviewOnboardingPaymentMismatchUseCase)
@@ -431,6 +437,34 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     });
   }
 
+  @Post(':applicationId/changes-link/resend')
+  @ApiOperation({
+    summary: 'Resend the changes-requested link',
+    description:
+      'Emails the applicant a new link to correct the application and replaces the previous one once the email is accepted. Only for an application at changes_requested. Limited to one send every two minutes.',
+  })
+  @ApiCreatedResponse({
+    description:
+      'A failed send is still a 201: message is "The link could not be delivered", data.delivered is false and the previous link keeps working.',
+    type: ChangesLinkResentResponse,
+  })
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, '"Only an application waiting for the applicant to make changes has a link to resend"')
+  @ApiErrorResponse(429, '"A link was sent a moment ago. Wait two minutes before sending another."')
+  async resendChanges(
+    @Param('applicationId') applicationId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      const result = await this.resendChangesLink.execute({ accessToken, applicationId });
+      await this.recordDecision(accessToken, applicationId, 'changes_link_resent', {
+        delivered: result.data.delivered,
+      });
+      return result;
+    });
+  }
+
   @Post(':applicationId/payment-link/resend')
   @ApiOperation({
     summary: 'Resend the payment link',
@@ -647,11 +681,12 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
         error instanceof RefundStateConflictError ||
         error instanceof BusinessEmailInUseError ||
         error instanceof SetupLinkNotResendableError ||
-        error instanceof PaymentLinkNotResendableError
+        error instanceof PaymentLinkNotResendableError ||
+        error instanceof ChangesLinkNotResendableError
       ) {
         throw new ConflictException(error.message);
       }
-      if (error instanceof PaymentLinkResentTooSoonError) throw new HttpException(error.message, HttpStatus.TOO_MANY_REQUESTS);
+      if (error instanceof PaymentLinkResentTooSoonError || error instanceof ChangesLinkResentTooSoonError) throw new HttpException(error.message, HttpStatus.TOO_MANY_REQUESTS);
       if (error instanceof RefundRefusedError) throw new BadGatewayException(error.message);
       throw error;
     }
