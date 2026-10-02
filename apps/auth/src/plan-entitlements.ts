@@ -152,3 +152,24 @@ export function featureLimit(
 export function allowanceFor(entitlements: PlanEntitlements, item: UsageItem): number {
   return entitlements.allowances.find((allowance) => allowance.item === item)?.includedPerMonth ?? 0;
 }
+
+/**
+ * Lays a tenant's own limits over what its plan allows.
+ *
+ * An override replaces the plan limit for that resource only. Where the plan
+ * names no behaviour for the resource the override blocks, because a limit
+ * staff set by hand and that nothing enforces would be a number on a screen.
+ */
+export function applyQuotaOverrides(
+  entitlements: PlanEntitlements,
+  overrides: Partial<Record<QuotaResource, number | null>>,
+): PlanEntitlements {
+  const quotas = { ...entitlements.quotas };
+  const limitBehaviour = { ...entitlements.limitBehaviour };
+  for (const [resource, limit] of Object.entries(overrides) as Array<[QuotaResource, number | null]>) {
+    if (limit === null || limit === undefined) continue;
+    quotas[resource] = limit;
+    limitBehaviour[resource] ??= 'block';
+  }
+  return { ...entitlements, quotas, limitBehaviour };
+}

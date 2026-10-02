@@ -52,6 +52,8 @@ import {
   SystemDeviceCatalogListResponse,
   SystemDeviceCatalogDeleteResponse,
   SystemDeviceSummaryResponse,
+  SystemDeviceManufacturersResponse,
+  SystemDeviceMessageRateResponse,
   SystemDeviceInventoryListResponse,
   SystemDeviceDetailResponse,
 } from './dto/auth.schema';
@@ -60,6 +62,9 @@ import { UpdateSystemDeviceModelDto } from './dto/update-system-device-model.dto
 import { ExportSystemDeviceCatalogUseCase } from './export-system-device-catalog.use-case';
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase, SystemDeviceNotFoundError } from './get-system-device-detail.use-case';
+import { parseSnapshotPeriod } from './system-snapshot-period';
+import { GetSystemDeviceManufacturersUseCase } from './get-system-device-manufacturers.use-case';
+import { GetSystemDeviceMessageRateUseCase } from './get-system-device-message-rate.use-case';
 import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
@@ -78,6 +83,10 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(DeleteSystemDeviceModelUseCase) private readonly deleteSystemDeviceModelUseCase: DeleteSystemDeviceModelUseCase,
     @Inject(ExportSystemDeviceInventoryUseCase) private readonly exportSystemDeviceInventoryUseCase: ExportSystemDeviceInventoryUseCase,
     @Inject(GetSystemDeviceSummaryUseCase) private readonly getSystemDeviceSummaryUseCase: GetSystemDeviceSummaryUseCase,
+    @Inject(GetSystemDeviceManufacturersUseCase)
+    private readonly getSystemDeviceManufacturersUseCase: GetSystemDeviceManufacturersUseCase,
+    @Inject(GetSystemDeviceMessageRateUseCase)
+    private readonly getSystemDeviceMessageRateUseCase: GetSystemDeviceMessageRateUseCase,
     @Inject(ListSystemDeviceCatalogUseCase) private readonly listSystemDeviceCatalogUseCase: ListSystemDeviceCatalogUseCase,
     @Inject(ListSystemDeviceInventoryUseCase) private readonly listSystemDeviceInventoryUseCase: ListSystemDeviceInventoryUseCase,
     @Inject(GetSystemDeviceDetailUseCase) private readonly getSystemDeviceDetailUseCase: GetSystemDeviceDetailUseCase,
@@ -113,6 +122,69 @@ export class SystemDevicesController extends BaseAuthController {
 
     try {
       return await this.getSystemDeviceSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('manufacturers')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get device count per manufacturer',
+    description: 'Returns how many devices each hardware manufacturer has, largest first.',
+  })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d', 'all'], description: 'Only devices added in this window; default all' })
+  @ApiBadRequestResponse({ description: 'Invalid period' })
+  @ApiOkResponse({ type: SystemDeviceManufacturersResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view device summary data',
+  })
+  async getSystemDeviceManufacturers(
+    @Headers('authorization') authorization?: string,
+    @Query('period') periodParam?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    const period = parseSnapshotPeriod(periodParam);
+    if (!period) throw new BadRequestException('period must be one of 7d, 30d, 90d, all');
+
+    try {
+      return await this.getSystemDeviceManufacturersUseCase.execute(accessToken, period);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('messages-per-hour')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get device location messages per hour',
+    description: 'Accepted location messages in the last hour and per hour for 24 hours, from the tracking service. Counts restart when tracking restarts; gateReachable is false when tracking cannot be reached.',
+  })
+  @ApiOkResponse({ type: SystemDeviceMessageRateResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view device message rates',
+  })
+  async getSystemDeviceMessageRate(
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemDeviceMessageRateUseCase.execute(accessToken);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)

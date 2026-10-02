@@ -29,10 +29,22 @@ import {
   AnalyticsEventListResponse,
   FuelLevelsResponse,
 } from "./dto/fleet.schema";
+import { parseAnalyticsRange } from "./contexts/fleet/reports/domain/analytics-range";
+import {
+  AnalyticsRangeQueryDto,
+  UtilizationResponse,
+  FuelReportResponse,
+  ComplianceAuditResponse,
+} from "./dto/analytics-reports.dto";
 import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
+import { FleetUtilizationUseCase } from "./fleet-utilization.use-case";
+import { FleetFuelReportUseCase } from "./fleet-fuel-report.use-case";
+import { FleetComplianceAuditUseCase } from "./fleet-compliance-audit.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
+
+const AUDIT_READER_ROLES: Role[] = [Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER];
 
 @ApiTags("Analytics")
 @Portals("tenant")
@@ -46,6 +58,9 @@ export class AnalyticsController extends BaseFleetController {
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(FleetAnalyticsUseCase) private readonly fleetAnalyticsUseCase: FleetAnalyticsUseCase,
     @Inject(ListVehiclesUseCase) private readonly listVehiclesUseCase: ListVehiclesUseCase,
+    @Inject(FleetUtilizationUseCase) private readonly utilizationUseCase: FleetUtilizationUseCase,
+    @Inject(FleetFuelReportUseCase) private readonly fuelReportUseCase: FleetFuelReportUseCase,
+    @Inject(FleetComplianceAuditUseCase) private readonly complianceAuditUseCase: FleetComplianceAuditUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -167,6 +182,67 @@ export class AnalyticsController extends BaseFleetController {
       tenantId,
       parseAnalyticsPeriodDays(periodDays),
       await this.ownedVehicleIds(tenantId, req),
+    );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("utilization")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Fleet utilization report",
+    description:
+      "Per vehicle: days in the window with a job on the vehicle, over the days in the window. Jobs and revenue are counted for the window. An owner operator sees their own vehicles.",
+  })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ description: "Utilization summary and per-vehicle rows", type: UtilizationResponse })
+  async getUtilization(@Query() query: AnalyticsRangeQueryDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.utilizationUseCase.report(
+      tenantId,
+      parseAnalyticsRange(query.from, query.to),
+      await this.ownedVehicleIds(tenantId, req),
+    );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("fuel-consumption")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @ApiOperation({
+    summary: "Fuel consumption report",
+    description:
+      "Recorded fuel transactions in the window, per vehicle: litres, cost, odometer distance and km per litre. An owner operator sees their own vehicles.",
+  })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ description: "Fuel summary and per-vehicle rows", type: FuelReportResponse })
+  async getFuelConsumption(@Query() query: AnalyticsRangeQueryDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fuelReportUseCase.report(
+      tenantId,
+      parseAnalyticsRange(query.from, query.to),
+      await this.ownedVehicleIds(tenantId, req),
+    );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("compliance-audit")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @ApiOperation({
+    summary: "Compliance audit report",
+    description:
+      "Current compliance documents and driver licences by category and status, plus audit-log activity inside the window for roles that may read the audit log.",
+  })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ description: "Compliance summary, categories and audit activity", type: ComplianceAuditResponse })
+  async getComplianceAudit(@Query() query: AnalyticsRangeQueryDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.complianceAuditUseCase.report(
+      tenantId,
+      parseAnalyticsRange(query.from, query.to),
+      await this.ownedVehicleIds(tenantId, req),
+      AUDIT_READER_ROLES.includes(req.user?.role as Role),
     );
     return { status: true, message: "success", data };
   }

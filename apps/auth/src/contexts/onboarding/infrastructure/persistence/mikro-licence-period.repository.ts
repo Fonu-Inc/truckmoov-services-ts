@@ -115,6 +115,15 @@ export class MikroLicencePeriodRepository implements LicencePeriodRepository {
     return rows.map(toPeriod);
   }
 
+  async listByTenant(tenantId: string): Promise<StoredLicencePeriod[]> {
+    const rows = await this.run(
+      `select ${COLUMNS} from tenant_licence_periods
+        where tenant_id = ? order by period_start desc, created_at desc`,
+      [tenantId],
+    );
+    return rows.map(toPeriod);
+  }
+
   async findActiveByTenant(tenantId: string): Promise<StoredLicencePeriod | null> {
     const rows = await this.run(
       `select ${COLUMNS} from tenant_licence_periods where tenant_id = ? and status = 'active' limit 1`,

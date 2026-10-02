@@ -87,6 +87,12 @@ export class InMemoryLicencePeriodRepository implements LicencePeriodRepository 
       .sort((a, b) => a.periodEnd.localeCompare(b.periodEnd) || a.tenantId.localeCompare(b.tenantId));
   }
 
+  async listByTenant(tenantId: string): Promise<StoredLicencePeriod[]> {
+    return this.all()
+      .filter((period) => period.tenantId === tenantId)
+      .sort((a, b) => b.periodStart.localeCompare(a.periodStart) || b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
   async findActiveByTenant(tenantId: string): Promise<StoredLicencePeriod | null> {
     return this.all().find((period) => period.tenantId === tenantId && period.status === 'active') ?? null;
   }

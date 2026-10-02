@@ -63,16 +63,20 @@ export const COMPLIANCE_DOCUMENT_REPOSITORY = Symbol("COMPLIANCE_DOCUMENT_REPOSI
  * document's own `reminderDays` column. That column is retained for now but no
  * longer decides status, so the badge and the reminder email agree.
  */
+export function statusFromExpiry(expiryDate: string | null, reminderDays: number): ComplianceDocumentStatus {
+  if (!expiryDate) return "valid";
+  const today = new Date().toISOString().slice(0, 10);
+  if (expiryDate < today) return "expired";
+  const soonDate = new Date();
+  soonDate.setDate(soonDate.getDate() + reminderDays);
+  const soonStr = soonDate.toISOString().slice(0, 10);
+  if (expiryDate <= soonStr) return "expiring";
+  return "valid";
+}
+
 export function computeDocumentStatus(
   doc: StoredComplianceDocument,
   reminderDays: number,
 ): ComplianceDocumentStatus {
-  if (!doc.expiryDate) return "valid";
-  const today = new Date().toISOString().slice(0, 10);
-  if (doc.expiryDate < today) return "expired";
-  const soonDate = new Date();
-  soonDate.setDate(soonDate.getDate() + reminderDays);
-  const soonStr = soonDate.toISOString().slice(0, 10);
-  if (doc.expiryDate <= soonStr) return "expiring";
-  return "valid";
+  return statusFromExpiry(doc.expiryDate, reminderDays);
 }

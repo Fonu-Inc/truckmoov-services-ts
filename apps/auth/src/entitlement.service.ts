@@ -1,10 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   PLAN_ENTITLEMENTS_REPOSITORY,
   type PlanEntitlementsRepository,
 } from './plan-entitlements.repository';
 import {
+  TENANT_QUOTA_OVERRIDES_REPOSITORY,
+  type TenantQuotaOverridesRepository,
+} from './tenant-quota-overrides.repository';
+import {
   allowanceFor,
+  applyQuotaOverrides,
   featureLimit,
   fitsWithinQuota,
   resolveEffectiveEntitlements,
@@ -12,6 +17,25 @@ import {
   type QuotaResource,
   type UsageItem,
 } from './plan-entitlements';
+
+function ignoreMissingPlan(error: unknown): null {
+  if (error instanceof PlanNotEntitledError) return null;
+  throw error;
+}
+
+function bareEntitlements(): PlanEntitlements {
+  return {
+    planCode: '',
+    paymentModel: 'prepaid',
+    inheritsFromCode: null,
+    quotas: {},
+    limitBehaviour: {},
+    features: [],
+    allowances: [],
+    availableFor: [],
+    trialDays: 0,
+  };
+}
 
 /** Guards against a plan chain that loops back on itself. */
 const MAX_INHERITANCE_DEPTH = 8;
@@ -41,7 +65,22 @@ export class EntitlementService {
   constructor(
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly repository: PlanEntitlementsRepository,
+    @Optional()
+    @Inject(TENANT_QUOTA_OVERRIDES_REPOSITORY)
+    private readonly overrides?: TenantQuotaOverridesRepository,
   ) {}
+
+  /**
+   * What one tenant is entitled to: its plan with the tenant's own limits laid
+   * over it. A tenant with overrides but no plan still has those limits.
+   * Null when there is neither a plan nor an override.
+   */
+  async effectiveForTenant(tenantId: string, planCode: string | null): Promise<PlanEntitlements | null> {
+    const overrides = this.overrides ? await this.overrides.findByTenant(tenantId) : null;
+    const plan = planCode ? await this.effectiveFor(planCode).catch(ignoreMissingPlan) : null;
+    const base = plan ?? (overrides && Object.values(overrides).some((limit) => limit !== null) ? bareEntitlements() : null);
+    return base && overrides ? applyQuotaOverrides(base, overrides) : base;
+  }
 
   /** The plan's own entitlements merged with everything it inherits. */
   async effectiveFor(planCode: string): Promise<PlanEntitlements> {
@@ -73,6 +112,20 @@ export class EntitlementService {
    * currentCount is what the tenant already has, so a plan of 10 refuses the
    * eleventh rather than the tenth.
    */
+  async assertTenantQuota(
+    tenantId: string,
+    planCode: string | null,
+    resource: QuotaResource,
+    currentCount: number,
+  ): Promise<void> {
+    const entitlements = await this.effectiveForTenant(tenantId, planCode);
+    if (!entitlements) throw new PlanNotEntitledError(planCode ?? tenantId);
+    const quota = entitlements.quotas[resource];
+    if (fitsWithinQuota(quota, currentCount)) return;
+    if (entitlements.limitBehaviour[resource] !== 'block') return;
+    throw new QuotaExceededError(resource, quota as number);
+  }
+
   async assertQuota(planCode: string, resource: QuotaResource, currentCount: number): Promise<void> {
     const entitlements = await this.effectiveFor(planCode);
     const quota = entitlements.quotas[resource];

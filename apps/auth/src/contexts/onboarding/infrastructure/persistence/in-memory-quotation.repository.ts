@@ -1,9 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ONBOARDING_PAYMENT_REPOSITORY,
   type OnboardingPaymentRepository,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
 import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from '@auth/onboarding/domain/onboarding-application.repository';
+import {
+  HIDDEN_FROM_TENANT_QUOTATION_STATUSES,
+  tenantQuotationStatus,
+  type TenantQuotationFilter,
+  type TenantQuotationRow,
   effectiveQuotationStatus,
   type QuotationKey,
   type QuotationListFilter,
@@ -33,6 +41,9 @@ export class InMemoryQuotationRepository implements QuotationRepository {
   constructor(
     @Inject(ONBOARDING_PAYMENT_REPOSITORY)
     private readonly payments: OnboardingPaymentRepository,
+    @Optional()
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications?: OnboardingApplicationRepository,
   ) {}
 
   async findActiveByKey(key: QuotationKey): Promise<QuotationWithLines | null> {
@@ -130,4 +141,61 @@ export class InMemoryQuotationRepository implements QuotationRepository {
     if (filter.paymentStatus === 'incomplete') return !complete;
     return true;
   }
+
+  async listForTenant(filter: TenantQuotationFilter) {
+    const rows = await Promise.all(
+      [...this.quotations.values()]
+        .filter((quotation) => !HIDDEN_FROM_TENANT_QUOTATION_STATUSES.includes(quotation.status))
+        .map((quotation) => this.tenantRow(quotation)),
+    );
+    const needle = filter.q?.trim().toLowerCase();
+    const matching = rows
+      .filter((row) => row.tenantId === filter.tenantId)
+      .map(({ row }) => row)
+      .filter(
+        (row) =>
+          !filter.status ||
+          tenantQuotationStatus(row.quotation, row.paidKobo, filter.now) === filter.status,
+      )
+      .filter((row) => !needle || tenantSearchable(row).includes(needle))
+      .sort(
+        (a, b) =>
+          b.quotation.createdAt.getTime() - a.quotation.createdAt.getTime() ||
+          b.quotation.id.localeCompare(a.quotation.id),
+      );
+    const offset = (filter.page - 1) * filter.limit;
+    return { items: matching.slice(offset, offset + filter.limit), total: matching.length };
+  }
+
+  async findForTenant(tenantId: string, id: string, _now: Date) {
+    const quotation = this.quotations.get(id);
+    if (!quotation || HIDDEN_FROM_TENANT_QUOTATION_STATUSES.includes(quotation.status)) return null;
+    const { tenantId: owner, row } = await this.tenantRow(quotation);
+    return owner === tenantId ? row : null;
+  }
+
+  private async tenantRow(source: QuotationWithLines) {
+    const quotation = copy(source);
+    const { lines, ...header } = quotation;
+    const application = quotation.applicationId
+      ? await this.applications?.findById(quotation.applicationId)
+      : null;
+    const paid = (await this.payments.findByQuotationId(quotation.id))
+      .filter((payment) => payment.status === 'paid')
+      .sort((a, b) => (b.paidAt?.getTime() ?? 0) - (a.paidAt?.getTime() ?? 0));
+    const row: TenantQuotationRow = {
+      quotation: header,
+      lines,
+      paidKobo: paid.reduce((sum, payment) => sum + payment.amountKobo, 0),
+      applicationReference: application?.reference ?? null,
+      paymentReference: paid[0]?.reference ?? null,
+    };
+    return { tenantId: quotation.tenantId ?? application?.tenantId ?? null, row };
+  }
+}
+
+function tenantSearchable(row: TenantQuotationRow): string {
+  return [row.quotation.number, row.applicationReference ?? '', ...row.lines.map((line) => line.name)]
+    .join(' ')
+    .toLowerCase();
 }

@@ -79,6 +79,20 @@ export class InMemoryDriverRepository implements DriverRepository {
     );
   }
 
+  async findByNumbersAcrossTenants(numbers: string[], limit: number): Promise<Driver[]> {
+    const wanted = new Set(numbers);
+    return Array.from(this.data.values())
+      .filter((driver) =>
+        [
+          driver.phone,
+          driver.contactChannels.whatsappNumber,
+          driver.contactChannels.smsNumber,
+          driver.contactChannels.voiceNumber,
+        ].some((number) => number !== null && number !== "" && wanted.has(number)),
+      )
+      .slice(0, limit);
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const driver = this.data.get(id);
     if (!driver || driver.tenantId !== tenantId) return;

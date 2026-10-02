@@ -22,20 +22,37 @@ export class MikroTenantCollectionsRepository implements TenantCollectionsReposi
     return orm.em.fork().getConnection().execute<Row[]>(sql, params);
   }
 
-  async collectedKoboByTenant(from: Date, to: Date): Promise<Map<string, number>> {
-    const rows = await this.run(
-      `select tenant_id, sum(amount_kobo)::bigint as kobo from (
-         select tenant_id, amount_kobo from (${ATTRIBUTED_PAYMENTS}) p
+  private collectedUnion(from: Date, to: Date) {
+    return {
+      sql: `select tenant_id, amount_kobo, at from (
+         select tenant_id, amount_kobo, paid_at as at from (${ATTRIBUTED_PAYMENTS}) p
           where coalesce(p.method, '') <> 'wallet' and p.paid_at >= ? and p.paid_at < ?
          union all
-         select t.tenant_id, t.amount_kobo from wallet_top_ups t
+         select t.tenant_id, t.amount_kobo, t.settled_at as at from wallet_top_ups t
           where t.status = 'success' and t.settled_at >= ? and t.settled_at < ?
        ) c
-       where tenant_id is not null and tenant_id <> 'system'
-       group by tenant_id`,
-      [from, to, from, to],
+       where tenant_id is not null and tenant_id <> 'system'`,
+      params: [from, to, from, to],
+    };
+  }
+
+  async collectedKoboByTenant(from: Date, to: Date): Promise<Map<string, number>> {
+    const { sql, params } = this.collectedUnion(from, to);
+    const rows = await this.run(
+      `select tenant_id, sum(amount_kobo)::bigint as kobo from (${sql}) k group by tenant_id`,
+      params,
     );
     return new Map(rows.map((row) => [String(row.tenant_id), Number(row.kobo)]));
+  }
+
+  async collectedKoboByLagosMonth(from: Date, to: Date): Promise<Map<string, number>> {
+    const { sql, params } = this.collectedUnion(from, to);
+    const rows = await this.run(
+      `select to_char(at at time zone 'Africa/Lagos', 'YYYY-MM') as month, sum(amount_kobo)::bigint as kobo
+         from (${sql}) k group by 1`,
+      params,
+    );
+    return new Map(rows.map((row) => [String(row.month), Number(row.kobo)]));
   }
 
   async lastPaymentForTenant(tenantId: string): Promise<TenantLastPayment | null> {

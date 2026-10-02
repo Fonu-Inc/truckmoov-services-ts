@@ -44,6 +44,8 @@ function isSafePathId(value: string): boolean {
   return SAFE_PATH_ID.test(value);
 }
 
+export type TenantExportTable = { columns: string[]; rows: Array<Array<string | number | boolean | null>> };
+
 export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission';
 export type TenantHoldCounts = { devices: number; vehicles: number; shareLinks: number };
 export type TenantHoldResult = ({ ok: true } & TenantHoldCounts) | { ok: false; message: string };
@@ -187,6 +189,37 @@ export class FleetFactsService {
     } catch (error) {
       this.logger.warn(
         `fleet_tenant_${resource}_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Every row of a tenant's vehicles, drivers or devices, for the data export.
+   * Null when fleet cannot be reached: an export must fail rather than ship a
+   * file that is quietly missing a whole table.
+   */
+  async tenantExportTable(
+    tenantId: string,
+    scope: 'vehicles' | 'drivers' | 'devices',
+  ): Promise<TenantExportTable | null> {
+    if (!isSafePathId(tenantId)) return null;
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    try {
+      const response = await axios.get<{ data?: Partial<TenantExportTable> }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/export/${encodeURIComponent(scope)}`,
+        { headers, timeout: 60000, validateStatus: () => true },
+      );
+
+      const data = response.data?.data;
+      if (response.status !== 200 || !data?.columns || !data.rows) return null;
+      return { columns: data.columns, rows: data.rows };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_export_${scope}_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
       );
       return null;
     }

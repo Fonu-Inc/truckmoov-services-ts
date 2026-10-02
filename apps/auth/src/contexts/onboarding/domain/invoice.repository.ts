@@ -61,14 +61,40 @@ export type InvoiceListRow = {
   isRenewal: boolean;
 };
 
+export const TENANT_INVOICE_STATES = ['pending', 'partially_paid', 'overdue'] as const;
+export type TenantInvoiceState = (typeof TENANT_INVOICE_STATES)[number];
+
 export type TenantInvoiceFilter = {
   tenantId: string;
   scope: 'open' | 'paid' | 'all';
+  /** Exact state as the tenant sees it; pending is issued with nothing paid. */
+  state?: TenantInvoiceState;
+  q?: string;
+  /** Lagos date used to judge overdue; defaults to today. */
+  today?: string;
   page: number;
   limit: number;
 };
 
-export type TenantInvoiceRow = { invoice: StoredInvoice; isRenewal: boolean };
+export type InvoicePlanFacts = { name: string; quantity: number; validityDays: number | null };
+
+export type TenantInvoiceRow = {
+  invoice: StoredInvoice;
+  isRenewal: boolean;
+  plan: InvoicePlanFacts | null;
+  quotationNumber: string | null;
+};
+
+export type TenantInvoiceFact = {
+  id: string;
+  number: string;
+  issueDate: string;
+  createdAt: Date;
+  totalKobo: number;
+  amountPaidKobo: number;
+  licensingKobo: number;
+  installationKobo: number;
+};
 
 export type TenantInvoicePage = {
   items: TenantInvoiceRow[];
@@ -120,6 +146,24 @@ export interface InvoiceRepository {
   /** Invoices owed by the tenant, whoever issued them, drafts and cancelled excluded. */
   listForTenant(filter: TenantInvoiceFilter): Promise<TenantInvoicePage>;
   findForTenant(tenantId: string, id: string): Promise<(InvoiceWithLines & { isRenewal: boolean }) | null>;
+  /** Latest fully paid invoice with a plan line, the one that opened the current licence term. */
+  findLatestPaidPlanInvoice(tenantId: string): Promise<InvoiceWithLines | null>;
+  /** Every visible invoice of the tenant, oldest first, for totals and charts. */
+  listFactsForTenant(tenantId: string): Promise<TenantInvoiceFact[]>;
+}
+
+export function planFactsOf(lines: StoredInvoiceLine[]): InvoicePlanFacts | null {
+  const line = lines.find((candidate) => candidate.kind === 'plan');
+  return line ? { name: line.name, quantity: line.quantity, validityDays: line.validityDays } : null;
+}
+
+export function matchesTenantState(
+  invoice: Pick<StoredInvoice, 'status' | 'dueDate' | 'totalKobo' | 'amountPaidKobo'>,
+  state: TenantInvoiceState,
+  today: string,
+): boolean {
+  const effective = effectiveInvoiceStatus(invoice, today);
+  return state === 'pending' ? effective === 'issued' : effective === state;
 }
 
 export const INVOICE_REPOSITORY = Symbol('INVOICE_REPOSITORY');

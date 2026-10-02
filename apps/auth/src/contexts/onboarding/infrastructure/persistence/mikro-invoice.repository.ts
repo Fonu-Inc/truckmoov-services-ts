@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { EntityManager } from '@mikro-orm/core';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import type { OnboardingApplicantType } from '@auth/onboarding/domain/onboarding-application.repository';
 import type {
   InvoiceListFilter,
@@ -12,8 +13,10 @@ import type {
   RenewalAmounts,
   StoredInvoice,
   StoredInvoiceLine,
+  TenantInvoiceFact,
   TenantInvoiceFilter,
   TenantInvoicePage,
+  TenantInvoiceRow,
 } from '@auth/onboarding/domain/invoice.repository';
 
 type Row = Record<string, unknown>;
@@ -148,6 +151,55 @@ function tenantScopeClause(scope: TenantInvoiceFilter['scope']): string {
   if (scope === 'open') return `${visible} and i.status in ${OPEN_STATUSES} and i.total_kobo > i.amount_paid_kobo`;
   if (scope === 'paid') return `${visible} and i.status = 'paid'`;
   return visible;
+}
+
+const PLAN_LINE = (column: string) => `(select l.${column} from billing_invoice_lines l
+  where l.invoice_id = i.id and l.kind = 'plan' order by l.position, l.id limit 1)`;
+
+const TENANT_ROW_COLUMNS = `${HEADER_COLUMNS}, ${RENEWAL_LINE} as is_renewal,
+  ${PLAN_LINE('name')} as plan_name, ${PLAN_LINE('quantity')} as plan_quantity,
+  ${PLAN_LINE('validity_days')} as plan_validity_days,
+  (select q.number from billing_quotations q where q.id = i.quotation_id) as quotation_number`;
+
+const EFFECTIVE_STATUS = `case when i.status in ('issued', 'partially_paid')
+    and i.due_date < ?::date and i.total_kobo > i.amount_paid_kobo
+  then 'overdue' else i.status end`;
+
+function tenantFilterClause(filter: TenantInvoiceFilter) {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  const needle = filter.q?.trim();
+  if (needle) {
+    const pattern = `%${escapeLike(needle)}%`;
+    clauses.push(`(i.number ilike ? escape '\\'
+      or exists (select 1 from billing_quotations q
+                  where q.id = i.quotation_id and q.number ilike ? escape '\\')
+      or exists (select 1 from billing_invoice_lines l
+                  where l.invoice_id = i.id and l.kind = 'plan' and l.name ilike ? escape '\\')
+      or to_char(i.issue_date, 'FMMonth YYYY') ilike ? escape '\\')`);
+    params.push(pattern, pattern, pattern, pattern);
+  }
+  if (filter.state) {
+    clauses.push(`(${EFFECTIVE_STATUS}) = ?`);
+    params.push(filter.today ?? lagosDate(new Date()), filter.state === 'pending' ? 'issued' : filter.state);
+  }
+  return { sql: clauses.map((clause) => `and ${clause}`).join(' '), params };
+}
+
+function toTenantRow(r: Row): TenantInvoiceRow {
+  return {
+    invoice: toInvoice(r),
+    isRenewal: Boolean(r.is_renewal),
+    plan:
+      r.plan_name == null
+        ? null
+        : {
+            name: String(r.plan_name),
+            quantity: Number(r.plan_quantity),
+            validityDays: r.plan_validity_days == null ? null : Number(r.plan_validity_days),
+          },
+    quotationNumber: asNullableString(r.quotation_number),
+  };
 }
 
 @Injectable()
@@ -333,24 +385,25 @@ export class MikroInvoiceRepository implements InvoiceRepository {
     const em = await this.em();
     const connection = em.getConnection();
     const scope = tenantScopeClause(filter.scope);
-    const params = [filter.tenantId];
+    const narrowed = tenantFilterClause(filter);
+    const params = [filter.tenantId, ...narrowed.params];
     const rows = await connection.execute<Row[]>(
-      `select ${HEADER_COLUMNS}, ${RENEWAL_LINE} as is_renewal ${TENANT_SOURCE} ${scope}
+      `select ${TENANT_ROW_COLUMNS} ${TENANT_SOURCE} ${scope} ${narrowed.sql}
         order by i.due_date desc, i.id desc limit ? offset ?`,
       [...params, filter.limit, (filter.page - 1) * filter.limit],
     );
     const counted = await connection.execute<Row[]>(
-      `select count(*) as total ${TENANT_SOURCE} ${scope}`,
+      `select count(*) as total ${TENANT_SOURCE} ${scope} ${narrowed.sql}`,
       params,
     );
     const open = await connection.execute<Row[]>(
       `select coalesce(sum(i.total_kobo - i.amount_paid_kobo), 0) as open_kobo,
               to_char(min(i.due_date), 'YYYY-MM-DD') as next_due
          ${TENANT_SOURCE} ${tenantScopeClause('open')}`,
-      params,
+      [filter.tenantId],
     );
     return {
-      items: rows.map((row) => ({ invoice: toInvoice(row), isRenewal: Boolean(row.is_renewal) })),
+      items: rows.map(toTenantRow),
       total: Number(counted[0]?.total ?? 0),
       openTotalKobo: Number(open[0]?.open_kobo ?? 0),
       nextDueDate: asNullableString(open[0]?.next_due),
@@ -367,6 +420,42 @@ export class MikroInvoiceRepository implements InvoiceRepository {
     if (!rows[0]) return null;
     const invoice = await this.withLines(em, toInvoice(rows[0]));
     return { ...invoice, isRenewal: Boolean(rows[0].is_renewal) };
+  }
+
+  async findLatestPaidPlanInvoice(tenantId: string): Promise<InvoiceWithLines | null> {
+    const em = await this.em();
+    const rows = await em.getConnection().execute<Row[]>(
+      `select ${HEADER_COLUMNS} ${TENANT_SOURCE} and i.status = 'paid'
+          and exists (select 1 from billing_invoice_lines l where l.invoice_id = i.id and l.kind = 'plan')
+        order by i.issue_date desc, i.created_at desc, i.id desc limit 1`,
+      [tenantId],
+    );
+    return rows[0] ? this.withLines(em, toInvoice(rows[0])) : null;
+  }
+
+  async listFactsForTenant(tenantId: string): Promise<TenantInvoiceFact[]> {
+    const em = await this.em();
+    const rows = await em.getConnection().execute<Row[]>(
+      `select i.id, i.number, to_char(i.issue_date, 'YYYY-MM-DD') as issue_date, i.created_at,
+              i.total_kobo, i.amount_paid_kobo,
+              coalesce((select sum(l.quantity * l.unit_price_kobo) from billing_invoice_lines l
+                         where l.invoice_id = i.id and l.kind = 'plan'), 0) as licensing_kobo,
+              coalesce((select sum(l.quantity * l.unit_price_kobo) from billing_invoice_lines l
+                         where l.invoice_id = i.id and l.kind = 'installation'), 0) as installation_kobo
+         ${TENANT_SOURCE} ${tenantScopeClause('all')}
+        order by i.issue_date, i.created_at, i.id`,
+      [tenantId],
+    );
+    return rows.map((row) => ({
+      id: String(row.id),
+      number: String(row.number),
+      issueDate: String(row.issue_date),
+      createdAt: asDate(row.created_at),
+      totalKobo: Number(row.total_kobo),
+      amountPaidKobo: Number(row.amount_paid_kobo),
+      licensingKobo: Number(row.licensing_kobo),
+      installationKobo: Number(row.installation_kobo),
+    }));
   }
 
   private async insert(tx: EntityManager, inv: InvoiceWithLines): Promise<boolean> {

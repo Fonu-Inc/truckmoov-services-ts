@@ -2,9 +2,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
-import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
+import { DISPATCH_JOBS_READER, type DispatchJob, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
+import type { Vehicle } from "./contexts/fleet/vehicles/domain/entities/vehicle.entity";
+import type { FuelRecordProps } from "./contexts/fleet/fuel/domain/entities/fuel-record.entity";
+import { monthsInWindow, trailingMonthWindows, type AnalyticsRange } from "./contexts/fleet/reports/domain/analytics-range";
 import { FUEL_RECORD_REPOSITORY, type FuelRecordRepository } from "./contexts/fleet/fuel/domain/repositories/fuel-record.repository";
-import { MAINTENANCE_RECORD_REPOSITORY, type MaintenanceRecordRepository } from "./maintenance-record.repository";
+import { MAINTENANCE_RECORD_REPOSITORY, type MaintenanceRecordRepository, type StoredMaintenanceRecord } from "./maintenance-record.repository";
 import { getFleetOrm, FleetFinancialConfigRecord } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import { AppConfigService } from "@shared/config";
 import { monthlyDepreciation, monthlyWages } from "./financial-costs";
@@ -79,6 +82,41 @@ function inRange(iso: string | null | undefined, from?: string, to?: string): bo
 
 /** Null or absent means the whole tenant; a set limits every figure to those vehicles. */
 export type AllowedVehicleIds = ReadonlySet<string> | null | undefined;
+
+type ProfitInputs = {
+  vehicles: Vehicle[];
+  jobs: DispatchJob[];
+  fuelRecords: FuelRecordProps[];
+  maintRecords: StoredMaintenanceRecord[];
+  configs: FleetFinancialConfigRecord[];
+};
+
+type ProfitRow = ReturnType<FleetFinancialsUseCase["buildProfitRows"]>[number];
+
+const PROFIT_LOSS_TREND_MONTHS = 6;
+
+function profitLossFigures(rows: ProfitRow[]) {
+  const sum = (pick: (row: ProfitRow) => number) => round2(rows.reduce((total, row) => total + pick(row), 0));
+  const revenue = sum((r) => r.revenue);
+  const costs = {
+    fuel: sum((r) => r.costBreakdown.fuel),
+    maintenance: sum((r) => r.costBreakdown.maintenance),
+    wages: sum((r) => r.costBreakdown.wages),
+    insurance: sum((r) => r.costBreakdown.insurance),
+    depreciation: sum((r) => r.costBreakdown.depreciation),
+    other: sum((r) => r.costBreakdown.other),
+  };
+  const totalCosts = round2(Object.values(costs).reduce((total, value) => total + value, 0));
+  const netProfit = round2(revenue - totalCosts);
+  return {
+    revenue,
+    costs,
+    totalCosts,
+    netProfit,
+    marginPercent: revenue > 0 ? Math.round((netProfit / revenue) * 1000) / 10 : 0,
+    deliveredJobs: rows.reduce((total, row) => total + row.jobCount, 0),
+  };
+}
 
 export type ProfitabilityFilters = {
   from?: string;
@@ -162,23 +200,11 @@ export class FleetFinancialsUseCase {
     return allowedVehicleIds ? vehicles.filter((v) => allowedVehicleIds.has(v.id)) : vehicles;
   }
 
-  async computeProfitability(
-    tenantId: string,
-    periodMonths = 1,
-    filters: ProfitabilityFilters = {},
-    allowedVehicleIds?: AllowedVehicleIds,
-  ) {
-    const from = filters.from;
-    const to = inclusiveEnd(filters.to);
+  buildProfitRows(inputs: ProfitInputs, window: { from?: string; to?: string }, periodMonths: number) {
+    const { from, to } = window;
     const now = new Date();
-    const [vehicles, jobs, fuelRecords, maintRecords, configs] = await Promise.all([
-      this.vehiclesIn(tenantId, allowedVehicleIds),
-      this.dispatchJobs.listJobs(tenantId),
-      this.fuelRepo.findAll({ tenantId, from, to }).then((rs) => rs.map((r) => r.toPrimitives())),
-      this.maintRepo.findAllByTenant(tenantId),
-      this.getConfigs(tenantId),
-    ]);
-
+    const { vehicles, jobs, maintRecords, configs } = inputs;
+    const fuelRecords = inputs.fuelRecords.filter((f) => inRange(f.recordedAt, from, to));
     const configByVehicle = new Map(configs.map((c) => [c.vehicleId, c]));
     const completedJobs = jobs.filter((j) => j.status === "delivered" && inRange(j.updatedAt, from, to));
     const completedMaint = maintRecords.filter((r) => r.status === "completed" && inRange(r.completedDate, from, to));
@@ -242,6 +268,33 @@ export class FleetFinancialsUseCase {
       };
     });
 
+    return rows;
+  }
+
+  private async loadProfitInputs(
+    tenantId: string,
+    window: { from?: string; to?: string },
+    allowedVehicleIds?: AllowedVehicleIds,
+  ): Promise<ProfitInputs> {
+    const [vehicles, jobs, fuelRecords, maintRecords, configs] = await Promise.all([
+      this.vehiclesIn(tenantId, allowedVehicleIds),
+      this.dispatchJobs.listJobs(tenantId),
+      this.fuelRepo.findAll({ tenantId, from: window.from, to: window.to }).then((rs) => rs.map((r) => r.toPrimitives())),
+      this.maintRepo.findAllByTenant(tenantId),
+      this.getConfigs(tenantId),
+    ]);
+    return { vehicles, jobs, fuelRecords, maintRecords, configs };
+  }
+
+  async computeProfitability(
+    tenantId: string,
+    periodMonths = 1,
+    filters: ProfitabilityFilters = {},
+    allowedVehicleIds?: AllowedVehicleIds,
+  ) {
+    const to = inclusiveEnd(filters.to);
+    const inputs = await this.loadProfitInputs(tenantId, { from: filters.from, to }, allowedVehicleIds);
+    const rows = this.buildProfitRows(inputs, { from: filters.from, to }, periodMonths);
     return rows.filter((v) => {
       if (filters.search && !v.plateNumber.toLowerCase().includes(filters.search.toLowerCase()) && !v.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
       if (filters.marginFrom !== undefined && v.marginPercent < filters.marginFrom) return false;
@@ -252,6 +305,35 @@ export class FleetFinancialsUseCase {
       if (filters.netProfitTo !== undefined && v.profit > filters.netProfitTo) return false;
       return scoreInRange(v.score, filters.scoreFrom, filters.scoreTo);
     });
+  }
+
+  /**
+   * Revenue is delivered jobs, costs are recorded fuel and completed
+   * maintenance plus the fixed costs set in each vehicle's configuration,
+   * counted for the share of each month the window covers. One load serves the
+   * whole window and the monthly trend.
+   */
+  async profitLoss(tenantId: string, range: AnalyticsRange, allowedVehicleIds?: AllowedVehicleIds) {
+    const trend = trailingMonthWindows(range.to, PROFIT_LOSS_TREND_MONTHS);
+    const earliest = trend[0].from < range.from ? trend[0].from : range.from;
+    const inputs = await this.loadProfitInputs(tenantId, { from: earliest, to: range.to }, allowedVehicleIds);
+    const figuresFor = (window: { from: string; to: string }) =>
+      profitLossFigures(this.buildProfitRows(inputs, window, monthsInWindow(window.from, window.to)));
+    return {
+      from: range.from,
+      to: range.to,
+      summary: figuresFor(range),
+      monthly: trend.map((window) => {
+        const figures = figuresFor(window);
+        return {
+          month: window.month,
+          revenue: figures.revenue,
+          costs: figures.totalCosts,
+          profit: figures.netProfit,
+          marginPercent: figures.marginPercent,
+        };
+      }),
+    };
   }
 
   private aggregate(pl: Awaited<ReturnType<FleetFinancialsUseCase["computeProfitability"]>>) {

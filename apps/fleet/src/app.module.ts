@@ -255,6 +255,9 @@ import { RECENT_CHATS_READER } from "./contexts/fleet/reports/domain/ports/recen
 import { HttpVehiclePositionsReader } from "./contexts/fleet/reports/infrastructure/http-vehicle-positions-reader";
 import { HttpRecentChatsReader } from "./contexts/fleet/reports/infrastructure/http-recent-chats-reader";
 import { FleetAnalyticsUseCase } from "./fleet-analytics.use-case";
+import { FleetUtilizationUseCase } from "./fleet-utilization.use-case";
+import { FleetFuelReportUseCase } from "./fleet-fuel-report.use-case";
+import { FleetComplianceAuditUseCase } from "./fleet-compliance-audit.use-case";
 import { MaintenanceProfilesUseCase } from "./maintenance-profiles.use-case";
 import { MikroMaintenanceProfileRepository } from "./mikro-maintenance-profile.repository";
 import { MAINTENANCE_PROFILE_REPOSITORY } from "./maintenance-profile.repository";
@@ -493,6 +496,9 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     { provide: VEHICLE_POSITIONS_READER, useExisting: HttpVehiclePositionsReader },
     { provide: RECENT_CHATS_READER, useExisting: HttpRecentChatsReader },
     FleetAnalyticsUseCase,
+    FleetUtilizationUseCase,
+    FleetFuelReportUseCase,
+    FleetComplianceAuditUseCase,
     MikroMaintenanceProfileRepository,
     { provide: MAINTENANCE_PROFILE_REPOSITORY, useExisting: MikroMaintenanceProfileRepository },
     MaintenanceProfilesUseCase,

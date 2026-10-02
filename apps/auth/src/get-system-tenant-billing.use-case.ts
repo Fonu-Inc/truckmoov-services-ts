@@ -19,6 +19,16 @@ import {
   TENANT_COLLECTIONS_REPOSITORY,
   type TenantCollectionsRepository,
 } from './tenant-collections.repository';
+import {
+  PLAN_ENTITLEMENTS_REPOSITORY,
+  type PlanEntitlementsRepository,
+} from './plan-entitlements.repository';
+import {
+  TENANT_ONBOARDING_REPOSITORY,
+  type TenantOnboardingRepository,
+} from './tenant-onboarding.repository';
+import { toTrialView } from './tenant-trial';
+import { TENANT_TRIAL_REPOSITORY, type TenantTrialRepository } from './tenant-trial.repository';
 import { TENANT_WALLET_REPOSITORY, type TenantWalletRepository } from './tenant-wallet.repository';
 import { walletStatus } from './wallet-credit';
 
@@ -36,6 +46,9 @@ export class GetSystemTenantBillingUseCase {
     @Inject(TENANT_COLLECTIONS_REPOSITORY) private readonly collections: TenantCollectionsRepository,
     @Inject(EnforcementPlanService) private readonly enforcement: EnforcementPlanService,
     @Inject(TENANT_WALLET_REPOSITORY) private readonly wallets: TenantWalletRepository,
+    @Inject(PLAN_ENTITLEMENTS_REPOSITORY) private readonly entitlements: PlanEntitlementsRepository,
+    @Inject(TENANT_ONBOARDING_REPOSITORY) private readonly onboarding: TenantOnboardingRepository,
+    @Inject(TENANT_TRIAL_REPOSITORY) private readonly trials: TenantTrialRepository,
   ) {}
 
   async execute(accessToken: string, tenantId: string) {
@@ -45,13 +58,18 @@ export class GetSystemTenantBillingUseCase {
     const tenant = (await this.tenants.list(accessToken, {})).find((row) => row.id === tenantId);
     if (!tenant) throw new SystemTenantNotFoundError();
 
-    const [licence, open, lastPayment, stage, wallet] = await Promise.all([
+    const [licence, open, lastPayment, stage, wallet, onboarding, trial] = await Promise.all([
       this.licences.findActiveByTenant(tenantId),
       this.invoices.listForTenant({ tenantId, scope: 'open', page: 1, limit: OPEN_INVOICE_PAGE }),
       this.collections.lastPaymentForTenant(tenantId),
       this.enforcement.rowFor(tenantId),
       this.wallets.findByTenantId(tenantId),
+      this.onboarding.findByTenantId(tenantId),
+      this.trials.findByTenant(tenantId),
     ]);
+    const planEntitlements = tenant.planCode
+      ? await this.entitlements.findByPlanCode(tenant.planCode).catch(() => null)
+      : null;
     const next = [...open.items].sort((a, b) => a.invoice.dueDate.localeCompare(b.invoice.dueDate))[0];
 
     return {
@@ -60,6 +78,13 @@ export class GetSystemTenantBillingUseCase {
       data: {
         tenantId,
         plan: tenant.planCode ? { code: tenant.planCode, name: tenant.planName } : null,
+        billingModel: {
+          kind: licence ? 'per_device_licence' : tenant.planCode ? 'subscription' : null,
+          paymentModel: planEntitlements?.paymentModel ?? null,
+          billingCycle: licence ? null : (onboarding?.subscription?.billingCycle ?? null),
+          deviceCount: licence?.deviceCount ?? null,
+        },
+        trial: trial ? toTrialView(trial, new Date()) : null,
         licence: licence
           ? { status: licence.status, periodStart: licence.periodStart, validUntil: licence.periodEnd }
           : null,

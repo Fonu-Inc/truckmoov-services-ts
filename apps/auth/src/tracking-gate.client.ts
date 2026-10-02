@@ -19,6 +19,15 @@ export type GateReport = {
   devices: GateBlockedDevice[];
 };
 
+export type GateMessageHour = { hourStart: string; count: number };
+
+export type GateMessageRate = {
+  countsSince: string;
+  startedAt: string;
+  lastHour: number;
+  hours: GateMessageHour[];
+};
+
 @Injectable()
 export class TrackingGateClient {
   private readonly logger = new Logger(TrackingGateClient.name);
@@ -42,6 +51,24 @@ export class TrackingGateClient {
       return report;
     } catch (error) {
       this.logger.warn(`tracking_gate_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
+      return null;
+    }
+  }
+
+  /** Null when tracking cannot be asked, which is not the same as no messages. */
+  async messageRate(): Promise<GateMessageRate | null> {
+    const headers = this.caller.headers('tracking', { tenantId: SYSTEM_TENANT_ID, legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+    try {
+      const response = await axios.get<{ data?: GateMessageRate }>(
+        `${this.config.auth.trackingServiceUrl}/tracking/internal/messages/hourly`,
+        { headers, timeout: 4000, validateStatus: () => true },
+      );
+      const report = response.data?.data;
+      if (response.status !== 200 || !Array.isArray(report?.hours)) return null;
+      return report;
+    } catch (error) {
+      this.logger.warn(`tracking_message_rate_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return null;
     }
   }

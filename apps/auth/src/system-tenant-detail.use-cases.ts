@@ -63,7 +63,9 @@ export class GetTenantResourceUseCase {
 
     // The caller should not have to know the tenant's plan to get its limit;
     // the query parameter stays as an override.
-    const limit = await this.quotaFor(planCode ?? tenant.planCode, tab);
+    const limit = planCode && planCode !== tenant.planCode
+      ? await this.quotaFor(planCode, tab)
+      : tenant.quotas[tab];
     const resource = tab === 'sims' ? await this.tenantSims(tenantId) : await this.fleet.tenantResource(tenantId, tab);
 
     if (!resource) {

@@ -17,7 +17,12 @@ import type {
   PaymentHistoryFilter,
   PaymentHistoryRepository,
   PaymentHistoryRow,
+  TenantPaidAmount,
+  TenantPaymentFilter,
+  TenantPaymentRow,
 } from '@auth/onboarding/domain/payment-history.repository';
+import { isRenewalInvoice } from '@auth/onboarding/domain/invoice.repository';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import { InMemoryOnboardingPaymentRepository } from './in-memory-onboarding-payment.repository';
 
 @Injectable()
@@ -57,6 +62,61 @@ export class InMemoryPaymentHistoryRepository implements PaymentHistoryRepositor
     return payment ? this.toRow(payment) : null;
   }
 
+  async listForTenant(filter: TenantPaymentFilter) {
+    const rows = await this.tenantRows(filter.tenantId);
+    const needle = filter.q?.trim().toLowerCase();
+    const matching = rows
+      .filter(({ payment }) => !filter.statuses || filter.statuses.includes(payment.status))
+      .filter(({ payment }) => !filter.method || payment.method === filter.method)
+      .filter(({ payment }) => inDateRange(payment.paidAt ?? payment.createdAt, filter))
+      .filter(
+        (row) =>
+          !needle ||
+          [row.payment.reference, row.invoiceNumber ?? '', row.quotationNumber ?? '', row.productName]
+            .some((field) => field.toLowerCase().includes(needle)),
+      )
+      .sort(
+        (a, b) =>
+          (b.payment.paidAt ?? b.payment.createdAt).getTime() - (a.payment.paidAt ?? a.payment.createdAt).getTime() ||
+          b.payment.id.localeCompare(a.payment.id),
+      );
+    const offset = (filter.page - 1) * filter.limit;
+    return { items: matching.slice(offset, offset + filter.limit), total: matching.length };
+  }
+
+  async findForTenant(tenantId: string, id: string): Promise<TenantPaymentRow | null> {
+    return (await this.tenantRows(tenantId)).find((row) => row.payment.id === id) ?? null;
+  }
+
+  async listPaidForTenant(tenantId: string): Promise<TenantPaidAmount[]> {
+    return (await this.tenantRows(tenantId))
+      .filter(({ payment }) => payment.status === 'paid' && payment.paidAt)
+      .map(({ payment }) => ({
+        id: payment.id,
+        reference: payment.reference,
+        paidAt: payment.paidAt as Date,
+        amountKobo: payment.amountKobo,
+      }))
+      .sort((a, b) => a.paidAt.getTime() - b.paidAt.getTime());
+  }
+
+  private async tenantRows(tenantId: string): Promise<TenantPaymentRow[]> {
+    const rows = await Promise.all(this.payments.all().map((payment) => this.toTenantRow(payment)));
+    return rows.filter((row) => row.ownerTenantId === tenantId).map(({ ownerTenantId: _owner, ...row }) => row);
+  }
+
+  private async toTenantRow(source: StoredOnboardingPayment) {
+    const row = await this.toRow(source);
+    const invoice = source.invoiceId ? await this.invoices.findById(source.invoiceId) : null;
+    const quotation = source.quotationId ? await this.quotations.findById(source.quotationId) : null;
+    const application = await this.applications.findById(source.applicationId);
+    return {
+      ...row,
+      isRenewal: invoice ? isRenewalInvoice(invoice) : false,
+      ownerTenantId: invoice?.tenantId ?? quotation?.tenantId ?? application?.tenantId ?? null,
+    };
+  }
+
   private async toRow(source: StoredOnboardingPayment): Promise<PaymentHistoryRow> {
     const payment = { ...source };
     const quotation = payment.quotationId
@@ -74,4 +134,9 @@ export class InMemoryPaymentHistoryRepository implements PaymentHistoryRepositor
       productName: payment.orderSummary?.planName ?? plan?.name ?? payment.planCode,
     };
   }
+}
+
+function inDateRange(at: Date, filter: Pick<TenantPaymentFilter, 'from' | 'to'>): boolean {
+  const day = lagosDate(at);
+  return (!filter.from || day >= filter.from) && (!filter.to || day <= filter.to);
 }

@@ -4,6 +4,547 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-20 — Messaging Center and WhatsApp connector review leftovers
+
+**Status:** open, recorded 2 October 2026. Follows the review of the WhatsApp
+connector and Messaging Center work. The secret leak found in review is fixed
+(transport errors no longer carry the request URL). The items below are smaller
+hardening gaps that were left on purpose. Related: TD-18, TD-19.
+
+### Where the code is
+
+- **Go:** `truckmoov-services-go/internal/notification/`:
+  `infrastructure/embedded_signup_provider.go` (`getJSON`, code exchange,
+  `InspectToken`), `application/whatsapp_account_settings.go` (connect),
+  `application/whatsapp_conversations.go` and `application/whatsapp_connector.go`
+  (`refreshAccountOnChange`, `RefreshForBusinessAccount`),
+  `infrastructure/whatsapp_account_repository.go`
+  (`FindAccountByBusinessAccountID`), `application/platform_inbox_admin.go`
+  (`toPatch`, `Bulk`).
+
+### What exists now
+
+- Meta transport errors are stripped of the URL (`graphTransportError`);
+  `PlainErrorText` returns a plain message for them.
+- Connect checks a posted business account id against the accounts the token
+  owns.
+- Account-level webhook changes re-read the number.
+- PATCH and bulk accept assignee, status, priority and tags.
+
+### What is missing
+
+**1. App secret still travels in the Graph query string.**
+The code exchange and long-lived token call send `client_secret`, `code` and
+`fb_exchange_token` as GET query parameters; `InspectToken` sends
+`app_id|secret` the same way. They are no longer shown in errors, but proxies
+or Meta-side logs can still see them.
+
+**2. Token ownership check weakens when `debug_token` fails.**
+`InspectToken` errors are ignored on connect. With an empty granted list a posted
+`business_account_id` is accepted without the ownership check (listing the
+numbers with the token still proves ownership later).
+
+**3. Webhook refresh runs before the 200 is returned.**
+`refreshAccountOnChange` makes several Graph calls inline, so a slow Graph
+response delays the ack and Meta may retry the whole delivery, including message
+entries. `FindAccountByBusinessAccountID` returns one account, so a Business
+Account shared by two tenants refreshes only one.
+
+**4. Assignee is not validated.**
+Any string within the length limit is accepted as assignee, including a user who
+does not exist or is not platform staff. Empty means unassign but is not stated
+or checked.
+
+**5. Bulk actions can half-apply and hide skips.**
+`PlatformInboxAdmin.Bulk` returns on the first non-not-found error after earlier
+conversations changed. Not-found ids are skipped without being reported.
+
+### What it needs
+
+1. Send secrets in a POST form body or an `Authorization` header. Acceptance: no
+   request URL built in `embedded_signup_provider.go` contains `client_secret`,
+   `code`, `fb_exchange_token` or the app secret; a test asserts it.
+2. Return the `InspectToken` error on connect, or fail closed when granted is
+   empty and an id was posted. Acceptance: a test with a failing `debug_token`
+   and a posted id gets a 400, not a connected account.
+3. Run the refresh in a bounded background worker and refresh every account on
+   the business account id (add a list-by-business-account query). Acceptance:
+   the webhook returns 200 without waiting on Graph; two tenants on one Business
+   Account both refresh.
+4. Check assignee is a platform staff subject (or `me` for the caller) and that
+   empty means unassign. Acceptance: PATCH and bulk with an unknown user id get
+   a 400.
+5. Return per-id results (`changed`, `skipped`, `failed`) from bulk and show a
+   partial result in the inbox. Acceptance: a bulk with one missing and one
+   failing id reports both; changed ids are not rolled back silently.
+
+### When picked up
+
+Items 1 and 2 first, together; they touch the same provider file. Items 3 to 5
+are independent. No Meta approval is needed for any of them.
+
+---
+
+## TD-19 — Some Messaging Center items wait on an outside system or are small known gaps
+
+**Status:** open, recorded 2 October 2026. Follows the Messaging Center catch-up
+against the reference app. The inbox, notes, assignment, attachments, scheduled
+sends, quick replies, campaigns, SMS templates, email and the voice tools all run
+on real data. The items below stop at an outside system we cannot reach from
+code, or are small rough edges. Related: TD-18 (WhatsApp connector), TD-9 (a
+tenant with no number of its own).
+
+### Where the code is
+
+- **Web:** `truckmoov-web/apps/admin/src/features/communications/`
+  (`components/`, `campaigns/`, `sms/`, `email/`, `voice/`), pages under
+  `apps/admin/src/pages/platform/` (`PlatformInbox`, `PlatformCampaigns`,
+  `PlatformSmsTemplates`, `PlatformMessagingCenter` for email, `PlatformVoice`).
+  Typed client: `packages/api/src/notification/` and
+  `packages/api/src/auth/system-mailbox.ts`.
+- **Backend (Go):** `truckmoov-services-go/internal/notification/`:
+  `application/platform_*.go` (inbox admin, media, retry, scheduled sends,
+  canned replies, campaigns, SMS templates, voice, contact links),
+  `infrastructure/` repositories and `null_voice_provider.go`, routes in
+  `interfaces/http/whatsapp_system_inbox*.go`, `system_campaigns.go`,
+  `system_sms_templates.go`, `system_voice.go`. Wiring in
+  `cmd/notification/platform_messaging.go`.
+- **Backend (TS):** `truckmoov-services-ts/apps/auth/src/admin-mailbox.controllers.ts`
+  (the platform mailbox, routes under `/auth/system/mailbox`), and
+  `apps/fleet/src/internal-fleet.controller.ts` (`GET /fleet/internal/drivers/by-phone`).
+
+### The problem
+
+**1. No voice carrier is connected.**
+- *Reference:* place and take calls, record them, run the phone menu, show
+  call timelines and a dashboard.
+- *Exists now:* the phone menu prompts (five languages), the call log, the
+  recordings list and the dashboard are built on their own tables
+  (`platform_ivr_prompts`, `platform_voice_calls`). "Place a call" is disabled
+  and says so, because `NullVoiceProvider` reports it is not connected.
+  Nothing writes a call that did not happen.
+- *Missing:* a carrier or voice platform, an adapter for it behind
+  `application.VoiceProvider`, a webhook that moves a call from queued to
+  ringing, in progress and completed and fills duration and recording URL, and
+  something that actually speaks the prompts to a caller.
+
+**2. The platform mailbox needs a real mail account.**
+- *Exists now:* staff can read, reply, send, star and download attachments, and
+  save the mailbox's IMAP and SMTP settings. Mail is synced by the existing
+  mailbox scheduler.
+- *Missing:* the mailbox itself (an address on a mail server with IMAP and
+  SMTP enabled) and its credentials. Until they are saved the Email page shows
+  the settings form only. The mail host must be reachable and public.
+
+**3. SMS needs the platform sender.**
+- *Exists now:* SMS campaigns and test sends go through the existing Dotgo
+  provider as the system tenant.
+- *Missing:* confirmation that the Dotgo account, sender mask and delivery
+  callback are set for the platform, and that the account may send to the
+  recipients' networks.
+
+**4. Small known gaps in the inbox.**
+- *Quote-reply and reactions:* a staff reply cannot quote a message or react to
+  one; the text and media sends carry no reply context.
+- *Old media:* Meta keeps a media file about 30 days. After that the bubble says
+  "no longer available". Keeping them longer needs our own file store.
+- *Rooms:* every staff socket gets every conversation, and a live socket is not
+  closed when its token expires.
+- *Long gaps:* after a long offline gap the inbox refetches only the first page
+  of each list.
+- *Assignment:* an assignee is not told they were given a conversation.
+
+**5. Small known gaps in campaigns.**
+- The audience is tenant contacts (phone and email from the tenant record).
+  Driver audiences and saved segments are not built.
+- A WhatsApp campaign sends its template with no values, media header or button
+  link; a template that needs any is refused when the campaign is created.
+- There is no staff screen to add or release an opted-out number. The
+  suppression list exists and is honoured when a campaign is built and sent.
+
+### What it needs
+
+1. **Voice carrier (item 1).** Choose the carrier. Implement
+   `application.VoiceProvider` for it (place call, end call), a signed webhook
+   route that updates `platform_voice_calls`, and recording storage. Acceptance:
+   a call placed from the page rings a handset, the row moves to completed with
+   its duration, and a recorded call plays in Recordings.
+2. **Mailbox (item 2).** Create the mailbox and save its settings on the Email
+   page. Acceptance: a message sent to it shows in the Inbox within the sync
+   interval, and a reply sent from the page arrives and is filed to Sent.
+3. **SMS sender (item 3).** Set `DOTGO_*` for the notification service in each
+   environment. Acceptance: "Send a test" on an SMS template reaches a handset.
+4. **Inbox gaps (item 4).** Quote-reply: add `context.message_id` to the text
+   and media send payloads and a reply button on a bubble. Old media: copy
+   media to object storage when it is first fetched and serve from there.
+   Rooms: join an assignee room and close a socket at its token's expiry.
+   Long gaps: page the resync until the newest known id is found. Assignment:
+   publish a notification to the new assignee.
+5. **Campaign gaps (item 5).** Add driver audiences through fleet, template
+   values per recipient, and a screen over the suppression routes.
+
+### When this is picked up
+
+Item 1 when a voice carrier is chosen. Items 2 and 3 as soon as the platform
+mailbox and sender exist; they are configuration. Items 4 and 5 in any
+messaging cleanup, none needs outside work.
+
+---
+
+## TD-18 — The WhatsApp connector needs Meta approvals and dashboard settings we cannot do from code
+
+**Status:** open, recorded 2 October 2026. Follows the WhatsApp connector work:
+code exchange, token check, webhook subscription, number registration, status
+and quality display, reconnect and disconnect are built and run against Meta's
+Graph API. What is left sits on Meta's side, or in settings only the account
+owner can change. Related: TD-9 (a tenant with no number of its own).
+
+### Where the code is
+
+- **Backend:** `truckmoov-services-go/internal/notification/`:
+  `application/whatsapp_account_settings.go` (connect, disconnect),
+  `application/whatsapp_connector.go` (refresh, resubscribe, register, daily
+  check), `infrastructure/embedded_signup_provider.go` (Graph calls),
+  `infrastructure/whatsapp_account_repository.go` (`whatsapp_accounts`, columns
+  added by `EnsureSchema`), `domain/whatsapp_api_error.go` (Meta error codes in
+  plain words), `application/platform_template_send.go` (template send from the
+  platform number). Routes under `/notify/system/whatsapp/`. Wiring in
+  `cmd/notification/main.go`.
+- **Web:** `truckmoov-web/apps/admin/src/pages/platform/PlatformWhatsAppSetup.tsx`,
+  `features/communications/components/whatsapp/`,
+  `features/communications/useMetaEmbeddedSignup.ts`.
+
+### The problem
+
+**1. Advanced Access for the Meta app.**
+- *Exists now:* the embedded signup works for people who hold a role on the Meta
+  app (app id `9343719928976278`). The platform number connects, subscribes and
+  registers.
+- *Missing:* `whatsapp_business_management` and `whatsapp_business_messaging`
+  have Standard Access only. Signing up a business that is not on our app
+  (a tenant's own number, see TD-9) needs App Review for Advanced Access.
+
+**2. Business verification.** Meta limits an unverified business to a small
+number of conversations a day and may refuse some display names. The platform
+business needs verification in Meta Business Settings before the messaging limit
+tier rises above the first tier.
+
+**3. Display name and template approval.** A new number shows "Display name
+review: pending" until Meta approves it; templates stay PENDING until reviewed.
+Nothing in code speeds this up. The page shows both states and Meta's rejection
+reason.
+
+**4. App-level webhook settings.** Meta delivers all accounts' events to one
+callback set in the app dashboard, not through the API. Until it is set the page
+shows "Webhooks subscribed" but nothing arrives.
+
+**5. Number registration PIN.** We generate a six-digit PIN and keep it
+encrypted so a repeat registration matches. A number that already has a
+different two-step PIN set in WhatsApp Manager fails with error 133005; only the
+owner can reset it there.
+
+**6. System-user token (optional).** A token from a long-lived user lasts about
+60 days and is re-checked daily (the page flags "Reconnect required"). A system
+user token never expires; it needs a system user in Meta Business Settings and
+the signup configuration set to issue one.
+
+### What it needs
+
+1. In the Meta app dashboard, **WhatsApp > Configuration**: callback URL
+   `https://<public api host>/notify/whatsapp/webhook`, verify token equal to
+   `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, and subscribe the fields `messages`,
+   `message_template_status_update`, `phone_number_quality_update`,
+   `phone_number_name_update`, `account_update`. App secret in
+   `WHATSAPP_APP_SECRET` must be this app's secret. Acceptance: a message sent
+   to the platform number appears in the Messaging Center within seconds.
+2. Environment (Doppler and the notification Deployment): `WHATSAPP_APP_ID`
+   (`9343719928976278`), `WHATSAPP_APP_SECRET`,
+   `WHATSAPP_ACCOUNT_ENCRYPTION_KEY` (64 hex characters, required: the service
+   no longer starts in production without it), `WHATSAPP_WEBHOOK_VERIFY_TOKEN`,
+   `WHATSAPP_API_BASE_URL` (now defaults to `https://graph.facebook.com/v23.0`;
+   the admin build's `VITE_META_GRAPH_VERSION` should match),
+   `EVENT_SIGNING_SECRET`. Web build: `VITE_META_APP_ID`, `VITE_META_CONFIG_ID`.
+3. Submit the app for App Review (Advanced Access for the two permissions above)
+   with a screen recording of the signup and a message send. Acceptance: a
+   tenant that is not on the app can complete the signup.
+4. Complete Business Verification and confirm the display name. Acceptance: the
+   page shows Display name review "Approved" and a messaging limit above the
+   first tier.
+5. Optional: create a system user and issue the signup token from it; record in
+   the page that the token does not expire.
+6. Before moving to a Graph version newer than v23.0, check that the fields in
+   `whatsAppPhoneFields` are unchanged.
+
+### When this is picked up
+
+Items 1 and 2 as soon as the platform number goes live; they take minutes and
+need an owner of the Meta app. Items 3 and 4 before any tenant connects its own
+number (with TD-9). Item 5 whenever the 60-day token becomes a nuisance.
+
+---
+
+## TD-17 — Some tenant Billing page items are only partly built
+
+**Status:** open, recorded 2 October 2026. Follows the Main app Billing page
+migration. The items below are rough edges inside our own system.
+
+### Where the code is
+
+- **Web:** `truckmoov-web/apps/main/src/features/billing/`
+  (`CurrentPlanCard.tsx`, `BillingOverviewTab.tsx`, `BillingQuotationsTab.tsx`,
+  `BillingInvoicesTab.tsx`, `utils/billingHelpers.ts`,
+  `utils/billingDocuments.ts`). Typed client: `packages/api/src/billing`.
+- **Backend:** `truckmoov-services-ts/apps/auth/src/`:
+  `tenant-billing.controller.ts` (routes under `/auth/billing`),
+  `contexts/onboarding/application/use-cases/billing/`
+  (`tenant-billing.use-cases.ts`, `tenant-billing-overview.use-cases.ts`,
+  `tenant-document-queries.use-cases.ts`, `tenant-invoice-views.ts`),
+  `domain/quotation.repository.ts`, `mikro-invoice.repository.ts`,
+  `mikro-quotation.repository.ts`, `mikro-payment-history.repository.ts`.
+- **Reference:** `SubscriptionPage.tsx` and `components/billing/enterprise/` in
+  the fleetflow-pro reference app. It is a demo with no backend.
+
+### The problem
+
+**1. Resolved, 2 October 2026.** The activity feed pages through every
+quotation instead of stopping at 500. Kept as a number so the references
+below stay valid; delete it at the next cleanup.
+
+**2. The plan card's "Date of purchase", price and total can describe a
+renewal.**
+- *Reference:* one purchase: date, price per device, total paid.
+- *Exists now:* `GetTenantLicenceUseCase` takes price and total paid from the
+  latest fully paid plan invoice, and the date from the current period start.
+  After a renewal these are the renewal's figures, while the card still says
+  "Date of purchase" and "Total amount paid".
+- *Missing:* an agreed meaning. Either relabel as current term, or source the
+  figures from the first paid plan invoice.
+
+**3. Spend by Charge Type does not add up to Invoiced.**
+- *Exists now:* the pie sums quantity times unit price per invoice line, so it
+  leaves out VAT and discount. Invoiced vs Paid uses the invoice total, which
+  includes both.
+- *Missing:* a "before VAT" label on the pie subtitle, or tax and discount
+  spread across the slices.
+
+**4. The Quotations status filter has two options that never match.**
+- *Reference:* lists Draft and Sent.
+- *Exists now:* we keep the reference options, but the backend hides draft and
+  pending review quotations from tenants and maps sent to "awaiting decision".
+  Choosing Draft or Sent always shows "No quotations match your filters."
+- *Missing:* a decision to drop the two options or to show tenants those
+  statuses.
+
+**5. Billing period is derived, not stored.**
+- *Exists now:* a renewal's period is the day after the licence it renews ends,
+  for `validityDays`. An invoice paid late may really start its term on another
+  date. Invoice search by billing period matches only the issue month text.
+- *Missing:* a stored period label or start and end dates on the invoice.
+
+**6. No server-side document download, and no plan change or quotation
+decision.**
+- *Reference:* quotation, invoice and receipt downloads are built in the
+  browser as text files. There is no PDF, no plan-change request and no
+  accept or decline button.
+- *Exists now:* the same text downloads, built from API data. Nothing else was
+  built because the reference has nothing else.
+- *Missing:* PDF generation on the server and branded receipts, if wanted.
+
+**7. The new SQL has never run.**
+- *Exists now:* Mikro queries for search (`ilike`), joins and tenant scoping,
+  unit tests for the views and three contract cases, all written and not run.
+- *Missing:* a run of those tests and a `tests/db` case per Mikro repository.
+
+### What it needs
+
+1. **Activity cap (item 1).** Resolved. Longer term, the union, sort and
+   paging could move into SQL; nothing needs it today.
+2. **Plan card meaning (item 2).** Owner decides. Either relabel to
+   "Current term started" and "Last payment", or pick the earliest paid plan
+   invoice. Acceptance: after a renewal the card labels match the figures.
+3. **Pie total (item 3).** Add "before VAT" to the subtitle in
+   `BillingOverviewTab.tsx`, or allocate tax and discount in
+   `spendByCategory`.
+4. **Dead filter options (item 4).** Remove Draft and Sent from the select in
+   `BillingQuotationsTab.tsx`; keep them in the label map for typing.
+5. **Stored period (item 5).** Add period start and end to the invoice (needs
+   a migration), set them when the renewal invoice is created, and search on
+   them.
+6. **Server documents (item 6).** Add PDF routes with no-store headers, only
+   if the owner wants them.
+7. **Verification (item 7).** Run the new unit and contract tests and add the
+   database tests once tests are allowed.
+
+### When this is picked up
+
+Items 3, 4 and 7 are small and can go in any billing cleanup. Items 2 and 5
+need an owner decision first. Item 6 waits for a request.
+
+---
+
+## TD-15 — Analytics tabs report real data, but some figures have no true source
+
+**Status:** open, recorded 2 October 2026. Follows the Analytics area clean-up
+in the Main app (Profit & Loss, Compliance Audit, Fuel Consumption, Fleet
+Utilization). Every widget now reads a tenant-scoped endpoint and shows zero
+when there is nothing recorded. The items below are where the number is an
+approximation or empty because the platform records nothing better.
+
+### Where the code is
+
+- **Web:** `truckmoov-web/apps/main/src/features/analytics/`
+  (`components/pages/*Page.tsx`, `utils/period.ts`). Typed client:
+  `packages/api/src/fleet` (`getFleetProfitLoss`, `getFleetUtilizationReport`,
+  `getFleetFuelReport`, `getFleetComplianceAudit`).
+- **Backend:** `truckmoov-services-ts/apps/fleet/src/`: `analytics.controller.ts`
+  (`/analytics/utilization`, `/analytics/fuel-consumption`,
+  `/analytics/compliance-audit`), `financials.controller.ts`
+  (`/financials/profit-loss`), `fleet-utilization.use-case.ts`,
+  `fleet-fuel-report.use-case.ts`, `fleet-compliance-audit.use-case.ts`,
+  `fleet-financials.use-case.ts` (`profitLoss`), and the pure helpers in
+  `contexts/fleet/reports/domain/` (`analytics-range.ts`, `utilization.ts`,
+  `fuel-report.ts`, `compliance-audit.ts`).
+
+### The problem
+
+**1. Profit & Loss has no expense or driver payout ledger.**
+- *Exists now:* revenue is the amount of delivered jobs. Costs are recorded
+  fuel, completed maintenance records, and the fixed costs typed into each
+  vehicle's Configure Costs (monthly wage, insurance, depreciation, parking,
+  other), counted for the share of each month the window covers.
+- *Missing:* actual driver payouts and trip expenses (tolls, loading fees,
+  fines, per-trip allowances). Wages are a monthly figure someone typed, not
+  what was paid. Jobs also carry no delivered-at time, so the month a job
+  lands in is the time of its last update.
+- *Needs:* a payout and expense record per trip or driver, and a delivered-at
+  stamp on the job. Waybills and invoices are out of scope for now, so revenue
+  stays the job amount.
+
+**2. Fleet Utilization is job occupancy, not use.**
+- *Exists now:* a vehicle's utilization is the share of days in the window with
+  a job on it, counting a job from creation to delivery (or to now while it is
+  running).
+- *Missing:* time actually moving or with the engine on, and trip distance.
+  There is no pickup-started stamp and tracking keeps no history of distance
+  or engine hours that fleet can read.
+- *Needs:* a trip table (start, end, distance, engine hours) fed from tracking,
+  then utilization as driven hours over available hours.
+
+**3. Tank level is never filled.**
+- *Exists now:* `GET /analytics/fuel-levels` returns every vehicle with
+  `fuelLevelPercent: null`.
+- *Missing:* the tank-level series from GPS devices that report it, queryable
+  per vehicle over a time range. Same need as TD-1.
+
+**4. Fuel distance and efficiency come from typed odometer readings.**
+- *Exists now:* distance is the odometer movement between the first and last
+  fuel record in the window, and km per litre uses the litres bought after the
+  first fill. A vehicle with fewer than two odometer readings shows no
+  efficiency.
+- *Missing:* tracked distance to check the typed odometer against (TD-1).
+- *Needs:* the same tracking distance feed as item 2.
+
+**5. Driver licences and compliance documents are the only compliance inputs.**
+- *Exists now:* the Compliance Audit counts current compliance documents by
+  type and driver licence expiry, and shows audit-log activity for the window
+  to roles that may read the audit log.
+- *Missing:* statutory checks the product does not record (roadworthiness
+  inspection results, fire extinguisher checks) unless a tenant uploads them as
+  compliance documents; and a hash-chain check on the audit log is only on
+  the Activity tab, not on this report.
+
+### When this is picked up
+
+Items 2 to 4 with the tracking trip and distance work. Item 1 with the
+payout and expense design, after the owner decides what a trip expense is.
+
+---
+
+## TD-14 — Tenant trial, data export and per-tenant limits are the minimum version
+
+**Status:** open, recorded 2 October 2026. Follows the restore of the tenant
+details sheet items that an earlier cleanup removed because no backend existed.
+Each item now works end to end; the notes below are what it does not do.
+
+### Where the code is
+
+- **Web:** `truckmoov-web/apps/admin/src/features/tenants/components/ui/`
+  (`TenantQuotaEditor.tsx`, `TenantTrialCard.tsx`, `TenantDataExportPanel.tsx`,
+  `TenantDetailsSheet.tsx`). Typed client: `packages/api/src/auth`.
+- **Backend:** `truckmoov-services-ts/apps/auth/src/`:
+  `update-tenant-quotas.use-case.ts`, `tenant-quota-overrides.repository.ts`,
+  `entitlement.service.ts` (`effectiveForTenant`), `tenant-trial.use-cases.ts`,
+  `tenant-trial.repository.ts`, `tenant-data-export.use-cases.ts`,
+  `tenant-export-builder.ts`, `zip-archive.ts`; routes in
+  `system-tenants.controller.ts` (`PATCH :tenantId/quotas`,
+  `POST :tenantId/trial/extend`, `POST :tenantId/trial/convert`,
+  `POST|GET :tenantId/exports`, `GET :tenantId/exports/:exportId/download`).
+  Fleet side: `apps/fleet/src/internal-fleet.controller.ts`
+  (`tenants/:tenantId/export/:scope`) and `tenant-export-rows.ts`.
+  Tables (migrations `20261006010000`, `020000`, `030000`):
+  `tenant_quota_overrides`, `tenant_trials`, `tenant_data_exports`.
+
+### The problem
+
+**1. A trial is shown and extended, and nothing reads it.**
+- *Exists now:* a tenant created by staff on a plan whose `trialDays` is above
+  zero gets a `tenant_trials` row with an end date. The Billing tab shows the
+  days left, and staff can extend (1 to 365 days, reason required) or mark it
+  converted. Both are audited.
+- *Missing:* no engine acts on the end date. Nothing suspends, restricts or
+  reminds when a trial ends. The old trial caps (vehicles, SIMs, WhatsApp and
+  SMS per day) and "payment method on file" do not exist anywhere, so the card
+  does not show them. Convert only records the plan the tenant is on; it does
+  not raise an invoice or start a licence. Tenants that came through the
+  self-serve onboarding approval, and every tenant that existed before this
+  change, have no trial row, and there is no "start a trial" action.
+
+**2. The data export is built inside the request.**
+- *Exists now:* a system admin picks vehicles, drivers, devices, SIMs, users,
+  invoices or all. The files are real CSVs from real tables (all in one zip for
+  "all"), stored in the private bucket for 7 days and downloaded through the
+  signed-in API only. Requesting and downloading are audited.
+- *Missing:* it runs synchronously, so a very large tenant can hit the request
+  timeout (the fleet call allows 60 seconds). It covers six tables only: no
+  trips, geofences, maintenance, fuel, documents or audit history. Nothing
+  deletes the stored file or the row after the 7 days; the file just stops
+  being offered. Termination (TD-8) still promises an export emailed with a
+  30-day link, and still does not start one.
+
+**3. Per-tenant limits cover four resources and cannot mean unlimited.**
+- *Exists now:* an override for vehicles, drivers, devices or SIMs replaces the
+  plan limit for that tenant. Fleet reads it through the same entitlements
+  call it already used, and SIM registration reads it too.
+- *Missing:* storage, geofences and active jobs cannot be overridden. An
+  override is a number, never "unlimited"; to lift a limit, set a large one.
+  What happens at the limit (block, warn, bill) still comes from the plan, and
+  is block when the plan names none. Fleet caches entitlements for
+  `tenantStatusCacheSeconds`, so a change can take that long to bite. The tenant
+  list resolves the plan from the licence first, while enforcement resolves it
+  from the onboarding subscription; a tenant where the two differ shows one
+  plan limit and is held to another.
+- *Not built on purpose:* there is no per-owner-operator vehicle cap in the
+  code (the old sheet block read a column that does not exist). An owner
+  operator is a tenant, so its vehicle cap is its tenant limit above.
+
+**4. Auto-renew has no flag.** Nothing in the code records whether a licence
+renews on its own, so the Billing Summary leaves the field out.
+
+### Direction
+
+Make the export a background job with the same table and statuses, add the
+missing tables as scopes, add a sweep that deletes expired files, and have
+termination request one. Decide what a trial end should do before building
+anything on it; if it should restrict, it belongs with the enforcement and
+grace engine, not in the trial card.
+
+### When this is picked up
+
+The export job and sweep with TD-8. The trial engine only once the owner has
+decided what an ended trial does.
+
+---
+
 ## TD-13 — Some SIM Inventory items are only partly built
 
 **Status:** open, recorded 2 October 2026. Follows the SIM Inventory tab
@@ -75,6 +616,19 @@ race, both pass the check; the second hits the unique index and surfaces as a
 **5. Selection works only within one page.** Selected SIMs are cleared when the
 page, search, status or filters change. Selecting "all 300 matching SIMs" for a
 bulk action is not possible.
+
+**6. Overview data usage figures run on stored SIM usage.** The admin Overview
+weekly data usage chart, "Data Usage Today" and "Total Data Bought" are
+restored. A job (`sim-usage-snapshot.service.ts`, hourly, advisory lock) writes
+the sum of `iot_sims.data_usage_mb` into `sim_usage_daily` (one row per Lagos
+day, last write of the day wins); the chart shows the growth between
+consecutive daily snapshots through `GET /auth/system/sims/data-usage`. The
+figures stay near zero until the carrier usage feed (item 2) writes
+`data_usage_mb`; the chart says so. "Total Data Bought" sums
+`bundle_allocations.data_total_mb` and is real now. "GPS Messages/hr" comes
+from the tracking service (`/tracking/internal/messages/hourly`, in memory, so
+it restarts from zero with the service). The system dashboard endpoint still
+returns `null` for these three; the Overview reads the new endpoints.
 
 ### What it needs
 

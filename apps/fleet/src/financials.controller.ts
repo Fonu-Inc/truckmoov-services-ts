@@ -42,6 +42,8 @@ import {
 } from "./dto/fleet.schema";
 import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 import { FleetFinancialsUseCase } from "./fleet-financials.use-case";
+import { parseAnalyticsRange } from "./contexts/fleet/reports/domain/analytics-range";
+import { AnalyticsRangeQueryDto, ProfitLossResponse } from "./dto/analytics-reports.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource, Requires } from "@shared/access";
 
@@ -107,6 +109,26 @@ export class FinancialsController extends BaseFleetController {
     const data = await this.fleetFinancialsUseCase.summary(
       tenantId,
       { from: query.from, to: query.to },
+      await this.ownedVehicleIds(tenantId, req),
+    );
+    return { status: true, message: "success", data };
+  }
+
+  @Get("profit-loss")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @ApiOperation({
+    summary: "Profit and loss for a window with a six-month trend",
+    description:
+      "Revenue is the amount of delivered jobs. Costs are recorded fuel, completed maintenance and the fixed costs set per vehicle, counted for the share of each month the window covers.",
+  })
+  @ApiQuery({ name: "from", required: false, type: String })
+  @ApiQuery({ name: "to", required: false, type: String })
+  @ApiOkResponse({ description: "Profit and loss figures and monthly trend", type: ProfitLossResponse })
+  async getProfitLoss(@Query() query: AnalyticsRangeQueryDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.fleetFinancialsUseCase.profitLoss(
+      tenantId,
+      parseAnalyticsRange(query.from, query.to),
       await this.ownedVehicleIds(tenantId, req),
     );
     return { status: true, message: "success", data };

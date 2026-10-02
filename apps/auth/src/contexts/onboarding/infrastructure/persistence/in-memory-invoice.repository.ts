@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import {
   ONBOARDING_PAYMENT_REPOSITORY,
   type OnboardingPaymentRepository,
@@ -13,11 +14,14 @@ import {
   outstandingKobo,
   settledInvoiceStatus,
   invoiceOverdue,
+  matchesTenantState,
+  planFactsOf,
   type InvoiceListFilter,
   type InvoiceListRow,
   type InvoiceRepository,
   type InvoiceWithLines,
   type RenewalAmounts,
+  type TenantInvoiceFact,
   type TenantInvoiceFilter,
   type TenantInvoicePage,
 } from '@auth/onboarding/domain/invoice.repository';
@@ -185,14 +189,28 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   async listForTenant(filter: TenantInvoiceFilter): Promise<TenantInvoicePage> {
     const mine = this.tenantInvoices(filter.tenantId);
     const open = mine.filter(isOpen);
-    const matching = mine
-      .filter((invoice) => scopeMatches(filter.scope, invoice))
-      .sort((a, b) => b.dueDate.localeCompare(a.dueDate) || b.id.localeCompare(a.id));
+    const needle = filter.q?.trim().toLowerCase();
+    const matching = (
+      await Promise.all(
+        mine
+          .filter((invoice) => scopeMatches(filter.scope, invoice))
+          .filter((invoice) => !filter.state || matchesTenantState(invoice, filter.state, filter.today ?? lagosDate(new Date())))
+          .map(async (invoice) => ({
+            invoice,
+            quotationNumber: await this.findQuotationNumber(invoice.id),
+          })),
+      )
+    )
+      .filter(({ invoice, quotationNumber }) => !needle || searchable(invoice, quotationNumber).includes(needle))
+      .sort((a, b) => b.invoice.dueDate.localeCompare(a.invoice.dueDate) || b.invoice.id.localeCompare(a.invoice.id));
     const offset = (filter.page - 1) * filter.limit;
     return {
-      items: matching
-        .slice(offset, offset + filter.limit)
-        .map((invoice) => ({ invoice: headerOf(invoice), isRenewal: isRenewalInvoice(invoice) })),
+      items: matching.slice(offset, offset + filter.limit).map(({ invoice, quotationNumber }) => ({
+        invoice: headerOf(invoice),
+        isRenewal: isRenewalInvoice(invoice),
+        plan: planFactsOf(invoice.lines),
+        quotationNumber,
+      })),
       total: matching.length,
       openTotalKobo: open.reduce((sum, invoice) => sum + outstandingKobo(invoice), 0),
       nextDueDate: open.map((invoice) => invoice.dueDate).sort()[0] ?? null,
@@ -202,6 +220,38 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   async findForTenant(tenantId: string, id: string) {
     const found = this.tenantInvoices(tenantId).find((invoice) => invoice.id === id);
     return found ? { ...copy(found), isRenewal: isRenewalInvoice(found) } : null;
+  }
+
+  async findLatestPaidPlanInvoice(tenantId: string): Promise<InvoiceWithLines | null> {
+    const found = this.tenantInvoices(tenantId)
+      .filter((invoice) => invoice.status === 'paid' && planFactsOf(invoice.lines))
+      .sort(
+        (a, b) =>
+          b.issueDate.localeCompare(a.issueDate) ||
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          b.id.localeCompare(a.id),
+      )[0];
+    return found ? copy(found) : null;
+  }
+
+  async listFactsForTenant(tenantId: string): Promise<TenantInvoiceFact[]> {
+    return this.tenantInvoices(tenantId)
+      .sort(
+        (a, b) =>
+          a.issueDate.localeCompare(b.issueDate) ||
+          a.createdAt.getTime() - b.createdAt.getTime() ||
+          a.id.localeCompare(b.id),
+      )
+      .map((invoice) => ({
+        id: invoice.id,
+        number: invoice.number,
+        issueDate: invoice.issueDate,
+        createdAt: invoice.createdAt,
+        totalKobo: invoice.totalKobo,
+        amountPaidKobo: invoice.amountPaidKobo,
+        licensingKobo: kindTotal(invoice, 'plan'),
+        installationKobo: kindTotal(invoice, 'installation'),
+      }));
   }
 
   private tenantInvoices(tenantId: string): InvoiceWithLines[] {
@@ -226,4 +276,20 @@ function isOpen(invoice: InvoiceWithLines): boolean {
 function scopeMatches(scope: TenantInvoiceFilter['scope'], invoice: InvoiceWithLines): boolean {
   if (scope === 'open') return isOpen(invoice);
   return scope === 'paid' ? invoice.status === 'paid' : true;
+}
+
+function kindTotal(invoice: InvoiceWithLines, kind: 'plan' | 'installation'): number {
+  return invoice.lines
+    .filter((line) => line.kind === kind)
+    .reduce((sum, line) => sum + line.quantity * line.unitPriceKobo, 0);
+}
+
+function searchable(invoice: InvoiceWithLines, quotationNumber: string | null): string {
+  const month = new Date(`${invoice.issueDate}T00:00:00Z`).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  const plan = planFactsOf(invoice.lines)?.name ?? '';
+  return [invoice.number, quotationNumber ?? '', plan, month].join(' ').toLowerCase();
 }

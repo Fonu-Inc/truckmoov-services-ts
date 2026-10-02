@@ -97,6 +97,16 @@ import { InvoiceSeriesInvoiceNumbers } from './invoice-number.allocator';
 import { SystemBillingInvoicesController } from './system-billing-invoices.controller';
 import { SystemBillingEnforcementController } from './system-billing-enforcement.controller';
 import { TenantBillingController } from './tenant-billing.controller';
+import {
+  GetTenantPaymentUseCase,
+  GetTenantQuotationUseCase,
+  ListTenantPaymentsUseCase,
+  ListTenantQuotationsUseCase,
+} from '@auth/onboarding/application/use-cases/billing/tenant-document-queries.use-cases';
+import {
+  GetTenantBillingOverviewUseCase,
+  ListTenantBillingActivityUseCase,
+} from '@auth/onboarding/application/use-cases/billing/tenant-billing-overview.use-cases';
 import { RenewalSweepService } from './renewal-sweep.service';
 import { RenewalAudit } from './renewal-audit';
 import { RenewalInvoiceService } from '@auth/onboarding/application/services/renewal-invoice.service';
@@ -368,6 +378,7 @@ import {
 } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
+import { AdminMailboxController, AdminMailCredentialsController } from './admin-mailbox.controllers';
 import { PlatformAlertsController } from './platform-alerts.controller';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
@@ -398,6 +409,9 @@ import {
 import { InMemoryOrganisationUpgradeRepository } from './in-memory-organisation-upgrade.repository';
 import { MikroOrganisationUpgradeRepository } from './mikro-organisation-upgrade.repository';
 import { FleetFactsService } from './fleet-facts.service';
+import { TENANT_FIELD_ACTIVITY_READER } from './contexts/onboarding/domain/tenant-field-activity.reader';
+import { InMemoryTenantFieldActivityReader } from './contexts/onboarding/infrastructure/persistence/in-memory-tenant-field-activity.reader';
+import { MikroTenantFieldActivityReader } from './contexts/onboarding/infrastructure/persistence/mikro-tenant-field-activity.reader';
 import { PlatformAlertPublisher } from './platform-alert.publisher';
 import { TenantNotificationPublisher } from './tenant-notification.publisher';
 import { StorageReconciliationService } from './storage-reconciliation.service';
@@ -473,6 +487,40 @@ import { GetSystemSubscriptionPlansUseCase } from './get-system-subscription-pla
 import { UpdateSubscriptionPlanPriceUseCase } from './update-subscription-plan-price.use-case';
 import { GetSystemActivityLogUseCase } from './get-system-activity-log.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
+import { GetSystemRevenueByMonthUseCase } from './get-system-revenue-by-month.use-case';
+import { GetSystemDeviceManufacturersUseCase } from './get-system-device-manufacturers.use-case';
+import { GetSystemDeviceMessageRateUseCase } from './get-system-device-message-rate.use-case';
+import { GetSystemTenantGrowthUseCase } from './get-system-tenant-growth.use-case';
+import { GetSystemSimDataUsageUseCase } from './get-system-sim-data-usage.use-case';
+import { SimUsageSnapshotService } from './sim-usage-snapshot.service';
+import { SIM_USAGE_REPOSITORY } from './sim-usage.repository';
+import { InMemorySimUsageRepository } from './in-memory-sim-usage.repository';
+import { MikroSimUsageRepository } from './mikro-sim-usage.repository';
+import { TENANT_GROWTH_REPOSITORY } from './tenant-growth.repository';
+import { TENANT_QUOTA_OVERRIDES_REPOSITORY } from './tenant-quota-overrides.repository';
+import { InMemoryTenantQuotaOverridesRepository } from './in-memory-tenant-quota-overrides.repository';
+import { MikroTenantQuotaOverridesRepository } from './mikro-tenant-quota-overrides.repository';
+import { UpdateTenantQuotasUseCase } from './update-tenant-quotas.use-case';
+import { TENANT_TRIAL_REPOSITORY } from './tenant-trial.repository';
+import { InMemoryTenantTrialRepository } from './in-memory-tenant-trial.repository';
+import { MikroTenantTrialRepository } from './mikro-tenant-trial.repository';
+import { ConvertTenantTrialUseCase, ExtendTenantTrialUseCase } from './tenant-trial.use-cases';
+import { TENANT_DATA_EXPORT_REPOSITORY } from './tenant-data-export.repository';
+import { InMemoryTenantDataExportRepository } from './in-memory-tenant-data-export.repository';
+import { MikroTenantDataExportRepository } from './mikro-tenant-data-export.repository';
+import {
+  InMemoryTenantExportFileStore,
+  ObjectStorageTenantExportFileStore,
+  TENANT_EXPORT_FILE_STORE,
+} from './tenant-export-file-store';
+import { TenantExportBuilder } from './tenant-export-builder';
+import {
+  DownloadTenantExportUseCase,
+  ListTenantExportsUseCase,
+  RequestTenantExportUseCase,
+} from './tenant-data-export.use-cases';
+import { InMemoryTenantGrowthRepository } from './in-memory-tenant-growth.repository';
+import { MikroTenantGrowthRepository } from './mikro-tenant-growth.repository';
 import { GetSystemTenantUseCase } from './get-system-tenant.use-case';
 import { GetSystemTenantOnboardingReferenceDataUseCase } from './get-system-tenant-onboarding-reference-data.use-case';
 import { InMemoryActivityLogRepository } from './in-memory-activity-log.repository';
@@ -543,6 +591,7 @@ import { ListSystemSupportTicketMessagesUseCase } from './list-system-support-ti
 import { SendSystemSupportMessageUseCase } from './send-system-support-message.use-case';
 import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
 import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
+import { GetSystemSimCarrierBreakdownUseCase } from './get-system-sim-carrier-breakdown.use-case';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
 import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
 import { ListSystemSimsUseCase } from './list-system-sims.use-case';
@@ -874,6 +923,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemOnboardingApplicationsController,
     MailCredentialsController,
     MailboxController,
+    AdminMailCredentialsController,
+    AdminMailboxController,
     PlatformAlertsController,
     SystemAiController,
     SystemAuditController,
@@ -1254,6 +1305,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     SubscriptionPlansBootstrapService,
     CheckTenantSeatLimitUseCase,
+    InMemoryTenantFieldActivityReader,
+    MikroTenantFieldActivityReader,
+    {
+      provide: TENANT_FIELD_ACTIVITY_READER,
+      inject: [InMemoryTenantFieldActivityReader, MikroTenantFieldActivityReader, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantFieldActivityReader,
+        mikro: MikroTenantFieldActivityReader,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     InMemorySimRepository,
     MikroSimRepository,
     {
@@ -1636,6 +1698,85 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     GetSystemTenantsSummaryUseCase,
+    GetSystemRevenueByMonthUseCase,
+    GetSystemDeviceManufacturersUseCase,
+    GetSystemDeviceMessageRateUseCase,
+    GetSystemTenantGrowthUseCase,
+    GetSystemSimDataUsageUseCase,
+    SimUsageSnapshotService,
+    InMemorySimUsageRepository,
+    MikroSimUsageRepository,
+    {
+      provide: SIM_USAGE_REPOSITORY,
+      inject: [InMemorySimUsageRepository, MikroSimUsageRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySimUsageRepository,
+        mikro: MikroSimUsageRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryTenantQuotaOverridesRepository,
+    MikroTenantQuotaOverridesRepository,
+    {
+      provide: TENANT_QUOTA_OVERRIDES_REPOSITORY,
+      inject: [InMemoryTenantQuotaOverridesRepository, MikroTenantQuotaOverridesRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantQuotaOverridesRepository,
+        mikro: MikroTenantQuotaOverridesRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    UpdateTenantQuotasUseCase,
+    InMemoryTenantTrialRepository,
+    MikroTenantTrialRepository,
+    {
+      provide: TENANT_TRIAL_REPOSITORY,
+      inject: [InMemoryTenantTrialRepository, MikroTenantTrialRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantTrialRepository,
+        mikro: MikroTenantTrialRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    ExtendTenantTrialUseCase,
+    ConvertTenantTrialUseCase,
+    InMemoryTenantDataExportRepository,
+    MikroTenantDataExportRepository,
+    {
+      provide: TENANT_DATA_EXPORT_REPOSITORY,
+      inject: [InMemoryTenantDataExportRepository, MikroTenantDataExportRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantDataExportRepository,
+        mikro: MikroTenantDataExportRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    InMemoryTenantExportFileStore,
+    ObjectStorageTenantExportFileStore,
+    {
+      provide: TENANT_EXPORT_FILE_STORE,
+      inject: [InMemoryTenantExportFileStore, ObjectStorageTenantExportFileStore, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantExportFileStore,
+        objectStorage: ObjectStorageTenantExportFileStore,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : objectStorage),
+    },
+    TenantExportBuilder,
+    RequestTenantExportUseCase,
+    ListTenantExportsUseCase,
+    DownloadTenantExportUseCase,
+    InMemoryTenantGrowthRepository,
+    MikroTenantGrowthRepository,
+    {
+      provide: TENANT_GROWTH_REPOSITORY,
+      inject: [InMemoryTenantGrowthRepository, MikroTenantGrowthRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryTenantGrowthRepository,
+        mikro: MikroTenantGrowthRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
     GetSystemTenantUseCase,
     GetSystemTenantOnboardingReferenceDataUseCase,
     ResendSystemAdminInviteUseCase,
@@ -1648,6 +1789,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     UpdateSystemTenantStatusUseCase,
     ExportSystemSimsUseCase,
     GetSystemSimSummaryUseCase,
+    GetSystemSimCarrierBreakdownUseCase,
     ListSystemSimBatchesUseCase,
     ListSystemSimRequestsUseCase,
     ListSystemSimsUseCase,
@@ -1852,6 +1994,12 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListTenantInvoicesUseCase,
     GetTenantInvoiceUseCase,
     GetTenantLicenceUseCase,
+    ListTenantQuotationsUseCase,
+    GetTenantQuotationUseCase,
+    ListTenantPaymentsUseCase,
+    GetTenantPaymentUseCase,
+    GetTenantBillingOverviewUseCase,
+    ListTenantBillingActivityUseCase,
     PayRenewalFromWalletUseCase,
     PayRenewalByCardUseCase,
     GetEnforcementSettingsUseCase,

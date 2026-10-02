@@ -68,9 +68,13 @@ export class InMemorySimRepository implements SimRepository {
     return counts;
   }
 
-  async countByCarrier(): Promise<Record<string, number>> {
+  async countByCarrier(addedWithinDays?: number | null): Promise<Record<string, number>> {
+    const since = addedWithinDays ? Date.now() - addedWithinDays * 86_400_000 : null;
     const counts: Record<string, number> = {};
-    for (const sim of this.store.values()) counts[sim.carrier] = (counts[sim.carrier] || 0) + 1;
+    for (const sim of this.store.values()) {
+      if (since !== null && sim.createdAt.getTime() < since) continue;
+      counts[sim.carrier] = (counts[sim.carrier] || 0) + 1;
+    }
     return counts;
   }
 

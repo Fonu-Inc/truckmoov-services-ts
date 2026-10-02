@@ -150,10 +150,13 @@ export class MikroSimRepository implements SimRepository {
     return counts;
   }
 
-  async countByCarrier(): Promise<Record<string, number>> {
+  async countByCarrier(addedWithinDays?: number | null): Promise<Record<string, number>> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ carrier: string; count: string }>>(
-      'select carrier, count(*)::int as count from iot_sims group by carrier',
+      `select carrier, count(*)::int as count from iot_sims
+        where (?::int is null or created_at >= now() - make_interval(days => ?::int))
+        group by carrier`,
+      [addedWithinDays ?? null, addedWithinDays ?? null],
     );
     const counts: Record<string, number> = {};
     for (const row of rows) counts[row.carrier] = Number(row.count);

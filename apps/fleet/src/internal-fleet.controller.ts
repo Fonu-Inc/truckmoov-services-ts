@@ -51,6 +51,15 @@ import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/flee
 import { Portals, OnResource } from "@shared/access";
 import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
 import { AppConfigService } from "@shared/config";
+import {
+  deviceExport,
+  driverExport,
+  isTenantExportScope,
+  TENANT_EXPORT_SCOPES,
+  vehicleExport,
+  type TenantExportScope,
+  type TenantExportTable,
+} from "./tenant-export-rows";
 
 /**
  * Facts about a tenant's fleet that another service needs to make a decision.
@@ -65,6 +74,14 @@ const DRAWER_ROW_LIMIT = 25;
 const MAX_DEVICE_IDS = 100;
 /** Tracking pages the held-device list; this is the most it may take at once. */
 const MAX_HELD_PAGE = 5000;
+
+/** The forms a number is stored in: bare digits, with a plus, and, for Nigeria, with a local leading zero. */
+function phoneVariants(raw: string | undefined): string[] {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15) return [];
+  const local = digits.startsWith("234") ? [`0${digits.slice(3)}`] : [];
+  return [digits, `+${digits}`, ...local];
+}
 
 @ApiExcludeController()
 @Portals("service")
@@ -250,6 +267,25 @@ export class InternalFleetController extends BaseFleetController {
     };
   }
 
+  /**
+   * Which drivers, in any tenant, list this number. Platform staff use it to
+   * tie a WhatsApp conversation to a person; nothing beyond who and where.
+   */
+  @Get("drivers/by-phone")
+  @UseGuards(PlatformActorGuard)
+  async driversByPhone(@Query("phone") phone?: string) {
+    const numbers = phoneVariants(phone);
+    if (numbers.length === 0) throw new BadRequestException("phone is required");
+    const found = await this.drivers.findByNumbersAcrossTenants(numbers, DRAWER_ROW_LIMIT);
+    const items = (found as unknown as Array<Record<string, unknown>>).map((driver) => ({
+      driverId: String(driver["id"]),
+      name: driver["name"] ?? null,
+      tenantId: String(driver["tenantId"]),
+      status: driver["status"] ?? null,
+    }));
+    return { status: true, message: "success", data: { items } };
+  }
+
   @Get("tenants/:tenantId/drivers")
   @UseGuards(PlatformActorGuard)
   async tenantDrivers(@Param("tenantId") tenantId: string) {
@@ -296,6 +332,26 @@ export class InternalFleetController extends BaseFleetController {
       message: "success",
       data: { total: devices.length, limit: DRAWER_ROW_LIMIT, items: rows },
     };
+  }
+
+  /**
+   * Every row of one resource for a tenant, as columns and rows, for the
+   * platform's data export. Uncapped, unlike the drawer lists above.
+   */
+  @Get("tenants/:tenantId/export/:scope")
+  @UseGuards(PlatformActorGuard)
+  async tenantExport(@Param("tenantId") tenantId: string, @Param("scope") scope: string) {
+    if (!isTenantExportScope(scope)) {
+      throw new BadRequestException(`scope must be one of: ${TENANT_EXPORT_SCOPES.join(", ")}`);
+    }
+    const table = await this.exportTable(tenantId, scope);
+    return { status: true, message: "success", data: { scope, total: table.rows.length, ...table } };
+  }
+
+  private async exportTable(tenantId: string, scope: TenantExportScope): Promise<TenantExportTable> {
+    if (scope === "vehicles") return vehicleExport(await this.vehicles.findAll({ tenantId }));
+    if (scope === "drivers") return driverExport(await this.drivers.findAll({ tenantId }));
+    return deviceExport(await this.devices.findAll({ tenantId }));
   }
 
   private async devicesByIds(tenantId: string, ids: string) {

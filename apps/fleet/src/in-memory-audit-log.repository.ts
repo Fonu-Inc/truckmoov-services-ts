@@ -45,6 +45,8 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
         if (filters.entityType && entry.entityType !== filters.entityType) return false;
         if (filters.entityId && entry.entityId !== filters.entityId) return false;
         if (filters.action && entry.action !== filters.action) return false;
+        if (filters.from && entry.occurredAt < filters.from) return false;
+        if (filters.to && entry.occurredAt > filters.to) return false;
         return true;
       })
       .slice(-limit)

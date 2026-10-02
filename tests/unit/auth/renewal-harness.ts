@@ -104,8 +104,8 @@ export async function buildRenewals(start = "2026-10-01T09:00:00+01:00") {
   const payCard = new PayRenewalByCardUseCase(invoices, payments, gateway as never, idGenerator);
   const tenantViews = {
     list: new ListTenantInvoicesUseCase(invoices, periods, settings),
-    get: new GetTenantInvoiceUseCase(invoices, periods, settings),
-    licence: new GetTenantLicenceUseCase(periods, plans),
+    get: new GetTenantInvoiceUseCase(invoices, payments, periods, settings),
+    licence: new GetTenantLicenceUseCase(periods, plans, invoices),
   };
 
   const at = (date: string, hour = 9) => {

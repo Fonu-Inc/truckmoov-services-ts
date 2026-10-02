@@ -16,6 +16,7 @@ import {
   UnauthorizedException,
   Query,
   Delete,
+  GoneException,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -42,6 +43,8 @@ import {
   SystemTenantOnboardingResponse,
   SystemTenantsListResponse,
   SystemTenantsSummaryResponse,
+  SystemRevenueByMonthResponse,
+  SystemTenantGrowthResponse,
   SystemTenantInviteActionResponse,
   SystemTenantDeleteResponse,
 } from './dto/auth.schema';
@@ -61,9 +64,30 @@ import {
 import { TenantTerminationError } from './tenant-termination.repository';
 import { UpdateSystemTenantStatusDto } from './dto/update-system-tenant-status.dto';
 import { UpdateSystemTenantDto } from './dto/update-system-tenant.dto';
+import { CreateTenantExportDto } from './dto/create-tenant-export.dto';
+import { ConvertTenantTrialDto, ExtendTenantTrialDto } from './dto/tenant-trial.dto';
+import { UpdateTenantQuotasDto } from './dto/update-tenant-quotas.dto';
+import {
+  DownloadTenantExportUseCase,
+  InvalidTenantExportError,
+  ListTenantExportsUseCase,
+  RequestTenantExportUseCase,
+  TenantExportNotFoundError,
+  TenantExportUnavailableError,
+} from './tenant-data-export.use-cases';
+import {
+  ConvertTenantTrialUseCase,
+  ExtendTenantTrialUseCase,
+  InvalidTenantTrialError,
+  TenantTrialNotFoundError,
+  TenantTrialStateError,
+} from './tenant-trial.use-cases';
+import { InvalidTenantQuotasError, UpdateTenantQuotasUseCase } from './update-tenant-quotas.use-case';
 import { ExportSystemTenantsUseCase } from './export-system-tenants.use-case';
 import { GetSystemTenantUseCase, SystemTenantNotFoundError } from './get-system-tenant.use-case';
 import { GetSystemTenantBillingUseCase } from './get-system-tenant-billing.use-case';
+import { GetSystemRevenueByMonthUseCase } from './get-system-revenue-by-month.use-case';
+import { GetSystemTenantGrowthUseCase } from './get-system-tenant-growth.use-case';
 import { GetSystemTenantsSummaryUseCase } from './get-system-tenants-summary.use-case';
 import { ListSystemTenantsUseCase } from './list-system-tenants.use-case';
 import { SystemTenantInviteResendConflictError, ResendSystemTenantInviteUseCase } from './resend-system-tenant-invite.use-case';
@@ -85,6 +109,10 @@ export class SystemTenantsController extends BaseAuthController {
     @Inject(CreateSystemTenantUseCase) private readonly createSystemTenantUseCase: CreateSystemTenantUseCase,
     @Inject(ExportSystemTenantsUseCase) private readonly exportSystemTenantsUseCase: ExportSystemTenantsUseCase,
     @Inject(GetSystemTenantsSummaryUseCase) private readonly getSystemTenantsSummaryUseCase: GetSystemTenantsSummaryUseCase,
+    @Inject(GetSystemRevenueByMonthUseCase)
+    private readonly getSystemRevenueByMonthUseCase: GetSystemRevenueByMonthUseCase,
+    @Inject(GetSystemTenantGrowthUseCase)
+    private readonly getSystemTenantGrowthUseCase: GetSystemTenantGrowthUseCase,
     @Inject(GetSystemTenantUseCase) private readonly getSystemTenantUseCase: GetSystemTenantUseCase,
     @Inject(GetSystemTenantBillingUseCase) private readonly getSystemTenantBillingUseCase: GetSystemTenantBillingUseCase,
     @Inject(ListSystemTenantsUseCase) private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
@@ -96,6 +124,12 @@ export class SystemTenantsController extends BaseAuthController {
     @Inject(GetTenantResourceUseCase) private readonly getTenantResourceUseCase: GetTenantResourceUseCase,
     @Inject(GetTenantDocumentsUseCase) private readonly getTenantDocumentsUseCase: GetTenantDocumentsUseCase,
     @Inject(GetTenantAuditLogUseCase) private readonly getTenantAuditLogUseCase: GetTenantAuditLogUseCase,
+    @Inject(UpdateTenantQuotasUseCase) private readonly updateTenantQuotasUseCase: UpdateTenantQuotasUseCase,
+    @Inject(ExtendTenantTrialUseCase) private readonly extendTenantTrialUseCase: ExtendTenantTrialUseCase,
+    @Inject(ConvertTenantTrialUseCase) private readonly convertTenantTrialUseCase: ConvertTenantTrialUseCase,
+    @Inject(RequestTenantExportUseCase) private readonly requestTenantExportUseCase: RequestTenantExportUseCase,
+    @Inject(ListTenantExportsUseCase) private readonly listTenantExportsUseCase: ListTenantExportsUseCase,
+    @Inject(DownloadTenantExportUseCase) private readonly downloadTenantExportUseCase: DownloadTenantExportUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
   ) {
     super(activityLogService);
@@ -181,6 +215,75 @@ export class SystemTenantsController extends BaseAuthController {
 
     try {
       return await this.getSystemTenantsSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('revenue-by-month')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get platform cash collected per month',
+    description:
+      'Returns naira collected per Africa/Lagos month for the last N months (default 6, max 12), oldest first. Same sources as collectedThisMonthNgn.',
+  })
+  @ApiQuery({ name: 'months', required: false, type: Number })
+  @ApiOkResponse({ type: SystemRevenueByMonthResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view platform revenue',
+  })
+  async getSystemRevenueByMonth(
+    @Headers('authorization') authorization?: string,
+    @Query('months') months?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemRevenueByMonthUseCase.execute(
+        accessToken,
+        months ? Number(months) : undefined,
+      );
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('growth')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get cumulative tenant count per month',
+    description: 'Returns how many tenants existed at the end of each Africa/Lagos month for the last N months (default 6, max 12), oldest first. Creation date is the onboarding date, else the earliest user.',
+  })
+  @ApiQuery({ name: 'months', required: false, type: Number })
+  @ApiOkResponse({ type: SystemTenantGrowthResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view tenant growth',
+  })
+  async getSystemTenantGrowth(
+    @Headers('authorization') authorization?: string,
+    @Query('months') months?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemTenantGrowthUseCase.execute(
+        accessToken,
+        months ? Number(months) : undefined,
+      );
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
@@ -666,6 +769,246 @@ export class SystemTenantsController extends BaseAuthController {
       if (error instanceof UserNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
+  }
+
+  @Patch(':tenantId/quotas')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Set per-tenant limits',
+    description:
+      'Overrides the plan limit for vehicles, drivers, devices and SIMs for one tenant. null removes an override. Enforced by fleet and SIM registration. A reason of 5 to 500 characters is required and recorded.',
+  })
+  @ApiOkResponse({ description: 'The plan limits, overrides and effective limits' })
+  @ApiBadRequestResponse({ description: 'Invalid limit or reason' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to change tenant limits' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async updateTenantQuotas(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: UpdateTenantQuotasDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const { audit, ...result } = await this.updateTenantQuotasUseCase.execute({
+        accessToken,
+        tenantId,
+        changes: {
+          vehicles: payload.vehicles,
+          drivers: payload.drivers,
+          devices: payload.devices,
+          sims: payload.sims,
+        },
+        reason: payload.reason,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.quotas_changed',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Tenant limits changed',
+        metadata: { before: audit.before, after: audit.after, reason: audit.reason },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof SystemTenantNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof InvalidTenantQuotasError) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  @Post(':tenantId/trial/extend')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Extend a tenant trial',
+    description: 'Adds 1 to 365 days to the trial end, counted from today when the trial already ended.',
+  })
+  @ApiOkResponse({ description: 'The trial after the change' })
+  @ApiNotFoundResponse({ description: 'Tenant or trial not found' })
+  @ApiConflictResponse({ description: 'The trial was already converted' })
+  async extendTenantTrial(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: ExtendTenantTrialDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const { audit, ...result } = await this.extendTenantTrialUseCase.execute({
+        accessToken,
+        tenantId,
+        days: payload.days,
+        reason: payload.reason,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.trial_extended',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: `Trial extended by ${audit.days} days`,
+        metadata: audit,
+      });
+      return result;
+    } catch (error) {
+      this.rethrowTrialError(error);
+    }
+  }
+
+  @Post(':tenantId/trial/convert')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Convert a tenant trial to paid',
+    description: 'Marks the trial converted and records the plan the tenant is on. Needs a plan assigned.',
+  })
+  @ApiOkResponse({ description: 'The trial after the change' })
+  @ApiNotFoundResponse({ description: 'Tenant or trial not found' })
+  @ApiConflictResponse({ description: 'Already converted, or no plan assigned' })
+  async convertTenantTrial(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: ConvertTenantTrialDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const { audit, ...result } = await this.convertTenantTrialUseCase.execute({
+        accessToken,
+        tenantId,
+        reason: payload?.reason,
+      });
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.trial_converted',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Trial converted to paid',
+        metadata: audit,
+      });
+      return result;
+    } catch (error) {
+      this.rethrowTrialError(error);
+    }
+  }
+
+  private rethrowTrialError(error: unknown): never {
+    this.rethrowInvalidAccessToken(error);
+    if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+    if (error instanceof SystemTenantNotFoundError || error instanceof TenantTrialNotFoundError) {
+      throw new NotFoundException(error.message);
+    }
+    if (error instanceof InvalidTenantTrialError) throw new BadRequestException(error.message);
+    if (error instanceof TenantTrialStateError) throw new ConflictException(error.message);
+    throw error;
+  }
+
+  @Post(':tenantId/exports')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Export a tenant data',
+    description:
+      'Builds CSV files from the tenant records and keeps them for 7 days. One scope gives one CSV, all gives one zip. The result says ready or failed.',
+  })
+  @ApiCreatedResponse({ description: 'The export job' })
+  @ApiBadRequestResponse({ description: 'Unknown scope' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async requestTenantExport(
+    @Param('tenantId') tenantId: string,
+    @Body(BodyOrDataPipe) payload: CreateTenantExportDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.requestTenantExportUseCase.execute(accessToken, tenantId, payload?.scope);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.export_requested',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: `Data export ${result.data.status}`,
+        metadata: {
+          exportId: result.data.id,
+          scope: result.data.scope,
+          status: result.data.status,
+          rowCounts: result.data.rowCounts,
+        },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowExportError(error);
+    }
+  }
+
+  @Get(':tenantId/exports')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List tenant data exports', description: 'The twenty most recent exports for the tenant.' })
+  @ApiOkResponse({ description: 'The export jobs' })
+  async listTenantExports(
+    @Param('tenantId') tenantId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.listTenantExportsUseCase.execute(accessToken, tenantId);
+    } catch (error) {
+      this.rethrowExportError(error);
+    }
+  }
+
+  @Get(':tenantId/exports/:exportId/download')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Download a tenant data export',
+    description: 'Streams the file to the signed-in system admin. There is no public link.',
+  })
+  @ApiProduces('text/csv', 'application/zip')
+  @ApiOkResponse({ description: 'The export file', schema: { type: 'string', format: 'binary' } })
+  @ApiNotFoundResponse({ description: 'Export not found' })
+  async downloadTenantExport(
+    @Param('tenantId') tenantId: string,
+    @Param('exportId') exportId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const file = await this.downloadTenantExportUseCase.execute(accessToken, tenantId, exportId);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.tenant.export_downloaded',
+        entityType: 'tenant',
+        entityId: tenantId,
+        summary: 'Data export downloaded',
+        metadata: { exportId, scope: file.job.scope, fileName: file.job.fileName },
+      });
+      response.setHeader('Content-Type', file.contentType);
+      response.setHeader('Content-Disposition', `attachment; filename="${file.job.fileName}"`);
+      response.setHeader('Cache-Control', 'no-store');
+      return new StreamableFile(file.body);
+    } catch (error) {
+      this.rethrowExportError(error);
+    }
+  }
+
+  private rethrowExportError(error: unknown): never {
+    this.rethrowInvalidAccessToken(error);
+    if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+    if (error instanceof SystemTenantNotFoundError || error instanceof TenantExportNotFoundError) {
+      throw new NotFoundException(error.message);
+    }
+    if (error instanceof InvalidTenantExportError) throw new BadRequestException(error.message);
+    if (error instanceof TenantExportUnavailableError) throw new GoneException(error.message);
+    throw error;
   }
 
   @Get(':tenantId/resources/:tab')

@@ -26,6 +26,16 @@ import {
   ListTenantInvoicesUseCase,
 } from '@auth/onboarding/application/use-cases/billing/tenant-billing.use-cases';
 import {
+  GetTenantPaymentUseCase,
+  GetTenantQuotationUseCase,
+  ListTenantPaymentsUseCase,
+  ListTenantQuotationsUseCase,
+} from '@auth/onboarding/application/use-cases/billing/tenant-document-queries.use-cases';
+import {
+  GetTenantBillingOverviewUseCase,
+  ListTenantBillingActivityUseCase,
+} from '@auth/onboarding/application/use-cases/billing/tenant-billing-overview.use-cases';
+import {
   PayRenewalByCardUseCase,
   PayRenewalFromWalletUseCase,
 } from '@auth/onboarding/application/use-cases/billing/pay-renewal.use-cases';
@@ -40,12 +50,21 @@ import {
 } from '@auth/onboarding/domain/renewal-errors';
 import { koboToNgn } from '@auth/onboarding/domain/quotation-totals';
 import {
+  ListTenantActivityQueryDto,
   ListTenantInvoicesQueryDto,
+  ListTenantPaymentsQueryDto,
+  ListTenantQuotationsQueryDto,
   PayRenewalCardResponse,
   PayRenewalWalletResponse,
+  TenantActivityPageResponse,
+  TenantBillingOverviewResponse,
   TenantInvoiceDetailResponse,
   TenantInvoicesPageResponse,
   TenantLicenceResponse,
+  TenantPaymentDetailResponse,
+  TenantPaymentsPageResponse,
+  TenantQuotationDetailResponse,
+  TenantQuotationsPageResponse,
 } from './dto/tenant-billing.dto';
 
 function mapPaymentErrors(error: unknown): never {
@@ -76,6 +95,12 @@ export class TenantBillingController {
     @Inject(ListTenantInvoicesUseCase) private readonly listInvoices: ListTenantInvoicesUseCase,
     @Inject(GetTenantInvoiceUseCase) private readonly getInvoice: GetTenantInvoiceUseCase,
     @Inject(GetTenantLicenceUseCase) private readonly getLicence: GetTenantLicenceUseCase,
+    @Inject(ListTenantQuotationsUseCase) private readonly listQuotations: ListTenantQuotationsUseCase,
+    @Inject(GetTenantQuotationUseCase) private readonly getQuotation: GetTenantQuotationUseCase,
+    @Inject(ListTenantPaymentsUseCase) private readonly listPayments: ListTenantPaymentsUseCase,
+    @Inject(GetTenantPaymentUseCase) private readonly getPayment: GetTenantPaymentUseCase,
+    @Inject(GetTenantBillingOverviewUseCase) private readonly getOverview: GetTenantBillingOverviewUseCase,
+    @Inject(ListTenantBillingActivityUseCase) private readonly listActivity: ListTenantBillingActivityUseCase,
     @Inject(PayRenewalFromWalletUseCase) private readonly payFromWallet: PayRenewalFromWalletUseCase,
     @Inject(PayRenewalByCardUseCase) private readonly payByCard: PayRenewalByCardUseCase,
   ) {}
@@ -99,6 +124,48 @@ export class TenantBillingController {
   @ApiOkResponse({ type: TenantLicenceResponse })
   licence(@Headers('authorization') authorization?: string) {
     return this.run(authorization, (tenantId) => this.getLicence.execute(tenantId));
+  }
+
+  @Get('quotations')
+  @ApiOperation({ summary: 'Quotations sent to your organization, including the onboarding one' })
+  @ApiOkResponse({ type: TenantQuotationsPageResponse })
+  quotations(@Query() query: ListTenantQuotationsQueryDto, @Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.listQuotations.execute(tenantId, query));
+  }
+
+  @Get('quotations/:id')
+  @ApiOperation({ summary: 'One of your quotations with its lines and totals' })
+  @ApiOkResponse({ type: TenantQuotationDetailResponse })
+  quotation(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.getQuotation.execute(tenantId, id));
+  }
+
+  @Get('payments')
+  @ApiOperation({ summary: 'Payments made by your organization' })
+  @ApiOkResponse({ type: TenantPaymentsPageResponse })
+  payments(@Query() query: ListTenantPaymentsQueryDto, @Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.listPayments.execute(tenantId, query));
+  }
+
+  @Get('payments/:id')
+  @ApiOperation({ summary: 'One of your payments with the invoice and quotation it settled' })
+  @ApiOkResponse({ type: TenantPaymentDetailResponse })
+  payment(@Param('id') id: string, @Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.getPayment.execute(tenantId, id));
+  }
+
+  @Get('overview')
+  @ApiOperation({ summary: 'Billing totals and chart series for your organization' })
+  @ApiOkResponse({ type: TenantBillingOverviewResponse })
+  overview(@Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.getOverview.execute(tenantId));
+  }
+
+  @Get('activity')
+  @ApiOperation({ summary: 'Billing events: invoices, payments, quotations, renewals and device requests' })
+  @ApiOkResponse({ type: TenantActivityPageResponse })
+  activity(@Query() query: ListTenantActivityQueryDto, @Headers('authorization') authorization?: string) {
+    return this.run(authorization, (tenantId) => this.listActivity.execute(tenantId, query));
   }
 
   @Post('invoices/:id/pay-wallet')

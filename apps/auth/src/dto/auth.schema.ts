@@ -1181,6 +1181,129 @@ export class SystemDeviceSummaryResponse extends StandardApiResponse<SystemDevic
   data!: SystemDeviceSummaryDataSchema;
 }
 
+export class SystemDeviceManufacturerSchema {
+  @ApiProperty()
+  manufacturer!: string;
+
+  @ApiProperty()
+  count!: number;
+}
+
+export class SystemDeviceManufacturersDataSchema {
+  @ApiProperty({ enum: ['7d', '30d', '90d', 'all'] })
+  period!: string;
+
+  @ApiProperty({ type: [SystemDeviceManufacturerSchema] })
+  manufacturers!: SystemDeviceManufacturerSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceManufacturersResponse extends StandardApiResponse<SystemDeviceManufacturersDataSchema> {
+  @ApiProperty({ type: SystemDeviceManufacturersDataSchema })
+  data!: SystemDeviceManufacturersDataSchema;
+}
+
+export class SystemRevenueMonthSchema {
+  @ApiProperty({ example: '2026-09', description: 'Africa/Lagos calendar month' })
+  month!: string;
+
+  @ApiProperty({ description: 'Cash collected that month, in naira' })
+  collectedNgn!: number;
+}
+
+export class SystemRevenueByMonthDataSchema {
+  @ApiProperty({ type: [SystemRevenueMonthSchema] })
+  months!: SystemRevenueMonthSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemRevenueByMonthResponse extends StandardApiResponse<SystemRevenueByMonthDataSchema> {
+  @ApiProperty({ type: SystemRevenueByMonthDataSchema })
+  data!: SystemRevenueByMonthDataSchema;
+}
+
+export class SystemTenantGrowthMonthSchema {
+  @ApiProperty({ example: '2026-09', description: 'Africa/Lagos calendar month' })
+  month!: string;
+
+  @ApiProperty({ description: 'Tenants that existed by the end of that month' })
+  tenants!: number;
+}
+
+export class SystemTenantGrowthDataSchema {
+  @ApiProperty({ type: [SystemTenantGrowthMonthSchema] })
+  months!: SystemTenantGrowthMonthSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemTenantGrowthResponse extends StandardApiResponse<SystemTenantGrowthDataSchema> {
+  @ApiProperty({ type: SystemTenantGrowthDataSchema })
+  data!: SystemTenantGrowthDataSchema;
+}
+
+export class SystemSimDataUsageDaySchema {
+  @ApiProperty({ example: '2026-10-02', description: 'Africa/Lagos calendar day' })
+  day!: string;
+
+  @ApiProperty({ description: 'Megabytes used that day: growth between consecutive daily snapshots, 0 when either is missing' })
+  usageMb!: number;
+}
+
+export class SystemSimDataUsageDataSchema {
+  @ApiProperty({ type: [SystemSimDataUsageDaySchema] })
+  days!: SystemSimDataUsageDaySchema[];
+
+  @ApiProperty({ description: 'Usage so far today, in megabytes' })
+  todayMb!: number;
+
+  @ApiProperty({ description: 'Megabytes in every bundle bought and not cancelled' })
+  totalBoughtMb!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemSimDataUsageResponse extends StandardApiResponse<SystemSimDataUsageDataSchema> {
+  @ApiProperty({ type: SystemSimDataUsageDataSchema })
+  data!: SystemSimDataUsageDataSchema;
+}
+
+export class SystemDeviceMessageHourSchema {
+  @ApiProperty({ type: String, format: 'date-time' })
+  hourStart!: string;
+
+  @ApiProperty()
+  count!: number;
+}
+
+export class SystemDeviceMessageRateDataSchema {
+  @ApiProperty({ description: 'False when the tracking service could not be reached' })
+  gateReachable!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, example: 'service_restart', description: 'Counts restart from zero when tracking restarts' })
+  countsSince!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true, description: 'Accepted location messages in the last 60 minutes' })
+  lastHour!: number | null;
+
+  @ApiProperty({ type: [SystemDeviceMessageHourSchema], description: 'Last 24 UTC hours, oldest first' })
+  hours!: SystemDeviceMessageHourSchema[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemDeviceMessageRateResponse extends StandardApiResponse<SystemDeviceMessageRateDataSchema> {
+  @ApiProperty({ type: SystemDeviceMessageRateDataSchema })
+  data!: SystemDeviceMessageRateDataSchema;
+}
+
 export class SystemSettingsDefaultsSchema {
   @ApiProperty()
   timezone!: string;
@@ -1396,6 +1519,22 @@ export class SystemSimSummaryDataSchema {
   @ApiProperty() carriers!: number;
   @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byStatus!: Record<string, number>;
   @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } }) byCarrier!: Record<string, number>;
+}
+
+export class SystemSimCarrierBreakdownDataSchema {
+  @ApiProperty({ enum: ['7d', '30d', '90d', 'all'] })
+  period!: string;
+
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' }, description: 'SIM count per carrier' })
+  byCarrier!: Record<string, number>;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  generatedAt!: string;
+}
+
+export class SystemSimCarrierBreakdownResponse extends StandardApiResponse<SystemSimCarrierBreakdownDataSchema> {
+  @ApiProperty({ type: SystemSimCarrierBreakdownDataSchema })
+  data!: SystemSimCarrierBreakdownDataSchema;
 }
 
 export class SystemSimSummaryResponse extends StandardApiResponse<SystemSimSummaryDataSchema> {

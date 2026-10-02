@@ -81,6 +81,34 @@ export type QuotationListRow = {
   lineCount: number;
 };
 
+export const TENANT_QUOTATION_STATUSES = [
+  'draft',
+  'sent',
+  'awaiting_decision',
+  'accepted',
+  'paid',
+  'expired',
+  'cancelled',
+] as const;
+export type TenantQuotationStatus = (typeof TENANT_QUOTATION_STATUSES)[number];
+
+export type TenantQuotationFilter = {
+  tenantId: string;
+  q?: string;
+  status?: TenantQuotationStatus;
+  page: number;
+  limit: number;
+  now: Date;
+};
+
+export type TenantQuotationRow = {
+  quotation: StoredQuotation;
+  lines: StoredQuotationLine[];
+  paidKobo: number;
+  applicationReference: string | null;
+  paymentReference: string | null;
+};
+
 export interface QuotationRepository {
   findActiveByKey(key: QuotationKey): Promise<QuotationWithLines | null>;
   /** Inserts unless a non-cancelled quotation already holds the key; created is false then. */
@@ -96,6 +124,9 @@ export interface QuotationRepository {
     items: QuotationListRow[];
     total: number;
   }>;
+  /** Quotations of the tenant that were sent to it; drafts and reviews stay internal. */
+  listForTenant(filter: TenantQuotationFilter): Promise<{ items: TenantQuotationRow[]; total: number }>;
+  findForTenant(tenantId: string, id: string, now: Date): Promise<TenantQuotationRow | null>;
 }
 
 export const QUOTATION_REPOSITORY = Symbol('QUOTATION_REPOSITORY');
@@ -119,3 +150,18 @@ export function effectiveQuotationStatus(
 ): QuotationStatus {
   return quotationExpired(quotation, now) ? 'expired' : quotation.status;
 }
+
+/** What the tenant sees. Draft and sent are never produced: those quotations are not shown to it. */
+export function tenantQuotationStatus(
+  quotation: Pick<StoredQuotation, 'status' | 'validUntil' | 'totalKobo'>,
+  paidKobo: number,
+  now: Date,
+): TenantQuotationStatus {
+  const effective = effectiveQuotationStatus(quotation, now);
+  if (effective === 'accepted') return paidKobo >= quotation.totalKobo ? 'paid' : 'accepted';
+  if (effective === 'sent') return 'awaiting_decision';
+  if (effective === 'expired' || effective === 'cancelled') return effective;
+  return 'awaiting_decision';
+}
+
+export const HIDDEN_FROM_TENANT_QUOTATION_STATUSES: readonly QuotationStatus[] = ['draft', 'pending_review'];

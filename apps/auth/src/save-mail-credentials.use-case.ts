@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SecretCipherService } from '@shared/crypto';
 import { isMailPort, isPubliclyRoutableHost } from '@shared/http';
+import { isPlatformActor } from '@shared/identity';
 import { Role } from '@shared/rbac';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
@@ -51,7 +52,8 @@ export class SaveMailCredentialsUseCase {
 
   async execute(command: SaveMailCredentialsCommand): Promise<MailCredentialsView> {
     const actor = await resolveActorUser(command.accessToken, this.tokenService, this.userRepository);
-    if (!MAIL_CONFIG_ROLES.has(actor.role)) {
+    // The platform's own mailbox is configured by its staff, not a tenant role.
+    if (!MAIL_CONFIG_ROLES.has(actor.role) && !isPlatformActor(actor)) {
       throw new ForbiddenError('You are not permitted to configure the mailbox');
     }
 

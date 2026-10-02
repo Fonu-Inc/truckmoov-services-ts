@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Res,
   ForbiddenException,
@@ -36,6 +37,8 @@ import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
 import {
   SystemSimSummaryResponse,
+  SystemSimCarrierBreakdownResponse,
+  SystemSimDataUsageResponse,
   SimBatchRetryResponse,
   SystemSimRequestsSummaryResponse,
   SystemSimBatchesSummaryResponse,
@@ -72,6 +75,9 @@ import { GetSystemSimBatchesSummaryUseCase } from './get-system-sim-batches-summ
 import { GetSystemSimDetailUseCase, SimNotFoundError } from './get-system-sim-detail.use-case';
 import { GetSystemSimRequestsSummaryUseCase } from './get-system-sim-requests-summary.use-case';
 import { GetSystemSimSummaryUseCase } from './get-system-sim-summary.use-case';
+import { GetSystemSimCarrierBreakdownUseCase } from './get-system-sim-carrier-breakdown.use-case';
+import { parseSnapshotPeriod } from './system-snapshot-period';
+import { GetSystemSimDataUsageUseCase } from './get-system-sim-data-usage.use-case';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
 import { ListSystemSimRequestsUseCase } from './list-system-sim-requests.use-case';
 import { ListSystemSimsUseCase } from './list-system-sims.use-case';
@@ -90,6 +96,9 @@ export class SystemSimsController extends BaseAuthController {
   constructor(
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
     @Inject(GetSystemSimSummaryUseCase) private readonly getSystemSimSummaryUseCase: GetSystemSimSummaryUseCase,
+    @Inject(GetSystemSimCarrierBreakdownUseCase)
+    private readonly getSystemSimCarrierBreakdownUseCase: GetSystemSimCarrierBreakdownUseCase,
+    @Inject(GetSystemSimDataUsageUseCase) private readonly getSystemSimDataUsageUseCase: GetSystemSimDataUsageUseCase,
     @Inject(ListSystemSimsUseCase) private readonly listSystemSimsUseCase: ListSystemSimsUseCase,
     @Inject(ExportSystemSimsUseCase) private readonly exportSystemSimsUseCase: ExportSystemSimsUseCase,
     @Inject(ListSystemSimRequestsUseCase) private readonly listSystemSimRequestsUseCase: ListSystemSimRequestsUseCase,
@@ -114,6 +123,34 @@ export class SystemSimsController extends BaseAuthController {
     super(activityLogService);
   }
 
+  @Get('data-usage')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get SIM data usage per day',
+    description: 'Daily SIM data usage (growth between daily snapshots of stored usage), usage so far today and total bundle megabytes bought. Days default 7, max 90.',
+  })
+  @ApiQuery({ name: 'days', required: false, type: Number })
+  @ApiOkResponse({ type: SystemSimDataUsageResponse })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view SIM data usage',
+  })
+  async getSystemSimDataUsage(
+    @Headers('authorization') authorization?: string,
+    @Query('days') days?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.getSystemSimDataUsageUseCase.execute(accessToken, days ? Number(days) : undefined);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
   @Get('summary')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get system SIM summary', description: 'Platform-wide SIM metrics.' })
@@ -125,6 +162,34 @@ export class SystemSimsController extends BaseAuthController {
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
       return await this.getSystemSimSummaryUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('by-carrier')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get SIM count per carrier',
+    description: 'SIMs per carrier, optionally only those added within the period.',
+  })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d', 'all'], description: 'Only SIMs added in this window; default all' })
+  @ApiOkResponse({ type: SystemSimCarrierBreakdownResponse })
+  @ApiBadRequestResponse({ description: 'Invalid period' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to view SIM summary' })
+  async getSystemSimCarrierBreakdown(
+    @Headers('authorization') authorization?: string,
+    @Query('period') periodParam?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    const period = parseSnapshotPeriod(periodParam);
+    if (!period) throw new BadRequestException('period must be one of 7d, 30d, 90d, all');
+    try {
+      return await this.getSystemSimCarrierBreakdownUseCase.execute(accessToken, period);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

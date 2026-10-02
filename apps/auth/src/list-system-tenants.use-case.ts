@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import { Role, roleFromId } from '@shared/rbac';
 import {
@@ -34,6 +34,14 @@ import {
   type PlanEntitlementsRepository,
 } from './plan-entitlements.repository';
 import { UNLIMITED, type PlanEntitlements } from './plan-entitlements';
+import {
+  noQuotaOverrides,
+  OVERRIDABLE_QUOTAS,
+  withQuotaOverrides,
+  TENANT_QUOTA_OVERRIDES_REPOSITORY,
+  type QuotaOverrides,
+  type TenantQuotaOverridesRepository,
+} from './tenant-quota-overrides.repository';
 import { LEGACY_PLAN_CODE_TO_TIER } from './system-subscription-plans';
 import {
   LICENCE_PERIOD_REPOSITORY,
@@ -86,6 +94,8 @@ type SystemTenantStatus = (typeof SYSTEM_TENANT_STATUS_VALUES)[number];
 type SystemTenantPlan = (typeof SYSTEM_TENANT_PLAN_VALUES)[number];
 type SystemTenantKycStatus = (typeof KYC_STATUSES)[number];
 
+type QuotaLimits = Record<(typeof OVERRIDABLE_QUOTAS)[number], number | null>;
+
 type SystemTenantFilters = {
   search?: string;
   status?: SystemTenantStatus;
@@ -123,12 +133,11 @@ type SystemTenantRow = {
    * What the tenant's plan allows. A null limit is unlimited, which is not
    * zero. Read planAssigned to tell unlimited from no plan.
    */
-  quotas: {
-    vehicles: number | null;
-    drivers: number | null;
-    devices: number | null;
-    sims: number | null;
-  };
+  quotas: QuotaLimits;
+  /** The plan's own limits, before any per-tenant override. */
+  planQuotas: QuotaLimits;
+  /** Limits set for this tenant by staff; null means the plan limit applies. */
+  quotaOverrides: QuotaOverrides;
   /** Cash collected this Africa/Lagos calendar month, in naira. */
   collectedThisMonthNgn: number;
   /** Deprecated alias of collectedThisMonthNgn. */
@@ -421,6 +430,9 @@ export class ListSystemTenantsUseCase {
     private readonly m2mPlans: M2mLicensePlanRepository,
     @Inject(TENANT_COLLECTIONS_REPOSITORY)
     private readonly collections: TenantCollectionsRepository,
+    @Optional()
+    @Inject(TENANT_QUOTA_OVERRIDES_REPOSITORY)
+    private readonly quotaOverrides?: TenantQuotaOverridesRepository,
   ) {}
 
   async execute(accessToken: string, filters: SystemTenantFilters) {
@@ -494,11 +506,12 @@ export class ListSystemTenantsUseCase {
     if (tenants.length === 0) {
       return;
     }
-    const [plans, licenceCodes, m2m, entitlements] = await Promise.all([
+    const [plans, licenceCodes, m2m, entitlements, overrides] = await Promise.all([
       this.planRepository.findAll(),
       this.licencePeriods.currentPlanCodes(),
       this.m2mPlans.list({ status: 'all', page: 1, limit: 1000 }),
       this.entitlementsRepository.findAll().catch(() => []),
+      this.quotaOverrides?.findAll() ?? new Map<string, QuotaOverrides>(),
     ]);
     const tierByCode = new Map(plans.map((plan) => [plan.code, plan.tier]));
     const nameByCode = new Map([
@@ -512,7 +525,9 @@ export class ListSystemTenantsUseCase {
       tenant.planAssigned = planCode !== null;
       tenant.planName = planCode ? (nameByCode.get(planCode) ?? null) : null;
       tenant.plan = this.resolvePlanTier(planCode, tierByCode);
-      tenant.quotas = toQuotaLimits(planCode ? (entitlementsByCode.get(planCode) ?? null) : null);
+      tenant.planQuotas = toQuotaLimits(planCode ? (entitlementsByCode.get(planCode) ?? null) : null);
+      tenant.quotaOverrides = overrides.get(tenant.id) ?? noQuotaOverrides();
+      tenant.quotas = withQuotaOverrides(tenant.planQuotas, tenant.quotaOverrides);
     }
   }
 
@@ -1037,6 +1052,8 @@ export class ListSystemTenantsUseCase {
       deviceCount: params.deviceCount,
       simCount: params.onboarding?.simAssignment.numberOfSims ?? 0,
       quotas: toQuotaLimits(null),
+      planQuotas: toQuotaLimits(null),
+      quotaOverrides: noQuotaOverrides(),
       collectedThisMonthNgn: 0,
       monthlyRevenueNgn: 0,
       createdAt: params.createdAt,
@@ -1167,7 +1184,7 @@ export type {
  * resource does not restrict it, and unlimited is null rather than a number so
  * a client cannot render it as a full bar.
  */
-function toQuotaLimits(entitlements: PlanEntitlements | null) {
+function toQuotaLimits(entitlements: PlanEntitlements | null): QuotaLimits {
   const limit = (resource: 'vehicles' | 'drivers' | 'devices' | 'sims'): number | null => {
     const quota = entitlements?.quotas?.[resource];
     if (quota === undefined || quota === UNLIMITED) return null;

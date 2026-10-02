@@ -98,19 +98,18 @@ export class RegisterSimsUseCase {
    * SIM does not occupy a seat on the plan, the same way a decommissioned
    * vehicle does not.
    *
-   * A tenant with no plan or no configured entitlements is not limited, rather
+   * A tenant with no plan, no override or no configured entitlements is not limited, rather
    * than being refused: an absent quota is not a quota of zero.
    */
   private async assertQuotaAllowsMoreSims(tenantId: string, adding: number): Promise<void> {
     const onboarding = await this.onboarding.findByTenantId(tenantId);
-    const planCode = onboarding?.subscription?.planCode;
-    if (!planCode) return;
+    const planCode = onboarding?.subscription?.planCode ?? null;
 
     const { items } = await this.simRepository.findAll({ tenantId, limit: 100_000 });
     const inUse = items.filter((sim) => sim.status !== 'decommissioned').length;
 
     try {
-      await this.entitlements.assertQuota(planCode, 'sims', inUse + adding - 1);
+      await this.entitlements.assertTenantQuota(tenantId, planCode, 'sims', inUse + adding - 1);
     } catch (error) {
       if (error instanceof QuotaExceededError) throw error;
       // No entitlements configured for the plan. Not a reason to refuse.

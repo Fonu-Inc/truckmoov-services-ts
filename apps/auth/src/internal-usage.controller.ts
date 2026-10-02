@@ -18,7 +18,7 @@ import {
   ChargeUsageUseCase,
   InsufficientWalletBalanceError,
 } from './charge-usage.use-case';
-import { EntitlementService, PlanNotEntitledError } from './entitlement.service';
+import { EntitlementService } from './entitlement.service';
 import { StorageQuotaService } from './storage-quota.service';
 import {
   PLATFORM_ALERT_SETTINGS_REPOSITORY,
@@ -82,23 +82,13 @@ export class InternalUsageController extends BaseAuthController {
     if (!tenantId) throw new UnauthorizedException('Invalid service token');
 
     const onboarding = await this.onboarding.findByTenantId(tenantId);
-    const planCode = onboarding?.subscription?.planCode;
-    // No plan means no entitlements to enforce. Returning null rather than an
-    // error lets the caller allow the action: refusing every create because a
-    // tenant has no subscription row would be worse than not enforcing.
-    if (!planCode) {
-      return { status: true, message: 'success', data: null };
-    }
-
-    try {
-      const effective = await this.entitlements.effectiveFor(planCode);
-      return { status: true, message: 'success', data: effective };
-    } catch (error) {
-      if (error instanceof PlanNotEntitledError) {
-        return { status: true, message: 'success', data: null };
-      }
-      throw error;
-    }
+    const planCode = onboarding?.subscription?.planCode ?? null;
+    // No plan and no override means no entitlements to enforce. Returning null
+    // rather than an error lets the caller allow the action: refusing every
+    // create because a tenant has no subscription row would be worse than not
+    // enforcing.
+    const effective = await this.entitlements.effectiveForTenant(tenantId, planCode);
+    return { status: true, message: 'success', data: effective };
   }
 
   /**

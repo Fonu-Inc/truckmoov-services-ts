@@ -11,6 +11,7 @@ export const EVENT_SUBJECTS: Readonly<Record<string, string>> = {
   'tm.system.messaging.message.created': 'message.created',
   'tm.system.messaging.message.status': 'message.status',
   'tm.system.messaging.conversation.updated': 'conversation.updated',
+  'tm.system.messaging.message.deleted': 'message.deleted',
 };
 
 export type ErrorCode =

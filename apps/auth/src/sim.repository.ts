@@ -80,7 +80,7 @@ export interface SimRepository {
   save(sim: StoredSim): Promise<void>;
   delete(id: string): Promise<void>;
   countByStatus(): Promise<Record<string, number>>;
-  countByCarrier(): Promise<Record<string, number>>;
+  countByCarrier(addedWithinDays?: number | null): Promise<Record<string, number>>;
   countUnassigned(): Promise<number>;
   countActiveByTenant(): Promise<TenantSimCount[]>;
 }

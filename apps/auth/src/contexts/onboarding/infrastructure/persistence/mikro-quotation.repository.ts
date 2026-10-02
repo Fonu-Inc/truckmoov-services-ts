@@ -12,6 +12,8 @@ import type {
   QuotationWithLines,
   StoredQuotation,
   StoredQuotationLine,
+  TenantQuotationFilter,
+  TenantQuotationRow,
 } from '@auth/onboarding/domain/quotation.repository';
 
 type Row = Record<string, unknown>;
@@ -103,6 +105,43 @@ const LIST_SOURCE = `from (
     (select count(*) from billing_quotation_lines l where l.quotation_id = q.id) as line_count
   from billing_quotations q
 ) x`;
+
+const TENANT_SOURCE = `from (
+  select q.*, a.reference as application_reference,
+    coalesce((select sum(p.amount_kobo) from onboarding_payments p
+               where p.quotation_id = q.id and p.status = 'paid'), 0) as paid_kobo,
+    (select p.reference from onboarding_payments p
+      where p.quotation_id = q.id and p.status = 'paid'
+      order by p.paid_at desc nulls last, p.id limit 1) as payment_reference,
+    case when q.status not in ('accepted', 'cancelled') and (q.status = 'expired' or q.valid_until < ?)
+         then 'expired' else q.status end as effective_status
+  from billing_quotations q
+  left join onboarding_applications a on a.id = q.application_id
+  where coalesce(q.tenant_id, a.tenant_id) = ? and q.status not in ('draft', 'pending_review')
+) x`;
+
+const TENANT_STATUS = `case when x.effective_status = 'accepted'
+    then (case when x.paid_kobo >= x.total_kobo then 'paid' else 'accepted' end)
+  when x.effective_status in ('expired', 'cancelled') then x.effective_status
+  else 'awaiting_decision' end`;
+
+function tenantWhere(filter: TenantQuotationFilter) {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  const needle = filter.q?.trim();
+  if (needle) {
+    const pattern = `%${escapeLike(needle)}%`;
+    clauses.push(`(x.number ilike ? escape '\\' or x.application_reference ilike ? escape '\\'
+      or exists (select 1 from billing_quotation_lines l
+                  where l.quotation_id = x.id and l.name ilike ? escape '\\'))`);
+    params.push(pattern, pattern, pattern);
+  }
+  if (filter.status) {
+    clauses.push(`(${TENANT_STATUS}) = ?`);
+    params.push(filter.status);
+  }
+  return { sql: clauses.length ? `where ${clauses.join(' and ')}` : '', params };
+}
 
 @Injectable()
 export class MikroQuotationRepository implements QuotationRepository {
@@ -246,5 +285,51 @@ export class MikroQuotationRepository implements QuotationRepository {
       [quotation.id],
     );
     return { ...quotation, lines: rows.map(toQuotationLine) };
+  }
+
+  async listForTenant(filter: TenantQuotationFilter) {
+    const em = await this.em();
+    const connection = em.getConnection();
+    const where = tenantWhere(filter);
+    const base = [filter.now, filter.tenantId, ...where.params];
+
+    const counted = await connection.execute<Row[]>(
+      `select count(*) as total ${TENANT_SOURCE} ${where.sql}`,
+      base,
+    );
+    const rows = await connection.execute<Row[]>(
+      `select x.* ${TENANT_SOURCE} ${where.sql}
+        order by x.created_at desc, x.id desc limit ? offset ?`,
+      [...base, filter.limit, (filter.page - 1) * filter.limit],
+    );
+    return { items: await this.tenantRows(em, rows), total: Number(counted[0]?.total ?? 0) };
+  }
+
+  async findForTenant(tenantId: string, id: string, now: Date) {
+    const em = await this.em();
+    const rows = await em.getConnection().execute<Row[]>(
+      `select x.* ${TENANT_SOURCE} where x.id = ? limit 1`,
+      [now, tenantId, id],
+    );
+    return (await this.tenantRows(em, rows))[0] ?? null;
+  }
+
+  private async tenantRows(em: EntityManager, rows: Row[]): Promise<TenantQuotationRow[]> {
+    if (rows.length === 0) return [];
+    const ids = rows.map((row) => String(row.id));
+    const lines = await em.getConnection().execute<Row[]>(
+      `select id, quotation_id, position, kind, plan_code, name, description, quantity,
+              unit_price_kobo, validity_days, components, is_renewal
+         from billing_quotation_lines where quotation_id in (${ids.map(() => '?').join(', ')})
+        order by position asc, id asc`,
+      ids,
+    );
+    return rows.map((row) => ({
+      quotation: toQuotation(row),
+      lines: lines.filter((line: Row) => String(line.quotation_id) === String(row.id)).map(toQuotationLine),
+      paidKobo: Number(row.paid_kobo),
+      applicationReference: asNullableString(row.application_reference),
+      paymentReference: asNullableString(row.payment_reference),
+    }));
   }
 }

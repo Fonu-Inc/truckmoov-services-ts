@@ -6,6 +6,7 @@ import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import {
   INVOICE_REPOSITORY,
   outstandingKobo,
+  planFactsOf,
   type InvoiceRepository,
   type InvoiceWithLines,
 } from '@auth/onboarding/domain/invoice.repository';
@@ -102,12 +103,14 @@ export class PayRenewalFromWalletUseCase {
       this.invoices.findForTenant(tenantId, invoice.id),
       this.settings.get(),
     ]);
+    const current = fresh ?? invoice;
     return success({
-      invoice: tenantInvoiceView(fresh ?? invoice, {
+      invoice: tenantInvoiceView(current, {
         isRenewal: true,
         periodEnd: null,
         graceDays,
         today: lagosDate(now),
+        plan: planFactsOf(current.lines),
       }),
       paidFromWalletNgn: koboToNgn(payment.amountKobo),
       newPeriodEnd: settled.newPeriodEnd,

@@ -68,6 +68,8 @@ export interface LicencePeriodRepository {
   /** Active periods without a renewal invoice whose end is on or before the cutoff. */
   listDue(cutoff: string): Promise<StoredLicencePeriod[]>;
   findActiveByTenant(tenantId: string): Promise<StoredLicencePeriod | null>;
+  /** Every period of the tenant, newest first. */
+  listByTenant(tenantId: string): Promise<StoredLicencePeriod[]>;
   /** Plan code per tenant from its active period, else its latest one. */
   currentPlanCodes(): Promise<Map<string, string>>;
   findByRenewalInvoiceId(invoiceId: string): Promise<StoredLicencePeriod | null>;

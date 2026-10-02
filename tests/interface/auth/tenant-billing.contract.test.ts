@@ -238,4 +238,63 @@ describe('Tenant billing HTTP contract', () => {
     expect(changed.body.data.renewalLeadDays).toBe(14);
     await put({ renewalLeadDays: 7, reason: 'putting it back' });
   });
+
+  it('exposes the new invoice fields, filters and an empty payment list for an unpaid renewal', async () => {
+    const tenantId = `bill-${randomUUID().slice(0, 8)}`;
+    const token = await tokenFor(tenantId);
+    await issueRenewal(tenantId, inDays(5));
+
+    const pending = await get('/billing/invoices?status=pending&q=renew', token);
+    expect(pending.status).toBe(200);
+    expect(pending.body.data.items.length).toBeLessThanOrEqual(1);
+    expect((await get('/billing/invoices?status=overdue', token)).body.data.total).toBe(0);
+    expect((await get('/billing/invoices?status=bogus', token)).status).toBe(400);
+
+    const [invoice] = (await get('/billing/invoices', token)).body.data.items;
+    expect(invoice).toMatchObject({ planName: expect.any(String), deviceCount: 3, quotationNumber: null });
+    expect(invoice.billingPeriod).toEqual(expect.any(String));
+    const detail = await get(`/billing/invoices/${invoice.id}`, token);
+    expect(detail.body.data.payments).toEqual([]);
+  });
+
+  it('serves overview, activity, quotations and payments scoped to the caller', async () => {
+    const tenantId = `bill-${randomUUID().slice(0, 8)}`;
+    const token = await tokenFor(tenantId);
+    await issueRenewal(tenantId, inDays(5));
+    await fundWallet(tenantId, TOTAL_KOBO + 100);
+    const id = (await get('/billing/invoices', token)).body.data.items[0].id as string;
+    expect((await post(`/billing/invoices/${id}/pay-wallet`, token)).status).toBe(201);
+
+    const overview = await get('/billing/overview', token);
+    expect(overview.status).toBe(200);
+    expect(overview.body.data.spendTrend[0]).toMatchObject({ invoicedNgn: TOTAL_NGN, paidNgn: TOTAL_NGN });
+    expect(overview.body.data.spendByCategory).toEqual([{ name: 'Licensing', valueNgn: expect.any(Number) }]);
+    expect(overview.body.data.summary.outstandingNgn).toBe(0);
+
+    const payments = await get('/billing/payments?status=successful', token);
+    expect(payments.body.data.total).toBe(1);
+    expect(payments.body.data.items[0]).toMatchObject({ method: 'wallet', status: 'successful', amountNgn: TOTAL_NGN });
+    const detail = await get(`/billing/payments/${payments.body.data.items[0].id}`, token);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.relatedInvoice.id).toBe(id);
+    expect(detail.body.data).not.toHaveProperty('provider');
+
+    const activity = await get('/billing/activity?event=Payment%20Received', token);
+    expect(activity.body.data.items).toHaveLength(1);
+    expect(activity.body.data.items[0].impactNgn).toBe(-TOTAL_NGN);
+    expect(activity.body.data.events).toEqual(expect.arrayContaining(['Invoice Issued', 'Payment Received']));
+    expect((await get('/billing/quotations', token)).body.data.total).toBe(0);
+
+    const other = await tokenFor(`bill-${randomUUID().slice(0, 8)}`);
+    expect((await get('/billing/payments', other)).body.data.total).toBe(0);
+    expect((await get(`/billing/payments/${payments.body.data.items[0].id}`, other)).status).toBe(404);
+    expect((await get('/billing/activity', other)).body.data.total).toBe(0);
+    expect((await get('/billing/overview', other)).body.data.spendTrend).toEqual([]);
+  });
+
+  it('keeps staff accounts out of the new tenant billing routes', async () => {
+    for (const path of ['/billing/overview', '/billing/activity', '/billing/quotations', '/billing/payments']) {
+      expect([403, 404]).toContain((await get(path, staffToken)).status);
+    }
+  });
 });

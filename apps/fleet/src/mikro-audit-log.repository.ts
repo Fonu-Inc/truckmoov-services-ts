@@ -76,6 +76,12 @@ export class MikroAuditLogRepository implements AuditLogRepository {
     if (filters.entityType) where.entityType = filters.entityType;
     if (filters.entityId) where.entityId = filters.entityId;
     if (filters.action) where.action = filters.action;
+    if (filters.from || filters.to) {
+      where.occurredAt = {
+        ...(filters.from ? { $gte: new Date(filters.from) } : {}),
+        ...(filters.to ? { $lte: new Date(filters.to) } : {}),
+      };
+    }
 
     const records = await em.find(AuditLogRecord, where as never, {
       orderBy: { occurredAt: "desc" },

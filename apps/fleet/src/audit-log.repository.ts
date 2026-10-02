@@ -5,6 +5,9 @@ export type AuditLogFilters = {
   entityType?: AuditEntityType;
   entityId?: string;
   action?: string;
+  /** ISO instants; entries outside [from, to] are left out. */
+  from?: string;
+  to?: string;
   limit?: number;
 };
 

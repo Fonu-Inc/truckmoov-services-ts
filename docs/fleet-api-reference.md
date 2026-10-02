@@ -62,6 +62,9 @@
   - `GET /fleet/analytics/driver-scores` — Driver safety scores
   - `GET /fleet/analytics/events` — Behavior events
   - `GET /fleet/analytics/vehicle-safety-radar` — Fleet safety radar
+  - `GET /fleet/analytics/utilization` — Fleet utilization report
+  - `GET /fleet/analytics/fuel-consumption` — Fuel consumption report
+  - `GET /fleet/analytics/compliance-audit` — Compliance audit report
   - `GET /fleet/maintenance/profiles` — List maintenance profiles
   - `POST /fleet/maintenance/profiles` — Create maintenance profile
   - `DELETE /fleet/maintenance/profiles/{id}` — Delete maintenance profile
@@ -96,6 +99,7 @@
   - `POST /fleet/compliance/reminders/send` — Send compliance reminder emails
   - `POST /fleet/financials/profitability` — Compute per-vehicle profitability
   - `GET /fleet/financials/summary` — Fleet financial summary
+  - `GET /fleet/financials/profit-loss` — Profit and loss for a window with a six-month trend
   - `GET /fleet/financials/configs` — List financial configs
   - `GET /fleet/financials/configs/{vehicleId}` — Get financial config for a vehicle
   - `PUT /fleet/financials/configs/{vehicleId}` — Upsert financial config for a vehicle

@@ -112,6 +112,25 @@ export class MikroDriverRepository implements DriverRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async findByNumbersAcrossTenants(numbers: string[], limit: number): Promise<Driver[]> {
+    if (numbers.length === 0) return [];
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(
+      DriverRecord,
+      {
+        $or: [
+          { phone: { $in: numbers } },
+          { whatsappNumber: { $in: numbers } },
+          { smsNumber: { $in: numbers } },
+          { voiceNumber: { $in: numbers } },
+        ],
+      },
+      { orderBy: { createdAt: "asc" }, limit },
+    );
+    return records.map((record) => this.toDomain(record));
+  }
+
   private toDomain(record: DriverRecord) {
     return Driver.create({
       id: record.id,

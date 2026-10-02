@@ -7,7 +7,11 @@ import {
 import type { StoredOnboardingPayment } from '@auth/onboarding/domain/onboarding-payment.repository';
 import { InMemoryOnboardingPaymentRepository } from '@auth/onboarding/infrastructure/persistence/in-memory-onboarding-payment.repository';
 import { InMemoryWalletTopUpRepository } from './in-memory-wallet-top-up.repository';
-import type { TenantCollectionsRepository, TenantLastPayment } from './tenant-collections.repository';
+import {
+  lagosMonthKey,
+  type TenantCollectionsRepository,
+  type TenantLastPayment,
+} from './tenant-collections.repository';
 
 type AttributedPayment = { tenantId: string | null; payment: StoredOnboardingPayment & { paidAt: Date } };
 
@@ -21,20 +25,30 @@ export class InMemoryTenantCollectionsRepository implements TenantCollectionsRep
   ) {}
 
   async collectedKoboByTenant(from: Date, to: Date): Promise<Map<string, number>> {
+    return this.collectedBy(from, to, (tenantId) => tenantId);
+  }
+
+  async collectedKoboByLagosMonth(from: Date, to: Date): Promise<Map<string, number>> {
+    return this.collectedBy(from, to, (tenantId, at) => (tenantId ? lagosMonthKey(at) : null));
+  }
+
+  private async collectedBy(
+    from: Date,
+    to: Date,
+    keyOf: (tenantId: string | null, at: Date) => string | null,
+  ): Promise<Map<string, number>> {
     const totals = new Map<string, number>();
-    const add = (tenantId: string | null, kobo: number) => {
-      if (!tenantId || tenantId === 'system') return;
-      totals.set(tenantId, (totals.get(tenantId) ?? 0) + kobo);
+    const add = (tenantId: string | null, at: Date, kobo: number) => {
+      if (!tenantId || tenantId === 'system' || at < from || at >= to) return;
+      const key = keyOf(tenantId, at);
+      if (key) totals.set(key, (totals.get(key) ?? 0) + kobo);
     };
-    const inRange = (at: Date) => at >= from && at < to;
 
     for (const { tenantId, payment } of await this.paidPayments()) {
-      if (payment.method !== 'wallet' && inRange(payment.paidAt)) add(tenantId, payment.amountKobo);
+      if (payment.method !== 'wallet') add(tenantId, payment.paidAt, payment.amountKobo);
     }
     for (const topUp of this.topUps.all()) {
-      if (topUp.status === 'success' && topUp.settledAt && inRange(topUp.settledAt)) {
-        add(topUp.tenantId, topUp.amountKobo);
-      }
+      if (topUp.status === 'success' && topUp.settledAt) add(topUp.tenantId, topUp.settledAt, topUp.amountKobo);
     }
     return totals;
   }
