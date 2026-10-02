@@ -4,3 +4,8 @@ export { DeliveryMetricsUseCase } from "./application/delivery-metrics.use-case"
 export type { DeliveryMetrics } from "./application/delivery-metrics.use-case";
 export { ExportUseCase } from "./application/export.use-case";
 export type { ExportEntity } from "./application/export.use-case";
+export { ReportsSummaryUseCase } from "./application/reports-summary.use-case";
+export { ActivityTrendUseCase } from "./application/activity-trend.use-case";
+export { VehicleActivityUseCase } from "./application/vehicle-activity.use-case";
+export { REPORT_PERIODS, TREND_RANGES } from "./domain/report-window";
+export type { ReportPeriod, TrendRange } from "./domain/report-window";

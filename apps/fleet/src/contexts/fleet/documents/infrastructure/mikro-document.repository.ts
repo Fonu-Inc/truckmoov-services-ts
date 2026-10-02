@@ -55,4 +55,9 @@ export class MikroDocumentRepository implements DocumentRepository {
     );
     return records.map(toDomain);
   }
+
+  async countUploadedBetween(tenantId: string, from: Date, to: Date): Promise<number> {
+    const orm = await getFleetOrm(this.config.db);
+    return orm.em.fork().count(DocumentRecord, { tenantId, uploadedAt: { $gte: from, $lte: to } });
+  }
 }

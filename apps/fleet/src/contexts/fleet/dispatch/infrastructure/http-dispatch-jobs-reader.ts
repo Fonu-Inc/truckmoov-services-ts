@@ -46,6 +46,7 @@ type DispatchJobApi = {
   pickup?: DispatchJobStopApi;
   dropoff?: DispatchJobStopApi;
   punctuality?: DispatchJobPunctualityApi | null;
+  pod_attachments?: Array<{ uploaded_at?: string }> | null;
 };
 
 type DispatchActiveJobApi = {
@@ -194,6 +195,7 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
             onTime: j.punctuality.on_time ?? false,
           }
         : null,
+      podUploadedAt: (j.pod_attachments ?? []).flatMap((a) => (a.uploaded_at ? [a.uploaded_at] : [])),
     };
   }
 

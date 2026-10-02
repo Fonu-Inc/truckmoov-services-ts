@@ -20,4 +20,10 @@ export class InMemoryDocumentRepository implements DocumentRepository {
       (d) => d.tenantId === tenantId && d.entityType === entityType && d.entityId === entityId,
     );
   }
+
+  async countUploadedBetween(tenantId: string, from: Date, to: Date): Promise<number> {
+    return [...this.store.values()].filter(
+      (d) => d.tenantId === tenantId && d.uploadedAt >= from && d.uploadedAt <= to,
+    ).length;
+  }
 }

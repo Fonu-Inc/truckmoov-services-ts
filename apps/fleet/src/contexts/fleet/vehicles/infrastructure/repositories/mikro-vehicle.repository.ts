@@ -173,6 +173,7 @@ export class MikroVehicleRepository implements VehicleRepository {
                 record.gpsInstalledAt?.toISOString() ?? new Date().toISOString(),
             }
           : null,
+      createdAt: record.createdAt?.toISOString(),
     });
   }
 }

@@ -241,7 +241,14 @@ import {
   ResolveAlertUseCase,
   TriggerAlertUseCase,
 } from "./contexts/fleet/alerts";
-import { DashboardUseCase, DeliveryMetricsUseCase, ExportUseCase } from "./contexts/fleet/reports";
+import {
+  ActivityTrendUseCase,
+  DashboardUseCase,
+  DeliveryMetricsUseCase,
+  ExportUseCase,
+  ReportsSummaryUseCase,
+  VehicleActivityUseCase,
+} from "./contexts/fleet/reports";
 import { OverviewUseCase } from "./contexts/fleet/reports/application/overview.use-case";
 import { VEHICLE_POSITIONS_READER } from "./contexts/fleet/reports/domain/ports/vehicle-positions-reader.port";
 import { RECENT_CHATS_READER } from "./contexts/fleet/reports/domain/ports/recent-chats-reader.port";
@@ -517,6 +524,9 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     FleetFinancialsUseCase,
     DeliveryMetricsUseCase,
     ExportUseCase,
+    ReportsSummaryUseCase,
+    ActivityTrendUseCase,
+    VehicleActivityUseCase,
     InMemoryDocumentRepository,
     MikroDocumentRepository,
     {

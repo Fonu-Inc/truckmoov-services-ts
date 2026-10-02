@@ -13,6 +13,7 @@ export type DispatchJob = {
   dropoffAddress: string | null;
   deadline: string | null;
   punctuality: JobPunctuality | null;
+  podUploadedAt?: string[];
 };
 
 export type DispatchJobFilters = {

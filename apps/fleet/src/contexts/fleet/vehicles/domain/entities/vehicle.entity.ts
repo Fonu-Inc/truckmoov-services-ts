@@ -56,6 +56,7 @@ export type VehicleProps = {
   assignedDriverId: string | null;
   ownerOperatorId: string | null;
   gpsDevice: VehicleGpsDevice | null;
+  createdAt?: string;
 };
 
 export class Vehicle {
@@ -225,6 +226,10 @@ export class Vehicle {
     return this.props.gpsDevice;
   }
 
+  get createdAt() {
+    return this.props.createdAt;
+  }
+
   update(values: {
     plateNumber?: string;
     vin?: string | null;
@@ -254,6 +259,7 @@ export class Vehicle {
       assignedDriverId: this.assignedDriverId,
       ownerOperatorId: this.ownerOperatorId,
       gpsDevice: this.gpsDevice,
+      createdAt: this.createdAt,
     });
   }
 
@@ -328,6 +334,7 @@ export class Vehicle {
       assignedDriverId: this.assignedDriverId,
       ownerOperatorId: this.ownerOperatorId,
       gpsDevice: this.gpsDevice ? { ...this.gpsDevice } : null,
+      createdAt: this.createdAt,
     };
   }
 }
