@@ -46,13 +46,13 @@ describe("InMemoryDriverRepository", () => {
   it("findAll filters by status", async () => {
     await repo.save(makeDriver("d1", "t1", { status: "available" }));
     await repo.save(makeDriver("d2", "t1", { status: "offline" }));
-    expect(await repo.findAll({ status: "offline" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", status: "offline" })).toHaveLength(1);
   });
 
   it("findAll filters by assigned", async () => {
     await repo.save(makeDriver("d1", "t1", { assignedVehicleId: "v1" }));
     await repo.save(makeDriver("d2", "t1"));
-    expect(await repo.findAll({ assigned: true })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", assigned: true })).toHaveLength(1);
   });
 
   it("findByLicenseNumber is case insensitive and tenant-scoped", async () => {

@@ -17,6 +17,12 @@ export const SIM_PLANS = [
   'data_sms_voice',
 ] as const;
 
+export class DuplicateSimIccidError extends Error {
+  constructor(iccid: string) {
+    super(`A SIM with ICCID ${iccid} already exists`);
+  }
+}
+
 export type SimStatus = (typeof SIM_STATUSES)[number];
 export type SimCarrier = (typeof SIM_CARRIERS)[number];
 export type SimPlan = (typeof SIM_PLANS)[number];

@@ -21,7 +21,7 @@ const LAST_SEEN_BUCKET_MS: Record<Exclude<LastSeenBucket, "never">, number> = {
 export type ListDevicesFilters = {
   query?: string;
   manufacturer?: string;
-  tenantId?: string;
+  tenantId: string;
   /**
    * The status dropdown. Not a repository filter: `online`, `offline`,
    * `unassigned` and `unregistered` cut across the lifecycle, so the whole set is applied in the
@@ -42,8 +42,8 @@ export class ListDevicesUseCase {
     @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
-  async execute(filters?: ListDevicesFilters) {
-    const { lastSeenBucket, statusFilter, ...rest } = filters ?? {};
+  async execute(filters: ListDevicesFilters) {
+    const { lastSeenBucket, statusFilter, ...rest } = filters;
     const resolved: Parameters<DeviceRepository["findAll"]>[0] = { ...rest };
     if (lastSeenBucket === "never") {
       resolved.lastSeenIsNull = true;

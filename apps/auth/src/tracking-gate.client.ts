@@ -28,6 +28,13 @@ export type GateMessageRate = {
   hours: GateMessageHour[];
 };
 
+export type QuarantinedDevice = {
+  imei: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  messageCount: number;
+};
+
 @Injectable()
 export class TrackingGateClient {
   private readonly logger = new Logger(TrackingGateClient.name);
@@ -69,6 +76,24 @@ export class TrackingGateClient {
       return report;
     } catch (error) {
       this.logger.warn(`tracking_message_rate_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
+      return null;
+    }
+  }
+
+  /** Null when tracking cannot be asked, which is not the same as no unrecognised devices. */
+  async quarantinedDevices(): Promise<QuarantinedDevice[] | null> {
+    const headers = this.caller.headers('tracking', { tenantId: SYSTEM_TENANT_ID, legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+    try {
+      const response = await axios.get<{ data?: { devices?: QuarantinedDevice[] } }>(
+        `${this.config.auth.trackingServiceUrl}/tracking/internal/quarantine`,
+        { headers, timeout: 4000, validateStatus: () => true },
+      );
+      const devices = response.data?.data?.devices;
+      if (response.status !== 200 || !Array.isArray(devices)) return null;
+      return devices;
+    } catch (error) {
+      this.logger.warn(`tracking_quarantine_read_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return null;
     }
   }

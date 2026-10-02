@@ -26,6 +26,11 @@ import {
 } from '@auth/onboarding/domain/onboarding-stage';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
+  ONBOARDING_PAYMENT_REPOSITORY,
+  type OnboardingPaymentRepository,
+} from '@auth/onboarding/domain/onboarding-payment.repository';
+import { toPaymentReviewView } from './review-onboarding-payment.use-case';
+import {
   VERIFICATION_RESULT_REPOSITORY,
   type VerificationResultRepository,
 } from '@auth/onboarding/domain/verification-result.repository';
@@ -169,6 +174,8 @@ export class GetOnboardingApplicationForReviewUseCase {
     private readonly verificationResults: VerificationResultRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+    @Inject(ONBOARDING_PAYMENT_REPOSITORY)
+    private readonly payments: OnboardingPaymentRepository,
   ) {}
 
   async execute(accessToken: string, applicationId: string) {
@@ -177,12 +184,13 @@ export class GetOnboardingApplicationForReviewUseCase {
     const application = await this.applications.findById(applicationId);
     if (!application) throw new ApplicationNotFoundError();
 
-    const [documents, vehicles, deviceRequests, verifications] =
+    const [documents, vehicles, deviceRequests, verifications, payment] =
       await Promise.all([
         this.applications.findDocumentsByApplicationId(application.id),
         this.applications.findVehiclesByApplicationId(application.id),
         this.applications.findDeviceRequestsByApplicationId(application.id),
         this.verificationResults.findByApplicationId(application.id),
+        this.payments.findLatestForApplication(application.id),
       ]);
 
     return {
@@ -191,6 +199,7 @@ export class GetOnboardingApplicationForReviewUseCase {
       data: {
         ...summarize(application),
         progress: stageProgress(application.stage),
+        paymentReview: toPaymentReviewView(payment),
         vehicleCount: vehicles.length,
         deviceCount: requestedDeviceCount(deviceRequests),
         vehicles: vehicles.map((vehicle) => ({

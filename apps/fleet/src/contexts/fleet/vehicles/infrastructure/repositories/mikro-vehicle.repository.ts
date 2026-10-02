@@ -49,13 +49,13 @@ export class MikroVehicleRepository implements VehicleRepository {
     });
   }
 
-  async findAll(filters?: VehicleFilters): Promise<Vehicle[]> {
+  async findAll(filters: VehicleFilters): Promise<Vehicle[]> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const records = await em.find(
       VehicleRecord,
       {
-        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        tenantId: filters.tenantId,
         ...(filters?.ownerOperatorId ? { ownerOperatorId: filters.ownerOperatorId } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
         ...(filters?.type ? { type: filters.type } : {}),

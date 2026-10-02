@@ -58,13 +58,13 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
     });
   }
 
-  async findAll(filters?: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]> {
+  async findAll(filters: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const records = await em.find(
       DeviceSetupRequestRecord,
       {
-        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        tenantId: filters.tenantId,
         ...(filters?.status ? { status: filters.status } : {}),
       },
       { orderBy: { createdAt: "desc" } },

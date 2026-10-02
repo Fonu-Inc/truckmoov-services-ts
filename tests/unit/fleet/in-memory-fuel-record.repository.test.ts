@@ -34,28 +34,28 @@ describe("InMemoryFuelRecordRepository", () => {
     const repo = new InMemoryFuelRecordRepository();
     await repo.save(makeRecord("1", { vehicleId: "v1" }));
     await repo.save(makeRecord("2", { vehicleId: "v2" }));
-    expect(await repo.findAll({ vehicleId: "v1" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", vehicleId: "v1" })).toHaveLength(1);
   });
 
   it("filters by driverId", async () => {
     const repo = new InMemoryFuelRecordRepository();
     await repo.save(makeRecord("1", { driverId: "d1" }));
     await repo.save(makeRecord("2", { driverId: "d2" }));
-    expect(await repo.findAll({ driverId: "d2" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", driverId: "d2" })).toHaveLength(1);
   });
 
   it("filters by station substring (case insensitive)", async () => {
     const repo = new InMemoryFuelRecordRepository();
     await repo.save(makeRecord("1", { station: "Total Lagos" }));
     await repo.save(makeRecord("2", { station: "BP Abuja" }));
-    expect(await repo.findAll({ station: "total" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", station: "total" })).toHaveLength(1);
   });
 
   it("filters by from/to date range", async () => {
     const repo = new InMemoryFuelRecordRepository();
     await repo.save(makeRecord("1", { recordedAt: "2026-01-01T00:00:00.000Z" }));
     await repo.save(makeRecord("2", { recordedAt: "2026-03-01T00:00:00.000Z" }));
-    const result = await repo.findAll({ from: "2026-02-01T00:00:00.000Z" });
+    const result = await repo.findAll({ tenantId: "t1", from: "2026-02-01T00:00:00.000Z" });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("2");
   });
@@ -64,7 +64,7 @@ describe("InMemoryFuelRecordRepository", () => {
     const repo = new InMemoryFuelRecordRepository();
     await repo.save(makeRecord("1", { recordedAt: "2026-01-01T00:00:00.000Z" }));
     await repo.save(makeRecord("2", { recordedAt: "2026-03-01T00:00:00.000Z" }));
-    const result = await repo.findAll();
+    const result = await repo.findAll({ tenantId: "t1" });
     expect(result[0].id).toBe("2");
   });
 

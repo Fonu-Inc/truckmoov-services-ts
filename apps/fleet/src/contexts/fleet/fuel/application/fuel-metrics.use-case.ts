@@ -76,7 +76,7 @@ export class FuelMetricsUseCase {
       byVehicle.set(r.vehicleId, arr);
     }
 
-    return [...byVehicle.entries()].map(([vehicleId, recs]) => {
+    return Promise.all([...byVehicle.entries()].map(async ([vehicleId, recs]) => {
       const sorted = recs
         .filter((r) => r.odometer !== null)
         .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
@@ -90,7 +90,7 @@ export class FuelMetricsUseCase {
       const kmPerLiter = totalLiters > 0 ? +(totalKm / totalLiters).toFixed(2) : null;
 
       const vehicleType = recs.find((r) => r.vehicleType)?.vehicleType ?? null;
-      const thr = this.thresholds.get(vehicleType ?? "default");
+      const thr = await this.thresholds.get(tid, vehicleType ?? "default");
 
       return {
         vehicleId,
@@ -98,7 +98,7 @@ export class FuelMetricsUseCase {
         belowThreshold: kmPerLiter !== null && thr !== null && kmPerLiter < thr.minKmPerLiter,
         threshold: thr?.minKmPerLiter ?? null,
       };
-    });
+    }));
   }
 }
 

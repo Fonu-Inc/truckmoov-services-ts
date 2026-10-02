@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength,
+  ArrayMaxSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -14,7 +14,7 @@ export class SaveSpendingLimitDto {
   @ApiProperty({ description: 'Monthly limit in Naira' }) @IsNumber() @Min(0) monthlyLimit!: number;
   @ApiProperty() @IsInt() @Min(1) resetDayOfMonth!: number;
   @ApiProperty() @IsString() alertEmail!: string;
-  @ApiPropertyOptional({ type: [Number] }) @IsOptional() @IsArray() @IsInt({ each: true }) notifyAtPercentages?: number[];
+  @ApiPropertyOptional({ type: [Number] }) @IsOptional() @IsArray() @ArrayMaxSize(10) @IsInt({ each: true }) notifyAtPercentages?: number[];
 }
 
 export class SaveAutoTopUpDto {
@@ -28,27 +28,27 @@ export class AllocateBundleDto {
   @ApiProperty() @IsString() carrierId!: string;
   @ApiProperty() @IsString() planType!: string;
   @ApiProperty() @IsString() bundleId!: string;
-  @ApiProperty({ type: [String] }) @IsArray() @IsString({ each: true }) @MinLength(1, { each: true }) mobileNumbers!: string[];
+  @ApiProperty({ type: [String] }) @IsArray() @ArrayMaxSize(500) @IsString({ each: true }) @MinLength(1, { each: true }) mobileNumbers!: string[];
   @ApiPropertyOptional({ description: 'Client key making a retry return the original purchase' }) @IsOptional() @IsString() @MinLength(1) @MaxLength(100) idempotencyKey?: string;
 }
 
 export class ListAllocationsQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
-  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @IsString({ each: true }) billingCycles?: string[];
+  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) billingCycles?: string[];
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) limit?: number;
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] }) @IsOptional() @IsIn(['csv', 'xlsx']) format?: 'csv' | 'xlsx';
 }
 
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
-  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @IsString({ each: true }) carriers?: string[];
+  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) carriers?: string[];
   @ApiPropertyOptional() @IsOptional() @IsString() startDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() endDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) limit?: number;
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] }) @IsOptional() @IsIn(['csv', 'xlsx']) format?: 'csv' | 'xlsx';
 }
 
@@ -61,9 +61,21 @@ export class AnalyticsRangeDto {
 
 export class ListBundleRatesQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
-  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @IsString({ each: true }) carriers?: string[];
+  @ApiPropertyOptional({ type: [String] }) @IsOptional() @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) carriers?: string[];
   @ApiPropertyOptional() @IsOptional() @IsString() planType?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) limit?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) limit?: number;
   @ApiPropertyOptional({ enum: ['csv', 'xlsx'] }) @IsOptional() @IsIn(['csv', 'xlsx']) format?: 'csv' | 'xlsx';
+}
+
+export class WalletLedgerQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() category?: string;
+  @ApiPropertyOptional({ enum: ['debit', 'credit'] }) @IsOptional() @IsIn(['debit', 'credit']) direction?: 'debit' | 'credit';
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) limit?: number;
+}
+
+export class CrossTenantLedgerQueryDto extends WalletLedgerQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() query?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() tenantId?: string;
 }

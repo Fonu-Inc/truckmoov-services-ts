@@ -21,6 +21,7 @@ import { RecommendDriversUseCase } from "./contexts/fleet/dispatch/application/r
 import { RecommendVehiclesUseCase } from "./contexts/fleet/dispatch/application/recommend-vehicles.use-case";
 import { ListDriversUseCase } from "./contexts/fleet/drivers";
 import { normalizeDriverStatus, DRIVER_STATUS_INPUTS } from "./contexts/fleet/drivers/domain/entities/driver.entity";
+import { ownedDriverIdsFrom } from "./contexts/fleet/drivers/domain/driver-roster";
 import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 import { DispatchSearchResponse, RecommendDriversResponse, RecommendVehiclesResponse } from "./dto/fleet.schema";
 import { RecommendDriversQueryDto, RecommendVehiclesQueryDto, DispatchSearchQueryDto } from "./dto/vehicle.dto";
@@ -59,21 +60,25 @@ export class DispatchController extends BaseFleetController {
   @ApiBadRequestResponse({ description: "Invalid query parameter values" })
   async searchDispatch(@Query() query: DispatchSearchQueryDto, @Req() req: FleetRequestContext): Promise<DispatchSearchResponse> {
     const assignedOnly = this.parseOptionalBoolean(query.assignedOnly, "assignedOnly");
+    const tenantId = this.tenantIdFromRequest(req);
+    const owned = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
 
-    const [vehicles, drivers] = await Promise.all([
+    const [vehicles, allDrivers] = await Promise.all([
       this.listVehiclesUseCase.execute({
         query: query.query,
         status: query.vehicleStatus,
         assigned: assignedOnly,
-        tenantId: this.tenantIdFromRequest(req),
+        tenantId,
+        ownerOperatorId: this.ownerOperatorIdFromRequest(req),
       }),
       this.listDriversUseCase.execute({
         query: query.query,
         status: normalizeDriverStatus(query.driverStatus),
         assigned: assignedOnly,
-        tenantId: this.tenantIdFromRequest(req),
+        tenantId,
       }),
     ]);
+    const drivers = owned ? this.driversOnOwnedVehicles(allDrivers, owned) : allDrivers;
 
     return { vehicles, drivers } as unknown as DispatchSearchResponse;
   }
@@ -89,7 +94,9 @@ export class DispatchController extends BaseFleetController {
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiOkResponse({ type: RecommendDriversResponse })
   async recommendDrivers(@Query() query: RecommendDriversQueryDto, @Req() req: FleetRequestContext): Promise<RecommendDriversResponse> {
-    const data = await this.recommendDriversUseCase.execute(this.tenantIdFromRequest(req), query);
+    const tenantId = this.tenantIdFromRequest(req);
+    const owned = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
+    const data = await this.recommendDriversUseCase.execute(tenantId, query, owned);
     return { status: true, message: "success", data } as unknown as RecommendDriversResponse;
   }
 
@@ -101,7 +108,19 @@ export class DispatchController extends BaseFleetController {
   })
   @ApiOkResponse({ type: RecommendVehiclesResponse })
   async recommendVehicles(@Query() query: RecommendVehiclesQueryDto, @Req() req: FleetRequestContext): Promise<RecommendVehiclesResponse> {
-    const data = await this.recommendVehiclesUseCase.execute(this.tenantIdFromRequest(req), query);
+    const tenantId = this.tenantIdFromRequest(req);
+    const owned = await this.ownedVehicleIdsVia(this.listVehiclesUseCase, tenantId, req);
+    const data = await this.recommendVehiclesUseCase.execute(tenantId, query, owned);
     return { status: true, message: "success", data };
   }
+
+  private driversOnOwnedVehicles<T>(drivers: T[], owned: ReadonlySet<string>): T[] {
+    const ownedDrivers = ownedDriverIdsFrom(owned, drivers.map(driverRef));
+    return drivers.filter((driver) => ownedDrivers.has(driverRef(driver).id));
+  }
+}
+
+function driverRef(driver: unknown): { id: string; assignedVehicleId: string | null } {
+  const record = driver as Record<string, unknown>;
+  return { id: String(record["id"]), assignedVehicleId: (record["assignedVehicleId"] as string | null) ?? null };
 }

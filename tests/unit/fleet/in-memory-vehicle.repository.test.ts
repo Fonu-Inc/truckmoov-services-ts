@@ -3,7 +3,7 @@ import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/flee
 import { Vehicle } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/entities/vehicle.entity";
 
 function makeVehicle(id: string, tenantId = "t1", overrides: Partial<Parameters<typeof Vehicle.create>[0]> = {}) {
-  return Vehicle.create({ id, plateNumber: `PLATE-${id}`, model: "Truck", tenantId, status: "active", assignedDriverId: null, ownerOperatorId: null, gpsDevice: null, ...overrides });
+  return Vehicle.create({ id, plateNumber: `PLATE-${id}`, model: "Truck", tenantId, status: "active", assignedDriverId: null, ownerOperatorId: null, vin: null, make: null, year: null, type: null, capacity: null, gpsDevice: null, ...overrides });
 }
 
 describe("InMemoryVehicleRepository", () => {
@@ -34,20 +34,20 @@ describe("InMemoryVehicleRepository", () => {
   it("findAll filters by status", async () => {
     await repo.save(makeVehicle("v1", "t1", { status: "active" }));
     await repo.save(makeVehicle("v2", "t1", { status: "inactive" }));
-    expect(await repo.findAll({ status: "inactive" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", status: "inactive" })).toHaveLength(1);
   });
 
   it("findAll filters by assigned", async () => {
     await repo.save(makeVehicle("v1", "t1", { assignedDriverId: "d1" }));
     await repo.save(makeVehicle("v2", "t1"));
-    expect(await repo.findAll({ assigned: true })).toHaveLength(1);
-    expect(await repo.findAll({ assigned: false })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", assigned: true })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", assigned: false })).toHaveLength(1);
   });
 
   it("findAll search query matches plateNumber", async () => {
     await repo.save(makeVehicle("v1", "t1", { plateNumber: "ABC-123" }));
     await repo.save(makeVehicle("v2", "t1", { plateNumber: "XYZ-999" }));
-    expect(await repo.findAll({ query: "abc" })).toHaveLength(1);
+    expect(await repo.findAll({ tenantId: "t1", query: "abc" })).toHaveLength(1);
   });
 
   it("findByPlateNumber is case insensitive and tenant-scoped", async () => {

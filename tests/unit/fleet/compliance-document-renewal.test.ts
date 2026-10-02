@@ -170,4 +170,50 @@ describe("Compliance document renewal", () => {
     expect(await useCase.list("tenant-a")).toHaveLength(1);
     expect(await useCase.history("tenant-a")).toHaveLength(3);
   });
+
+  describe("owner operator scope", () => {
+    const owned = new Set(["veh-1"]);
+
+    it("lets an owner operator act on a document for their own vehicle", async () => {
+      const original = await seed();
+
+      const renewed = await useCase.renew("tenant-a", original.id, { expiryDate: "2027-09-01" }, owned);
+
+      expect(renewed.expiryDate).toBe("2027-09-01");
+    });
+
+    it("reads another vehicle's document as not found for update, delete, renew and file upload", async () => {
+      const other = await useCase.create("tenant-a", {
+        documentType: "insurance", documentName: "Other", vehicleId: "veh-9", expiryDate: "2026-09-01",
+      });
+
+      await expect(useCase.update("tenant-a", other.id, { notes: "x" }, owned)).rejects.toThrow();
+      await expect(useCase.delete("tenant-a", other.id, owned)).rejects.toThrow();
+      await expect(useCase.renew("tenant-a", other.id, {}, owned)).rejects.toThrow();
+      await expect(useCase.setFileUrl("tenant-a", other.id, "s3://x.pdf", null, owned)).rejects.toThrow();
+      await expect(useCase.updateReminder("tenant-a", other.id, 5, owned)).rejects.toThrow();
+      expect(await repo.findById(other.id, "tenant-a")).not.toBeNull();
+    });
+
+    it("refuses a document with no vehicle", async () => {
+      const loose = await useCase.create("tenant-a", { documentType: "permit", documentName: "Permit" });
+
+      await expect(useCase.delete("tenant-a", loose.id, owned)).rejects.toThrow();
+    });
+
+    it("refuses to create a document for a vehicle they do not own", async () => {
+      await expect(
+        useCase.create("tenant-a", { documentType: "insurance", documentName: "X", vehicleId: "veh-9" }, owned),
+      ).rejects.toThrow();
+      await expect(
+        useCase.create("tenant-a", { documentType: "insurance", documentName: "X" }, owned),
+      ).rejects.toThrow();
+    });
+
+    it("refuses to move a document onto a vehicle they do not own", async () => {
+      const original = await seed();
+
+      await expect(useCase.update("tenant-a", original.id, { vehicleId: "veh-9" }, owned)).rejects.toThrow();
+    });
+  });
 });

@@ -41,3 +41,17 @@ describe("InMemoryAlertRepository", () => {
     expect((await repo.findById("t1", "a1"))?.status).toBe("acknowledged");
   });
 });
+
+describe("InMemoryAlertRepository open-alert scan", () => {
+  it("returns only open alerts older than the cutoff, across tenants, oldest first", async () => {
+    const repo = new InMemoryAlertRepository();
+    const now = Date.now();
+    await repo.save(makeAlert("old-a", "t1", { triggeredAt: new Date(now - 60_000) }));
+    await repo.save(makeAlert("older-b", "t2", { triggeredAt: new Date(now - 120_000) }));
+    await repo.save(makeAlert("fresh", "t1", { triggeredAt: new Date(now) }));
+    await repo.save(makeAlert("done", "t1", { triggeredAt: new Date(now - 120_000), status: "resolved" }));
+
+    const found = await repo.findOpenTriggeredBefore(new Date(now - 30_000), 10);
+    expect(found.map((a) => a.id)).toEqual(["older-b", "old-a"]);
+  });
+});

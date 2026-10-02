@@ -121,6 +121,9 @@ export type DeviceProps = {
   verifiedAt?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: DeviceProvisionStatus;
+  provisionAttempts?: number;
+  provisionNextAttemptAt?: string | null;
+  provisionError?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -227,6 +230,9 @@ export class Device {
       holdCause: props.holdCause ?? null,
       traccarDeviceId: props.traccarDeviceId ?? null,
       provisionStatus: props.provisionStatus ?? "pending",
+      provisionAttempts: props.provisionAttempts ?? 0,
+      provisionNextAttemptAt: props.provisionNextAttemptAt ?? null,
+      provisionError: props.provisionError ?? null,
       createdAt: props.createdAt ?? new Date().toISOString(),
       updatedAt: props.updatedAt ?? new Date().toISOString(),
     });
@@ -356,6 +362,19 @@ export class Device {
     return this.props.provisionStatus ?? "pending";
   }
 
+  get provisionAttempts(): number {
+    return this.props.provisionAttempts ?? 0;
+  }
+
+  /** Null once retries are over, so a failed device with no next attempt is one we gave up on. */
+  get provisionNextAttemptAt(): string | null {
+    return this.props.provisionNextAttemptAt ?? null;
+  }
+
+  get provisionError(): string | null {
+    return this.props.provisionError ?? null;
+  }
+
   get createdAt() {
     return this.props.createdAt ?? new Date().toISOString();
   }
@@ -396,12 +415,19 @@ export class Device {
   withProvisioning(values: {
     traccarDeviceId?: string | null;
     provisionStatus: DeviceProvisionStatus;
+    provisionAttempts?: number;
+    provisionNextAttemptAt?: string | null;
+    provisionError?: string | null;
   }): Device {
     return Device.create({
       ...this.toPrimitives(),
       traccarDeviceId:
         values.traccarDeviceId === undefined ? this.traccarDeviceId : values.traccarDeviceId,
       provisionStatus: values.provisionStatus,
+      provisionAttempts: values.provisionAttempts ?? this.provisionAttempts,
+      provisionNextAttemptAt:
+        values.provisionNextAttemptAt === undefined ? this.provisionNextAttemptAt : values.provisionNextAttemptAt,
+      provisionError: values.provisionError === undefined ? this.provisionError : values.provisionError,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -672,6 +698,9 @@ export class Device {
       holdCause: this.holdCause,
       traccarDeviceId: this.traccarDeviceId,
       provisionStatus: this.provisionStatus,
+      provisionAttempts: this.provisionAttempts,
+      provisionNextAttemptAt: this.provisionNextAttemptAt,
+      provisionError: this.provisionError,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

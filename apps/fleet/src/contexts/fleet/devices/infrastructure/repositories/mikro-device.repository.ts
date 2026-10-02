@@ -29,13 +29,13 @@ export class MikroDeviceRepository implements DeviceRepository {
     return updated > 0;
   }
 
-  async findAll(filters?: DeviceFilters): Promise<Device[]> {
+  async findAll(filters: DeviceFilters): Promise<Device[]> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const records = await em.find(
       DeviceRecord,
       {
-        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        tenantId: filters.tenantId,
         ...(filters?.manufacturer ? { manufacturer: filters.manufacturer } : {}),
         ...(filters?.status ? { status: filters.status } : {}),
         ...(filters?.lifecycleStatus ? { lifecycleStatus: filters.lifecycleStatus } : {}),
@@ -92,6 +92,12 @@ export class MikroDeviceRepository implements DeviceRepository {
     return records.map((record) => this.toDomain(record));
   }
 
+  async findAllAcrossTenants(): Promise<Device[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(DeviceRecord, {}, { orderBy: { createdAt: "asc" } });
+    return records.map((record) => this.toDomain(record));
+  }
+
   async findByIdAcrossTenants(id: string): Promise<Device | null> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
@@ -123,6 +129,21 @@ export class MikroDeviceRepository implements DeviceRepository {
       DeviceRecord,
       { verificationStatus: "waiting", verificationDeadline: { $lte: now } },
       { orderBy: { verificationDeadline: "asc" }, limit },
+    );
+    return records.map((record) => this.toDomain(record));
+  }
+
+  async findProvisionRetryDue(now: Date, limit: number): Promise<Device[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const records = await em.find(
+      DeviceRecord,
+      {
+        provisionStatus: "failed",
+        lifecycleStatus: { $ne: "decommissioned" },
+        provisionNextAttemptAt: { $lte: now },
+      },
+      { orderBy: { provisionNextAttemptAt: "asc" }, limit },
     );
     return records.map((record) => this.toDomain(record));
   }
@@ -177,6 +198,9 @@ export class MikroDeviceRepository implements DeviceRepository {
         record.provisionStatus && isDeviceProvisionStatus(record.provisionStatus)
           ? record.provisionStatus
           : "pending",
+      provisionAttempts: record.provisionAttempts ?? 0,
+      provisionNextAttemptAt: record.provisionNextAttemptAt?.toISOString() ?? null,
+      provisionError: record.provisionError ?? null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
     });
@@ -215,6 +239,9 @@ function toRecord(device: Device) {
     suspendedBy: device.suspendedBy,
     traccarDeviceId: device.traccarDeviceId,
     provisionStatus: device.provisionStatus,
+    provisionAttempts: device.provisionAttempts,
+    provisionNextAttemptAt: device.provisionNextAttemptAt ? new Date(device.provisionNextAttemptAt) : null,
+    provisionError: device.provisionError,
     createdAt: new Date(device.createdAt),
     updatedAt: new Date(device.updatedAt),
   };

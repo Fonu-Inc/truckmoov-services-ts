@@ -36,7 +36,7 @@ export class MikroPermissionRemovalRepository implements PermissionRemovalReposi
 
   async list(filters: { tenantId?: string; status?: PermissionRemovalStatus }) {
     const where: Record<string, unknown> = {};
-    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.tenantId !== undefined) where.tenantId = filters.tenantId;
     if (filters.status) where.status = filters.status;
     const rows = await (await this.em()).find(PermissionRemovalRecord, where, { orderBy: { effectiveAt: 'asc' } });
     return rows.map(toRemoval);

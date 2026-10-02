@@ -39,7 +39,7 @@ export class MikroAuthEventRepository implements AuthEventRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
 
-    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.tenantId !== undefined) where.tenantId = filters.tenantId;
     if (filters.eventType) where.eventType = filters.eventType;
     if (filters.status) where.status = filters.status;
     if (filters.ipAddress) where.ipAddress = filters.ipAddress;
@@ -57,7 +57,7 @@ export class MikroAuthEventRepository implements AuthEventRepository {
       const q = `%${filters.search}%`;
       const conditions = ['(email ilike ? or ip_address ilike ? or tenant_id ilike ?)'];
       const params: unknown[] = [q, q, q];
-      if (filters.tenantId) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
+      if (filters.tenantId !== undefined) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
       if (filters.eventType) { conditions.push('event_type = ?'); params.push(filters.eventType); }
       if (filters.status) { conditions.push('status = ?'); params.push(filters.status); }
       if (filters.ipAddress) { conditions.push('ip_address = ?'); params.push(filters.ipAddress); }

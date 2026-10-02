@@ -14,7 +14,7 @@ function driver(id: string, status: string, vehicleId: string | null) {
 function vehicle(id: string, capacity: number | null, type: string | null) {
   return Vehicle.create({
     id, plateNumber: `P-${id}`, model: "Truck", tenantId: "t1", status: "active",
-    type: type as any, capacity, vin: null, make: null, year: null, assignedDriverId: null, gpsDevice: null,
+    type: type as any, capacity, vin: null, make: null, year: null, assignedDriverId: null, ownerOperatorId: null, gpsDevice: null,
   });
 }
 
@@ -104,7 +104,7 @@ describe("capacity is compared in kg", () => {
   it("ranks a kg-rated vehicle against a weight in kg", async () => {
     const van = Vehicle.create({
       id: "v1", plateNumber: "P-v1", model: "Van", tenantId: "t1", status: "active", type: "van" as any,
-      capacity: 5000, capacityUnit: "kg", vin: null, make: null, year: null, assignedDriverId: null, gpsDevice: null,
+      capacity: 5000, capacityUnit: "kg", vin: null, make: null, year: null, assignedDriverId: null, ownerOperatorId: null, gpsDevice: null,
     } as never);
     const { uc } = build([driver("d1", "available", "v1")], [van]);
 
@@ -114,5 +114,16 @@ describe("capacity is compared in kg", () => {
     expect(small.reasons).toContain("capacity 5000kg vs 8000kg needed");
     expect(enough.reasons).toContain("capacity 5000kg vs 4000kg needed");
     expect(enough.score).toBeGreaterThan(small.score);
+  });
+
+  it("offers only drivers on owned vehicles when scoped", async () => {
+    const { uc } = build(
+      [driver("d1", "available", "v1"), driver("d2", "available", "v2"), driver("d3", "available", null)],
+      [vehicle("v1", 10, "truck"), vehicle("v2", 10, "truck")],
+    );
+
+    const ranked = await uc.execute("t1", {}, new Set(["v1"]));
+
+    expect(ranked.map((r) => r.driverId)).toEqual(["d1"]);
   });
 });

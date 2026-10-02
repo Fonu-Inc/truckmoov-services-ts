@@ -16,12 +16,12 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
     this.data.set(request.id, request);
   }
 
-  async findAll(filters?: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]> {
+  async findAll(filters: DeviceSetupRequestFilters): Promise<DeviceSetupRequest[]> {
     const query = filters?.query?.trim().toLowerCase();
 
     return Array.from(this.data.values())
       .filter((request) => {
-        if (filters?.tenantId && request.tenantId !== filters.tenantId) return false;
+        if (request.tenantId !== filters.tenantId) return false;
         if (filters?.status && request.status !== filters.status) return false;
         if (!query) return true;
         const p = request.toPrimitives();

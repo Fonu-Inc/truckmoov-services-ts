@@ -8,6 +8,7 @@ export class InMemoryBundleCatalogRepository implements BundleCatalogRepository 
   async findAll(filters?: BundleCatalogFilters): Promise<{ items: StoredBundleCatalog[]; total: number }> {
     let results = [...this.store.values()];
     if (filters?.carrierId) results = results.filter((b) => b.carrierId === filters.carrierId);
+    if (filters?.carrierIds) results = results.filter((b) => filters.carrierIds!.includes(b.carrierId));
     if (filters?.billingCycle) results = results.filter((b) => b.billingCycle === filters.billingCycle);
     if (filters?.activeOnly) results = results.filter((b) => b.active);
     if (filters?.active !== undefined) results = results.filter((b) => b.active === filters.active);

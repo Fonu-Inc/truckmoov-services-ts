@@ -101,6 +101,7 @@ import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
 import { ImportSimsCsvUseCase, InvalidCsvError } from './import-sims-csv.use-case';
 import { ListKycDocumentsUseCase } from './list-kyc-documents.use-case';
 import { PaymentEventService } from './payment-event.service';
+import { DuplicateSimIccidError } from './sim.repository';
 import { RegisterSimsUseCase } from './register-sims.use-case';
 import { SaveBusinessInfoUseCase } from './save-business-info.use-case';
 import { OnboardingNotFoundForFeaturesError, SaveFeatureTogglesUseCase } from './save-feature-toggles.use-case';
@@ -563,6 +564,7 @@ export class OnboardingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof DuplicateSimIccidError) throw new ConflictException(error.message);
       throw error;
     }
   }

@@ -19,6 +19,7 @@ import {
   ConfirmApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
 } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import type { PlatformAlertPublisher } from "../../apps/auth/src/platform-alert.publisher";
 import { hashApplicationToken } from "@auth/onboarding/domain/onboarding-application.support";
 import type {
   OnboardingApplicationRepository,
@@ -198,6 +199,7 @@ describe.skipIf(!dbEnabled)("onboarding application payment (db)", () => {
           { record: async () => undefined },
           { generate: () => `${uniqueId(SLICE)}-i${++n}` },
         ),
+        { raise: async () => undefined } as unknown as PlatformAlertPublisher,
       ),
     };
   }

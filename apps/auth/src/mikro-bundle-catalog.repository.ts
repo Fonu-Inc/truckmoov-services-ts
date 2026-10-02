@@ -33,6 +33,11 @@ export class MikroBundleCatalogRepository implements BundleCatalogRepository {
     const params: unknown[] = [];
 
     if (filters?.carrierId) { conditions.push('carrier_id = ?'); params.push(filters.carrierId); }
+    if (filters?.carrierIds) {
+      if (!filters.carrierIds.length) return { items: [], total: 0 };
+      conditions.push(`carrier_id in (${filters.carrierIds.map(() => '?').join(', ')})`);
+      params.push(...filters.carrierIds);
+    }
     if (filters?.billingCycle) { conditions.push('billing_cycle = ?'); params.push(filters.billingCycle); }
     if (filters?.activeOnly) { conditions.push('active = true'); }
     if (filters?.active !== undefined) { conditions.push('active = ?'); params.push(filters.active); }

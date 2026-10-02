@@ -13,6 +13,13 @@ import { csvCell } from "./utils/csv";
 
 export class ComplianceDocumentNotFoundError extends Error {}
 
+type OwnedVehicles = ReadonlySet<string> | null;
+
+function assertVehicleOwned(vehicleId: string | null | undefined, owned: OwnedVehicles): void {
+  if (owned === null) return;
+  if (!vehicleId || !owned.has(vehicleId)) throw new ComplianceDocumentNotFoundError();
+}
+
 export type ComplianceDocumentListFilters = ComplianceDocumentFilters & {
   status?: ComplianceDocumentStatus;
   issuedFrom?: string;
@@ -44,6 +51,13 @@ export class ComplianceDocumentsUseCase {
     private readonly reminderWindow: ComplianceReminderWindowService,
   ) {}
 
+  private async findOwned(tenantId: string, id: string, owned: OwnedVehicles): Promise<StoredComplianceDocument> {
+    const doc = await this.repo.findById(id, tenantId);
+    if (!doc || doc.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
+    assertVehicleOwned(doc.vehicleId, owned);
+    return doc;
+  }
+
   private withStatus(doc: StoredComplianceDocument) {
     return { ...doc, status: computeDocumentStatus(doc, this.reminderWindow.reminderDays) };
   }
@@ -63,7 +77,8 @@ export class ComplianceDocumentsUseCase {
     return withStatus;
   }
 
-  async create(tenantId: string, data: CreateComplianceDocumentInput) {
+  async create(tenantId: string, data: CreateComplianceDocumentInput, owned: OwnedVehicles = null) {
+    assertVehicleOwned(data.vehicleId, owned);
     const doc: StoredComplianceDocument = {
       id: randomUUID(),
       tenantId,
@@ -86,9 +101,14 @@ export class ComplianceDocumentsUseCase {
     return this.withStatus(doc);
   }
 
-  async update(tenantId: string, id: string, data: Partial<Omit<StoredComplianceDocument, "id" | "tenantId" | "createdAt">>) {
-    const existing = await this.repo.findById(id, tenantId);
-    if (!existing || existing.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
+  async update(
+    tenantId: string,
+    id: string,
+    data: Partial<Omit<StoredComplianceDocument, "id" | "tenantId" | "createdAt">>,
+    owned: OwnedVehicles = null,
+  ) {
+    const existing = await this.findOwned(tenantId, id, owned);
+    if (data.vehicleId !== undefined) assertVehicleOwned(data.vehicleId, owned);
     const updated = { ...existing, ...data, updatedAt: new Date() };
     // A new expiry re-arms the reminder, otherwise a renewed document would
     // never be announced again.
@@ -106,9 +126,8 @@ export class ComplianceDocumentsUseCase {
     return docs.map((d) => this.withStatus(d));
   }
 
-  async delete(tenantId: string, id: string) {
-    const doc = await this.repo.findById(id, tenantId);
-    if (!doc || doc.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
+  async delete(tenantId: string, id: string, owned: OwnedVehicles = null) {
+    await this.findOwned(tenantId, id, owned);
     await this.repo.deleteById(id, tenantId);
   }
 
@@ -122,13 +141,17 @@ export class ComplianceDocumentsUseCase {
     return { total: docs.length, valid, expiringSoon: expiring, expired, complianceRatePercent: complianceRate };
   }
 
-  async updateReminder(tenantId: string, id: string, reminderDays: number) {
-    return this.update(tenantId, id, { reminderDays });
+  async updateReminder(tenantId: string, id: string, reminderDays: number, owned: OwnedVehicles = null) {
+    return this.update(tenantId, id, { reminderDays }, owned);
   }
 
-  async renew(tenantId: string, id: string, data: { expiryDate?: string; fileUrl?: string; fileSize?: number }) {
-    const existing = await this.repo.findById(id, tenantId);
-    if (!existing || existing.tenantId !== tenantId) throw new ComplianceDocumentNotFoundError();
+  async renew(
+    tenantId: string,
+    id: string,
+    data: { expiryDate?: string; fileUrl?: string; fileSize?: number },
+    owned: OwnedVehicles = null,
+  ) {
+    const existing = await this.findOwned(tenantId, id, owned);
     const newExpiry = data.expiryDate ?? (() => {
       if (!existing.expiryDate) return null;
       const d = new Date(existing.expiryDate);
@@ -163,8 +186,8 @@ export class ComplianceDocumentsUseCase {
     return this.withStatus(replacement);
   }
 
-  async setFileUrl(tenantId: string, id: string, fileUrl: string, fileSize: number | null) {
-    return this.update(tenantId, id, { fileUrl, fileSize });
+  async setFileUrl(tenantId: string, id: string, fileUrl: string, fileSize: number | null, owned: OwnedVehicles = null) {
+    return this.update(tenantId, id, { fileUrl, fileSize }, owned);
   }
 
   async export(tenantId: string, filters?: ComplianceDocumentListFilters): Promise<string> {

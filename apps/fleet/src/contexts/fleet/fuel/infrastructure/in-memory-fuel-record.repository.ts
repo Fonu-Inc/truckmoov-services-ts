@@ -17,11 +17,10 @@ export class InMemoryFuelRecordRepository implements FuelRecordRepository {
     return record;
   }
 
-  async findAll(filters?: FuelRecordFilters): Promise<FuelRecord[]> {
-    let records = [...this.store.values()];
+  async findAll(filters: FuelRecordFilters): Promise<FuelRecord[]> {
+    let records = [...this.store.values()].filter((r) => r.tenantId === filters.tenantId);
 
     if (!filters?.includeDeleted) records = records.filter((r) => !r.isDeleted);
-    if (filters?.tenantId) records = records.filter((r) => r.tenantId === filters.tenantId);
     if (filters?.vehicleId) records = records.filter((r) => r.vehicleId === filters.vehicleId);
     if (filters?.driverId) records = records.filter((r) => r.driverId === filters.driverId);
     if (filters?.station) {

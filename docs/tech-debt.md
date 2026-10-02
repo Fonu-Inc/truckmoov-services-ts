@@ -4,6 +4,154 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-21 — Onboarding, jobs, SIM, tracking and index batch leftovers
+
+**Status:** open, recorded 2 October 2026. Follows the batch that fixed
+onboarding payments and sweep, job attachments and instructions, the SIM ICCID
+race, tracking ingest and quarantine, and the first index migrations. Each fix
+works; the items below are the parts left on purpose or that need an outside
+system. Related: TD-9, TD-10, TD-13, TD-14.
+
+### Where the code is
+
+- **Auth:** `apps/auth/src/`: onboarding payment and sweep use cases
+  (`ReviewOnboardingPaymentMismatchUseCase`, `OnboardingStageSweepService`,
+  `CompleteProvisioningUseCase`, `ApproveOnboardingApplicationUseCase`),
+  `in-memory-sim.repository.ts`, `register-sims.use-case.ts`,
+  `export-bundle-transactions.use-case.ts`, `export-bundle-rates.use-case.ts`;
+  `Migration20261007100000` in auth and fleet.
+- **Go:** `internal/notification/application/`
+  (`consume_driver_job_instruction.go`, `send_job_instruction.go`,
+  `consume_job_offer_notification.go`), `internal/dispatch/`
+  (`infrastructure/job_attachment_store.go`, `application/eta_monitor.go`),
+  tracking ingest, `tracking_quarantine` and Redis `tracking:imei-identity`.
+- **Fleet / web:** `apps/fleet/src/live-tracking-counts.service.ts`,
+  `fleet-financials.use-case.ts`; admin Devices page and device lists.
+
+### The problem
+
+**Onboarding**
+1. `onboarding_payments` has no `tenant_id`; tenant is derived by joining
+   `onboarding_applications`, null until provisioning. Tenant-level payment
+   queries and row-level security cannot apply directly.
+2. Wrong-amount payments flagged `refund_needed` only record a flag, note and
+   audit entry; no provider refund runs. Resolving a payment only records the
+   decision; the applicant must pay again or staff confirm out of band.
+3. No email when the sweep or provisioning moves an application to payment,
+   though the status screen says "we'll email you".
+4. Self-serve trial length uses the starter plan `trialDays` (14 by default);
+   the owner has not confirmed that is the right plan.
+
+**Jobs and messaging**
+5. Driver job instruction needs a Meta-approved `job_assignment` template
+   (`JOB_INSTRUCTION_TEMPLATE`, default `job_assignment_v1`, `{{1}}..{{6}}`) on
+   each tenant WABA. Tenants with no number get "not sent: no WhatsApp number"
+   (TD-9).
+6. The template path skips the delivery log, and the outcome callback to
+   dispatch is not retried; a dispatch outage leaves the timeline silent.
+7. Job attachments are BYTEA in Postgres (3 MB, 10 per job): not counted in
+   the tenant storage quota, no virus scan, no single delete.
+8. Offer alerts are email only. No WhatsApp, SMS or push, no per-tenant
+   preference, no offers UI.
+9. ETA monitor dedupe is an in-memory map: late alerts can repeat after a
+   restart and the map never shrinks.
+10. Delivered jobs from before this change have no `delivered_at`; analytics
+    fall back to `updated_at`, so historical revenue months can move on edit.
+    Notification `FindMessageByProviderMessageID` and dispatch relationship and
+    settlement lookups by id stay id-only (callers check tenant afterwards).
+
+**SIM and data**
+11. The in-memory SIM repository does not enforce unique ICCID (only the Mikro
+    path raises `DuplicateSimIccidError`); fixtures may repeat ICCIDs.
+12. `register-sims` throws 409 on the first duplicate, so a batch can be
+    partly saved. The transactions export ignores the carriers filter and the
+    rates export filters carriers in JS; the list endpoints filter in SQL.
+13. The tenant CSV import returns `skippedCount` and `skipped[]`, and the SIM
+    requests list is paged (default 50, max 100). The web client shows only
+    the first 50 requests and does not show skipped rows.
+14. Index migrations use plain `CREATE INDEX IF NOT EXISTS` (the framework runs
+    in a transaction, so no `CONCURRENTLY`); each build write-locks its table.
+    Only the indexes named in the task plus two fleet indexes exist. The rest
+    of the DB audit high-priority index plan is not reconciled.
+
+**Tracking**
+15. `GPS_API_KEY` must be set on every environment's tracking service and on
+    Traccar's forwarder (gitops). Tracking returns 503 on ingest when unset
+    (dev override `ALLOW_UNAUTHENTICATED_INGEST`, ignored in production).
+16. One shared key for all devices; Traccar's HTTP forwarder holds one key, so
+    per-device secrets need a protocol-level scheme or a gateway.
+17. Quarantine is a read-only list: no dismiss or block, no retention, no alert
+    on a noisy unknown IMEI.
+18. The IMEI identity cache (90-day TTL, fed only by fleet events) has no
+    backfill; a registered device with an expired or missed entry is
+    quarantined as unknown.
+19. API returns `provisionStatus`, `provisionAttempts`,
+    `provisionNextAttemptAt`, `provisionError`, but no screen shows them and
+    there is no manual retry.
+20. Status-bar counts cover only vehicles that have reported since fleet
+    started (in-memory tracked set, `in_progress` from dispatch).
+
+### What it needs
+
+1. Add `onboarding_payments.tenant_id`, backfill, set at provisioning, filter
+   payment repositories on it. Acceptance: column exists, backfilled, set on
+   provisioning, queries filter on it.
+2. Call the Paystack refund API from `refund_needed`, add a `refunded` status
+   and applicant email. Acceptance: marking it triggers a refund and the
+   applicant is emailed.
+3. Add a mailer template and notifier call on provisioning to payment.
+   Acceptance: one email with a resume link on reaching payment.
+4. Owner decides whether trial follows the plan activated later or the licence
+   bought. Acceptance: rule documented, trial length matches.
+5. Provision the approved template on every tenant WABA plus the TD-9 fallback.
+   Acceptance: a driver outside the 24h window gets the template and the
+   timeline shows "Message sent to the driver".
+6. Write the template path to the delivery log and retry or outbox the
+   dispatch callback. Acceptance: every instruction is logged; a failed
+   callback is retried until recorded.
+7. Move attachments to object storage, count bytes in
+   `/auth/internal/usage/storage`, add virus scan and single delete.
+   Acceptance: files in object storage, usage in the storage report.
+8. Add WhatsApp, SMS or push for offers with a per-tenant preference.
+   Acceptance: a carrier not in the app is reached on its chosen channel.
+9. Persist alert state (or a `late_alerted` marker) and prune finished jobs.
+   Acceptance: restart does not re-alert; memory does not grow.
+10. One-off backfill of `delivered_at` from the timeline status entry.
+    Acceptance: old delivered jobs no longer move months when edited.
+11. Make in-memory save reject a duplicate ICCID under another id and fix
+    fixtures. Acceptance: test shows rejection.
+12. Give exports the same carrier filter as the lists; make `register-sims`
+    skip duplicates per row or run in one transaction. Acceptance: no partial
+    batch; exports match list filters.
+13. Web: page through SIM requests and show CSV import skipped rows.
+    Acceptance: all requests reachable; skipped rows listed.
+14. Build indexes out of band with `CONCURRENTLY` before deploy (or run in a
+    quiet window) and diff the DB audit index plan against both
+    `Migration20261007100000` files. Acceptance: every high-priority audit
+    index exists.
+15. Set `GPS_API_KEY` in Doppler and gitops for dev, staging, prod. Acceptance:
+    Traccar ingest returns 202 in each; 503 with the key removed.
+16. Per-device or per-tenant ingest credential with rotation. Acceptance: a
+    key leaked for device A cannot post as device B; rotation without downtime.
+17. Dismiss or block an IMEI, expire old rows, staff alert for a noisy unknown
+    device. Acceptance: all three work from the admin Devices page.
+18. Rebuild identities from a fleet endpoint on start and on lookup miss.
+    Acceptance: expired entries do not cause quarantine.
+19. Show a badge ("Could not register with the tracking network, retrying at
+    HH:MM" or "Gave up, contact support") and a retry button in apps/main and
+    apps/admin. Acceptance: failed device shows reason and next retry.
+20. Seed the tracked set from the snapshot at startup and count never-reported
+    vehicles. Acceptance: counts match the snapshot endpoint after restart.
+
+### When picked up
+
+Items 15 and 14 (the out-of-band index build) before the next deploy. Items 2,
+5, 8 and 16 wait on outside systems (Paystack refund API, Meta approval,
+messaging channels, Traccar). The rest need no external work and are
+independent.
+
+---
+
 ## TD-20 — Messaging Center and WhatsApp connector review leftovers
 
 **Status:** open, recorded 2 October 2026. Follows the review of the WhatsApp
@@ -495,9 +643,10 @@ Each item now works end to end; the notes below are what it does not do.
   reminds when a trial ends. The old trial caps (vehicles, SIMs, WhatsApp and
   SMS per day) and "payment method on file" do not exist anywhere, so the card
   does not show them. Convert only records the plan the tenant is on; it does
-  not raise an invoice or start a licence. Tenants that came through the
-  self-serve onboarding approval, and every tenant that existed before this
-  change, have no trial row, and there is no "start a trial" action.
+  not raise an invoice or start a licence. Self-serve tenants now get a trial
+  row at onboarding approval (starter plan `trialDays`; the plan source is in
+  TD-21). Tenants that existed before this change have no trial row, and there
+  is no "start a trial" action.
 
 **2. The data export is built inside the request.**
 - *Exists now:* a system admin picks vehicles, drivers, devices, SIMs, users,
@@ -608,16 +757,11 @@ rough edges.
 - *Decision needed:* keep the rule (recommended), or match the reference and
   allow activating unowned SIMs.
 
-**4. Two people registering the same ICCID at the same moment.** Create and
-import first check "does this ICCID exist" and then insert. If two requests
-race, both pass the check; the second hits the unique index and surfaces as a
-500 instead of the clean 409 "ICCID already registered". No data is corrupted.
-
-**5. Selection works only within one page.** Selected SIMs are cleared when the
+**4. Selection works only within one page.** Selected SIMs are cleared when the
 page, search, status or filters change. Selecting "all 300 matching SIMs" for a
 bulk action is not possible.
 
-**6. Overview data usage figures run on stored SIM usage.** The admin Overview
+**5. Overview data usage figures run on stored SIM usage.** The admin Overview
 weekly data usage chart, "Data Usage Today" and "Total Data Bought" are
 restored. A job (`sim-usage-snapshot.service.ts`, hourly, advisory lock) writes
 the sum of `iot_sims.data_usage_mb` into `sim_usage_daily` (one row per Lagos
@@ -647,12 +791,7 @@ returns `null` for these three; the Overview reads the new endpoints.
    remove the tenant check in `bulk-system-sim-status.use-case.ts` (activate
    branch) and `activatableCount` in `SimBulkBar.tsx`, and decide what status
    an unowned active SIM should show.
-4. **ICCID race (item 4).** In the Mikro repository save used by
-   `CreateSystemSimUseCase` and `ImportSystemSimsUseCase`, catch
-   `UniqueConstraintViolationException` and map it to the existing ICCID-taken
-   conflict (409; for import, a per-row `skipped`). Add a concurrent-insert
-   test in `tests/db`.
-5. **Cross-page selection (item 5).** Keep selected ids in state across pages
+4. **Cross-page selection (item 4).** Keep selected ids in state across pages
    and add "select all N matching the filter". The bulk-status endpoint takes
    an ids list capped at 1000, so a larger selection needs a "by filter"
    variant or chunking.
@@ -660,7 +799,7 @@ returns `null` for these three; the Overview reads the new endpoints.
 ### When this is picked up
 
 Items 1 and 2 after a carrier agreement and API access exist (shared with
-TD-11 and TD-8). Items 3 to 5 need no external work and can go in any
+TD-11 and TD-8). Items 3 and 4 need no external work and can go in any
 inventory cleanup.
 
 ---
@@ -792,14 +931,12 @@ whose truck is taken has the live map, a geofence and a support ticket.
   not the event bus, so no other service can react to them.
 - **No SIM check.** Devices never report their own ICCID or IMSI. A SIM pulled
   from a tracker is invisible; we only know the SIM we assigned.
-- **Unknown IMEIs are accepted.** An unregistered or cloned IMEI falls back to
-  the default tenant and is stored. Impossible jumps and out of order fixes are
+- **Spoof signal is discarded.** Unknown IMEIs are now quarantined instead of
+  defaulted (see TD-21). Impossible jumps and out of order fixes are still
   dropped silently, which discards the clone and spoof signal.
-- **One shared ingest key.** `GPS_API_KEY` covers every device. If unset the
-  endpoints are open. Anyone holding it can post positions for any IMEI.
-- **Alerts are fragile.** Fleet alerts sit in an in-memory repository, are lost
-  on restart and cannot be read across tenants. The escalation sweep scans a
-  hard-coded tenant, so it escalates nothing real.
+- **One shared ingest key.** `GPS_API_KEY` covers every device. It now fails
+  closed (503 when unset), but anyone holding it can post positions for any
+  IMEI. Per-device keys are in TD-21.
 - **No stolen state.** Marking a vehicle inactive is the only thing that arms
   `unauthorized_usage`, and only when a geofence exists. No stolen flag,
   recovery mode or case record.
@@ -815,9 +952,9 @@ whose truck is taken has the live map, a geofence and a support ticket.
 2. **Detection.** Capture alarm, power, tamper, jamming, ICCID, IMSI and
    ignition from telemetry and put them on the event bus. Typed alerts:
    `power_cut`, `tamper`, `device_removed`, `jamming`, `sim_swap`, `sos`,
-   `moved_ignition_off`. Persist alerts and expose a platform read. Quarantine
-   unknown IMEIs instead of defaulting them. Per-device ingest authentication
-   instead of one key. Publish skipped fixes as counters.
+   `moved_ignition_off`. Expose a platform read of alerts (alerts are now
+   persisted). Per-device ingest authentication instead of one key (TD-21).
+   Publish skipped fixes as counters.
 3. **Owner-verified request flow.** Only the verified owner, or a tenant admin
    with 2FA and an identity check, can report a vehicle stolen or ask for a stop.
    Staff confirm by callback before any command. A case record holds proof.
@@ -839,7 +976,7 @@ whose truck is taken has the live map, a geofence and a support ticket.
 ### Direction
 
 Phase it by risk. First, detection only: widen the Traccar adapter, put the
-signals on the bus, persist alerts, quarantine unknown IMEIs. This needs no new
+signals on the bus, widen alert coverage. This needs no new
 hardware and feeds a staff Watch List. Then the owner-verified stolen report and
 recovery mode, still without any command. Last, immobilisation, behind a feature
 flag, one pilot model, after the legal review.

@@ -140,8 +140,26 @@ export class ReviewDocumentSchema {
   downloadUrl!: string | null;
 }
 
+export class ReviewPaymentSchema {
+  @ApiProperty() reference!: string;
+  @ApiProperty({ description: 'Amount asked for, in naira.' }) expectedNgn!: number;
+  @ApiProperty({ type: Number, nullable: true, description: 'Amount the provider reported, in naira.' })
+  paidNgn!: number | null;
+  @ApiProperty(NULLABLE_STRING) currency!: string | null;
+  @ApiProperty({ enum: ['resolved', 'refund_needed'], nullable: true }) reviewOutcome!: string | null;
+  @ApiProperty(NULLABLE_STRING) reviewNote!: string | null;
+  @ApiProperty(NULLABLE_STRING) reviewedBy!: string | null;
+  @ApiProperty(NULLABLE_DATE_TIME) reviewedAt!: string | null;
+}
+
 export class ReviewApplicationSchema extends ReviewApplicationSummarySchema {
   @ApiProperty({ type: [StageProgressSchema] }) progress!: StageProgressSchema[];
+  @ApiProperty({
+    type: ReviewPaymentSchema,
+    nullable: true,
+    description: 'Set only while the latest payment has a wrong-amount mismatch.',
+  })
+  paymentReview!: ReviewPaymentSchema | null;
   @ApiProperty() vehicleCount!: number;
   @ApiProperty() deviceCount!: number;
   @ApiProperty({ type: [ReviewVehicleSchema] }) vehicles!: ReviewVehicleSchema[];
@@ -236,8 +254,21 @@ export class SetupLinkResentResponse extends StandardApiResponse<SetupLinkResent
 export class ProvisionedSchema {
   @ApiProperty() applicationId!: string;
   @ApiProperty({ enum: ['payment'] }) stage!: string;
+  @ApiProperty() confirmedWithoutStock!: boolean;
+  @ApiProperty(NULLABLE_STRING) reason!: string | null;
 }
 
 export class ProvisionedResponse extends StandardApiResponse<ProvisionedSchema> {
   @ApiProperty({ type: ProvisionedSchema }) data!: ProvisionedSchema;
+}
+
+export class PaymentReviewedSchema {
+  @ApiProperty() applicationId!: string;
+  @ApiProperty() reference!: string;
+  @ApiProperty({ enum: ['resolved', 'refund_needed'] }) outcome!: string;
+  @ApiProperty() note!: string;
+}
+
+export class PaymentReviewedResponse extends StandardApiResponse<PaymentReviewedSchema> {
+  @ApiProperty({ type: PaymentReviewedSchema }) data!: PaymentReviewedSchema;
 }

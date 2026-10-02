@@ -393,8 +393,8 @@ export class FuelController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get fuel efficiency thresholds — N08" })
   @ApiOkResponse({ type: FuelThresholdListResponse })
-  listFuelThresholds(): FuelThresholdListResponse {
-    return { status: true, message: "success", data: this.fuelThresholdService.getAll() };
+  async listFuelThresholds(@Req() req: FleetRequestContext): Promise<FuelThresholdListResponse> {
+    return { status: true, message: "success", data: await this.fuelThresholdService.getAll(this.tenantIdFromRequest(req)) };
   }
 
   @Get("export")
@@ -520,7 +520,7 @@ export class FuelController extends BaseFleetController {
     @Req() req: FleetRequestContext,
   ): Promise<FuelThresholdResponse> {
     try {
-      const threshold = this.fuelThresholdService.set(vehicleType, dto.minKmPerLiter);
+      const threshold = await this.fuelThresholdService.set(this.tenantIdFromRequest(req), vehicleType, dto.minKmPerLiter);
       await this.recordActivity(req, {
         entityType: "fuel",
         entityId: vehicleType,

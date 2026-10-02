@@ -206,7 +206,7 @@ export class FleetFinancialsUseCase {
     const { vehicles, jobs, maintRecords, configs } = inputs;
     const fuelRecords = inputs.fuelRecords.filter((f) => inRange(f.recordedAt, from, to));
     const configByVehicle = new Map(configs.map((c) => [c.vehicleId, c]));
-    const completedJobs = jobs.filter((j) => j.status === "delivered" && inRange(j.updatedAt, from, to));
+    const completedJobs = jobs.filter((j) => j.status === "delivered" && inRange(j.deliveredAt ?? j.updatedAt, from, to));
     const completedMaint = maintRecords.filter((r) => r.status === "completed" && inRange(r.completedDate, from, to));
 
     const rows = vehicles.map((v) => {

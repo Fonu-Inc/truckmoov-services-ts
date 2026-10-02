@@ -9,12 +9,19 @@ import { randomUUID } from "node:crypto";
 import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
+  DISPATCH_JOBS_READER,
+  type DispatchJobsReader,
+} from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
+import { activeJobByVehicle } from "./contexts/fleet/tracking/domain/active-jobs";
+import {
   countLiveStatuses,
   liveCountsEqual,
   liveStatusFor,
   type LiveStatusCounts,
   type LiveVehicleStatus,
 } from "./contexts/fleet/tracking/domain/live-status";
+
+const ACTIVE_JOBS_REFRESH_MS = 30_000;
 
 type TrackedVehicle = {
   tenantId: string;
@@ -41,11 +48,14 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
   private readonly logger = new Logger(LiveTrackingCountsService.name);
   private readonly vehicles = new Map<string, TrackedVehicle>();
   private readonly published = new Map<string, LiveStatusCounts>();
+  private readonly jobsRefreshedAt = new Map<string, number>();
+  private readonly jobsRefreshing = new Set<string>();
   private sweep: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -81,6 +91,28 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
     });
 
     this.recheckTenant(input.tenantId);
+    void this.refreshActiveJobs(input.tenantId);
+  }
+
+  /**
+   * Pulls the tenant's real jobs from dispatch, at most every 30 seconds, so
+   * vehicles on a job count as in progress instead of always reading zero.
+   */
+  async refreshActiveJobs(tenantId: string): Promise<void> {
+    const last = this.jobsRefreshedAt.get(tenantId) ?? 0;
+    if (this.jobsRefreshing.has(tenantId) || Date.now() - last < ACTIVE_JOBS_REFRESH_MS) return;
+    this.jobsRefreshing.add(tenantId);
+    try {
+      const jobs = await this.dispatchJobs.listJobs(tenantId);
+      this.jobsRefreshedAt.set(tenantId, Date.now());
+      this.setActiveJobs(tenantId, new Set(activeJobByVehicle(jobs).keys()));
+    } catch (error) {
+      this.logger.warn(
+        `tracking_counts_jobs_refresh_failed:${tenantId}:${error instanceof Error ? error.message : "unknown"}`,
+      );
+    } finally {
+      this.jobsRefreshing.delete(tenantId);
+    }
   }
 
   /** Called when dispatch job assignments are refreshed for a tenant. */
@@ -99,7 +131,10 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
 
   private recheckAll(): void {
     const tenants = new Set([...this.vehicles.values()].map((tracked) => tracked.tenantId));
-    for (const tenantId of tenants) this.recheckTenant(tenantId);
+    for (const tenantId of tenants) {
+      this.recheckTenant(tenantId);
+      void this.refreshActiveJobs(tenantId);
+    }
   }
 
   private recheckTenant(tenantId: string): void {

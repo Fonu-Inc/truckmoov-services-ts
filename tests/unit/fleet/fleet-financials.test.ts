@@ -221,3 +221,32 @@ describe("a vehicle with no revenue and no cost in the period", () => {
     expect(pdf).not.toContain("null");
   });
 });
+
+describe("revenue month of a delivered job", () => {
+  const job = (extra: Record<string, unknown>) => ({
+    status: "delivered",
+    assignedVehicleId: "v1",
+    amountNgn: 5000,
+    updatedAt: "2026-09-20T10:00:00.000Z",
+    ...extra,
+  });
+  const window = { from: "2026-08-01", to: "2026-08-31" };
+
+  it("counts a job in the month it was delivered, not the month it was last edited", async () => {
+    const useCase = useCaseWith({ jobs: [job({ deliveredAt: "2026-08-15T10:00:00.000Z" })] });
+
+    const [row] = await useCase.computeProfitability("tenant-a", 1, window);
+
+    expect(row.revenue).toBe(5000);
+  });
+
+  it("falls back to the last update when the job has no delivered-at stamp", async () => {
+    const useCase = useCaseWith({ jobs: [job({ deliveredAt: null })] });
+
+    const [august] = await useCase.computeProfitability("tenant-a", 1, window);
+    const [september] = await useCase.computeProfitability("tenant-a", 1, { from: "2026-09-01", to: "2026-09-30" });
+
+    expect(august.revenue).toBe(0);
+    expect(september.revenue).toBe(5000);
+  });
+});

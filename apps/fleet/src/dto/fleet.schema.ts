@@ -130,6 +130,15 @@ export class DeviceSchema {
   @ApiProperty({ enum: ["pending", "registered", "failed"] })
   provisionStatus!: "pending" | "registered" | "failed";
 
+  @ApiProperty({ description: "How many times registering the device with the tracking network has failed" })
+  provisionAttempts!: number;
+
+  @ApiProperty({ nullable: true, description: "When the next retry runs. Empty once retries are used up" })
+  provisionNextAttemptAt!: string | null;
+
+  @ApiProperty({ nullable: true, description: "Why the last registration attempt failed" })
+  provisionError!: string | null;
+
   @ApiProperty({ nullable: true })
   suspendedAt!: string | null;
 

@@ -13,11 +13,7 @@ export type NewSystemSimInput = {
   smsLimit?: number;
 };
 
-export class DuplicateSimIccidError extends Error {
-  constructor(iccid: string) {
-    super(`A SIM with ICCID ${iccid} already exists`);
-  }
-}
+export { DuplicateSimIccidError } from './sim.repository';
 
 export class SimInUseError extends Error {
   constructor() {

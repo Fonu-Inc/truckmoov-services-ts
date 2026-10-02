@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import type {
+  MismatchReview,
+  MismatchReviewOutcome,
   OnboardingPaymentRepository,
   OnboardingPaymentStatus,
   SettleDetails,
@@ -31,6 +33,15 @@ function toStored(r: OnboardingPaymentRecord): StoredOnboardingPayment {
     autoReconciled: r.autoReconciled ?? true,
     status: r.status as StoredOnboardingPayment['status'],
     paidAt: r.paidAt ?? null,
+    receivedAmountKobo:
+      r.receivedAmountKobo === null || r.receivedAmountKobo === undefined
+        ? null
+        : Number(r.receivedAmountKobo),
+    receivedCurrency: r.receivedCurrency ?? null,
+    reviewOutcome: (r.reviewOutcome as MismatchReviewOutcome | null) ?? null,
+    reviewNote: r.reviewNote ?? null,
+    reviewedBy: r.reviewedBy ?? null,
+    reviewedAt: r.reviewedAt ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -146,10 +157,34 @@ export class MikroOnboardingPaymentRepository
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
       `update onboarding_payments
-         set status = ?, paid_at = ?, method = ?, auto_reconciled = ?, updated_at = now()
+         set status = ?, paid_at = ?, method = ?, auto_reconciled = ?,
+             received_amount_kobo = coalesce(?, received_amount_kobo),
+             received_currency = coalesce(?, received_currency),
+             updated_at = now()
        where id = ? and status in (${from.map(() => '?').join(', ')})
        returning id`,
-      [status, paidAt, details.method, details.autoReconciled, id, ...from],
+      [
+        status,
+        paidAt,
+        details.method,
+        details.autoReconciled,
+        details.receivedAmountKobo ?? null,
+        details.receivedCurrency ?? null,
+        id,
+        ...from,
+      ],
+    );
+    return rows.length === 1;
+  }
+
+  async reviewMismatch(id: string, review: MismatchReview): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const rows = await orm.em.getConnection().execute<Array<{ id: string }>>(
+      `update onboarding_payments
+         set review_outcome = ?, review_note = ?, reviewed_by = ?, reviewed_at = ?, updated_at = now()
+       where id = ? and status = 'mismatch'
+       returning id`,
+      [review.outcome, review.note, review.reviewedBy, review.reviewedAt, id],
     );
     return rows.length === 1;
   }

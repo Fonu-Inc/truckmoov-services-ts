@@ -18,7 +18,7 @@ export class ListVehiclesUseCase {
     private readonly driverRepository: DriverRepository,
   ) {}
 
-  async execute(filters?: VehicleFilters) {
+  async execute(filters: VehicleFilters) {
     const vehicles = await this.vehicleRepository.findAll(filters);
     const primitives = vehicles.map((v) => v.toPrimitives());
 

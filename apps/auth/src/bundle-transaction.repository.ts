@@ -14,7 +14,7 @@ export type BundleTransactionFilters = {
   tenantId?: string;
   search?: string;
   status?: string;
-  carriers?: string[];
+  bundleIds?: string[];
   startDate?: Date;
   endDate?: Date;
   page?: number;

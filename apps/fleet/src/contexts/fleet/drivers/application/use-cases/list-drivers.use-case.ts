@@ -12,7 +12,7 @@ export class ListDriversUseCase {
     private readonly driverRepository: DriverRepository,
   ) {}
 
-  async execute(filters?: DriverFilters) {
+  async execute(filters: DriverFilters) {
     const drivers = await this.driverRepository.findAll(filters);
     return drivers.map((driver) => driver.toPrimitives());
   }

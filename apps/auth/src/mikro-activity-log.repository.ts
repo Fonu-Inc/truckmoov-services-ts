@@ -226,7 +226,7 @@ function normalizeLimit(limit?: number) {
 function buildAcrossTenantsWhere(filters: AuditLogQuery): FilterQuery<ActivityLogRecord> {
   const where: FilterQuery<ActivityLogRecord> = {};
 
-  if (filters.tenantId) where.tenantId = filters.tenantId;
+  if (filters.tenantId !== undefined) where.tenantId = filters.tenantId;
   if (filters.action) where.action = filters.action;
   if (filters.entityType) where.entityType = filters.entityType;
   if (filters.entityId) where.entityId = filters.entityId;

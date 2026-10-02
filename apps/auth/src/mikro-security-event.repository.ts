@@ -37,7 +37,7 @@ export class MikroSecurityEventRepository implements SecurityEventRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     const where: Record<string, unknown> = {};
-    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.tenantId !== undefined) where.tenantId = filters.tenantId;
     if (filters.severity) where.severity = filters.severity;
     if (filters.eventType) where.eventType = filters.eventType;
     if (filters.from || filters.to) {

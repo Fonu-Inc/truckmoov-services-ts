@@ -13,11 +13,11 @@ export class InMemoryDriverRepository implements DriverRepository {
     this.data.set(driver.id, driver);
   }
 
-  async findAll(filters?: DriverFilters): Promise<Driver[]> {
+  async findAll(filters: DriverFilters): Promise<Driver[]> {
     const query = filters?.query?.trim().toLowerCase();
 
     return Array.from(this.data.values()).filter((driver) => {
-      if (filters?.tenantId && driver.tenantId !== filters.tenantId) {
+      if (driver.tenantId !== filters.tenantId) {
         return false;
       }
       if (filters?.status && driver.status !== filters.status) {

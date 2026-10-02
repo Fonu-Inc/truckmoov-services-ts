@@ -6,7 +6,7 @@ import type {
 } from "../entities/device.entity";
 
 export type DeviceFilters = {
-  tenantId?: string;
+  tenantId: string;
   query?: string;
   manufacturer?: string;
   status?: DeviceStatus;
@@ -24,7 +24,7 @@ export interface DeviceRepository {
   save(device: Device): Promise<void>;
   /** Saves only while the stored device is still waiting, so one pod wins each verification outcome. */
   saveIfWaitingForVerification(device: Device): Promise<boolean>;
-  findAll(filters?: DeviceFilters): Promise<Device[]>;
+  findAll(filters: DeviceFilters): Promise<Device[]>;
   findById(id: string, tenantId: string): Promise<Device | null>;
   /** The named devices this tenant holds; ids held elsewhere are left out. */
   findByIds(tenantId: string, ids: string[]): Promise<Device[]>;
@@ -34,6 +34,8 @@ export interface DeviceRepository {
    * have to supply, which tenant it belongs to.
    */
   findByIdAcrossTenants(id: string): Promise<Device | null>;
+  /** Every device on the platform. Only platform-wide sweeps call this. */
+  findAllAcrossTenants(): Promise<Device[]>;
   findByImei(imei: string, tenantId: string): Promise<Device | null>;
   findByVehicleId(vehicleId: string, tenantId: string): Promise<Device | null>;
   deleteById(id: string, tenantId: string): Promise<void>;
@@ -42,6 +44,11 @@ export interface DeviceRepository {
    * that fails them runs platform-wide, so this deliberately takes no tenant.
    */
   findAwaitingVerificationPastDeadline(now: Date, limit: number): Promise<Device[]>;
+  /**
+   * Devices whose Traccar registration failed and whose next attempt is due,
+   * across every tenant. Decommissioned devices are left out.
+   */
+  findProvisionRetryDue(now: Date, limit: number): Promise<Device[]>;
 }
 
 export const DEVICE_REPOSITORY = Symbol("DEVICE_REPOSITORY");

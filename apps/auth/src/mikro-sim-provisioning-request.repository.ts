@@ -37,6 +37,35 @@ function toStored(
   };
 }
 
+function buildWhere(
+  filters?: SimProvisioningRequestFilters,
+): Record<string, unknown> {
+  const where: Record<string, unknown> = {};
+  if (filters?.tenantId !== undefined) where.tenantId = filters.tenantId;
+  if (filters?.status) where.status = filters.status;
+  if (filters?.carrier) where.preferredOperator = filters.carrier;
+  if (filters?.organisation) {
+    where.$or = [
+      { tenantId: filters.organisation },
+      { tenantName: { $ilike: `%${filters.organisation}%` } },
+    ];
+  }
+  if (filters?.useCase) where.useCase = { $ilike: `%${filters.useCase}%` };
+  if (filters?.search) {
+    const q = `%${filters.search}%`;
+    where.$and = [
+      {
+        $or: [
+          { tenantName: { $ilike: q } },
+          { preferredOperator: { $ilike: q } },
+          { id: { $ilike: q } },
+        ],
+      },
+    ];
+  }
+  return where;
+}
+
 @Injectable()
 export class MikroSimProvisioningRequestRepository
   implements SimProvisioningRequestRepository
@@ -50,32 +79,18 @@ export class MikroSimProvisioningRequestRepository
   ): Promise<StoredSimProvisioningRequest[]> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
-    const where: Record<string, unknown> = {};
-    if (filters?.status) where.status = filters.status;
-    if (filters?.carrier) where.preferredOperator = filters.carrier;
-    if (filters?.organisation) {
-      where.$or = [
-        { tenantId: filters.organisation },
-        { tenantName: { $ilike: `%${filters.organisation}%` } },
-      ];
-    }
-    if (filters?.useCase) where.useCase = { $ilike: `%${filters.useCase}%` };
-    if (filters?.search) {
-      const q = `%${filters.search}%`;
-      where.$and = [
-        {
-          $or: [
-            { tenantName: { $ilike: q } },
-            { preferredOperator: { $ilike: q } },
-            { id: { $ilike: q } },
-          ],
-        },
-      ];
-    }
-    const records = await em.find(SimProvisioningRequestRecord, where, {
+    const records = await em.find(SimProvisioningRequestRecord, buildWhere(filters), {
       orderBy: { createdAt: 'desc' },
+      limit: filters?.limit,
+      offset: filters?.offset,
     });
     return records.map(toStored);
+  }
+
+  async count(filters?: SimProvisioningRequestFilters): Promise<number> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    return em.count(SimProvisioningRequestRecord, buildWhere(filters));
   }
 
   async findById(id: string): Promise<StoredSimProvisioningRequest | null> {

@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiOperation, ApiProduces, Api
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
+import { CrossTenantLedgerQueryDto } from './dto/data-bundle.dto';
 import { PlatformTopUpDto, WalletCreditSettingsDto } from './dto/platform-wallet.dto';
 import { ExportCrossTenantLedgerUseCase } from './export-cross-tenant-ledger.use-case';
 import { ExportTenantWalletsUseCase } from './export-tenant-wallets.use-case';
@@ -98,22 +99,17 @@ export class PlatformWalletsController extends BaseAuthController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiOkResponse()
   async ledger(
+    @Query() query: CrossTenantLedgerQueryDto,
     @Headers('authorization') authorization?: string,
-    @Query('query') query?: string,
-    @Query('tenantId') tenantId?: string,
-    @Query('category') category?: string,
-    @Query('direction') direction?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
   ) {
     const accessToken = this.requireToken(authorization);
     const data = await this.listLedger.execute(accessToken, {
-      query,
-      tenantId,
-      category: category as never,
-      direction: direction as never,
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
+      query: query.query,
+      tenantId: query.tenantId,
+      category: query.category as never,
+      direction: query.direction,
+      page: query.page,
+      limit: query.limit,
     });
     return { status: true, message: 'success', data };
   }

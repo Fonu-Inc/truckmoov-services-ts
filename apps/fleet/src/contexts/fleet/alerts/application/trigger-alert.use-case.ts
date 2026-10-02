@@ -17,6 +17,10 @@ export class TriggerAlertUseCase {
   constructor(@Inject(ALERT_REPOSITORY) private readonly repo: AlertRepository) {}
 
   async execute(cmd: TriggerAlertCommand): Promise<Alert> {
+    // A redelivered event must not reopen an alert someone already handled.
+    const existing = await this.repo.findById(cmd.tenantId, cmd.id);
+    if (existing) return existing;
+
     const alert = Alert.create({
       id: cmd.id,
       tenantId: cmd.tenantId,

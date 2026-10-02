@@ -39,13 +39,13 @@ export class MikroDriverRepository implements DriverRepository {
     });
   }
 
-  async findAll(filters?: DriverFilters): Promise<Driver[]> {
+  async findAll(filters: DriverFilters): Promise<Driver[]> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();
     const records = await em.find(
       DriverRecord,
       {
-        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        tenantId: filters.tenantId,
         ...(filters?.status ? { status: filters.status } : {}),
         ...(filters?.assigned === undefined
           ? {}

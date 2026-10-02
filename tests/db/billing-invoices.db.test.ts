@@ -9,6 +9,7 @@ import { MikroBillingSummaryRepository } from "@auth/onboarding/infrastructure/p
 import { InMemoryBillingSettingsRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-billing-settings.repository";
 import { InvoiceIssuanceService } from "@auth/onboarding/application/services/invoice-issuance.service";
 import { ConfirmApplicationPaymentUseCase } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import type { PlatformAlertPublisher } from "../../apps/auth/src/platform-alert.publisher";
 import { lagosDate } from "@auth/onboarding/domain/invoice-dates";
 import type { QuotationWithLines } from "@auth/onboarding/domain/quotation.repository";
 import type { StoredOnboardingPayment } from "@auth/onboarding/domain/onboarding-payment.repository";
@@ -48,7 +49,7 @@ describe.skipIf(!dbEnabled)("invoices on real postgres", () => {
       { record: async () => undefined },
       { generate: () => uniqueId("i") },
     );
-  const confirm = () => new ConfirmApplicationPaymentUseCase(new MikroOnboardingApplicationRepository(config), payments, service());
+  const confirm = () => new ConfirmApplicationPaymentUseCase(new MikroOnboardingApplicationRepository(config), payments, service(), { raise: async () => undefined } as unknown as PlatformAlertPublisher);
 
   const quote = async (name: string, over: Partial<QuotationWithLines> = {}): Promise<QuotationWithLines> => {
     const id = uniqueId("q");

@@ -59,11 +59,16 @@ export class RecommendVehiclesUseCase {
     private readonly health: VehicleHealthService,
   ) {}
 
-  async execute(tenantId: string, query: RecommendVehiclesQuery): Promise<RecommendedVehicleRank[]> {
-    const [vehicles, jobs] = await Promise.all([
+  async execute(
+    tenantId: string,
+    query: RecommendVehiclesQuery,
+    ownedVehicleIds: ReadonlySet<string> | null = null,
+  ): Promise<RecommendedVehicleRank[]> {
+    const [allVehicles, jobs] = await Promise.all([
       this.vehicleRepo.findAll({ tenantId }),
       this.dispatchJobs.listJobs(tenantId),
     ]);
+    const vehicles = ownedVehicleIds ? allVehicles.filter((v) => ownedVehicleIds.has(v.id)) : allVehicles;
     const busy = new Set(
       jobs
         .filter((job) => ACTIVE_JOB_STATUSES.has(job.status))

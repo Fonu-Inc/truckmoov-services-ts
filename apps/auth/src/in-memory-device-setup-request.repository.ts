@@ -79,7 +79,7 @@ export class InMemoryDeviceSetupRequestRepository implements DeviceSetupRequestR
   async findAll(filters?: DeviceSetupRequestFilters): Promise<StoredDeviceSetupRequest[]> {
     let results = [...this.store.values()];
     if (filters?.status) results = results.filter((r) => r.status === filters.status);
-    if (filters?.tenantId) results = results.filter((r) => r.tenantId === filters.tenantId);
+    if (filters?.tenantId !== undefined) results = results.filter((r) => r.tenantId === filters.tenantId);
     if (filters?.assignedTo) results = results.filter((r) => r.assignedTo === filters.assignedTo);
     if (filters?.manufacturer) {
       const manufacturer = filters.manufacturer.toLowerCase();

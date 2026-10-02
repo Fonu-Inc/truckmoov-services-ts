@@ -9,3 +9,4 @@ export { ResolveAlertUseCase } from "./application/resolve-alert.use-case";
 export { ListAlertsUseCase } from "./application/list-alerts.use-case";
 export { GetAlertStatsUseCase } from "./application/get-alert-stats.use-case";
 export { InMemoryAlertRepository } from "./infrastructure/in-memory-alert.repository";
+export { MikroAlertRepository } from "./infrastructure/mikro-alert.repository";

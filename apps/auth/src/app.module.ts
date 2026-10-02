@@ -252,6 +252,7 @@ import { InstallerDeviceRequestsController } from './installer-device-requests.c
 import { InstallerNotificationsController } from './installer-notifications.controller';
 import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
+import { InternalTenantContactController } from './internal-tenant-contact.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
 import { ActivityLogService } from './activity-log.service';
@@ -559,6 +560,7 @@ import { AccessRefusedListener, AuthCallerAudience, AuthPermissions, AuthRefusal
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { ListStillReportingDevicesUseCase } from './list-still-reporting-devices.use-case';
+import { ListUnrecognisedDevicesUseCase } from './list-unrecognised-devices.use-case';
 import { TrackingGateClient } from './tracking-gate.client';
 import { GetSystemDeviceDetailUseCase } from './get-system-device-detail.use-case';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
@@ -717,6 +719,10 @@ import {
   MikroIndemnityAgreementRepository,
   MikroM2mLicensePlanRepository,
   AbandonedApplicationSweepService,
+  CompleteProvisioningUseCase,
+  OnboardingProvisioningService,
+  OnboardingStageSweepService,
+  ReviewOnboardingPaymentMismatchUseCase,
   ApplyAutomatedDecisionUseCase,
   DojahKybAdapter,
   InMemoryVerificationResultRepository,
@@ -916,6 +922,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerSettingsController,
     InstallerSupportController,
     InternalInstallersController,
+    InternalTenantContactController,
     SystemInstallersController,
     SystemInstallationOrdersController,
     OnboardingApplicationsController,
@@ -1681,6 +1688,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListSystemDeviceCatalogUseCase,
     ListSystemDeviceInventoryUseCase,
     ListStillReportingDevicesUseCase,
+    ListUnrecognisedDevicesUseCase,
     TrackingGateClient,
     GetSystemDeviceDetailUseCase,
     ListSystemFeatureFlagsUseCase,
@@ -2239,6 +2247,10 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SignIndemnityAgreementUseCase,
     ResumeOnboardingApplicationUseCase,
     AbandonedApplicationSweepService,
+    CompleteProvisioningUseCase,
+    OnboardingProvisioningService,
+    OnboardingStageSweepService,
+    ReviewOnboardingPaymentMismatchUseCase,
     HttpDocumentExtractor,
     { provide: DOCUMENT_EXTRACTOR, useExisting: HttpDocumentExtractor },
     QoreIdKybAdapter,

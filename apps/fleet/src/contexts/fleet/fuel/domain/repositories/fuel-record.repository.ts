@@ -1,7 +1,7 @@
 import type { FuelRecord } from "../entities/fuel-record.entity";
 
 export type FuelRecordFilters = {
-  tenantId?: string;
+  tenantId: string;
   vehicleId?: string;
   driverId?: string;
   station?: string;
@@ -13,7 +13,7 @@ export type FuelRecordFilters = {
 export interface FuelRecordRepository {
   save(record: FuelRecord): Promise<void>;
   findById(id: string, tenantId: string): Promise<FuelRecord | null>;
-  findAll(filters?: FuelRecordFilters): Promise<FuelRecord[]>;
+  findAll(filters: FuelRecordFilters): Promise<FuelRecord[]>;
 }
 
 export const FUEL_RECORD_REPOSITORY = Symbol("FUEL_RECORD_REPOSITORY");

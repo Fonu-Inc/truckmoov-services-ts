@@ -33,13 +33,18 @@ export class MikroBundleTransactionRepository implements BundleTransactionReposi
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    if (filters?.tenantId) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
+    if (filters?.tenantId !== undefined) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
     if (filters?.status) { conditions.push('status = ?'); params.push(filters.status); }
+    if (filters?.bundleIds) {
+      if (!filters.bundleIds.length) return { items: [], total: 0 };
+      conditions.push(`bundle_id in (${filters.bundleIds.map(() => '?').join(', ')})`);
+      params.push(...filters.bundleIds);
+    }
     if (filters?.startDate) { conditions.push('created_at >= ?'); params.push(filters.startDate); }
     if (filters?.endDate) { conditions.push('created_at <= ?'); params.push(filters.endDate); }
     if (filters?.search) {
       const q = `%${filters.search}%`;
-      conditions.push('(mobile_number ilike ? or id ilike ? or payment_reference ilike ?)');
+      conditions.push('(mobile_number ilike ? or id::text ilike ? or payment_reference ilike ?)');
       params.push(q, q, q);
     }
 

@@ -3,6 +3,8 @@ export type { FuelRecordProps, AuditEntry } from "./domain/entities/fuel-record.
 export { FUEL_RECORD_REPOSITORY } from "./domain/repositories/fuel-record.repository";
 export type { FuelRecordRepository, FuelRecordFilters } from "./domain/repositories/fuel-record.repository";
 export { FuelRecordNotFoundError } from "./domain/errors/fuel-record-not-found.error";
+export { FUEL_THRESHOLD_REPOSITORY } from "./domain/repositories/fuel-threshold.repository";
+export type { FuelThresholdRepository } from "./domain/repositories/fuel-threshold.repository";
 export { FuelThresholdService } from "./application/fuel-threshold.service";
 export type { FuelEfficiencyThreshold } from "./application/fuel-threshold.service";
 export { RecordFuelUseCase } from "./application/record-fuel.use-case";
@@ -17,4 +19,6 @@ export type { MetricsPeriod, ConsumptionBucket, FuelTypeBreakdown, VehicleEffici
 export { FuelBudgetUseCase } from "./application/fuel-budget.use-case";
 export type { BudgetPeriodType, FuelBudgetView, BudgetVsActualRow } from "./application/fuel-budget.use-case";
 export { InMemoryFuelRecordRepository } from "./infrastructure/in-memory-fuel-record.repository";
+export { InMemoryFuelThresholdRepository } from "./infrastructure/in-memory-fuel-threshold.repository";
+export { MikroFuelThresholdRepository } from "./infrastructure/mikro-fuel-threshold.repository";
 export { MikroFuelRecordRepository } from "./infrastructure/mikro-fuel-record.repository";

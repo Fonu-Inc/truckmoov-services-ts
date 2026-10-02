@@ -84,6 +84,10 @@ export class ComplianceController extends BaseFleetController {
     return vehicles.map((v) => v.id);
   }
 
+  private ownedVehicles(tenantId: string, req: FleetRequestContext) {
+    return this.ownedVehicleIdsFor(this.vehicleRepository, tenantId, req);
+  }
+
   @Get("documents")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List compliance documents" })
@@ -108,8 +112,14 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Create compliance document" })
   @ApiCreatedResponse({ description: "Document created", type: ComplianceDocumentResponse })
   async createComplianceDocument(@Body() body: CreateComplianceDocumentDto, @Req() req: FleetRequestContext) {
-    const data = await this.complianceDocumentsUseCase.create(this.tenantIdFromRequest(req), body);
-    return { status: true, message: "success", data };
+    const tenantId = this.tenantIdFromRequest(req);
+    try {
+      const data = await this.complianceDocumentsUseCase.create(tenantId, body, await this.ownedVehicles(tenantId, req));
+      return { status: true, message: "success", data };
+    } catch (e) {
+      if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Vehicle not found");
+      throw e;
+    }
   }
 
   @Get("documents/history")
@@ -179,8 +189,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Update compliance document" })
   @ApiOkResponse({ description: "Updated", type: ComplianceDocumentResponse })
   async updateComplianceDocument(@Param("id") id: string, @Body() body: UpdateComplianceDocumentDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     try {
-      const data = await this.complianceDocumentsUseCase.update(this.tenantIdFromRequest(req), id, body);
+      const data = await this.complianceDocumentsUseCase.update(tenantId, id, body, await this.ownedVehicles(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
@@ -193,8 +204,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Delete compliance document" })
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteComplianceDocument(@Param("id") id: string, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     try {
-      await this.complianceDocumentsUseCase.delete(this.tenantIdFromRequest(req), id);
+      await this.complianceDocumentsUseCase.delete(tenantId, id, await this.ownedVehicles(tenantId, req));
       return { status: true, message: "success" };
     } catch (e) {
       if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
@@ -207,8 +219,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Set file URL for a compliance document" })
   @ApiOkResponse({ description: "File URL updated", type: ComplianceDocumentResponse })
   async uploadComplianceDocument(@Param("id") id: string, @Body() body: UploadComplianceDocumentDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     try {
-      const data = await this.complianceDocumentsUseCase.setFileUrl(this.tenantIdFromRequest(req), id, body.fileUrl, body.fileSize ?? null);
+      const data = await this.complianceDocumentsUseCase.setFileUrl(tenantId, id, body.fileUrl, body.fileSize ?? null, await this.ownedVehicles(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
@@ -221,8 +234,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Renew a compliance document" })
   @ApiOkResponse({ description: "Document renewed", type: ComplianceDocumentResponse })
   async renewComplianceDocument(@Param("id") id: string, @Body() body: RenewComplianceDocumentDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     try {
-      const data = await this.complianceDocumentsUseCase.renew(this.tenantIdFromRequest(req), id, body);
+      const data = await this.complianceDocumentsUseCase.renew(tenantId, id, body, await this.ownedVehicles(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");
@@ -235,8 +249,9 @@ export class ComplianceController extends BaseFleetController {
   @ApiOperation({ summary: "Set reminder days for a compliance document" })
   @ApiOkResponse({ description: "Reminder updated", type: ComplianceDocumentResponse })
   async setComplianceDocumentReminder(@Param("id") id: string, @Body() body: SetComplianceReminderDto, @Req() req: FleetRequestContext) {
+    const tenantId = this.tenantIdFromRequest(req);
     try {
-      const data = await this.complianceDocumentsUseCase.updateReminder(this.tenantIdFromRequest(req), id, body.reminderDays);
+      const data = await this.complianceDocumentsUseCase.updateReminder(tenantId, id, body.reminderDays, await this.ownedVehicles(tenantId, req));
       return { status: true, message: "success", data };
     } catch (e) {
       if (e instanceof ComplianceDocumentNotFoundError) throw new NotFoundException("Compliance document not found");

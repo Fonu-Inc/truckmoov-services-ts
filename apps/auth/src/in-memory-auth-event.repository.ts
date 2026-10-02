@@ -10,7 +10,7 @@ export class InMemoryAuthEventRepository implements AuthEventRepository {
   }
 
   private matches(e: StoredAuthEvent, filters: AuthEventFilters): boolean {
-    if (filters.tenantId && e.tenantId !== filters.tenantId) return false;
+    if (filters.tenantId !== undefined && e.tenantId !== filters.tenantId) return false;
     if (filters.eventType && e.eventType !== filters.eventType) return false;
     if (filters.status && e.status !== filters.status) return false;
     if (filters.ipAddress && e.ipAddress !== filters.ipAddress) return false;

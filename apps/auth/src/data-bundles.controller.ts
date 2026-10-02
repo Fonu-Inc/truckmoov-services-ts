@@ -70,6 +70,7 @@ import {
   ListBundleRatesQueryDto,
   SaveAutoTopUpDto,
   SaveSpendingLimitDto,
+  WalletLedgerQueryDto,
 } from './dto/data-bundle.dto';
 import { ExportBundleAllocationsUseCase } from './export-bundle-allocations.use-case';
 import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
@@ -386,20 +387,17 @@ export class DataBundlesController extends BaseAuthController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiOkResponse({ description: 'Wallet ledger entries' })
   async listWalletLedger(
-    @Query('category') category?: string,
-    @Query('direction') direction?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: WalletLedgerQueryDto,
     @Headers('authorization') authorization?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
       return await this.listWalletLedgerUseCase.execute(accessToken, {
-        category: category as never,
-        direction: direction as never,
-        page: page ? Number(page) : undefined,
-        limit: limit ? Number(limit) : undefined,
+        category: query.category as never,
+        direction: query.direction,
+        page: query.page,
+        limit: query.limit,
       });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);

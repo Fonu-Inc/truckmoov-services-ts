@@ -20,7 +20,7 @@ export class MikroFuelRecordRepository implements FuelRecordRepository {
     return row ? toDomain(row) : null;
   }
 
-  async findAll(filters?: FuelRecordFilters): Promise<FuelRecord[]> {
+  async findAll(filters: FuelRecordFilters): Promise<FuelRecord[]> {
     const em = await this.em();
     const rows = await em.find(FleetFuelRecordRecord, fuelRecordWhere(filters), {
       orderBy: { recordedAt: "desc" },
@@ -34,10 +34,9 @@ export class MikroFuelRecordRepository implements FuelRecordRepository {
   }
 }
 
-export function fuelRecordWhere(filters: FuelRecordFilters = {}): Record<string, unknown> {
-  const where: Record<string, unknown> = {};
+export function fuelRecordWhere(filters: FuelRecordFilters): Record<string, unknown> {
+  const where: Record<string, unknown> = { tenantId: filters.tenantId };
   if (!filters.includeDeleted) where.deletedAt = null;
-  if (filters.tenantId) where.tenantId = filters.tenantId;
   if (filters.vehicleId) where.vehicleId = filters.vehicleId;
   if (filters.driverId) where.driverId = filters.driverId;
   if (filters.station) where.station = { $ilike: `%${escapeLike(filters.station)}%` };

@@ -9,6 +9,9 @@ import {
   type StoredSimProvisioningRequest,
 } from './sim-provisioning-request.repository';
 
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 100;
+
 function mapStatus(status: string): string {
   switch (status) {
     case 'pending': return 'pending_review';
@@ -61,17 +64,22 @@ export class ListTenantSimRequestsUseCase {
     private readonly simProvisioningRequestRepository: SimProvisioningRequestRepository,
   ) {}
 
-  async execute(accessToken: string) {
+  async execute(accessToken: string, query: { page?: number; limit?: number } = {}) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
     if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot access tenant SIM requests');
 
-    const all = await this.simProvisioningRequestRepository.findAll();
-    const requests = all.filter((r) => r.tenantId === actor.tenantId);
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const offset = ((query.page ?? 1) - 1) * limit;
+    const filters = { tenantId: actor.tenantId };
+    const [requests, total] = await Promise.all([
+      this.simProvisioningRequestRepository.findAll({ ...filters, limit, offset }),
+      this.simProvisioningRequestRepository.count(filters),
+    ]);
 
     return {
       status: true,
       message: 'success',
-      data: { items: requests.map(mapRequest), total: requests.length },
+      data: { items: requests.map(mapRequest), total },
     };
   }
 }

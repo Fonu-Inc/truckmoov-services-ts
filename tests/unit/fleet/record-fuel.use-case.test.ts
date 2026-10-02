@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { RecordFuelUseCase } from "../../../apps/fleet/src/contexts/fleet/fuel/application/record-fuel.use-case";
+import { InMemoryFuelThresholdRepository } from "../../../apps/fleet/src/contexts/fleet/fuel/infrastructure/in-memory-fuel-threshold.repository";
 import { FuelThresholdService } from "../../../apps/fleet/src/contexts/fleet/fuel/application/fuel-threshold.service";
 import { InMemoryFuelRecordRepository } from "../../../apps/fleet/src/contexts/fleet/fuel/infrastructure/in-memory-fuel-record.repository";
 
@@ -7,9 +8,10 @@ function build() {
   const repo = new InMemoryFuelRecordRepository();
   const runtime = { generateId: () => crypto.randomUUID(), getDefaultTenantId: () => "t1" };
   const triggerAlert = { execute: vi.fn().mockResolvedValue(undefined) };
-  const thresholds = new FuelThresholdService();
+  const thresholds = new FuelThresholdService(new InMemoryFuelThresholdRepository());
   const vehicleRepo = { findById: vi.fn().mockResolvedValue(null) };
-  const uc = new RecordFuelUseCase(repo, runtime as any, triggerAlert as any, thresholds, vehicleRepo as any);
+  const driverRepo = { findById: vi.fn().mockResolvedValue(null) };
+  const uc = new RecordFuelUseCase(repo, runtime as any, triggerAlert as any, thresholds, vehicleRepo as any, driverRepo as any);
   return { repo, uc, triggerAlert, thresholds, vehicleRepo };
 }
 
@@ -44,7 +46,7 @@ describe("RecordFuelUseCase", () => {
 
   it("triggers alert when efficiency is below threshold", async () => {
     const { uc, triggerAlert, thresholds } = build();
-    thresholds.set("truck", 15);
+    await thresholds.set("t1", "truck", 15);
     // 400 km / 50 L = 8 km/L < 15 threshold
     await uc.execute({ vehicleId: "v1", vehicleType: "truck", liters: 10, pricePerLiter: 1, odometer: 5000, recordedBy: "u1" });
     await uc.execute({ vehicleId: "v1", vehicleType: "truck", liters: 50, pricePerLiter: 1, odometer: 5400, recordedBy: "u1" });
@@ -55,7 +57,7 @@ describe("RecordFuelUseCase", () => {
 
   it("does not trigger alert when efficiency is above threshold", async () => {
     const { uc, triggerAlert, thresholds } = build();
-    thresholds.set("truck", 5);
+    await thresholds.set("t1", "truck", 5);
     // 400 km / 50 L = 8 km/L > 5 threshold
     await uc.execute({ vehicleId: "v1", vehicleType: "truck", liters: 10, pricePerLiter: 1, odometer: 5000, recordedBy: "u1" });
     await uc.execute({ vehicleId: "v1", vehicleType: "truck", liters: 50, pricePerLiter: 1, odometer: 5400, recordedBy: "u1" });
@@ -64,7 +66,7 @@ describe("RecordFuelUseCase", () => {
 
   it("does not trigger alert with only one odometer reading", async () => {
     const { uc, triggerAlert, thresholds } = build();
-    thresholds.set("default", 20);
+    await thresholds.set("t1", "default", 20);
     await uc.execute({ vehicleId: "v1", liters: 50, pricePerLiter: 1, odometer: 5000, recordedBy: "u1" });
     expect(triggerAlert.execute).not.toHaveBeenCalled();
   });

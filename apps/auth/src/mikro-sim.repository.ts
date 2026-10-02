@@ -1,9 +1,11 @@
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import {
   getAuthOrm,
   IotSimRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
+import { DuplicateSimIccidError } from './sim.repository';
 import type { SimFilters, SimRepository, StoredSim, TenantSimCount } from './sim.repository';
 
 function toStored(record: IotSimRecord): StoredSim {
@@ -66,7 +68,7 @@ export class MikroSimRepository implements SimRepository {
     if (filters?.status === 'unassigned') conditions.push(`tenant_id is null`);
     else if (filters?.status) { conditions.push(`status = ?`); params.push(filters.status); }
     if (filters?.carrier) { conditions.push(`lower(carrier) = lower(?)`); params.push(filters.carrier); }
-    if (filters?.tenantId) { conditions.push(`tenant_id = ?`); params.push(filters.tenantId); }
+    if (filters?.tenantId !== undefined) { conditions.push(`tenant_id = ?`); params.push(filters.tenantId); }
     if (filters?.operators?.length) {
       conditions.push(`carrier in (?)`);
       params.push(filters.operators);
@@ -132,7 +134,12 @@ export class MikroSimRepository implements SimRepository {
   async save(sim: StoredSim): Promise<void> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
-    await em.upsert(IotSimRecord, { ...sim });
+    try {
+      await em.upsert(IotSimRecord, { ...sim });
+    } catch (error) {
+      if (error instanceof UniqueConstraintViolationException) throw new DuplicateSimIccidError(sim.iccid);
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<void> {

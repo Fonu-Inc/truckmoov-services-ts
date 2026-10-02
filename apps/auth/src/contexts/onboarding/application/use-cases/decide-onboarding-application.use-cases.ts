@@ -50,6 +50,15 @@ import {
 import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
+import {
+  SUBSCRIPTION_PLAN_REPOSITORY,
+  type SubscriptionPlanRepository,
+} from '../../../../subscription-plan.repository';
+import {
+  TENANT_TRIAL_REPOSITORY,
+  type TenantTrialRepository,
+} from '../../../../tenant-trial.repository';
+import { trialEndsAfter } from '../../../../tenant-trial';
 
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;
@@ -113,6 +122,10 @@ export class ApproveOnboardingApplicationUseCase {
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(OnboardingDeviceInventoryService)
     private readonly inventory: OnboardingDeviceInventoryService,
+    @Inject(SUBSCRIPTION_PLAN_REPOSITORY)
+    private readonly subscriptionPlans: SubscriptionPlanRepository,
+    @Inject(TENANT_TRIAL_REPOSITORY)
+    private readonly trials: TenantTrialRepository,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -235,6 +248,7 @@ export class ApproveOnboardingApplicationUseCase {
       updatedAt: now,
     };
     await this.applications.save(approved);
+    await this.startTrial(tenantId, now);
 
     return {
       status: true,
@@ -252,6 +266,21 @@ export class ApproveOnboardingApplicationUseCase {
         bootstrapRole,
       },
     };
+  }
+
+  /**
+   * Self-serve tenants get the same trial an admin-created tenant gets from
+   * its plan. The licence an applicant buys carries no trial; the starter
+   * subscription plan, which every new tenant begins on, does.
+   */
+  private async startTrial(tenantId: string, now: Date): Promise<void> {
+    const plan = await this.subscriptionPlans.findByTier('starter');
+    if (!plan?.trialDays || plan.trialDays <= 0) return;
+    await this.trials.startIfAbsent(
+      tenantId,
+      now,
+      trialEndsAfter(now, plan.trialDays),
+    );
   }
 
   private assertDocumentsSettled(

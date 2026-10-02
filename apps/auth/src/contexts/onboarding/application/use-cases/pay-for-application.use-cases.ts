@@ -41,6 +41,7 @@ import { loadTaxRateBp } from './support/billing-terms';
 import { methodFromChannel } from '@auth/onboarding/domain/payment-method';
 import { InvoiceIssuanceService } from '../services/invoice-issuance.service';
 import { OrderQuotationService } from '../services/order-quotation.service';
+import { PlatformAlertPublisher } from '../../../../platform-alert.publisher';
 
 const PENDING_REUSE_WINDOW_MS = 30 * 60 * 1000;
 const PAID_CURRENCY = 'NGN';
@@ -71,6 +72,11 @@ export class ChargeRefusedError extends Error {
     super('The payment provider refused to start this payment. Try again shortly.');
     this.name = 'ChargeRefusedError';
   }
+}
+
+function paymentProblem(payment: StoredOnboardingPayment): string | null {
+  if (payment.status !== 'mismatch') return null;
+  return 'We received a payment that does not match the amount due, so it was not accepted. Please contact support with your payment reference, or try paying again.';
 }
 
 @Injectable()
@@ -119,6 +125,7 @@ export class GetApplicationOrderUseCase {
               reference: payment.reference,
               status: payment.status,
               paidAt: payment.paidAt?.toISOString() ?? null,
+              problem: paymentProblem(payment),
             }
           : null,
       },
@@ -303,6 +310,8 @@ export class ConfirmApplicationPaymentUseCase {
     private readonly payments: OnboardingPaymentRepository,
     @Inject(InvoiceIssuanceService)
     private readonly billing: InvoiceIssuanceService,
+    @Inject(PlatformAlertPublisher)
+    private readonly alerts: PlatformAlertPublisher,
   ) {}
 
   /**
@@ -333,13 +342,7 @@ export class ConfirmApplicationPaymentUseCase {
     }
 
     if (!paidInFull(payment.amountKobo, paid)) {
-      await this.payments.settlePending(payment.id, 'mismatch', null, {
-        method: methodFromChannel(paid?.channel),
-        autoReconciled: false,
-      });
-      this.logger.error(
-        `onboarding_payment_mismatch:${reference}:expected=${payment.amountKobo}:paid=${paid?.amountKobo ?? 'unknown'}:${paid?.currency ?? 'unknown'}`,
-      );
+      await this.recordMismatch(payment, paid);
       return;
     }
 
@@ -352,6 +355,35 @@ export class ConfirmApplicationPaymentUseCase {
     await this.advanceApplication(payment.applicationId, now);
     await this.billing.paymentReceived(payment, now);
     this.logger.log(`onboarding_payment_confirmed:${reference}`);
+  }
+
+  private async recordMismatch(
+    payment: StoredOnboardingPayment,
+    paid?: PaidAmount,
+  ): Promise<void> {
+    const settled = await this.payments.settlePending(payment.id, 'mismatch', null, {
+      method: methodFromChannel(paid?.channel),
+      autoReconciled: false,
+      receivedAmountKobo: paid?.amountKobo ?? null,
+      receivedCurrency: paid?.currency?.toUpperCase() ?? null,
+    });
+    if (!settled) return;
+    this.logger.error(
+      `onboarding_payment_mismatch:${payment.reference}:expected=${payment.amountKobo}:paid=${paid?.amountKobo ?? 'unknown'}:${paid?.currency ?? 'unknown'}`,
+    );
+    await this.alerts.raise({
+      alertType: 'billing_alerts',
+      severity: 'high',
+      subject: `Onboarding payment amount mismatch (${payment.reference})`,
+      body: `Expected ${formatKobo(payment.amountKobo, 'NGN')} but the provider reported ${formatKobo(paid?.amountKobo ?? null, paid?.currency)}. The applicant is waiting at the payment step. Review the payment on the application page.`,
+      context: {
+        applicationId: payment.applicationId,
+        reference: payment.reference,
+        expectedKobo: payment.amountKobo,
+        paidKobo: paid?.amountKobo ?? null,
+        currency: paid?.currency ?? null,
+      },
+    });
   }
 
   private advanceApplication(applicationId: string, now: Date): Promise<void> {
@@ -375,6 +407,11 @@ export class ConfirmApplicationPaymentUseCase {
       updatedAt: now,
     });
   }
+}
+
+function formatKobo(kobo: number | null, currency?: string | null): string {
+  if (kobo === null) return 'an unknown amount';
+  return `${(kobo / 100).toFixed(2)} ${currency?.toUpperCase() || 'NGN'}`;
 }
 
 export function paidInFull(expectedKobo: number, paid?: PaidAmount): boolean {

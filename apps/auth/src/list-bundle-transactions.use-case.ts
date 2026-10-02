@@ -3,6 +3,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 
 type Filters = {
@@ -21,6 +22,7 @@ export class ListBundleTransactionsUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(BUNDLE_TRANSACTION_REPOSITORY) private readonly bundleTransactionRepository: BundleTransactionRepository,
+    @Inject(BUNDLE_CATALOG_REPOSITORY) private readonly bundleCatalogRepository: BundleCatalogRepository,
   ) {}
 
   async execute(accessToken: string, filters?: Filters) {
@@ -31,7 +33,7 @@ export class ListBundleTransactionsUseCase {
       tenantId: actor.tenantId!,
       search: filters?.search,
       status: filters?.status,
-      carriers: filters?.carriers,
+      bundleIds: await this.bundleIdsForCarriers(filters?.carriers),
       startDate: filters?.startDate ? new Date(filters.startDate) : undefined,
       endDate: filters?.endDate ? new Date(filters.endDate) : undefined,
       page: filters?.page,
@@ -55,5 +57,11 @@ export class ListBundleTransactionsUseCase {
         total,
       },
     };
+  }
+
+  private async bundleIdsForCarriers(carriers?: string[]): Promise<string[] | undefined> {
+    if (!carriers?.length) return undefined;
+    const { items } = await this.bundleCatalogRepository.findAll({ carrierIds: carriers, limit: 10000 });
+    return items.map((b) => b.id);
   }
 }

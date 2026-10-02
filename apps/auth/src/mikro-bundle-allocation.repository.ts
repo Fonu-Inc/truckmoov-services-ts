@@ -37,7 +37,7 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    if (filters?.tenantId) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
+    if (filters?.tenantId !== undefined) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
     if (filters?.status) { conditions.push('status = ?'); params.push(filters.status); }
     if (filters?.search) {
       conditions.push('mobile_number ilike ?');

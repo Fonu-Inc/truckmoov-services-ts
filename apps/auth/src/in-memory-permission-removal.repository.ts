@@ -20,7 +20,7 @@ export class InMemoryPermissionRemovalRepository implements PermissionRemovalRep
 
   async list(filters: { tenantId?: string; status?: PermissionRemovalStatus }) {
     return this.all()
-      .filter((r) => !filters.tenantId || r.tenantId === filters.tenantId)
+      .filter((r) => filters.tenantId === undefined || r.tenantId === filters.tenantId)
       .filter((r) => !filters.status || r.status === filters.status)
       .sort((a, b) => a.effectiveAt.getTime() - b.effectiveAt.getTime());
   }

@@ -11,6 +11,7 @@ import {
   type TraccarDeviceProvisioner,
 } from "../../domain/ports/traccar-device.port";
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
+import { withFailedProvisioning, withRegisteredProvisioning } from "../../domain/provision-retry";
 import { emitDeviceIdentity } from "./device-identity-emit";
 import { QuotaService } from "../../../../../quota.service";
 
@@ -75,7 +76,7 @@ export class CreateDeviceUseCase {
   }
 
   // Traccar registration is best-effort: an unreachable Traccar must not block
-  // device creation. Provision status records the outcome for later reconcile.
+  // device creation. A failure is retried by the provision retry sweep.
   private async provisionIntoTraccar(device: Device): Promise<Device> {
     try {
       const result = await this.traccar.register({
@@ -85,14 +86,11 @@ export class CreateDeviceUseCase {
       if (!result) {
         return device;
       }
-      const registered = device.withProvisioning({
-        traccarDeviceId: result.traccarDeviceId,
-        provisionStatus: "registered",
-      });
+      const registered = withRegisteredProvisioning(device, result.traccarDeviceId);
       await this.deviceRepository.save(registered);
       return registered;
-    } catch {
-      const failed = device.withProvisioning({ provisionStatus: "failed" });
+    } catch (error) {
+      const failed = withFailedProvisioning(device, error, new Date());
       await this.deviceRepository.save(failed);
       return failed;
     }

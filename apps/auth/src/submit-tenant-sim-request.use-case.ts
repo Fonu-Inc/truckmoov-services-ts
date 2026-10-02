@@ -16,6 +16,7 @@ import {
   DEVICE_MAPPING_FILE_REPOSITORY,
   type DeviceMappingFileRepository,
 } from './device-mapping-file.repository';
+import { SimNotFoundError } from './list-tenant-sims.use-case';
 import {
   BUNDLE_CATALOG_REPOSITORY,
   type BundleCatalogRepository,
@@ -56,10 +57,7 @@ export class SubmitTenantSimRequestUseCase {
 
     const bundle = await this.bundleCatalogRepository.findById(payload.dataBundlePlanId);
 
-    let deviceMappingData: Record<string, unknown>[] | null = null;
-    if (payload.deviceMappingFileId) {
-      deviceMappingData = [{ fileId: payload.deviceMappingFileId }];
-    }
+    const deviceMappingData = await this.resolveDeviceMapping(actor.tenantId, payload.deviceMappingFileId);
 
     const now = new Date();
     const id = randomUUID();
@@ -88,5 +86,15 @@ export class SubmitTenantSimRequestUseCase {
     });
 
     return { status: true, message: 'success', data: { requestId: id } };
+  }
+
+  private async resolveDeviceMapping(
+    tenantId: string,
+    fileId?: string,
+  ): Promise<Record<string, unknown>[] | null> {
+    if (!fileId) return null;
+    const file = await this.deviceMappingFileRepository.findById(fileId);
+    if (!file || file.tenantId !== tenantId) throw new SimNotFoundError('Device mapping file not found');
+    return [{ fileId }];
   }
 }

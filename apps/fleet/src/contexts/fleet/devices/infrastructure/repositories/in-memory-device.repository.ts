@@ -17,11 +17,11 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     return true;
   }
 
-  async findAll(filters?: DeviceFilters): Promise<Device[]> {
+  async findAll(filters: DeviceFilters): Promise<Device[]> {
     const query = filters?.query?.trim().toLowerCase();
 
     return Array.from(this.data.values()).filter((device) => {
-      if (filters?.tenantId && device.tenantId !== filters.tenantId) {
+      if (device.tenantId !== filters.tenantId) {
         return false;
       }
       if (filters?.manufacturer && device.manufacturer !== filters.manufacturer) {
@@ -95,6 +95,10 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     return device;
   }
 
+  async findAllAcrossTenants(): Promise<Device[]> {
+    return Array.from(this.data.values());
+  }
+
   async findByIdAcrossTenants(id: string): Promise<Device | null> {
     return this.data.get(id) ?? null;
   }
@@ -124,6 +128,19 @@ export class InMemoryDeviceRepository implements DeviceRepository {
           Date.parse(left.verificationDeadline ?? "")
           - Date.parse(right.verificationDeadline ?? ""),
       )
+      .slice(0, limit);
+  }
+
+  async findProvisionRetryDue(now: Date, limit: number): Promise<Device[]> {
+    return Array.from(this.data.values())
+      .filter(
+        (device) =>
+          device.provisionStatus === "failed"
+          && device.lifecycleStatus !== "decommissioned"
+          && device.provisionNextAttemptAt !== null
+          && Date.parse(device.provisionNextAttemptAt) <= now.getTime(),
+      )
+      .sort((a, b) => Date.parse(a.provisionNextAttemptAt ?? "") - Date.parse(b.provisionNextAttemptAt ?? ""))
       .slice(0, limit);
   }
 

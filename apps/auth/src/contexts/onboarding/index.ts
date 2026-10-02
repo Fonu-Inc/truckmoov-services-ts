@@ -169,6 +169,17 @@ export {
   ResendOnboardingSetupLinkUseCase,
   SetupLinkNotResendableError,
 } from "./application/use-cases/decide-onboarding-application.use-cases";
+export {
+  ApplicationNotProvisionableError,
+  CompleteProvisioningUseCase,
+  ProvisioningReasonRequiredError,
+} from "./application/use-cases/complete-provisioning.use-case";
+export {
+  PaymentNotInMismatchError,
+  ReviewOnboardingPaymentMismatchUseCase,
+} from "./application/use-cases/review-onboarding-payment.use-case";
+export { OnboardingProvisioningService } from "./application/services/onboarding-provisioning.service";
+export { OnboardingStageSweepService } from "./infrastructure/sweeps/onboarding-stage-sweep.service";
 export { DeleteOnboardingApplicationDocumentUseCase } from "./application/use-cases/delete-onboarding-application-document.use-case";
 export { ApplyAutomatedDecisionUseCase } from "./application/use-cases/apply-automated-decision.use-case";
 export { DuplicateIdentityError } from "./application/use-cases/support/enforce-identity-claims";

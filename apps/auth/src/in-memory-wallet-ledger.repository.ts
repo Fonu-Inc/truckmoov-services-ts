@@ -44,7 +44,7 @@ export class InMemoryWalletLedgerRepository implements WalletLedgerRepository {
     const query = filters?.query?.trim().toLowerCase();
     const matching = this.entries()
       .filter((entry) => {
-        if (filters?.tenantId && entry.tenantId !== filters.tenantId) return false;
+        if (filters?.tenantId !== undefined && entry.tenantId !== filters.tenantId) return false;
         if (filters?.category && entry.category !== filters.category) return false;
         if (filters?.direction && entry.direction !== filters.direction) return false;
         if (filters?.from && entry.createdAt < filters.from) return false;

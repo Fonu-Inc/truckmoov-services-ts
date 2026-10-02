@@ -11,7 +11,7 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
 
   async findAll(filters?: BundleAllocationFilters): Promise<{ items: StoredBundleAllocation[]; total: number }> {
     let results = [...this.store.values()];
-    if (filters?.tenantId) results = results.filter((a) => a.tenantId === filters.tenantId);
+    if (filters?.tenantId !== undefined) results = results.filter((a) => a.tenantId === filters.tenantId);
     if (filters?.status) results = results.filter((a) => a.status === filters.status);
     if (filters?.search) {
       const q = filters.search.toLowerCase();

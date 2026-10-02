@@ -74,7 +74,7 @@ export class MikroWalletLedgerRepository implements WalletLedgerRepository {
     const limit = filters?.limit ?? 50;
 
     const where: Record<string, unknown> = {};
-    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    if (filters?.tenantId !== undefined) where.tenantId = filters.tenantId;
     if (filters?.category) where.category = filters.category;
     if (filters?.direction) where.direction = filters.direction;
     if (filters?.from || filters?.to) {

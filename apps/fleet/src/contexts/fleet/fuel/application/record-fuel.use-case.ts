@@ -70,7 +70,7 @@ export class RecordFuelUseCase {
   }
 
   private async checkEfficiencyAlert(tenantId: string, vehicleId: string, vehicleType: string | null): Promise<void> {
-    const threshold = this.thresholds.get(vehicleType ?? "default");
+    const threshold = await this.thresholds.get(tenantId, vehicleType ?? "default");
     if (!threshold) return;
 
     const records = await this.repo.findAll({ tenantId, vehicleId });

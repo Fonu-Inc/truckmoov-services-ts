@@ -48,12 +48,20 @@ export class RecommendDriversUseCase {
     private readonly health: VehicleHealthService,
   ) {}
 
-  async execute(tenantId: string, query: RecommendDriversQuery): Promise<RecommendedDriver[]> {
-    const [drivers, vehicles, jobs] = await Promise.all([
+  async execute(
+    tenantId: string,
+    query: RecommendDriversQuery,
+    ownedVehicleIds: ReadonlySet<string> | null = null,
+  ): Promise<RecommendedDriver[]> {
+    const [allDrivers, allVehicles, jobs] = await Promise.all([
       this.driverRepo.findAll({ tenantId }),
       this.vehicleRepo.findAll({ tenantId }),
       this.dispatchJobs.listJobs(tenantId),
     ]);
+    const vehicles = ownedVehicleIds ? allVehicles.filter((v) => ownedVehicleIds.has(v.id)) : allVehicles;
+    const drivers = ownedVehicleIds
+      ? allDrivers.filter((d) => d.assignedVehicleId !== null && ownedVehicleIds.has(d.assignedVehicleId))
+      : allDrivers;
     const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
     const busyDriverIds = new Set(
       jobs

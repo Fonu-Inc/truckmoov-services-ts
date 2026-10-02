@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { OnboardingStage } from '@auth/onboarding/domain/onboarding-stage';
 import { AppConfigService } from '@shared/config';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
@@ -229,6 +230,36 @@ export class MikroOnboardingApplicationRepository
         updatedAt: { $lt: lastActivityBefore },
       },
       { orderBy: { updatedAt: 'asc' }, limit },
+    );
+    return records.map(toStored);
+  }
+
+  async findApprovedAtStage(
+    stage: OnboardingStage,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingApplicationRecord,
+      { status: 'approved', stage },
+      { orderBy: { updatedAt: 'asc' }, limit },
+    );
+    return records.map(toStored);
+  }
+
+  async findSetupLinkFailed(
+    attemptedBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    const em = await this.em();
+    const records = await em.find(
+      OnboardingApplicationRecord,
+      {
+        stage: 'installation',
+        setupLinkStatus: 'failed',
+        setupLinkSentAt: { $lt: attemptedBefore },
+      },
+      { orderBy: { setupLinkSentAt: 'asc' }, limit },
     );
     return records.map(toStored);
   }

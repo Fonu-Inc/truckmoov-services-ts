@@ -11,7 +11,7 @@ import {
 
 export type ListGpsDevicesFilters = {
   query?: string;
-  tenantId?: string;
+  tenantId: string;
   vehicleStatus?: FleetAssetStatus;
 };
 
@@ -24,14 +24,14 @@ export class ListGpsDevicesUseCase {
     private readonly vehicleRepository: VehicleRepository,
   ) {}
 
-  async execute(filters?: ListGpsDevicesFilters) {
+  async execute(filters: ListGpsDevicesFilters) {
     const devices = await this.deviceRepository.findAll({
-      query: filters?.query,
-      tenantId: filters?.tenantId,
+      query: filters.query,
+      tenantId: filters.tenantId,
     });
     const vehicles = await this.vehicleRepository.findAll({
-      tenantId: filters?.tenantId,
-      status: filters?.vehicleStatus,
+      tenantId: filters.tenantId,
+      status: filters.vehicleStatus,
     });
     const vehiclesById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
 
@@ -39,7 +39,7 @@ export class ListGpsDevicesUseCase {
     // standalone device registry so the admin Devices page and legacy fleet consumers stay aligned.
     return devices
       .filter((device) => {
-        if (!filters?.vehicleStatus) {
+        if (!filters.vehicleStatus) {
           return true;
         }
         const vehicle = device.vehicleId ? vehiclesById.get(device.vehicleId) : undefined;

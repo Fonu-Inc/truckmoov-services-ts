@@ -18,19 +18,14 @@ export class ListBundleRatesUseCase {
   async execute(accessToken: string, filters?: Filters) {
     await resolveActorUser(accessToken, this.tokenService, this.userRepository);
 
-    const { items: allItems, total: allTotal } = await this.bundleCatalogRepository.findAll({
+    const { items, total } = await this.bundleCatalogRepository.findAll({
       search: filters?.search,
       billingCycle: filters?.planType,
+      carrierIds: filters?.carriers?.length ? filters.carriers : undefined,
       activeOnly: true,
       page: filters?.page,
       limit: filters?.limit,
     });
-
-    const items = filters?.carriers?.length
-      ? allItems.filter((b) => filters.carriers!.includes(b.carrierId))
-      : allItems;
-
-    const total = filters?.carriers?.length ? items.length : allTotal;
 
     return {
       status: true,

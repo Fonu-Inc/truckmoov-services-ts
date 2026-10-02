@@ -15,6 +15,7 @@ export type StoredBundleCatalog = {
 
 export type BundleCatalogFilters = {
   carrierId?: string;
+  carrierIds?: string[];
   billingCycle?: string;
   search?: string;
   activeOnly?: boolean;

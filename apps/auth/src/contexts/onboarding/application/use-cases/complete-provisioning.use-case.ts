@@ -8,6 +8,7 @@ import {
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { ApplicationNotFoundError } from '@auth/onboarding/domain/onboarding-application.support';
+import { OnboardingProvisioningService } from '../services/onboarding-provisioning.service';
 
 export class ApplicationNotProvisionableError extends Error {
   constructor(stage: string) {
@@ -15,6 +16,17 @@ export class ApplicationNotProvisionableError extends Error {
     this.name = 'ApplicationNotProvisionableError';
   }
 }
+
+export class ProvisioningReasonRequiredError extends Error {
+  constructor() {
+    super(
+      'Device stock does not cover this order yet. Give a reason (at least 5 characters) to open payment anyway.',
+    );
+    this.name = 'ProvisioningReasonRequiredError';
+  }
+}
+
+const REASON_MIN = 5;
 
 @Injectable()
 export class CompleteProvisioningUseCase {
@@ -25,16 +37,22 @@ export class CompleteProvisioningUseCase {
     private readonly applications: OnboardingApplicationRepository,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+    @Inject(OnboardingProvisioningService)
+    private readonly provisioning: OnboardingProvisioningService,
   ) {}
 
   /**
-   * Says the devices and SIMs for this onboarding are allocated, which is what
-   * opens payment.
+   * Opens payment for an application waiting on devices.
    *
-   * An administrator's call rather than an automatic step: stock is physical,
-   * and nothing in the platform knows whether it is on a shelf.
+   * With stock on hand the move needs no justification. Without it, staff are
+   * vouching for stock the platform cannot see, so a reason is required and
+   * kept in the audit trail.
    */
-  async execute(input: { accessToken: string; applicationId: string }) {
+  async execute(input: {
+    accessToken: string;
+    applicationId: string;
+    reason?: string;
+  }) {
     const actor = await ensureSystemActor(
       input.accessToken,
       this.tokenService,
@@ -48,19 +66,26 @@ export class CompleteProvisioningUseCase {
       throw new ApplicationNotProvisionableError(application.stage);
     }
 
-    await this.applications.save({
-      ...application,
-      stage: 'payment',
-      updatedAt: new Date(),
-    });
+    const stockCovers = await this.provisioning.stockCovers(application);
+    const reason = input.reason?.trim() ?? '';
+    if (!stockCovers && reason.length < REASON_MIN) {
+      throw new ProvisioningReasonRequiredError();
+    }
+
+    await this.provisioning.openPayment(application);
     this.logger.log(
-      `onboarding_provisioned:${application.reference}:by=${actor.id}`,
+      `onboarding_provisioned:${application.reference}:by=${actor.id}:confirmed_without_stock=${!stockCovers}`,
     );
 
     return {
       status: true,
       message: 'Provisioning complete, awaiting payment',
-      data: { applicationId: application.id, stage: 'payment' },
+      data: {
+        applicationId: application.id,
+        stage: 'payment',
+        confirmedWithoutStock: !stockCovers,
+        reason: stockCovers ? null : reason,
+      },
     };
   }
 }

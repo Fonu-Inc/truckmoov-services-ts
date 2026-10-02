@@ -273,6 +273,16 @@ export interface OnboardingApplicationRepository {
     lastActivityBefore: Date,
     limit: number,
   ): Promise<StoredOnboardingApplication[]>;
+  /** Approved applications waiting at a stage, oldest first; the sweeps' work list. */
+  findApprovedAtStage(
+    stage: OnboardingStage,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]>;
+  /** Installation-stage applications whose last setup email failed before `attemptedBefore`. */
+  findSetupLinkFailed(
+    attemptedBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]>;
   /** Removes the application and everything filed against it. */
   deleteApplication(id: string): Promise<void>;
 

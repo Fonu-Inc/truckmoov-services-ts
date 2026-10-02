@@ -28,4 +28,11 @@ export class InMemoryAlertRepository implements AlertRepository {
       return true;
     });
   }
+
+  async findOpenTriggeredBefore(cutoff: Date, limit: number): Promise<Alert[]> {
+    return Array.from(this.store.values())
+      .filter((a) => a.status === "open" && a.triggeredAt.getTime() < cutoff.getTime())
+      .sort((a, b) => a.triggeredAt.getTime() - b.triggeredAt.getTime())
+      .slice(0, limit);
+  }
 }

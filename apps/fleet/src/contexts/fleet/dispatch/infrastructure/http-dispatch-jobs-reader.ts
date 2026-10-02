@@ -42,6 +42,7 @@ type DispatchJobApi = {
   amount_ngn?: number;
   created_at?: string;
   updated_at?: string;
+  delivered_at?: string | null;
   deadline?: string;
   pickup?: DispatchJobStopApi;
   dropoff?: DispatchJobStopApi;
@@ -183,6 +184,7 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
       amountNgn: j.amount_ngn ?? 0,
       createdAt: j.created_at ?? "",
       updatedAt: j.updated_at ?? "",
+      deliveredAt: j.delivered_at ?? null,
       pickupAddress: j.pickup?.address ?? null,
       dropoffAddress: j.dropoff?.address ?? null,
       deadline: j.deadline ?? null,

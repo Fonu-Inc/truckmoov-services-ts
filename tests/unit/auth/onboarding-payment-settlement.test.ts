@@ -14,6 +14,7 @@ import {
 import { PaymentGatewayError, type PaymentGateway } from "../../../apps/auth/src/contexts/payments";
 import { hashApplicationToken } from "@auth/onboarding/domain/onboarding-application.support";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
+import type { PlatformAlertPublisher, RaisedAlert } from "../../../apps/auth/src/platform-alert.publisher";
 
 const TOKEN = "applicant-token";
 const TOTAL_KOBO = 2 * (25_000 + 15_000) * 100;
@@ -65,6 +66,7 @@ describe("Onboarding payment settlement", () => {
   let failCharge: boolean;
   let pay: CreateApplicationPaymentUseCase;
   let confirm: ConfirmApplicationPaymentUseCase;
+  let raised: RaisedAlert[];
   const input = { applicationId: "app-1", applicationToken: TOKEN };
 
   beforeEach(async () => {
@@ -125,10 +127,12 @@ describe("Onboarding payment settlement", () => {
       settings,
       quotationKit.service,
     );
+    raised = [];
     confirm = new ConfirmApplicationPaymentUseCase(
       applications,
       payments,
       buildInvoiceKit({ quotations: quotationKit.repository, payments, settings }).service,
+      { raise: async (alert: RaisedAlert) => void raised.push(alert) } as unknown as PlatformAlertPublisher,
     );
   });
 
@@ -236,6 +240,29 @@ describe("Onboarding payment settlement", () => {
 
     expect((await payments.findByReference(reference))!.status).toBe("mismatch");
     expect((await applications.findById("app-1"))!.stage).toBe("payment");
+  });
+
+  it("records what was paid and raises one billing alert on a mismatch", async () => {
+    const { reference } = await startPayment();
+    const paid = { amountKobo: TOTAL_KOBO - 100, currency: "ngn" };
+
+    await confirm.execute(reference, true, paid);
+    await confirm.execute(reference, true, paid);
+
+    const stored = (await payments.findByReference(reference))!;
+    expect(stored.receivedAmountKobo).toBe(TOTAL_KOBO - 100);
+    expect(stored.receivedCurrency).toBe("NGN");
+    expect(raised).toHaveLength(1);
+    expect(raised[0]).toMatchObject({ alertType: "billing_alerts", severity: "high" });
+    expect(raised[0]!.context).toMatchObject({ reference, expectedKobo: TOTAL_KOBO });
+  });
+
+  it("raises no alert for a correct payment", async () => {
+    const { reference } = await startPayment();
+
+    await confirm.execute(reference, true, { amountKobo: TOTAL_KOBO, currency: "NGN" });
+
+    expect(raised).toHaveLength(0);
   });
 
   it("marks a failed callback failed without advancing", async () => {

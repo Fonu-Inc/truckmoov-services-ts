@@ -59,7 +59,7 @@ export class MikroKycDocumentRepository implements KycDocumentRepository {
 
     const where: Record<string, unknown> = {};
     if (filters?.status) where.status = filters.status;
-    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    if (filters?.tenantId !== undefined) where.tenantId = filters.tenantId;
 
     const page = filters?.page ?? 1;
     const limit = filters?.limit ?? 50;

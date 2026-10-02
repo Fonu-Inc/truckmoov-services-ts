@@ -2,7 +2,7 @@ import type { Vehicle } from "../entities/vehicle.entity";
 import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 
 export type VehicleFilters = {
-  tenantId?: string;
+  tenantId: string;
   /**
    * Set for an owner operator so a seat inside somebody else's tenant sees only
    * its own vehicles. Never accepted from the request: it is derived from the
@@ -19,7 +19,7 @@ export type VehicleFilters = {
 
 export interface VehicleRepository {
   save(vehicle: Vehicle): Promise<void>;
-  findAll(filters?: VehicleFilters): Promise<Vehicle[]>;
+  findAll(filters: VehicleFilters): Promise<Vehicle[]>;
   findById(id: string, tenantId: string): Promise<Vehicle | null>;
   findByPlateNumber(plateNumber: string, tenantId: string): Promise<Vehicle | null>;
   findByAssignedDriverId(driverId: string, tenantId: string): Promise<Vehicle | null>;

@@ -19,7 +19,7 @@ export class InMemoryAiRequestLogRepository implements AiRequestLogRepository {
   async findAll(filters?: AiRequestFilters): Promise<StoredAiRequest[]> {
     let results = [...this.store];
 
-    if (filters?.tenantId) results = results.filter((r) => r.tenantId === filters.tenantId);
+    if (filters?.tenantId !== undefined) results = results.filter((r) => r.tenantId === filters.tenantId);
     if (filters?.provider) results = results.filter((r) => r.provider === filters.provider);
     if (filters?.model) results = results.filter((r) => r.model === filters.model);
     if (filters?.succeeded !== undefined) {

@@ -27,12 +27,18 @@ export type SimProvisioningRequestFilters = {
   organisation?: string;
   carrier?: string;
   useCase?: string;
+  tenantId?: string;
+  limit?: number;
+  offset?: number;
 };
 
 export interface SimProvisioningRequestRepository {
   findAll(
     filters?: SimProvisioningRequestFilters,
   ): Promise<StoredSimProvisioningRequest[]>;
+  count(
+    filters?: SimProvisioningRequestFilters,
+  ): Promise<number>;
   findById(id: string): Promise<StoredSimProvisioningRequest | null>;
   save(request: StoredSimProvisioningRequest): Promise<void>;
 }

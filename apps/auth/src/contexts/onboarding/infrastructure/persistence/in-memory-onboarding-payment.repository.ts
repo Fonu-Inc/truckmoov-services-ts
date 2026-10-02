@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  MismatchReview,
   OnboardingPaymentRepository,
   OnboardingPaymentStatus,
   SettleDetails,
@@ -96,6 +97,21 @@ export class InMemoryOnboardingPaymentRepository
     payment.paidAt = paidAt;
     payment.method = details.method;
     payment.autoReconciled = details.autoReconciled;
+    payment.receivedAmountKobo =
+      details.receivedAmountKobo ?? payment.receivedAmountKobo ?? null;
+    payment.receivedCurrency =
+      details.receivedCurrency ?? payment.receivedCurrency ?? null;
+    payment.updatedAt = new Date();
+    return true;
+  }
+
+  async reviewMismatch(id: string, review: MismatchReview): Promise<boolean> {
+    const payment = this.payments.get(id);
+    if (payment?.status !== 'mismatch') return false;
+    payment.reviewOutcome = review.outcome;
+    payment.reviewNote = review.note;
+    payment.reviewedBy = review.reviewedBy;
+    payment.reviewedAt = review.reviewedAt;
     payment.updatedAt = new Date();
     return true;
   }

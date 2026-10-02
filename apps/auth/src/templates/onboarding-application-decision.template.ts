@@ -32,7 +32,9 @@ export const APPLICATION_REJECTED_TEMPLATE = `
       <h2>Your application was not approved</h2>
       <p>We reviewed the Fleet Pro application for {{organizationName}} and cannot approve it at this time.</p>
       <div class="reason">{{reason}}</div>
-      <p>No account has been created and the application is now closed. You are welcome to apply again from our website once the points above are resolved.</p>
+      <p>No account has been created and the application is now closed. You can apply again with the same email address once the points above are resolved.</p>
+      <div class="btn-wrap"><a class="btn" href="{{applyLink}}">Start a new application</a></div>
+      <p class="fallback">{{applyLink}}</p>
       <p class="meta">Application reference: {{reference}}</p>
       <p class="meta">If you believe this decision is wrong, reply to this email and our team will look again.</p>
     </div>

@@ -10,6 +10,7 @@ import { InMemoryM2mLicensePlanRepository } from "@auth/onboarding/infrastructur
 import { InMemoryPaymentHistoryRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-payment-history.repository";
 import { InMemoryBillingSummaryRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-billing-summary.repository";
 import { ConfirmApplicationPaymentUseCase } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import type { PlatformAlertPublisher } from "../../../apps/auth/src/platform-alert.publisher";
 import { GetInvoiceUseCase, ListInvoicesUseCase } from "@auth/onboarding/application/use-cases/billing/invoice-queries.use-cases";
 import { GetPaymentUseCase, ListPaymentsUseCase } from "@auth/onboarding/application/use-cases/billing/payment-queries.use-cases";
 import { GetBillingSummaryUseCase } from "@auth/onboarding/application/use-cases/billing/billing-summary.use-case";
@@ -75,7 +76,7 @@ function world() {
   const settings = new InMemoryBillingSettingsRepository();
   const quotationKit = buildQuotationKit(plans, settings, payments);
   const kit = buildInvoiceKit({ quotations: quotationKit.repository, payments, settings });
-  const confirm = new ConfirmApplicationPaymentUseCase(applications, payments, kit.service);
+  const confirm = new ConfirmApplicationPaymentUseCase(applications, payments, kit.service, { raise: async () => undefined } as unknown as PlatformAlertPublisher);
   const history = new InMemoryPaymentHistoryRepository(payments, quotationKit.repository, kit.invoices, applications, plans);
   const summary = new InMemoryBillingSummaryRepository(plans, quotationKit.repository, kit.invoices, payments);
   return {
@@ -173,7 +174,7 @@ describe("invoice issued on successful settlement", () => {
       await gate;
       return snapshot;
     };
-    const racing = new ConfirmApplicationPaymentUseCase(w.applications, gated, w.kit.service);
+    const racing = new ConfirmApplicationPaymentUseCase(w.applications, gated, w.kit.service, { raise: async () => undefined } as unknown as PlatformAlertPublisher);
 
     await Promise.all(Array.from({ length: 10 }, () => racing.execute("REF-p1", true, paid(1_000_000))));
 

@@ -117,7 +117,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
       conditions.push('r.status = ?');
       params.push(filters.status.trim());
     }
-    if (filters?.tenantId?.trim()) {
+    if (filters?.tenantId !== undefined) {
       conditions.push('r.tenant_id = ?');
       params.push(filters.tenantId.trim());
     }

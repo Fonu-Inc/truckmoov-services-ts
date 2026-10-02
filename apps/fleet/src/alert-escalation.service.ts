@@ -1,11 +1,25 @@
-import { Injectable, Logger, OnApplicationBootstrap, Inject } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { ALERT_REPOSITORY, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
 
+const SWEEP_INTERVAL_MS = 60_000;
+const SWEEP_BATCH = 500;
+
+/**
+ * Escalates open alerts nobody acknowledged in time. The scan is across every
+ * tenant: an alert belongs to whichever company raised it, not to a default one.
+ */
 @Injectable()
-export class AlertEscalationService implements OnApplicationBootstrap {
+export class AlertEscalationService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(AlertEscalationService.name);
   private readonly thresholdMs: number;
+  private timer: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(ALERT_REPOSITORY) private readonly repo: AlertRepository,
@@ -15,21 +29,25 @@ export class AlertEscalationService implements OnApplicationBootstrap {
   }
 
   onApplicationBootstrap() {
-    setInterval(() => this.escalateStale(), 60_000);
+    this.timer = setInterval(() => void this.escalateStale().catch((error) => this.logFailure(error)), SWEEP_INTERVAL_MS);
+    this.timer.unref?.();
   }
 
-  private async escalateStale() {
-    // In-memory repo has no tenant scan — iterate known data via a wildcard tenant approach.
-    // For now we use the default tenant from config; multi-tenant can be extended later.
-    const allAlerts = await this.repo.findAll("default");
-    const now = Date.now();
+  onApplicationShutdown() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
 
-    for (const alert of allAlerts) {
-      if (alert.status !== "open") continue;
-      if (now - alert.triggeredAt.getTime() < this.thresholdMs) continue;
-      const escalated = alert.escalate();
-      await this.repo.save(escalated);
-      this.logger.warn(`Alert ${alert.id} escalated (type=${alert.type})`);
+  async escalateStale(now = new Date()): Promise<number> {
+    const stale = await this.repo.findOpenTriggeredBefore(new Date(now.getTime() - this.thresholdMs), SWEEP_BATCH);
+    for (const alert of stale) {
+      await this.repo.save(alert.escalate(now));
+      this.logger.warn(`Alert ${alert.id} escalated (tenant=${alert.tenantId} type=${alert.type})`);
     }
+    return stale.length;
+  }
+
+  private logFailure(error: unknown): void {
+    this.logger.warn(`alert_escalation_failed:${error instanceof Error ? error.message : "unknown"}`);
   }
 }

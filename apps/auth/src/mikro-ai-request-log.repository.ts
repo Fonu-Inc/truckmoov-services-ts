@@ -30,7 +30,7 @@ export class MikroAiRequestLogRepository implements AiRequestLogRepository {
     const em = await this.em();
     const where: Record<string, unknown> = {};
 
-    if (filters?.tenantId) where.tenantId = filters.tenantId;
+    if (filters?.tenantId !== undefined) where.tenantId = filters.tenantId;
     if (filters?.provider) where.provider = filters.provider;
     if (filters?.model) where.model = filters.model;
     if (filters?.succeeded !== undefined) where.succeeded = filters.succeeded;

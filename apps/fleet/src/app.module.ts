@@ -102,6 +102,8 @@ import { HttpInstallerDeviceScopeAdapter } from "./contexts/fleet/devices/infras
 import { DeviceVerificationSweepService } from "./device-verification-sweep.service";
 import { BulkConfigureDevicesUseCase } from "./contexts/fleet/devices/application/use-cases/bulk-configure-devices.use-case";
 import { ConfigureDeviceUseCase } from "./contexts/fleet/devices/application/use-cases/configure-device.use-case";
+import { RetryTraccarRegistrationsUseCase } from "./contexts/fleet/devices/application/use-cases/retry-traccar-registrations.use-case";
+import { DeviceProvisionRetryService } from "./device-provision-retry.service";
 import { ExpireDeviceVerificationsUseCase } from "./contexts/fleet/devices/application/use-cases/expire-device-verifications.use-case";
 import { GetDeviceDiagnosticsUseCase } from "./contexts/fleet/devices/application/use-cases/get-device-diagnostics.use-case";
 import { GetInstallationQueueUseCase } from "./contexts/fleet/devices/application/use-cases/get-installation-queue.use-case";
@@ -238,6 +240,7 @@ import {
   GetAlertStatsUseCase,
   InMemoryAlertRepository,
   ListAlertsUseCase,
+  MikroAlertRepository,
   ResolveAlertUseCase,
   TriggerAlertUseCase,
 } from "./contexts/fleet/alerts";
@@ -285,6 +288,9 @@ import {
   FuelBudgetUseCase,
   FuelMetricsUseCase,
   FuelThresholdService,
+  FUEL_THRESHOLD_REPOSITORY,
+  InMemoryFuelThresholdRepository,
+  MikroFuelThresholdRepository,
   InMemoryFuelRecordRepository,
   ListFuelRecordsUseCase,
   MikroFuelRecordRepository,
@@ -604,9 +610,15 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     AuditLogService,
     AuditEventListener,
     InMemoryAlertRepository,
+    MikroAlertRepository,
     {
       provide: ALERT_REPOSITORY,
-      useExisting: InMemoryAlertRepository,
+      inject: [InMemoryAlertRepository, MikroAlertRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryAlertRepository,
+        mikro: MikroAlertRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
     },
     TriggerAlertUseCase,
     AcknowledgeAlertUseCase,
@@ -697,6 +709,8 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     RecordDeviceTelemetryUseCase,
     RecordVerificationFailureUseCase,
     ExpireDeviceVerificationsUseCase,
+    RetryTraccarRegistrationsUseCase,
+    DeviceProvisionRetryService,
     GetInstallationQueueUseCase,
     GetVerificationMonitorUseCase,
     GetInstallerGuideUseCase,
@@ -866,6 +880,17 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
       useFactory: (
         inMemory: InMemoryFuelRecordRepository,
         mikro: MikroFuelRecordRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    InMemoryFuelThresholdRepository,
+    MikroFuelThresholdRepository,
+    {
+      provide: FUEL_THRESHOLD_REPOSITORY,
+      inject: [InMemoryFuelThresholdRepository, MikroFuelThresholdRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryFuelThresholdRepository,
+        mikro: MikroFuelThresholdRepository,
         config: AppConfigService,
       ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
     },

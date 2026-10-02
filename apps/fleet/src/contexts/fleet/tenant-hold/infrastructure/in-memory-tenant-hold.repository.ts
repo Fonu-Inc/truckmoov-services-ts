@@ -73,7 +73,7 @@ export class InMemoryTenantHoldRepository implements TenantHoldRepository {
   }
 
   async listHeldDevices(limit: number, afterId: string | null): Promise<HeldDevice[]> {
-    return (await this.devices.findAll())
+    return (await this.devices.findAllAcrossTenants())
       .filter((device) => device.holdCause !== null && device.id > (afterId ?? ""))
       .sort((a, b) => a.id.localeCompare(b.id))
       .slice(0, limit)

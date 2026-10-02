@@ -24,7 +24,7 @@ export class InMemoryKycDocumentRepository implements KycDocumentRepository {
   ): Promise<{ items: StoredKycDocument[]; total: number }> {
     let results = [...this.store.values()];
     if (filters?.status) results = results.filter((d) => d.status === filters.status);
-    if (filters?.tenantId) results = results.filter((d) => d.tenantId === filters.tenantId);
+    if (filters?.tenantId !== undefined) results = results.filter((d) => d.tenantId === filters.tenantId);
     results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     const total = results.length;

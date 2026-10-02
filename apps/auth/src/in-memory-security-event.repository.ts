@@ -11,7 +11,7 @@ export class InMemorySecurityEventRepository implements SecurityEventRepository 
 
   async search(filters: SecurityEventFilters): Promise<SecurityEventPage> {
     let results = [...this.store.values()];
-    if (filters.tenantId) results = results.filter((e) => e.tenantId === filters.tenantId);
+    if (filters.tenantId !== undefined) results = results.filter((e) => e.tenantId === filters.tenantId);
     if (filters.severity) results = results.filter((e) => e.severity === filters.severity);
     if (filters.eventType) results = results.filter((e) => e.eventType === filters.eventType);
     if (filters.from) results = results.filter((e) => e.occurredAt >= filters.from!);

@@ -32,6 +32,7 @@ export class MailerOnboardingDecisionNotifier
       organizationName: input.organizationName,
       reference: input.reference,
       reason: input.reason,
+      applyLink: new URL('/apply', this.config.app.tenantAppUrl).toString(),
       year: String(new Date().getFullYear()),
     });
   }

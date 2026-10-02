@@ -847,14 +847,26 @@ describe('Onboarding applications HTTP contract', () => {
     expect(resent.body.data.setupLinkExpiresAt).toBeTypeOf('string');
   });
 
-  it('does not expose a manual provisioning transition', async () => {
+  it('refuses to mark an application provisioned before it reaches provisioning', async () => {
     const { id } = await startApplication('early-provision@arne.com');
 
     const res = await request(app.getHttpServer())
       .post(`/auth/system/onboarding/applications/${id}/provisioned`)
       .set('Authorization', `Bearer ${await systemToken()}`);
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/cannot be marked provisioned/);
+  });
+
+  it('refuses a payment review when no payment is in mismatch', async () => {
+    const { id } = await startApplication('no-mismatch@arne.com');
+
+    const res = await request(app.getHttpServer())
+      .post(`/auth/system/onboarding/applications/${id}/payment/review`)
+      .set('Authorization', `Bearer ${await systemToken()}`)
+      .send({ outcome: 'resolved', note: 'Looked into it' });
+
+    expect(res.status).toBe(409);
   });
 
   it('answers 401 when the signed-in admin no longer exists', async () => {

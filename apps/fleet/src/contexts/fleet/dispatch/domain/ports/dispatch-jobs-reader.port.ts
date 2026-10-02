@@ -9,6 +9,7 @@ export type DispatchJob = {
   amountNgn: number;
   createdAt: string;
   updatedAt: string;
+  deliveredAt?: string | null;
   pickupAddress: string | null;
   dropoffAddress: string | null;
   deadline: string | null;

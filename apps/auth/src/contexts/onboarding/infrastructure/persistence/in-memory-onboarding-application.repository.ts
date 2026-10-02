@@ -10,6 +10,7 @@ import type {
   StoredOnboardingVerificationCode,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { inReviewQueue } from '@auth/onboarding/domain/onboarding-application.repository';
+import type { OnboardingStage } from '@auth/onboarding/domain/onboarding-stage';
 
 // The statuses the applicant can still act on, which is what makes an
 // untouched application abandoned rather than merely waiting on us.
@@ -112,6 +113,34 @@ export class InMemoryOnboardingApplicationRepository
           application.updatedAt.getTime() < lastActivityBefore.getTime(),
       )
       .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .slice(0, limit);
+  }
+
+  async findApprovedAtStage(
+    stage: OnboardingStage,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    return [...this.applications.values()]
+      .filter(
+        (application) =>
+          application.status === 'approved' && application.stage === stage,
+      )
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
+      .slice(0, limit);
+  }
+
+  async findSetupLinkFailed(
+    attemptedBefore: Date,
+    limit: number,
+  ): Promise<StoredOnboardingApplication[]> {
+    return [...this.applications.values()]
+      .filter(
+        (application) =>
+          application.stage === 'installation' &&
+          application.setupLinkStatus === 'failed' &&
+          application.setupLinkSentAt !== null &&
+          application.setupLinkSentAt.getTime() < attemptedBefore.getTime(),
+      )
       .slice(0, limit);
   }
 

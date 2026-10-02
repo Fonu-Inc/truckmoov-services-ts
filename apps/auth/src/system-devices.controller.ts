@@ -69,6 +69,7 @@ import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-c
 import { ListSystemDeviceCatalogUseCase } from './list-system-device-catalog.use-case';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
 import { ListStillReportingDevicesUseCase } from './list-still-reporting-devices.use-case';
+import { ListUnrecognisedDevicesUseCase } from './list-unrecognised-devices.use-case';
 import { SystemDeviceModelConflictError, SystemDeviceModelNotFoundError } from './system-device-model.errors';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
 import { Portals, OnResource } from '@shared/access';
@@ -92,6 +93,7 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(GetSystemDeviceDetailUseCase) private readonly getSystemDeviceDetailUseCase: GetSystemDeviceDetailUseCase,
     @Inject(UpdateSystemDeviceModelUseCase) private readonly updateSystemDeviceModelUseCase: UpdateSystemDeviceModelUseCase,
     @Inject(ListStillReportingDevicesUseCase) private readonly listStillReportingDevicesUseCase: ListStillReportingDevicesUseCase,
+    @Inject(ListUnrecognisedDevicesUseCase) private readonly listUnrecognisedDevicesUseCase: ListUnrecognisedDevicesUseCase,
     @Inject(ActivityLogService) activityLogService: ActivityLogService,
     @Inject(ExportSystemDeviceCatalogUseCase) private readonly exportSystemDeviceCatalogUseCase: ExportSystemDeviceCatalogUseCase,
     @Inject(SuspendSystemDeviceUseCase) private readonly suspendSystemDeviceUseCase: SuspendSystemDeviceUseCase,
@@ -265,6 +267,33 @@ export class SystemDevicesController extends BaseAuthController {
 
     try {
       return await this.listStillReportingDevicesUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError)
+        throw new ForbiddenException(error.message);
+      if (error instanceof UserNotFoundError)
+        throw new NotFoundException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('unrecognised')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List unrecognised devices sending data',
+    description:
+      'Senders whose IMEI is not registered to any company. Their data is held back, not stored. trackingReachable is false, with an empty list, when tracking cannot be asked.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({
+    description: 'Caller is not permitted to view device inventory',
+  })
+  async listUnrecognised(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      return await this.listUnrecognisedDevicesUseCase.execute(accessToken);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)

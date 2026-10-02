@@ -18,6 +18,7 @@ import {
   ConfirmApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
 } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import type { PlatformAlertPublisher } from "../../apps/auth/src/platform-alert.publisher";
 import { GetQuotationUseCase, ListQuotationsUseCase } from "@auth/onboarding/application/use-cases/billing/quotation-queries.use-cases";
 import { GetInvoiceUseCase, ListInvoicesUseCase } from "@auth/onboarding/application/use-cases/billing/invoice-queries.use-cases";
 import { ListPaymentsUseCase } from "@auth/onboarding/application/use-cases/billing/payment-queries.use-cases";
@@ -79,7 +80,7 @@ describe.skipIf(!dbEnabled)("billing documents on real postgres", () => {
     new OrderQuotationService(quotations, new InvoiceSeriesQuotationNumbers(numbers), plans, settings, {
       generate: () => nextId("q"),
     });
-  const confirm = () => new ConfirmApplicationPaymentUseCase(applications, payments, issuance());
+  const confirm = () => new ConfirmApplicationPaymentUseCase(applications, payments, issuance(), { raise: async () => undefined } as unknown as PlatformAlertPublisher);
   const gateway = {
     name: "paystack",
     isConfigured: () => true,

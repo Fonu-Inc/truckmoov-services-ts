@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FuelMetricsUseCase } from "../../../apps/fleet/src/contexts/fleet/fuel/application/fuel-metrics.use-case";
+import { InMemoryFuelThresholdRepository } from "../../../apps/fleet/src/contexts/fleet/fuel/infrastructure/in-memory-fuel-threshold.repository";
 import { FuelThresholdService } from "../../../apps/fleet/src/contexts/fleet/fuel/application/fuel-threshold.service";
 import { FuelRecord } from "../../../apps/fleet/src/contexts/fleet/fuel/domain/entities/fuel-record.entity";
 import { InMemoryFuelRecordRepository } from "../../../apps/fleet/src/contexts/fleet/fuel/infrastructure/in-memory-fuel-record.repository";
@@ -17,7 +18,7 @@ function makeRec(id: string, vehicleId: string, liters: number, odometer: number
 async function buildUseCase(records: FuelRecord[]) {
   const repo = new InMemoryFuelRecordRepository();
   for (const r of records) await repo.save(r);
-  const thresholds = new FuelThresholdService();
+  const thresholds = new FuelThresholdService(new InMemoryFuelThresholdRepository());
   return { uc: new FuelMetricsUseCase(repo, runtime as any, thresholds), thresholds };
 }
 
@@ -92,7 +93,7 @@ describe("FuelMetricsUseCase", () => {
       makeRec("1", "v1", 10, 5000, "2026-01-01T00:00:00.000Z"),
       makeRec("2", "v1", 50, 5400, "2026-01-10T00:00:00.000Z"),
     ]);
-    thresholds.set("truck", 10);
+    await thresholds.set("t1", "truck", 10);
     const result = await uc.efficiency("t1");
     expect(result[0].belowThreshold).toBe(true);
     expect(result[0].threshold).toBe(10);
@@ -103,7 +104,7 @@ describe("FuelMetricsUseCase", () => {
       makeRec("1", "v1", 10, 5000, "2026-01-01T00:00:00.000Z"),
       makeRec("2", "v1", 50, 5400, "2026-01-10T00:00:00.000Z"),
     ]);
-    thresholds.set("truck", 5);
+    await thresholds.set("t1", "truck", 5);
     const result = await uc.efficiency("t1");
     expect(result[0].belowThreshold).toBe(false);
   });

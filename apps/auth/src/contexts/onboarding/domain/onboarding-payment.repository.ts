@@ -39,13 +39,32 @@ export type StoredOnboardingPayment = {
   autoReconciled: boolean;
   status: OnboardingPaymentStatus;
   paidAt: Date | null;
+  /** What the provider actually took, recorded when it differs from what was asked. */
+  receivedAmountKobo?: number | null;
+  receivedCurrency?: string | null;
+  reviewOutcome?: MismatchReviewOutcome | null;
+  reviewNote?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
+export const MISMATCH_REVIEW_OUTCOMES = ['resolved', 'refund_needed'] as const;
+export type MismatchReviewOutcome = (typeof MISMATCH_REVIEW_OUTCOMES)[number];
+
 export type SettleDetails = {
   method: PaymentMethod | null;
   autoReconciled: boolean;
+  receivedAmountKobo?: number | null;
+  receivedCurrency?: string | null;
+};
+
+export type MismatchReview = {
+  outcome: MismatchReviewOutcome;
+  note: string;
+  reviewedBy: string;
+  reviewedAt: Date;
 };
 
 export interface OnboardingPaymentRepository {
@@ -70,6 +89,8 @@ export interface OnboardingPaymentRepository {
     paidAt: Date | null,
     details?: SettleDetails,
   ): Promise<boolean>;
+  /** Records a staff decision on a mismatched payment; false when it is not in mismatch. */
+  reviewMismatch(id: string, review: MismatchReview): Promise<boolean>;
   /** Links a payment to its invoice once; a payment already linked is left alone. */
   linkInvoice(id: string, invoiceId: string): Promise<void>;
   deleteUnstarted(id: string): Promise<void>;

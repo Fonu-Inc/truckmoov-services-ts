@@ -450,6 +450,12 @@ export class OnboardingPaymentRecord {
   autoReconciled!: boolean;
   status!: string;
   paidAt!: Date | null;
+  receivedAmountKobo!: number | null;
+  receivedCurrency!: string | null;
+  reviewOutcome!: string | null;
+  reviewNote!: string | null;
+  reviewedBy!: string | null;
+  reviewedAt!: Date | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -477,6 +483,12 @@ export const OnboardingPaymentRecordSchema =
       autoReconciled: { fieldName: 'auto_reconciled', type: 'boolean', default: true },
       status: { type: 'string', length: 20, default: 'pending', index: true },
       paidAt: { fieldName: 'paid_at', type: 'datetime', nullable: true },
+      receivedAmountKobo: { fieldName: 'received_amount_kobo', type: 'bigint', nullable: true },
+      receivedCurrency: { fieldName: 'received_currency', type: 'string', length: 8, nullable: true },
+      reviewOutcome: { fieldName: 'review_outcome', type: 'string', length: 20, nullable: true },
+      reviewNote: { fieldName: 'review_note', type: 'text', nullable: true },
+      reviewedBy: { fieldName: 'reviewed_by', type: 'string', length: 64, nullable: true },
+      reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },

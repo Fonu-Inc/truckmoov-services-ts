@@ -8,7 +8,7 @@ import {
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import { DuplicateSimIccidError, SIM_REPOSITORY, type SimRepository } from './sim.repository';
 
 export class InvalidCsvError extends Error {}
 
@@ -33,49 +33,64 @@ export class ImportSimsCsvUseCase {
     const rows = this.parseCsv(csvBuffer);
     const now = new Date();
     let imported = 0;
+    let skipped = 0;
 
     for (const row of rows) {
       if (!row.iccid) continue;
-      await this.simRepository.save({
-        id: randomUUID(),
-        iccid: row.iccid,
-        imsi: null,
-        msisdn: row.msisdn ?? null,
-        carrier: row.carrier ?? '',
-        plan: 'iot_basic',
-        status: 'registered',
-        tenantId: actor.tenantId,
-        deviceId: null,
-        deviceName: null,
-        deviceImei: null,
-        deviceType: null,
-        vehicleId: null,
-        suspensionReason: null,
-        notes: null,
-        dataUsageMb: 0,
-        dataLimitMb: 0,
-        smsUsage: 0,
-        smsLimit: 0,
-        monthlyCostNgn: 0,
-        activationDate: null,
-        expiryDate: null,
-        lastActivity: null,
-        signalStrength: null,
-        networkType: null,
-        roaming: false,
-        fonuSimId: null,
-        fonuStatus: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-      imported++;
+      if (await this.saveRow(row, actor.tenantId, now)) imported++;
+      else skipped++;
     }
 
     return {
       status: true,
       message: 'success',
-      data: { imported },
+      data: { imported, skipped },
     };
+  }
+
+  private async saveRow(
+    row: { iccid: string; msisdn: string; carrier: string },
+    tenantId: string,
+    now: Date,
+  ): Promise<boolean> {
+    try {
+    await this.simRepository.save({
+      id: randomUUID(),
+      iccid: row.iccid,
+      imsi: null,
+      msisdn: row.msisdn ?? null,
+      carrier: row.carrier ?? '',
+      plan: 'iot_basic',
+      status: 'registered',
+      tenantId,
+      deviceId: null,
+      deviceName: null,
+      deviceImei: null,
+      deviceType: null,
+      vehicleId: null,
+      suspensionReason: null,
+      notes: null,
+      dataUsageMb: 0,
+      dataLimitMb: 0,
+      smsUsage: 0,
+      smsLimit: 0,
+      monthlyCostNgn: 0,
+      activationDate: null,
+      expiryDate: null,
+      lastActivity: null,
+      signalStrength: null,
+      networkType: null,
+      roaming: false,
+      fonuSimId: null,
+      fonuStatus: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+      return true;
+    } catch (error) {
+      if (error instanceof DuplicateSimIccidError) return false;
+      throw error;
+    }
   }
 
   private parseCsv(

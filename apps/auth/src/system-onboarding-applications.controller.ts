@@ -29,6 +29,8 @@ import {
   ApprovedApplicationResponse,
   ChangesRequestedResponse,
   DocumentDecisionResponse,
+  PaymentReviewedResponse,
+  ProvisionedResponse,
   RejectedApplicationResponse,
   ReviewApplicationResponse,
   ReviewCountersResponse,
@@ -42,9 +44,11 @@ import {
   ApplicationDocumentNotFoundError,
   ApplicationDocumentsIncompleteError,
   ApplicationNotFoundError,
+  ApplicationNotProvisionableError,
   ApplicationNotUnderReviewError,
   ApproveOnboardingApplicationUseCase,
   BusinessEmailInUseError,
+  CompleteProvisioningUseCase,
   DecisionReasonRequiredError,
   GetOnboardingApplicationForReviewUseCase,
   GetOnboardingApplicationTimelineUseCase,
@@ -52,11 +56,14 @@ import {
   ListOnboardingApplicationsUseCase,
   OnboardingValidationError,
   ONBOARDING_APPLICANT_TYPES,
+  PaymentNotInMismatchError,
+  ProvisioningReasonRequiredError,
   ONBOARDING_APPLICATION_STATUSES,
   RejectOnboardingApplicationUseCase,
   RequestOnboardingApplicationChangesUseCase,
   ResendOnboardingSetupLinkUseCase,
   ReviewOnboardingApplicationDocumentUseCase,
+  ReviewOnboardingPaymentMismatchUseCase,
   SetupLinkNotResendableError,
 } from '@auth/onboarding';
 import { Portals, OnResource } from '@shared/access';
@@ -124,6 +131,10 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly requestChanges: RequestOnboardingApplicationChangesUseCase,
     @Inject(ResendOnboardingSetupLinkUseCase)
     private readonly resendSetupLink: ResendOnboardingSetupLinkUseCase,
+    @Inject(CompleteProvisioningUseCase)
+    private readonly completeProvisioning: CompleteProvisioningUseCase,
+    @Inject(ReviewOnboardingPaymentMismatchUseCase)
+    private readonly reviewPayment: ReviewOnboardingPaymentMismatchUseCase,
   ) {
     super(activityLogService);
   }
@@ -403,6 +414,92 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     });
   }
 
+  @Post(':applicationId/provisioned')
+  @ApiOperation({
+    summary: 'Open payment for an application waiting on devices',
+    description:
+      'Moves an approved application from provisioning to payment. Needs no reason when device stock covers the order; otherwise a reason is required and is kept in the activity log.',
+  })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: { reason: { type: 'string', example: 'Stock arrives Monday, customer confirmed' } },
+      description: 'May also be sent wrapped as { data: { reason } }.',
+    },
+  })
+  @ApiCreatedResponse({ description: 'Payment opened', type: ProvisionedResponse })
+  @ApiErrorResponse(400, '"Device stock does not cover this order yet. Give a reason (at least 5 characters) to open payment anyway."')
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, '"An onboarding at the <stage> stage cannot be marked provisioned"')
+  async provisioned(
+    @Param('applicationId') applicationId: string,
+    @Body(BodyOrDataPipe) payload: { reason?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      const result = await this.completeProvisioning.execute({
+        accessToken,
+        applicationId,
+        reason: payload?.reason,
+      });
+      await this.recordDecision(
+        accessToken,
+        applicationId,
+        'application.provisioned',
+        {
+          confirmedWithoutStock: result.data.confirmedWithoutStock,
+          reason: result.data.reason,
+        },
+      );
+      return result;
+    });
+  }
+
+  @Post(':applicationId/payment/review')
+  @ApiOperation({
+    summary: 'Review a wrong-amount payment',
+    description:
+      'Records what staff decided about a payment whose amount did not match: resolved, or refund needed. The note is kept in the activity log.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['outcome', 'note'],
+      properties: {
+        outcome: { type: 'string', enum: ['resolved', 'refund_needed'] },
+        note: { type: 'string', example: 'Customer paid the old price; refund issued' },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Review recorded', type: PaymentReviewedResponse })
+  @ApiErrorResponse(400, 'outcome is not resolved or refund_needed, or note is not 5 to 500 characters; field names which.', OnboardingFieldErrorBody)
+  @AdminErrors(NOT_FOUND)
+  @ApiErrorResponse(409, '"This application has no payment waiting for review"')
+  async reviewPaymentMismatch(
+    @Param('applicationId') applicationId: string,
+    @Body(BodyOrDataPipe) payload: { outcome?: string; note?: string },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      const result = await this.reviewPayment.execute({
+        accessToken,
+        applicationId,
+        outcome: payload?.outcome,
+        note: payload?.note,
+      });
+      await this.recordDecision(
+        accessToken,
+        applicationId,
+        'payment.mismatch_reviewed',
+        { outcome: result.data.outcome, note: result.data.note, reference: result.data.reference },
+      );
+      return result;
+    });
+  }
+
   private requireAccessToken(authorization?: string): string {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -438,6 +535,7 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       }
       if (
         error instanceof DecisionReasonRequiredError ||
+        error instanceof ProvisioningReasonRequiredError ||
         error instanceof ApplicationDocumentsIncompleteError
       ) {
         throw new BadRequestException(error.message);
@@ -450,6 +548,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
       }
       if (
         error instanceof ApplicationNotUnderReviewError ||
+        error instanceof ApplicationNotProvisionableError ||
+        error instanceof PaymentNotInMismatchError ||
         error instanceof BusinessEmailInUseError ||
         error instanceof SetupLinkNotResendableError
       ) {

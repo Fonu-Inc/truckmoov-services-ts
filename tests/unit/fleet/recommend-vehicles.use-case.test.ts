@@ -8,7 +8,7 @@ function vehicle(id: string, overrides: Partial<{ capacity: number | null; type:
     id, plateNumber: `P-${id}`, model: "Truck", tenantId: "t1", status: (overrides.status ?? "active") as any,
     type: (overrides.type ?? "truck") as any, fuelType: (overrides.fuelType ?? "diesel") as any,
     capacity: overrides.capacity === undefined ? 10 : overrides.capacity,
-    vin: null, make: null, year: null, assignedDriverId: null, gpsDevice: null,
+    vin: null, make: null, year: null, assignedDriverId: null, ownerOperatorId: null, gpsDevice: null,
   });
 }
 
@@ -78,5 +78,13 @@ describe("RecommendVehiclesUseCase", () => {
     const { uc } = build([vehicle("a"), vehicle("b"), vehicle("c")]);
 
     expect(await uc.execute("t1", { limit: 2 })).toHaveLength(2);
+  });
+
+  it("offers only the vehicles in the owned set", async () => {
+    const { uc } = build([vehicle("mine"), vehicle("theirs")]);
+
+    const ranked = await uc.execute("t1", {}, new Set(["mine"]));
+
+    expect(ranked.map((r) => r.vehicleId)).toEqual(["mine"]);
   });
 });

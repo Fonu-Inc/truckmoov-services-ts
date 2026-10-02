@@ -11,8 +11,9 @@ export class InMemoryBundleTransactionRepository implements BundleTransactionRep
 
   async findAll(filters?: BundleTransactionFilters): Promise<{ items: StoredBundleTransaction[]; total: number }> {
     let results = [...this.store.values()];
-    if (filters?.tenantId) results = results.filter((t) => t.tenantId === filters.tenantId);
+    if (filters?.tenantId !== undefined) results = results.filter((t) => t.tenantId === filters.tenantId);
     if (filters?.status) results = results.filter((t) => t.status === filters.status);
+    if (filters?.bundleIds) results = results.filter((t) => filters.bundleIds!.includes(t.bundleId));
     if (filters?.startDate) results = results.filter((t) => t.createdAt >= filters.startDate!);
     if (filters?.endDate) results = results.filter((t) => t.createdAt <= filters.endDate!);
     if (filters?.search) {

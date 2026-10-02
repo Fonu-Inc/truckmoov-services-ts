@@ -93,6 +93,9 @@ export class DeviceRecord {
   suspendedBy?: string | null;
   traccarDeviceId?: string | null;
   provisionStatus?: string | null;
+  provisionAttempts?: number;
+  provisionNextAttemptAt?: Date | null;
+  provisionError?: string | null;
   holdCause?: string | null;
   heldAt?: Date | null;
   holdReason?: string | null;
@@ -211,6 +214,9 @@ export const DeviceRecordSchema = new EntitySchema<DeviceRecord>({
     suspendedBy: { type: "string", length: 16, nullable: true },
     traccarDeviceId: { type: "string", length: 64, nullable: true },
     provisionStatus: { type: "string", length: 16, nullable: true, defaultRaw: "'pending'" },
+    provisionAttempts: { type: "integer", defaultRaw: "0" },
+    provisionNextAttemptAt: { type: "datetime", nullable: true },
+    provisionError: { type: "string", length: 255, nullable: true },
     holdCause: { fieldName: "hold_cause", type: "string", length: 16, nullable: true },
     heldAt: { fieldName: "held_at", type: "datetime", nullable: true },
     holdReason: { fieldName: "hold_reason", type: "text", nullable: true },
@@ -841,6 +847,46 @@ export const ComplianceDocumentRecordSchema = new EntitySchema<ComplianceDocumen
   },
 });
 
+export class AlertRecord {
+  id!: string;
+  tenantId!: string;
+  type!: string;
+  severity!: string;
+  status!: string;
+  vehicleId!: string | null;
+  jobId!: string | null;
+  details!: Record<string, unknown>;
+  triggeredAt!: Date;
+  acknowledgedAt!: Date | null;
+  resolvedAt!: Date | null;
+  escalatedAt!: Date | null;
+  acknowledgedBy!: string | null;
+  resolvedBy!: string | null;
+  createdAt!: Date;
+}
+
+export const AlertRecordSchema = new EntitySchema<AlertRecord>({
+  class: AlertRecord,
+  tableName: "fleet_alerts",
+  properties: {
+    id: { type: "string", primary: true, length: 255 },
+    tenantId: { type: "string", length: 64 },
+    type: { type: "string", length: 128 },
+    severity: { type: "string", length: 16 },
+    status: { type: "string", length: 16 },
+    vehicleId: { type: "string", length: 255, nullable: true },
+    jobId: { type: "string", length: 255, nullable: true },
+    details: { type: "json" },
+    triggeredAt: { type: "datetime" },
+    acknowledgedAt: { type: "datetime", nullable: true },
+    resolvedAt: { type: "datetime", nullable: true },
+    escalatedAt: { type: "datetime", nullable: true },
+    acknowledgedBy: { type: "string", length: 255, nullable: true },
+    resolvedBy: { type: "string", length: 255, nullable: true },
+    createdAt: { type: "datetime", defaultRaw: "now()" },
+  },
+});
+
 export class AuditLogRecord {
   id!: string;
   tenantId!: string;
@@ -1003,6 +1049,27 @@ export const FleetFuelBudgetRecordSchema = new EntitySchema<FleetFuelBudgetRecor
     updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
   },
   indexes: [{ properties: ["tenantId", "vehicleId"], options: { unique: true } }],
+});
+
+export class FleetFuelThresholdRecord {
+  id!: string;
+  tenantId!: string;
+  vehicleType!: string;
+  minKmPerLiter!: number;
+  updatedAt!: Date;
+}
+
+export const FleetFuelThresholdRecordSchema = new EntitySchema<FleetFuelThresholdRecord>({
+  class: FleetFuelThresholdRecord,
+  tableName: "fleet_fuel_thresholds",
+  properties: {
+    id: { type: "string", primary: true },
+    tenantId: { type: "string", length: 64 },
+    vehicleType: { type: "string", length: 64 },
+    minKmPerLiter: { type: "decimal", precision: 8, scale: 2 },
+    updatedAt: { type: "datetime", onUpdate: () => new Date(), defaultRaw: "now()" },
+  },
+  indexes: [{ properties: ["tenantId", "vehicleType"], options: { unique: true } }],
 });
 
 export class FleetFuelRecordRecord {
@@ -1233,10 +1300,12 @@ async function initFleetOrm(cfg: DbConfig) {
       MaintenanceRecordOrmSchema,
       ComplianceDocumentRecordSchema,
       AuditLogRecordSchema,
+      AlertRecordSchema,
       DocumentRecordSchema,
       DocumentAccessLogRecordSchema,
       FleetFinancialConfigRecordSchema,
       FleetFuelBudgetRecordSchema,
+      FleetFuelThresholdRecordSchema,
       FleetFuelRecordRecordSchema,
       DeviceSetupRequestRecordSchema,
       ZoneOccupancyRecordSchema,

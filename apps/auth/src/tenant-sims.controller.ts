@@ -1,5 +1,6 @@
 import {
   Res,
+  ConflictException,
   ForbiddenException,
   Body,
   Controller,
@@ -32,6 +33,7 @@ import {
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { ForbiddenError } from './contexts/auth/session';
+import { DuplicateSimIccidError } from './sim.repository';
 import { DeleteTenantSimUseCase } from './delete-tenant-sim.use-case';
 import {
   DeviceMappingUploadResponse,
@@ -49,6 +51,7 @@ import {
 import {
   UpdateTenantSimDto,
   ListSimsQueryDto,
+  PageQueryDto,
   RegisterTenantSimDto,
   SuspendSimDto,
   SubmitSimRequestDto,
@@ -201,11 +204,11 @@ export class TenantSimsController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List tenant SIM requests' })
   @ApiOkResponse({ type: TenantSimRequestsListResponse })
-  async listTenantSimRequests(@Headers('authorization') authorization?: string) {
+  async listTenantSimRequests(@Query() query: PageQueryDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      return await this.listTenantSimRequestsUseCase.execute(accessToken);
+      return await this.listTenantSimRequestsUseCase.execute(accessToken, query);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
@@ -255,6 +258,7 @@ export class TenantSimsController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof TenantSimNotFoundError) throw new NotFoundException(error.message);
       throw error;
     }
   }
@@ -288,6 +292,7 @@ export class TenantSimsController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof DuplicateSimIccidError) throw new ConflictException('This ICCID cannot be added');
       throw error;
     }
   }

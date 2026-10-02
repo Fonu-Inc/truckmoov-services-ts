@@ -4,7 +4,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
+import { DuplicateSimIccidError, SIM_REPOSITORY, type SimRepository, type StoredSim } from './sim.repository';
 
 export class CsvParseError extends Error {}
 
@@ -29,6 +29,43 @@ function parseCsvRows(csvBuffer: Buffer): { headers: string[]; rows: CsvRow[] } 
   return { headers, rows };
 }
 
+function buildSim(row: CsvRow, tenantId: string, now: Date): StoredSim {
+  const dataLimitGb = row['data_limit_gb'] ? parseFloat(row['data_limit_gb']) : 0;
+  const monthlyRental = row['monthly_rental_naira'] ? parseFloat(row['monthly_rental_naira']) : 0;
+  return {
+    id: randomUUID(),
+    iccid: row['iccid'],
+    imsi: row['imsi'] || null,
+    msisdn: row['mobile_number'] || null,
+    carrier: row['operator'] || '',
+    plan: row['sim_type'] || 'iot_basic',
+    status: 'registered',
+    tenantId,
+    deviceId: null,
+    deviceName: null,
+    deviceImei: null,
+    deviceType: null,
+    vehicleId: null,
+    suspensionReason: null,
+    notes: null,
+    dataUsageMb: 0,
+    dataLimitMb: dataLimitGb * 1024,
+    smsUsage: 0,
+    smsLimit: 0,
+    monthlyCostNgn: monthlyRental,
+    activationDate: null,
+    expiryDate: null,
+    lastActivity: null,
+    signalStrength: null,
+    networkType: null,
+    roaming: false,
+    fonuSimId: null,
+    fonuStatus: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 @Injectable()
 export class ImportTenantSimsCsvUseCase {
   constructor(
@@ -44,6 +81,7 @@ export class ImportTenantSimsCsvUseCase {
     const { rows } = parseCsvRows(csvBuffer);
     const now = new Date();
     const errors: RowError[] = [];
+    const skipped: RowError[] = [];
     let importedCount = 0;
 
     for (let i = 0; i < rows.length; i++) {
@@ -55,43 +93,13 @@ export class ImportTenantSimsCsvUseCase {
         continue;
       }
 
-      const dataLimitGb = row['data_limit_gb'] ? parseFloat(row['data_limit_gb']) : 0;
-      const monthlyRental = row['monthly_rental_naira'] ? parseFloat(row['monthly_rental_naira']) : 0;
-
-      await this.simRepository.save({
-        id: randomUUID(),
-        iccid: row['iccid'],
-        imsi: row['imsi'] || null,
-        msisdn: row['mobile_number'] || null,
-        carrier: row['operator'] || '',
-        plan: row['sim_type'] || 'iot_basic',
-        status: 'registered',
-        tenantId: actor.tenantId,
-        deviceId: null,
-        deviceName: null,
-        deviceImei: null,
-        deviceType: null,
-        vehicleId: null,
-        suspensionReason: null,
-        notes: null,
-        dataUsageMb: 0,
-        dataLimitMb: dataLimitGb * 1024,
-        smsUsage: 0,
-        smsLimit: 0,
-        monthlyCostNgn: monthlyRental,
-        activationDate: null,
-        expiryDate: null,
-        lastActivity: null,
-        signalStrength: null,
-        networkType: null,
-        roaming: false,
-        fonuSimId: null,
-        fonuStatus: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      importedCount++;
+      try {
+        await this.simRepository.save(buildSim(row, actor.tenantId, now));
+        importedCount++;
+      } catch (error) {
+        if (!(error instanceof DuplicateSimIccidError)) throw error;
+        skipped.push({ row: rowNum, field: 'iccid', message: 'Skipped: cannot be added' });
+      }
     }
 
     return {
@@ -99,8 +107,10 @@ export class ImportTenantSimsCsvUseCase {
       message: 'success',
       data: {
         importedCount,
+        skippedCount: skipped.length,
         failedCount: errors.length,
         errors: errors.length ? errors : undefined,
+        skipped: skipped.length ? skipped : undefined,
       },
     };
   }

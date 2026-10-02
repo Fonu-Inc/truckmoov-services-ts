@@ -14,6 +14,8 @@ type LatestLocationApi = {
   latitude?: number;
   longitude?: number;
   speed_kph?: number | null;
+  observed_at?: string;
+  fix_time?: string;
   recorded_at?: string;
   occurred_at?: string;
 };
@@ -21,6 +23,23 @@ type LatestLocationApi = {
 type LatestLocationEnvelope = {
   data?: LatestLocationApi[] | null;
 };
+
+/** Tracking sends observed_at/fix_time; the older names are kept as fallbacks. */
+export function positionTimestamp(position: LatestLocationApi): string {
+  return position.observed_at || position.fix_time || position.recorded_at || position.occurred_at || "";
+}
+
+export function toVehiclePositions(rows: LatestLocationApi[]): VehiclePosition[] {
+  return rows
+    .filter((position) => typeof position.latitude === "number" && typeof position.longitude === "number")
+    .map((position) => ({
+      vehicleId: position.vehicle_id ?? "",
+      latitude: position.latitude as number,
+      longitude: position.longitude as number,
+      speedKph: position.speed_kph ?? null,
+      recordedAt: positionTimestamp(position),
+    }));
+}
 
 @Injectable()
 export class HttpVehiclePositionsReader implements VehiclePositionsReader {
@@ -52,15 +71,7 @@ export class HttpVehiclePositionsReader implements VehiclePositionsReader {
         return [];
       }
 
-      return res.data.data
-        .filter((position) => typeof position.latitude === "number" && typeof position.longitude === "number")
-        .map((position) => ({
-          vehicleId: position.vehicle_id ?? "",
-          latitude: position.latitude as number,
-          longitude: position.longitude as number,
-          speedKph: position.speed_kph ?? null,
-          recordedAt: position.recorded_at ?? position.occurred_at ?? "",
-        }));
+      return toVehiclePositions(res.data.data);
     } catch (err) {
       this.logger.warn(`tracking read failed: ${(err as Error).message}; degrading to no positions`);
       return [];
