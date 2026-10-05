@@ -62,3 +62,28 @@ kubectl apply -k deploy/k8s/fleet
 
 For staging, use `deploy/k8s/doppler/overlays/stg`.
 For production, use `deploy/k8s/doppler/overlays/prd`.
+
+
+## Authorization and admin MFA switches (prepared — flip after log soak)
+
+These are **not** live-set by this repo. Add them in Doppler (or rely on
+gitops ConfigMap defaults of `log` / `optional`) and flip when ready.
+
+**Flip order (required):** `PERMISSION_ENFORCEMENT` first, then
+`PORTAL_ENFORCEMENT`. Permissions before portal so role bundles and
+`@Requires` / `@OnResource` gaps surface while portal soft-allow can still
+be diagnosed separately.
+
+| Key | Safe / prepared value | Flip to | Doppler configs |
+|---|---|---|---|
+| `PERMISSION_ENFORCEMENT` | `log` | `enforce` | `stg_auth`, `stg_fleet`, `stg_realtime`, `stg_notification`, `stg_tracking`, `stg_dispatch` (and `stg` if used) |
+| `PORTAL_ENFORCEMENT` | `log` | `enforce` | same as above |
+| `ADMIN_TWO_FACTOR` | `optional` | `required` | `stg_auth` only (after admin SPA 2FA code/enrolment step is live) |
+| `DOCUMENT_SCAN_REQUIRED` | `false` | `true` | `stg_auth` (only after a real malware scanner is wired) |
+
+Code defaults remain `log` / `optional` / `false` when unset — fail-open for
+the log soak by design. Do **not** change code defaults to `enforce` until
+would-deny logs and role mappings are clean.
+
+Rollback: set the key back to `log` (or `optional`) in Doppler; pods pick up
+via DopplerSecret sync. No image rebuild required.

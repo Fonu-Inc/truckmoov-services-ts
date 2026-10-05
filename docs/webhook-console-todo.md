@@ -8,38 +8,18 @@ Newest first.
 
 ---
 
-## W-1 — The WhatsApp webhook does not check that Meta sent it
+## W-1 — WhatsApp webhook signature verification (RESOLVED)
 
-**Severity: high. Live now, not future.**
+**Status: fixed in code.** Stale claim below kept only as history.
 
-`/notify/whatsapp/webhook` accepts any POST. The GET handshake checks
-`hub.verify_token`, which is correct, but that only protects the one-time
-subscription. Every message delivery after it is a POST, and the POST path never
-verifies `X-Hub-Signature-256` — Meta's HMAC of the raw body using the app
-secret. There is no signature check anywhere in the notification service's
-webhook path.
+`POST /notify/whatsapp/webhook` verifies `X-Hub-Signature-256` against the raw
+body using `WHATSAPP_APP_SECRET` (`whatsAppSignatureValid` in the notification
+handler). If the app secret is unset the handler **rejects** all POSTs (fail
+closed). GET subscription handshake still uses `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+Doppler `stg_notification` carries both secrets.
 
-The route is `mux.HandleFunc("/notify/whatsapp/webhook", h.whatsAppWebhook)` —
-not wrapped in `withAPIKey`, unlike the tracking ingest routes — and `/notify`
-is routed publicly by Kong with no auth plugin on it. It has to be publicly
-reachable for Meta to call it, so the exposure is by design; the missing
-signature check is not.
-
-Anyone who learns the URL can:
-
-- inject inbound messages into any tenant's conversation,
-- forge delivery and read receipts on real messages,
-- and, once waybills can arrive over WhatsApp, inject waybills that become
-  priced lines and then customer invoices.
-
-**Fix:** verify `X-Hub-Signature-256` against the raw request body before
-parsing, using the Meta app secret, with a constant-time compare. The body must
-be read once and verified before `json.Unmarshal`, because the signature covers
-the exact bytes. Reject on mismatch and log the attempt.
-
-**Note on the tenant model:** the signature is computed with the *app* secret,
-which is per Meta app rather than per tenant, so one secret covers every
-tenant's traffic. That holds for the current bring-your-own-account model.
+Do not re-open this as an unsigned-webhook finding; treat missing Doppler
+secrets in a new environment as a deploy checklist item instead.
 
 ---
 

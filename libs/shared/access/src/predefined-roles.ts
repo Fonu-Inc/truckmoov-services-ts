@@ -35,13 +35,33 @@ export const PREDEFINED_ROLES: Readonly<Record<Role, PredefinedRole>> = {
       "admin.tenants.read", "admin.dashboard.read", "admin.audit.read",
     ],
   },
+  // Day-to-day platform ops: read on every admin surface the SPA shows them,
+  // manage only on operational resources. Kept with SUPER_ADMIN / SYSTEM_ADMIN:
+  // staff and governance (all), and platform-wide policy writes — plan pricing
+  // and entitlements, security auto-block rules, platform settings and feature
+  // flags, third-party integration credentials, AI governance. The audit log
+  // is read-only for everyone below SUPER/SYSTEM (no route needs audit.manage).
   [Role.PLATFORM_ADMIN]: {
     portal: "admin",
     permissions: [
-      "admin.dashboard.read", "admin.tenants.read", "admin.upgrade_review.read", "admin.upgrade_review.manage",
-      "admin.billing.read", "admin.billing.manage", "admin.alerts.read", "admin.alerts.manage",
-      "admin.devices.read", "admin.sims.read", "admin.support.read", "admin.support.manage",
-      "admin.installers.read", "admin.installers.manage", "admin.installations.read", "admin.installations.manage",
+      "admin.dashboard.read",
+      "admin.tenants.read", "admin.tenants.manage",
+      "admin.onboarding_review.read", "admin.onboarding_review.manage",
+      "admin.upgrade_review.read", "admin.upgrade_review.manage",
+      "admin.plans.read",
+      "admin.billing.read", "admin.billing.manage",
+      "admin.alerts.read", "admin.alerts.manage",
+      "admin.devices.read", "admin.devices.manage",
+      "admin.sims.read", "admin.sims.manage",
+      "admin.support.read", "admin.support.manage",
+      "admin.installers.read", "admin.installers.manage",
+      "admin.installations.read", "admin.installations.manage",
+      "admin.messaging.read", "admin.messaging.manage",
+      "admin.security.read",
+      "admin.settings.read",
+      "admin.integrations.read",
+      "admin.ai.read",
+      "admin.audit.read",
     ],
   },
   // Signed-in routes only until installer permissions are mapped.
