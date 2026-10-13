@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { DEVICE_SETUP_REQUEST_STATUSES, SETUP_REQUEST_CHARGE_KINDS } from "@shared/devices";
 import { ErrorResponse, StandardApiResponse } from "@shared/openapi";
+import { PaginationMetaSchema } from "@shared/pagination";
 import { TRACKER_TYPES } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
 import { VEHICLE_TABS, type VehicleTab } from "../contexts/fleet/vehicles/domain/vehicle-tabs";
 import {
@@ -170,6 +171,9 @@ export class DeviceResponse extends StandardApiResponse<DeviceSchema> {
 export class DeviceListResponse extends StandardApiResponse<DeviceSchema[]> {
   @ApiProperty({ type: DeviceSchema, isArray: true })
   data!: DeviceSchema[];
+
+  @ApiProperty({ type: PaginationMetaSchema })
+  meta!: PaginationMetaSchema;
 }
 
 export class QuotaAllowanceSchema {
@@ -285,6 +289,9 @@ export class DeviceSetupRequestResponse extends StandardApiResponse<DeviceSetupR
 export class DeviceSetupRequestListResponse extends StandardApiResponse<DeviceSetupRequestSchema[]> {
   @ApiProperty({ type: DeviceSetupRequestSchema, isArray: true })
   data!: DeviceSetupRequestSchema[];
+
+  @ApiProperty({ type: PaginationMetaSchema })
+  meta!: PaginationMetaSchema;
 }
 
 export class DeviceAssignmentValidationSchema {
@@ -491,6 +498,9 @@ export class DriverResponse extends StandardApiResponse<DriverSchema> {
 export class DriverListResponse extends StandardApiResponse<DriverListItemSchema[]> {
   @ApiProperty({ type: DriverListItemSchema, isArray: true })
   data!: DriverListItemSchema[];
+
+  @ApiProperty({ type: PaginationMetaSchema })
+  meta!: PaginationMetaSchema;
 }
 
 export class BehaviorEventCountsSchema {
@@ -544,6 +554,9 @@ export class DriverBehaviorRankingSchema {
 export class DriverBehaviorRankingResponse extends StandardApiResponse<DriverBehaviorRankingSchema> {
   @ApiProperty({ type: DriverBehaviorRankingSchema })
   data!: DriverBehaviorRankingSchema;
+
+  @ApiProperty({ type: PaginationMetaSchema })
+  meta!: PaginationMetaSchema;
 }
 
 export class DriverBehaviorSummarySchema {

@@ -35,6 +35,7 @@ import { UpdateDeviceSetupRequestStatusDto, CreateDeviceSetupRequestDto, DeviceS
 import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dto/fleet.schema";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource, Requires } from "@shared/access";
+import { paginate } from "@shared/pagination";
 
 @ApiTags("Device Setup Requests")
 @Portals("tenant")
@@ -97,11 +98,13 @@ export class DeviceSetupRequestsController extends BaseFleetController {
     @Query() query: DeviceSetupRequestListQueryDto,
     @Req() req: FleetRequestContext,
   ): Promise<DeviceSetupRequestListResponse> {
-    return this.listDeviceSetupRequestsUseCase.execute({
+    const requests = await this.listDeviceSetupRequestsUseCase.execute({
       query: query.query,
       status: query.status,
       tenantId: this.tenantIdFromRequest(req),
-    }) as unknown as Promise<DeviceSetupRequestListResponse>;
+    });
+    const { items, meta } = paginate(requests, query);
+    return { status: true, message: "success", data: items, meta } as unknown as DeviceSetupRequestListResponse;
   }
 
   @Get("tracker-types")

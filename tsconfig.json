@@ -33,6 +33,7 @@
       "@shared/audit": ["libs/shared/audit/src"],
       "@shared/identity": ["libs/shared/identity/src"],
       "@shared/access": ["libs/shared/access/src"],
+      "@shared/pagination": ["libs/shared/pagination/src"],
       "@auth/session": ["apps/auth/src/contexts/auth/session"],
       "@auth/session/*": ["apps/auth/src/contexts/auth/session/*"],
       "@auth/installation": ["apps/auth/src/contexts/installation"],

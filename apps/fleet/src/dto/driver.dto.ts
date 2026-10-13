@@ -1,5 +1,6 @@
 import { PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
+import { PaginationQueryDto } from "@shared/pagination";
 import {
   IsArray,
   IsEmail,
@@ -148,7 +149,7 @@ export class BulkImportDriversDto {
   items!: DriverImportItemDto[];
 }
 
-export class DriverListQueryDto {
+export class DriverListQueryDto extends PaginationQueryDto {
   /** Free text across name, phone, licence and email. */
   @IsOptional()
   @IsString()
@@ -173,6 +174,12 @@ export class DriverListQueryDto {
   @IsOptional()
   @IsString()
   assigned?: string;
+}
+
+export class DriverRankingQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  period_days?: string;
 }
 
 export class SuspendDriverDto {

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
+import { PaginationQueryDto } from "@shared/pagination";
 import {
   IsArray,
   IsIn,
@@ -229,7 +230,7 @@ export class SuspendDeviceDto {
   reason?: string;
 }
 
-export class DeviceListQueryDto {
+export class DeviceListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   query?: string;

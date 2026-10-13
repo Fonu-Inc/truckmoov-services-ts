@@ -83,6 +83,7 @@ import {
 } from "./dto/vehicle.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
+import { paginate } from "@shared/pagination";
 
 @ApiTags("Devices")
 @Portals("tenant")
@@ -138,9 +139,9 @@ export class DevicesController extends BaseFleetController {
   @ApiQuery({ name: "lastSeenBucket", required: false, enum: ["5min", "1hr", "24hr", "7day", "never"] })
   @ApiOkResponse({ type: DeviceListResponse })
   async listDevices(@Query() query: DeviceListQueryDto, @Req() req: FleetRequestContext): Promise<DeviceListResponse> {
-    return this.listDevicesUseCase.execute(
-      this.listFilters(query, req),
-    ) as unknown as Promise<DeviceListResponse>;
+    const devices = await this.listDevicesUseCase.execute(this.listFilters(query, req));
+    const { items, meta } = paginate(devices, query);
+    return { status: true, message: "success", data: items, meta } as unknown as DeviceListResponse;
   }
 
   @Get("summary")

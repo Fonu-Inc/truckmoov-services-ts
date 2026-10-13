@@ -5,6 +5,7 @@ import {
   type DeviceSetupRequestStatus,
   type TrackerType,
 } from "../contexts/fleet/device-setup-requests/domain/entities/device-setup-request.entity";
+import { PaginationQueryDto } from "@shared/pagination";
 
 export class CreateDeviceSetupRequestDto {
   /** Optional: the platform picks the hardware when it fulfils the request. */
@@ -102,7 +103,7 @@ export class UpdateDeviceSetupRequestStatusDto {
   note?: string;
 }
 
-export class DeviceSetupRequestListQueryDto {
+export class DeviceSetupRequestListQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   query?: string;

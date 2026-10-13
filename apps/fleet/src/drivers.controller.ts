@@ -82,6 +82,7 @@ import {
   type DriverQuotaReader,
 } from "./contexts/fleet/drivers/domain/ports/driver-quota-reader.port";
 import { Portals, OnResource, Requires } from "@shared/access";
+import { paginate } from "@shared/pagination";
 import {
   DISPATCH_JOBS_READER,
   type DispatchJobsReader,
@@ -103,6 +104,7 @@ import {
   UpdateDriverContactChannelsDto,
   CreateDriverDto,
   DriverListQueryDto,
+  DriverRankingQueryDto,
   UpdateDriverDto,
   BulkImportDriversDto,
   SuspendDriverDto,
@@ -175,7 +177,8 @@ export class DriversController extends BaseFleetController {
   async listDrivers(@Query() query: DriverListQueryDto, @Req() req: FleetRequestContext): Promise<DriverListResponse> {
     const tenantId = this.tenantIdFromRequest(req);
     const roster = await this.buildRoster(tenantId, query, req);
-    return { status: true, message: "success", data: roster.items } as unknown as DriverListResponse;
+    const { items, meta } = paginate(roster.items, query);
+    return { status: true, message: "success", data: items, meta } as unknown as DriverListResponse;
   }
 
   @Get("summary")
@@ -652,14 +655,15 @@ export class DriversController extends BaseFleetController {
   })
   @ApiQuery({ name: "period_days", required: false, type: Number })
   @ApiOkResponse({ type: DriverBehaviorRankingResponse })
-  async getBehaviorRanking(@Query("period_days") periodDays: string, @Req() req: FleetRequestContext) {
+  async getBehaviorRanking(@Query() query: DriverRankingQueryDto, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
-    const data = await this.driverBehaviorUseCase.ranking(
+    const ranking = await this.driverBehaviorUseCase.ranking(
       tenantId,
-      parseInt(periodDays ?? "30", 10),
+      parseInt(query.period_days ?? "30", 10),
       await this.ownedDriverIds(tenantId, req),
     );
-    return { status: true, message: "success", data };
+    const { items, meta } = paginate(ranking.items, query);
+    return { status: true, message: "success", data: { ...ranking, items }, meta };
   }
 
   @Get("behavior/events")
