@@ -1,3 +1,8 @@
+export type ThemedColor = {
+  dark: string;
+  light: string;
+};
+
 export type OrganizationBranding = {
   organizationName: string;
   contactEmail: string | null;
@@ -6,15 +11,15 @@ export type OrganizationBranding = {
   address: string | null;
   logoUrl: string | null;
   profilePictureUrl: string | null;
-  primaryColor: string | null;
-  secondaryColor: string | null;
-  accentColor: string | null;
-  successColor: string | null;
-  warningColor: string | null;
-  destructiveColor: string | null;
-  sidebarBackground: string | null;
-  sidebarText: string | null;
-  sidebarAccent: string | null;
+  primaryColor: ThemedColor | null;
+  secondaryColor: ThemedColor | null;
+  accentColor: ThemedColor | null;
+  successColor: ThemedColor | null;
+  warningColor: ThemedColor | null;
+  destructiveColor: ThemedColor | null;
+  sidebarBackground: ThemedColor | null;
+  sidebarText: ThemedColor | null;
+  sidebarAccent: ThemedColor | null;
 };
 
 export type OrganizationDefaults = {

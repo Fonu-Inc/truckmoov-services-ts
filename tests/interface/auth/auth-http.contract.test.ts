@@ -2540,8 +2540,8 @@ describe('Auth HTTP contract', () => {
           organizationName: 'Lagos Express Logistics',
           logoUrl: 'https://cdn.example.com/orgs/logo.png',
           profilePictureUrl: 'https://cdn.example.com/orgs/profile.png',
-          primaryColor: '#0D9488',
-          secondaryColor: '#0EA5E9',
+          primaryColor: { dark: '#0D9488', light: '#14B8A6' },
+          secondaryColor: { dark: '#0EA5E9', light: '#38BDF8' },
         },
         defaults: {
           timezone: 'Africa/Lagos',
@@ -2568,11 +2568,35 @@ describe('Auth HTTP contract', () => {
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.branding.primaryColor).toBe('#0D9488');
+    expect(getRes.body.branding.primaryColor).toEqual({
+      dark: '#0D9488',
+      light: '#14B8A6',
+    });
+    expect(getRes.body.branding.secondaryColor).toEqual({
+      dark: '#0EA5E9',
+      light: '#38BDF8',
+    });
     expect(getRes.body.branding.profilePictureUrl).toBe(
       'https://cdn.example.com/orgs/profile.png',
     );
     expect(getRes.body.defaults.timezone).toBe('Africa/Lagos');
+  });
+
+  it('PATCH /organization/settings rejects packed string and non-hex branding colours', async () => {
+    const regRes = await seedEnterpriseAdmin('org-colors@contract.com');
+    const accessToken = regRes.body.accessToken as string;
+
+    const patch = (branding: Record<string, unknown>) =>
+      request(app.getHttpServer())
+        .patch('/auth/organization/settings')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ branding });
+
+    expect((await patch({ primaryColor: '#FFC106:#FFC107' })).status).toBe(400);
+    expect(
+      (await patch({ accentColor: { dark: 'red', light: '#FFFFFF' } })).status,
+    ).toBe(400);
+    expect((await patch({ sidebarText: { dark: '#000000' } })).status).toBe(400);
   });
 
   it('GET /organization/settings allows non-enterprise-admin user but PATCH still rejects', async () => {

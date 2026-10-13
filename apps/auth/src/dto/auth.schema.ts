@@ -276,6 +276,14 @@ export class DispatcherPreferencesResponse extends StandardApiResponse<Dispatche
   data!: DispatcherPreferencesDataSchema;
 }
 
+export class ThemedColorSchema {
+  @ApiProperty({ example: '#0F1115' })
+  dark!: string;
+
+  @ApiProperty({ example: '#FFFFFF' })
+  light!: string;
+}
+
 export class OrganizationBrandingSchema {
   @ApiProperty()
   organizationName!: string;
@@ -295,32 +303,32 @@ export class OrganizationBrandingSchema {
   @ApiProperty({ nullable: true })
   profilePictureUrl!: string | null;
 
-  @ApiProperty({ nullable: true })
-  primaryColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  primaryColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  secondaryColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  secondaryColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  accentColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  accentColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  successColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  successColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  warningColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  warningColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  destructiveColor!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  destructiveColor!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  sidebarBackground!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  sidebarBackground!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  sidebarText!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  sidebarText!: ThemedColorSchema | null;
 
-  @ApiProperty({ nullable: true })
-  sidebarAccent!: string | null;
+  @ApiProperty({ type: ThemedColorSchema, nullable: true })
+  sidebarAccent!: ThemedColorSchema | null;
 }
 
 export class OrganizationDefaultsSchema {

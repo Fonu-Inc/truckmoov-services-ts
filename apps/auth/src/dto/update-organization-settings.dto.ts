@@ -11,6 +11,14 @@ import {
 
 const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+class ThemedColorDto {
+  @Matches(HEX_COLOR_PATTERN, { message: "dark must be a valid hex color (e.g. #0052CC)" })
+  dark!: string;
+
+  @Matches(HEX_COLOR_PATTERN, { message: "light must be a valid hex color (e.g. #00A3FF)" })
+  light!: string;
+}
+
 class BrandingDto {
   @IsOptional()
   @IsString()
@@ -46,49 +54,49 @@ class BrandingDto {
   profilePictureUrl?: string | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "primaryColor must be a valid hex color (e.g. #0052CC)" })
-  primaryColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  primaryColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "secondaryColor must be a valid hex color (e.g. #00A3FF)" })
-  secondaryColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  secondaryColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "accentColor must be a valid hex color" })
-  accentColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  accentColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "successColor must be a valid hex color" })
-  successColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  successColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "warningColor must be a valid hex color" })
-  warningColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  warningColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "destructiveColor must be a valid hex color" })
-  destructiveColor?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  destructiveColor?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "sidebarBackground must be a valid hex color" })
-  sidebarBackground?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  sidebarBackground?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "sidebarText must be a valid hex color" })
-  sidebarText?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  sidebarText?: ThemedColorDto | null;
 
   @IsOptional()
-  @IsString()
-  @Matches(HEX_COLOR_PATTERN, { message: "sidebarAccent must be a valid hex color" })
-  sidebarAccent?: string | null;
+  @ValidateNested()
+  @Type(() => ThemedColorDto)
+  sidebarAccent?: ThemedColorDto | null;
 }
 
 class DefaultsDto {

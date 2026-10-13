@@ -2655,15 +2655,15 @@ Epic B (US-B04): retrieve tenant-level branding/default settings for the current
           address: string | null
           logoUrl: string | null
           profilePictureUrl: string | null
-          primaryColor: string | null
-          secondaryColor: string | null
-          accentColor: string | null
-          successColor: string | null
-          warningColor: string | null
-          destructiveColor: string | null
-          sidebarBackground: string | null
-          sidebarText: string | null
-          sidebarAccent: string | null
+          primaryColor: { dark: string; light: string } | null
+          secondaryColor: { dark: string; light: string } | null
+          accentColor: { dark: string; light: string } | null
+          successColor: { dark: string; light: string } | null
+          warningColor: { dark: string; light: string } | null
+          destructiveColor: { dark: string; light: string } | null
+          sidebarBackground: { dark: string; light: string } | null
+          sidebarText: { dark: string; light: string } | null
+          sidebarAccent: { dark: string; light: string } | null
         }
       defaults:
         {
@@ -2703,15 +2703,15 @@ Epic B (US-B04): update tenant-level branding/default settings.
       address?: string | null
       logoUrl?: string | null
       profilePictureUrl?: string | null
-      primaryColor?: string | null
-      secondaryColor?: string | null
-      accentColor?: string | null
-      successColor?: string | null
-      warningColor?: string | null
-      destructiveColor?: string | null
-      sidebarBackground?: string | null
-      sidebarText?: string | null
-      sidebarAccent?: string | null
+      primaryColor?: { dark: string; light: string } | null
+      secondaryColor?: { dark: string; light: string } | null
+      accentColor?: { dark: string; light: string } | null
+      successColor?: { dark: string; light: string } | null
+      warningColor?: { dark: string; light: string } | null
+      destructiveColor?: { dark: string; light: string } | null
+      sidebarBackground?: { dark: string; light: string } | null
+      sidebarText?: { dark: string; light: string } | null
+      sidebarAccent?: { dark: string; light: string } | null
     }
   defaults?:
     {
@@ -2742,15 +2742,15 @@ Epic B (US-B04): update tenant-level branding/default settings.
           address: string | null
           logoUrl: string | null
           profilePictureUrl: string | null
-          primaryColor: string | null
-          secondaryColor: string | null
-          accentColor: string | null
-          successColor: string | null
-          warningColor: string | null
-          destructiveColor: string | null
-          sidebarBackground: string | null
-          sidebarText: string | null
-          sidebarAccent: string | null
+          primaryColor: { dark: string; light: string } | null
+          secondaryColor: { dark: string; light: string } | null
+          accentColor: { dark: string; light: string } | null
+          successColor: { dark: string; light: string } | null
+          warningColor: { dark: string; light: string } | null
+          destructiveColor: { dark: string; light: string } | null
+          sidebarBackground: { dark: string; light: string } | null
+          sidebarText: { dark: string; light: string } | null
+          sidebarAccent: { dark: string; light: string } | null
         }
       defaults:
         {

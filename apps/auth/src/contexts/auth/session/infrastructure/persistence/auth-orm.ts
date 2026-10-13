@@ -236,6 +236,8 @@ export const AuthUserRecordSchema = new EntitySchema<AuthUserRecord>({
 
 /* ── Organization Settings ───────────────────────────── */
 
+type ThemedColorRecord = { dark: string; light: string };
+
 export class OrganizationSettingsRecord {
   tenantId!: string;
   branding!: {
@@ -246,15 +248,15 @@ export class OrganizationSettingsRecord {
     address: string | null;
     logoUrl: string | null;
     profilePictureUrl: string | null;
-    primaryColor: string | null;
-    secondaryColor: string | null;
-    accentColor: string | null;
-    successColor: string | null;
-    warningColor: string | null;
-    destructiveColor: string | null;
-    sidebarBackground: string | null;
-    sidebarText: string | null;
-    sidebarAccent: string | null;
+    primaryColor: ThemedColorRecord | null;
+    secondaryColor: ThemedColorRecord | null;
+    accentColor: ThemedColorRecord | null;
+    successColor: ThemedColorRecord | null;
+    warningColor: ThemedColorRecord | null;
+    destructiveColor: ThemedColorRecord | null;
+    sidebarBackground: ThemedColorRecord | null;
+    sidebarText: ThemedColorRecord | null;
+    sidebarAccent: ThemedColorRecord | null;
   };
   defaults!: {
     timezone: string;
