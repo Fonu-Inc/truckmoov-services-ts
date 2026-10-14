@@ -104,8 +104,23 @@ import {
 } from "./dto/vehicle.dto";
 import { MaintenanceRecordsUseCase } from "./maintenance-records.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { haversineKm } from "./utils/haversine";
-import { VehicleHealthService } from "./vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type VehiclePosition,
+  type VehiclePositionRepository,
+} from "./contexts/fleet/tracking/domain/vehicle-position.repository";
+
+function isCoordinate({ lat, lng }: { lat: number; lng: number }): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+}
+
+type HealthVehicle = {
+  id: string;
+  plateNumber: string;
+  model: string;
+  assignedDriverId: string | null;
+  gpsDevice?: { imei: string } | null;
+};
 
 @ApiTags("Vehicles")
 @Portals("tenant")
@@ -129,7 +144,7 @@ export class VehiclesController extends BaseFleetController {
     @Inject(SetVehicleStatusUseCase) private readonly setVehicleStatusUseCase: SetVehicleStatusUseCase,
     @Inject(RegisterVehicleGpsDeviceUseCase) private readonly registerVehicleGpsDeviceUseCase: RegisterVehicleGpsDeviceUseCase,
     @Inject(BulkImportVehiclesUseCase) private readonly bulkImportVehiclesUseCase: BulkImportVehiclesUseCase,
-    @Inject(VehicleHealthService) private readonly vehicleHealthService: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
     @Inject(MaintenanceRecordsUseCase) private readonly maintenanceRecordsUseCase: MaintenanceRecordsUseCase,
     @Inject(VEHICLE_QUOTA_READER) private readonly vehicleQuotaReader: VehicleQuotaReader,
     @Inject(ListFuelRecordsUseCase) private readonly listFuelRecordsUseCase: ListFuelRecordsUseCase,
@@ -147,10 +162,12 @@ export class VehiclesController extends BaseFleetController {
   @ApiOperation({ summary: "Get last seen status" })
   @ApiOkResponse({ type: VehicleHealthResponse })
   async getVehicleHealth(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
-    const vehicle = await this.runFleetUseCase(() =>
-      this.getVehicleUseCase.execute(vehicleId, this.tenantIdFromRequest(req)),
-    );
-    return { status: true, data: this.buildHealth(vehicle as never) };
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicle = (await this.runFleetUseCase(() =>
+      this.getVehicleUseCase.execute(vehicleId, tenantId),
+    )) as unknown as HealthVehicle;
+    const positions = await this.positions.findByVehicleIds(tenantId, [vehicle.id]);
+    return { status: true, data: this.buildHealth(vehicle, positions.get(vehicle.id)) };
   }
 
   @Get("health")
@@ -158,9 +175,10 @@ export class VehiclesController extends BaseFleetController {
   @ApiOperation({ summary: "List all last seen statuses" })
   @ApiOkResponse({ type: VehicleHealthListResponse })
   async listVehicleHealth(@Req() req: FleetRequestContext) {
-    const vehicles = await this.listVehiclesUseCase.execute({ tenantId: this.tenantIdFromRequest(req) });
-    const data = (vehicles as unknown as Array<{ id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { imei: string } | null }>)
-      .map((v) => this.buildHealth(v));
+    const tenantId = this.tenantIdFromRequest(req);
+    const vehicles = (await this.listVehiclesUseCase.execute({ tenantId })) as unknown as HealthVehicle[];
+    const positions = await this.positions.findByVehicleIds(tenantId, vehicles.map((v) => v.id));
+    const data = vehicles.map((v) => this.buildHealth(v, positions.get(v.id)));
     return { status: true, data };
   }
 
@@ -177,31 +195,27 @@ export class VehiclesController extends BaseFleetController {
     @Query("limit") limit = "5",
     @Req() req: FleetRequestContext,
   ): Promise<NearestVehicleListResponse> {
-    const originLat = parseFloat(lat);
-    const originLng = parseFloat(lng);
+    const origin = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    if (!isCoordinate(origin)) throw new BadRequestException("lat and lng must be a valid coordinate");
     const maxResults = parseInt(limit, 10) || 5;
+    const tenantId = this.tenantIdFromRequest(req);
 
-    const vehicles = await this.listVehiclesUseCase.execute({ tenantId: this.tenantIdFromRequest(req) }) as unknown as Array<{
-      id: string; plateNumber: string; model: string; assignedDriverId: string | null;
-    }>;
+    const vehicles = (await this.listVehiclesUseCase.execute({ tenantId })) as unknown as HealthVehicle[];
+    const byId = new Map(vehicles.map((v) => [v.id, v]));
+    const nearest = await this.positions.nearest(tenantId, origin, [...byId.keys()], maxResults);
 
-    const data = vehicles
-      .map((v) => {
-        const entry = this.vehicleHealthService.get(v.id);
-        if (!entry || entry.lat == null || entry.lng == null) return null;
-        return {
-          vehicleId: v.id,
-          plateNumber: v.plateNumber,
-          model: v.model,
-          assignedDriverId: v.assignedDriverId,
-          lat: entry.lat,
-          lng: entry.lng,
-          distanceKm: haversineKm(originLat, originLng, entry.lat, entry.lng),
-        };
-      })
-      .filter((v): v is NonNullable<typeof v> => v !== null)
-      .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, maxResults);
+    const data = nearest.map((position) => {
+      const v = byId.get(position.vehicleId)!;
+      return {
+        vehicleId: v.id,
+        plateNumber: v.plateNumber,
+        model: v.model,
+        assignedDriverId: v.assignedDriverId,
+        lat: position.lat,
+        lng: position.lng,
+        distanceKm: position.distanceKm,
+      };
+    });
 
     return { status: true, message: "success", data } as unknown as NearestVehicleListResponse;
   }
@@ -786,8 +800,7 @@ export class VehiclesController extends BaseFleetController {
 
   /** Retrieve drivers with optional dispatch-centric filters */
 
-  private buildHealth(vehicle: { id: string; plateNumber: string; model: string; assignedDriverId: string | null; gpsDevice: { imei: string } | null }) {
-    const entry = this.vehicleHealthService.get(vehicle.id);
+  private buildHealth(vehicle: HealthVehicle, entry: VehiclePosition | undefined) {
     const lastSeen = entry?.lastSeen ?? null;
     const deviceId = entry?.deviceId ?? vehicle.gpsDevice?.imei ?? null;
     const healthy = lastSeen !== null && Date.now() - lastSeen < this.HEALTH_THRESHOLD_MS;

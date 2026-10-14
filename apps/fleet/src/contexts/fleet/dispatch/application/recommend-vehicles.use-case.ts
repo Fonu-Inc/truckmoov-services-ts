@@ -1,9 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
-import { VehicleHealthService } from "../../../../vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type VehiclePosition,
+  type VehiclePositionRepository,
+} from "../../tracking/domain/vehicle-position.repository";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../domain/ports/dispatch-jobs-reader.port";
 import { ACTIVE_JOB_STATUSES } from "../domain/active-job-statuses";
-import { haversineKm } from "../../../../utils/haversine";
+import { pickupOf } from "./pickup-point";
 
 export type RecommendVehiclesQuery = {
   requiredWeightKg?: number;
@@ -56,7 +60,7 @@ export class RecommendVehiclesUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
-    private readonly health: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
   ) {}
 
   async execute(
@@ -76,16 +80,21 @@ export class RecommendVehiclesUseCase {
         .filter((id): id is string => !!id),
     );
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
+    const fixes = await this.positions.findByVehicleIds(tenantId, vehicles.map((v) => v.id), pickupOf(query));
 
     return vehicles
-      .map((vehicle) => this.rank(vehicle, query, busy.has(vehicle.id)))
+      .map((vehicle) => this.rank(vehicle, fixes.get(vehicle.id), query, busy.has(vehicle.id)))
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   }
 
-  private rank(vehicle: Candidate, query: RecommendVehiclesQuery, onActiveJob: boolean): RecommendedVehicleRank {
-    const fix = this.health.get(vehicle.id);
-    const distanceKm = distanceTo(query, fix);
+  private rank(
+    vehicle: Candidate,
+    fix: VehiclePosition | undefined,
+    query: RecommendVehiclesQuery,
+    onActiveJob: boolean,
+  ): RecommendedVehicleRank {
+    const distanceKm = fix?.distanceKm ?? null;
     const factors = {
       availability: availabilityOf(vehicle, onActiveJob),
       capacity: capacityFit(vehicle.capacityWeightKg, query.requiredWeightKg),
@@ -132,11 +141,6 @@ function match(actual: string | null, wanted: string | undefined, label: string)
   if (!wanted) return { value: 0.7 };
   if (actual === wanted) return { value: 1, reason: `${label} match: ${actual}` };
   return { value: 0.3 };
-}
-
-function distanceTo(query: RecommendVehiclesQuery, fix: { lat: number | null; lng: number | null } | null | undefined) {
-  if (query.pickupLat == null || query.pickupLng == null || fix?.lat == null || fix?.lng == null) return null;
-  return haversineKm(query.pickupLat, query.pickupLng, fix.lat, fix.lng);
 }
 
 function proximityOf(distanceKm: number | null): Factor {

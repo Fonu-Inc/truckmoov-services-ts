@@ -4,7 +4,7 @@ import { Vehicle } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/
 import { Driver } from "../../../apps/fleet/src/contexts/fleet/drivers/domain/entities/driver.entity";
 import type { DispatchJob } from "../../../apps/fleet/src/contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { Alert } from "../../../apps/fleet/src/contexts/fleet/alerts/domain/alert.entity";
-import { VehicleHealthService } from "../../../apps/fleet/src/vehicle-health.service";
+import { InMemoryVehiclePositionRepository } from "../../../apps/fleet/src/contexts/fleet/tracking/infrastructure/in-memory-vehicle-position.repository";
 
 function makeVehicle(id: string, status = "active", assignedDriverId: string | null = null) {
   return Vehicle.create({ id, plateNumber: `P-${id}`, model: "Truck", tenantId: "t1", status: status as any, assignedDriverId, gpsDevice: null });
@@ -28,9 +28,11 @@ function buildUseCase(data: { vehicles?: Vehicle[]; drivers?: Driver[]; jobs?: D
   const driverRepo = { findAll: vi.fn().mockResolvedValue(data.drivers ?? []) };
   const dispatchJobs = { listJobs: vi.fn().mockResolvedValue(data.jobs ?? []) };
   const alertRepo = { findAll: vi.fn().mockResolvedValue(data.alerts ?? []) };
-  const healthSvc = new VehicleHealthService();
-  data.healthMap?.forEach((ts, id) => healthSvc.touch(id, ts));
-  return new DashboardUseCase(vehicleRepo as any, driverRepo as any, dispatchJobs as any, alertRepo as any, healthSvc);
+  const positions = new InMemoryVehiclePositionRepository();
+  data.healthMap?.forEach((ts, id) =>
+    void positions.record({ tenantId: "t1", vehicleId: id, deviceId: null, point: null, recordedAt: new Date(ts) }),
+  );
+  return new DashboardUseCase(vehicleRepo as any, driverRepo as any, dispatchJobs as any, alertRepo as any, positions);
 }
 
 describe("DashboardUseCase", () => {
@@ -72,7 +74,7 @@ describe("DashboardUseCase", () => {
   it("caches result for 30s", async () => {
     vi.useFakeTimers();
     const vehicleRepo = { findAll: vi.fn().mockResolvedValue([]) };
-    const uc = new DashboardUseCase(vehicleRepo as any, { findAll: vi.fn().mockResolvedValue([]) } as any, { listJobs: vi.fn().mockResolvedValue([]) } as any, { findAll: vi.fn().mockResolvedValue([]) } as any, new VehicleHealthService());
+    const uc = new DashboardUseCase(vehicleRepo as any, { findAll: vi.fn().mockResolvedValue([]) } as any, { listJobs: vi.fn().mockResolvedValue([]) } as any, { findAll: vi.fn().mockResolvedValue([]) } as any, new InMemoryVehiclePositionRepository());
     await uc.execute("t1");
     await uc.execute("t1");
     expect(vehicleRepo.findAll).toHaveBeenCalledOnce();
@@ -81,7 +83,7 @@ describe("DashboardUseCase", () => {
   it("invalidates cache after 30s", async () => {
     vi.useFakeTimers();
     const vehicleRepo = { findAll: vi.fn().mockResolvedValue([]) };
-    const uc = new DashboardUseCase(vehicleRepo as any, { findAll: vi.fn().mockResolvedValue([]) } as any, { listJobs: vi.fn().mockResolvedValue([]) } as any, { findAll: vi.fn().mockResolvedValue([]) } as any, new VehicleHealthService());
+    const uc = new DashboardUseCase(vehicleRepo as any, { findAll: vi.fn().mockResolvedValue([]) } as any, { listJobs: vi.fn().mockResolvedValue([]) } as any, { findAll: vi.fn().mockResolvedValue([]) } as any, new InMemoryVehiclePositionRepository());
     await uc.execute("t1");
     vi.advanceTimersByTime(31_000);
     await uc.execute("t1");

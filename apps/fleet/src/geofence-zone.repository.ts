@@ -42,6 +42,9 @@ export type StoredGeofenceZone = {
   updatedAt: Date;
 };
 
+/** An active zone relevant to one position, and whether it contains that position. */
+export type PositionedZone = { zone: StoredGeofenceZone; inside: boolean };
+
 export type GeofenceZoneFilters = {
   status?: GeofenceZoneStatus;
 };
@@ -52,6 +55,15 @@ export interface GeofenceZoneRepository {
   findAllByTenant(tenantId: string, filters?: GeofenceZoneFilters): Promise<StoredGeofenceZone[]>;
   deleteById(id: string, tenantId: string): Promise<void>;
   setVehicleAssignments(zoneId: string, tenantId: string, vehicleIds: string[]): Promise<void>;
+  /**
+   * Active zones that contain the point, plus the given held zones whether or
+   * not they still do, so an exit can be told apart from a zone never entered.
+   */
+  findForPosition(
+    tenantId: string,
+    point: { lat: number; lng: number },
+    heldZoneIds: readonly string[],
+  ): Promise<PositionedZone[]>;
 }
 
 export const GEOFENCE_ZONE_REPOSITORY = Symbol("GEOFENCE_ZONE_REPOSITORY");

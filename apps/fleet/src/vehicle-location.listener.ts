@@ -3,7 +3,11 @@ import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { GeofenceService } from "@shared/geofence";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
-import { VehicleHealthService } from "./vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type GeoPoint,
+  type VehiclePositionRepository,
+} from "./contexts/fleet/tracking/domain/vehicle-position.repository";
 
 @Injectable()
 export class VehicleLocationListener implements OnApplicationBootstrap {
@@ -11,7 +15,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
 
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
-    private readonly vehicleHealthService: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
     private readonly geofenceService: GeofenceService,
     private readonly liveCounts: LiveTrackingCountsService,
     private readonly geofenceEvaluator: GeofenceEvaluatorService,
@@ -22,23 +26,26 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       const vehicleId = envelope.data["vehicle_id"] as string;
       if (!vehicleId) return;
 
-      const ts = new Date(envelope.occurred_at).getTime();
+      // The device's fix time, so a buffered upload arriving late never replaces a newer position.
+      const ts = timestampOf(envelope.data["fix_time"]) ?? new Date(envelope.occurred_at).getTime();
       const deviceId = (envelope.data["device_id"] as string) || null;
       const lat = envelope.data["lat"] as number;
       const lng = envelope.data["lng"] as number;
+      const speedKph = (envelope.data["speed_kph"] as number | null | undefined) ?? null;
 
-      this.vehicleHealthService.touch(vehicleId, ts, deviceId, lat, lng);
+      const point = lat != null && lng != null ? { lat, lng } : null;
+      await this.recordPosition(envelope.tenant_id, vehicleId, deviceId, point, ts);
       this.liveCounts.record({
         tenantId: envelope.tenant_id,
         vehicleId,
         fixedAt: new Date(ts).toISOString(),
-        speedKph: (envelope.data["speed_kph"] as number | undefined) ?? null,
+        speedKph,
       });
 
-      if (lat != null && lng != null) {
-        await this.evaluateZones(envelope.tenant_id, vehicleId, lat, lng);
+      if (point) {
+        await this.evaluateZones(envelope.tenant_id, vehicleId, point, speedKph);
 
-        const transition = this.geofenceService.checkTransition(vehicleId, { lat, lng });
+        const transition = this.geofenceService.checkTransition(vehicleId, point);
         if (transition) {
           await this.bus.publish(`tm.${envelope.tenant_id}.vehicle.geofence.${transition}`, {
             id: crypto.randomUUID(),
@@ -53,6 +60,24 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
     });
   }
 
+  /** A failed write must not stop zone evaluation or the live counts. */
+  private async recordPosition(
+    tenantId: string,
+    vehicleId: string,
+    deviceId: string | null,
+    point: GeoPoint | null,
+    timestamp: number,
+  ): Promise<void> {
+    try {
+      const recordedAt = new Date(Number.isFinite(timestamp) ? timestamp : Date.now());
+      await this.positions.record({ tenantId, vehicleId, deviceId, point, recordedAt });
+    } catch (error) {
+      this.logger.warn(
+        `position_record_failed:${vehicleId}:${error instanceof Error ? error.message : "unknown"}`,
+      );
+    }
+  }
+
   /**
    * Zone entry, exit and dwell. Separate from the bounding-box check above,
    * which is one corridor per vehicle for route deviation; these are the zones
@@ -64,15 +89,11 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
   private async evaluateZones(
     tenantId: string,
     vehicleId: string,
-    lat: number,
-    lng: number,
+    point: GeoPoint,
+    speedKph: number | null,
   ): Promise<void> {
     try {
-      const alerts = await this.geofenceEvaluator.evaluate({
-        tenantId,
-        vehicleId,
-        point: { lat, lng },
-      });
+      const alerts = await this.geofenceEvaluator.evaluate({ tenantId, vehicleId, point, speedKph });
 
       for (const alert of alerts) {
         await this.bus.publish(`tm.${tenantId}.alert.triggered`, {
@@ -95,4 +116,9 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       );
     }
   }
+}
+
+function timestampOf(value: unknown): number | null {
+  const ms = typeof value === "string" && value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : null;
 }

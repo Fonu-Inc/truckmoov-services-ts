@@ -1127,6 +1127,7 @@ export class ZoneOccupancyRecord {
   zoneId!: string;
   enteredAt!: Date;
   dwellNotifiedAt?: Date | null;
+  speedingNotifiedAt?: Date | null;
 }
 
 export const ZoneOccupancyRecordSchema = new EntitySchema<ZoneOccupancyRecord>({
@@ -1139,6 +1140,7 @@ export const ZoneOccupancyRecordSchema = new EntitySchema<ZoneOccupancyRecord>({
     zoneId: { type: "string", length: 64 },
     enteredAt: { type: "datetime", defaultRaw: "now()" },
     dwellNotifiedAt: { type: "datetime", nullable: true },
+    speedingNotifiedAt: { type: "datetime", nullable: true },
   },
   indexes: [
     // A vehicle is inside a zone once. The unique index is what stops a

@@ -166,7 +166,6 @@ describe("an owner operator's analytics", () => {
       { findAll: async () => drivers } as never,
       { listJobs: async () => jobs } as never,
       { findAll: async () => alerts } as never,
-      {} as never,
     );
     return Object.assign(Object.create(AnalyticsController.prototype), {
       fleetAnalyticsUseCase: useCase,

@@ -1,10 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domain/repositories/vehicle.repository";
-import { VehicleHealthService } from "../../../../vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type VehiclePosition,
+  type VehiclePositionRepository,
+} from "../../tracking/domain/vehicle-position.repository";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../domain/ports/dispatch-jobs-reader.port";
 import { ACTIVE_JOB_STATUSES } from "../domain/active-job-statuses";
-import { haversineKm } from "../../../../utils/haversine";
+import { pickupOf } from "./pickup-point";
 
 export type RecommendDriversQuery = {
   /** Tonnes. Kept for older callers; requiredWeightKg wins when both are sent. */
@@ -45,7 +49,7 @@ export class RecommendDriversUseCase {
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepo: VehicleRepository,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
-    private readonly health: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
   ) {}
 
   async execute(
@@ -70,10 +74,14 @@ export class RecommendDriversUseCase {
         .filter((id): id is string => !!id),
     );
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
+    const fixes = await this.positions.findByVehicleIds(tenantId, [...vehicleById.keys()], pickupOf(query));
 
     const ranked = drivers
       .filter((d) => d.status !== "suspended")
-      .map((d) => this.rank(d, vehicleById.get(d.assignedVehicleId ?? "") ?? null, query, busyDriverIds.has(d.id)))
+      .map((d) => {
+        const vehicle = vehicleById.get(d.assignedVehicleId ?? "") ?? null;
+        return this.rank(d, vehicle, vehicle ? fixes.get(vehicle.id) : undefined, query, busyDriverIds.has(d.id));
+      })
       .sort((a, b) => b.score - a.score);
 
     return ranked.slice(0, limit);
@@ -89,6 +97,7 @@ export class RecommendDriversUseCase {
       capacityWeightKg: number | null;
       status: string;
     } | null,
+    fix: VehiclePosition | undefined,
     query: RecommendDriversQuery,
     onActiveJob: boolean,
   ): RecommendedDriver {
@@ -115,12 +124,9 @@ export class RecommendDriversUseCase {
       type = 0.3;
     }
 
-    const fix = vehicle ? this.health.get(vehicle.id) : null;
-
     let proximity = 0.5;
-    let distanceKm: number | null = null;
-    if (query.pickupLat != null && query.pickupLng != null && fix?.lat != null && fix?.lng != null) {
-      distanceKm = haversineKm(query.pickupLat, query.pickupLng, fix.lat, fix.lng);
+    const distanceKm = fix?.distanceKm ?? null;
+    if (distanceKm != null) {
       proximity = Math.max(0, 1 - distanceKm / PROXIMITY_MAX_KM);
       reasons.push(`${distanceKm.toFixed(1)}km away`);
     }

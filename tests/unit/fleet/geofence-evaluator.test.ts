@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GeofenceEvaluatorService } from "../../../apps/fleet/src/contexts/fleet/tracking/application/geofence-evaluator.service";
 import { InMemoryZoneOccupancyRepository } from "../../../apps/fleet/src/contexts/fleet/tracking/infrastructure/in-memory-zone-occupancy.repository";
-import {
-  distanceMeters,
-  isInsidePolygon,
-  isInsideZone,
-} from "../../../apps/fleet/src/contexts/fleet/tracking/domain/zone-geometry";
+import { haversineKm } from "../../../apps/fleet/src/utils/haversine";
 import { zoneIsArmed } from "../../../apps/fleet/src/contexts/fleet/tracking/domain/zone-transitions";
 import type { StoredGeofenceZone } from "../../../apps/fleet/src/geofence-zone.repository";
 
@@ -43,54 +39,28 @@ function zone(overrides: Partial<StoredGeofenceZone> = {}): StoredGeofenceZone {
   };
 }
 
+// Containment itself is PostGIS's job and is tested against it in tests/db;
+// circles are enough to drive the membership logic here.
+function covers(zone: StoredGeofenceZone, point: { lat: number; lng: number }): boolean {
+  if (zone.centerLatitude == null || zone.centerLongitude == null || zone.radiusMeters == null) return false;
+  return haversineKm(zone.centerLatitude, zone.centerLongitude, point.lat, point.lng) * 1000 <= zone.radiusMeters;
+}
+
 function buildEvaluator(zones: StoredGeofenceZone[]) {
   const occupancy = new InMemoryZoneOccupancyRepository();
   const zoneRepo = {
-    findAllByTenant: async () => zones,
-    findById: async (id: string) => zones.find((z) => z.id === id) ?? null,
-    save: async () => {},
-    deleteById: async () => {},
-    setVehicleAssignments: async () => {},
+    findForPosition: async (_tenantId: string, point: { lat: number; lng: number }, held: readonly string[]) =>
+      zones
+        .filter((zone) => zone.status === "ACTIVE")
+        .map((zone) => ({ zone, inside: covers(zone, point) }))
+        .filter((entry) => entry.inside || held.includes(entry.zone.id)),
   };
-  const config = { overview: { cacheTtlSeconds: 0 } } as never;
 
   return {
-    evaluator: new GeofenceEvaluatorService(zoneRepo as never, occupancy, config),
+    evaluator: new GeofenceEvaluatorService(zoneRepo as never, occupancy),
     occupancy,
   };
 }
-
-describe("Zone geometry", () => {
-  it("measures the distance between two Lagos points", () => {
-    // Apapa to Lekki Phase 1 is roughly 24 km as the crow flies.
-    const metres = distanceMeters(APAPA, LEKKI);
-    expect(metres).toBeGreaterThan(23_000);
-    expect(metres).toBeLessThan(26_000);
-  });
-
-  it("puts a point inside and outside a circular zone", () => {
-    expect(isInsideZone(zone(), { lat: 6.4440, lng: 3.3650 })).toBe(true);
-    expect(isInsideZone(zone(), LEKKI)).toBe(false);
-  });
-
-  // A bounding box around a zone on the Lekki peninsula covers a lot of lagoon,
-  // which is why a polygon is tested as a polygon.
-  it("ray casts a polygon rather than approximating a box", () => {
-    const square: Array<[number, number]> = [
-      [6.0, 3.0],
-      [6.0, 4.0],
-      [7.0, 4.0],
-      [7.0, 3.0],
-    ];
-    expect(isInsidePolygon(square, { lat: 6.5, lng: 3.5 })).toBe(true);
-    expect(isInsidePolygon(square, { lat: 6.5, lng: 4.5 })).toBe(false);
-  });
-
-  it("treats a polygon with too few points as unenterable", () => {
-    const sliver = zone({ radiusMeters: null, centerLatitude: null, centerLongitude: null, coordinates: [[6, 3], [6, 4]] });
-    expect(isInsideZone(sliver, { lat: 6, lng: 3.5 })).toBe(false);
-  });
-});
 
 describe("Zone schedules", () => {
   const scheduled = zone({
@@ -225,5 +195,61 @@ describe("Geofence evaluation", () => {
     await evaluator.evaluate(inside);
     const alerts = await evaluator.evaluate({ ...outside, at: new Date() });
     expect(alerts.map((alert) => alert.type)).toEqual(["geofence_exit"]);
+  });
+});
+
+describe("Zone speed limits", () => {
+  const limited = (overrides: Partial<StoredGeofenceZone> = {}) =>
+    zone({ entryAlertsEnabled: false, speedLimitEnabled: true, speedLimitKph: 30, ...overrides });
+  const at = (speedKph: number | null) => ({
+    tenantId: "tenant-a",
+    vehicleId: "v1",
+    point: { lat: 6.4440, lng: 3.3650 },
+    speedKph,
+  });
+
+  it("alerts once per stay when the vehicle is over the zone limit", async () => {
+    const { evaluator } = buildEvaluator([limited()]);
+
+    const first = await evaluator.evaluate(at(45));
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ type: "geofence_speeding", severity: "medium" });
+    expect(first[0].details).toMatchObject({ speedKph: 45, limitKph: 30 });
+
+    expect(await evaluator.evaluate(at(50))).toHaveLength(0);
+  });
+
+  it("does not alert at or under the limit, or without a speed", async () => {
+    const { evaluator } = buildEvaluator([limited()]);
+    expect(await evaluator.evaluate(at(30))).toHaveLength(0);
+    expect(await evaluator.evaluate(at(null))).toHaveLength(0);
+  });
+
+  it("applies the strictest limit where zones overlap", async () => {
+    const { evaluator } = buildEvaluator([
+      limited({ id: "yard", name: "Yard", speedLimitKph: 15 }),
+      limited({ id: "port", name: "Port", speedLimitKph: 40 }),
+    ]);
+    const [alert] = await evaluator.evaluate(at(20));
+    expect(alert).toMatchObject({ type: "geofence_speeding", zoneId: "yard" });
+  });
+
+  it("ignores a limit that is switched off or outside the zone schedule", async () => {
+    const offDuty = limited({
+      scheduleEnabled: true,
+      scheduleDays: [],
+      scheduleStartTime: "08:00",
+      scheduleEndTime: "09:00",
+      scheduleTimezone: "UTC",
+    });
+    const { evaluator } = buildEvaluator([limited({ speedLimitEnabled: false }), { ...offDuty, id: "zone-2" }]);
+    expect(await evaluator.evaluate({ ...at(80), at: new Date("2026-09-07T12:00:00.000Z") })).toHaveLength(0);
+  });
+
+  it("alerts again on the next stay", async () => {
+    const { evaluator } = buildEvaluator([limited()]);
+    await evaluator.evaluate(at(45));
+    await evaluator.evaluate({ ...at(45), point: LEKKI });
+    expect((await evaluator.evaluate(at(45))).map((a) => a.type)).toEqual(["geofence_speeding"]);
   });
 });

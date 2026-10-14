@@ -21,7 +21,10 @@ import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { LocationUpdateDto, SetGeofenceDto } from "./dto/geofence.dto";
 import { TenantScoped } from "./tenant-scoped.decorator";
-import { VehicleHealthService } from "./vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type VehiclePositionRepository,
+} from "./contexts/fleet/tracking/domain/vehicle-position.repository";
 import { Portals, OnResource } from "@shared/access";
 
 @ApiTags("Routes")
@@ -35,7 +38,7 @@ export class RoutesController extends BaseFleetController {
     protected readonly auditLog: AuditLogService,
     @Inject(EVENT_BUS) protected readonly bus: EventBus,
     @Inject(GeofenceService) private readonly geofenceService: GeofenceService,
-    @Inject(VehicleHealthService) private readonly vehicleHealthService: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
   ) {
     super(auditLog, bus);
   }
@@ -84,8 +87,15 @@ export class RoutesController extends BaseFleetController {
   async reportLocation(
     @Param("vehicleId") vehicleId: string,
     @Body() payload: LocationUpdateDto,
+    @Req() req: FleetRequestContext,
   ) {
-    this.vehicleHealthService.touch(vehicleId);
+    await this.positions.record({
+      tenantId: this.tenantIdFromRequest(req),
+      vehicleId,
+      deviceId: null,
+      point: { lat: payload.lat, lng: payload.lng },
+      recordedAt: new Date(),
+    });
     const inside = this.geofenceService.isInside(vehicleId, {
       lat: payload.lat,
       lng: payload.lng,

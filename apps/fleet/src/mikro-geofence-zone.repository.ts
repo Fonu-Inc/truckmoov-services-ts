@@ -8,8 +8,11 @@ import {
 import type {
   GeofenceZoneFilters,
   GeofenceZoneRepository,
+  PositionedZone,
   StoredGeofenceZone,
 } from "./geofence-zone.repository";
+
+const POINT = "ST_SetSRID(ST_MakePoint(?::float8, ?::float8), 4326)::geography";
 
 @Injectable()
 export class MikroGeofenceZoneRepository implements GeofenceZoneRepository {
@@ -63,6 +66,31 @@ export class MikroGeofenceZoneRepository implements GeofenceZoneRepository {
     const em = orm.em.fork();
     await em.nativeDelete(GeofenceAssignmentRecord, { zoneId: id, tenantId });
     await em.nativeDelete(GeofenceZoneRecord, { id, tenantId });
+  }
+
+  async findForPosition(
+    tenantId: string,
+    point: { lat: number; lng: number },
+    heldZoneIds: readonly string[],
+  ): Promise<PositionedZone[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const em = orm.em.fork();
+    const orHeld = heldZoneIds.length > 0 ? " or id in (?)" : "";
+    const matches = await em.getConnection().execute<Array<{ id: string; inside: boolean }>>(
+      // A held zone with no usable shape keeps its occupants rather than
+      // reading as an exit for every vehicle in it.
+      `select id, (geom is null or ST_Covers(geom, ${POINT})) as inside
+         from fleet_geofence_zones
+        where tenant_id = ? and status = 'ACTIVE'
+          and (ST_Covers(geom, ${POINT})${orHeld})`,
+      [point.lng, point.lat, tenantId, point.lng, point.lat, ...(orHeld ? [[...heldZoneIds]] : [])],
+    );
+    if (matches.length === 0) return [];
+
+    const inside = new Map(matches.map((row) => [row.id, row.inside]));
+    const records = await em.find(GeofenceZoneRecord, { id: { $in: [...inside.keys()] }, tenantId });
+    const zones = await this.enrichWithAssignments(orm, records);
+    return zones.map((zone) => ({ zone, inside: inside.get(zone.id) ?? false }));
   }
 
   async setVehicleAssignments(zoneId: string, tenantId: string, vehicleIds: string[]): Promise<void> {

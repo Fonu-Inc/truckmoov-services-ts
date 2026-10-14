@@ -3,7 +3,10 @@ import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../vehicles/domai
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../drivers/domain/repositories/driver.repository";
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "../../dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../alerts/domain/alert.repository";
-import { VehicleHealthService } from "../../../../vehicle-health.service";
+import {
+  VEHICLE_POSITION_REPOSITORY,
+  type VehiclePositionRepository,
+} from "../../tracking/domain/vehicle-position.repository";
 
 export type OperationalDashboard = {
   vehicles: { total: number; active: number; inactive: number; assigned: number; seenInLastHour: number };
@@ -24,7 +27,7 @@ export class DashboardUseCase {
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
-    private readonly healthService: VehicleHealthService,
+    @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
   ) {}
 
   async execute(tenantId: string): Promise<OperationalDashboard> {
@@ -39,6 +42,7 @@ export class DashboardUseCase {
     ]);
 
     const hourAgo = Date.now() - 3_600_000;
+    const positions = await this.positions.findByVehicleIds(tenantId, vehicles.map((v) => v.id));
     const jobsByStatus: Record<string, number> = {};
     for (const j of jobs) {
       jobsByStatus[j.status] = (jobsByStatus[j.status] ?? 0) + 1;
@@ -50,10 +54,7 @@ export class DashboardUseCase {
         active: vehicles.filter((v) => v.status === "active").length,
         inactive: vehicles.filter((v) => v.status === "inactive").length,
         assigned: vehicles.filter((v) => v.assignedDriverId !== null).length,
-        seenInLastHour: vehicles.filter((v) => {
-          const entry = this.healthService.get(v.id);
-          return entry !== null && entry.lastSeen >= hourAgo;
-        }).length,
+        seenInLastHour: vehicles.filter((v) => (positions.get(v.id)?.lastSeen ?? 0) >= hourAgo).length,
       },
       drivers: {
         total: drivers.length,

@@ -35,6 +35,21 @@ export class InMemoryZoneOccupancyRepository implements ZoneOccupancyRepository 
     if (entry) entry.dwellNotifiedAt = at;
   }
 
+  async claimSpeedingAlert(
+    tenantId: string,
+    vehicleId: string,
+    zoneId: string,
+    at: Date,
+  ): Promise<boolean> {
+    const entry = this.store.get(this.keyFor(tenantId, vehicleId, zoneId));
+    if (!entry || entry.speedingNotifiedAt) return false;
+    entry.speedingNotifiedAt = at;
+    return true;
+  }
+
+  /** Needs zone shapes and shared positions, which only the database backend has. */
+  async syncZone(): Promise<void> {}
+
   async countByZone(tenantId: string): Promise<ZoneOccupantCount[]> {
     const counts = new Map<string, number>();
     for (const entry of this.store.values()) {

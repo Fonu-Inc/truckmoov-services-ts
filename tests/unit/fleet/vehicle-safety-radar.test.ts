@@ -20,7 +20,6 @@ function analyticsWith(alerts: unknown[]) {
     { findAll: async () => drivers } as never,
     { listJobs: async () => [] } as never,
     { findAll: async () => alerts } as never,
-    {} as never,
   );
 }
 

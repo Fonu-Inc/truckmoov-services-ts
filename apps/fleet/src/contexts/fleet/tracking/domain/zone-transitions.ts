@@ -6,6 +6,13 @@ export type ZoneOccupancy = {
   dwellNotifiedAt: Date | null;
 };
 
+export type Point = { lat: number; lng: number };
+
+/** Whether the zone is watching this vehicle at all. Empty means every vehicle. */
+export function zoneWatchesVehicle(zone: StoredGeofenceZone, vehicleId: string): boolean {
+  return zone.assignedVehicleIds.length === 0 || zone.assignedVehicleIds.includes(vehicleId);
+}
+
 export type ZoneTransition =
   | { kind: "entered"; zoneId: string }
   | { kind: "exited"; zoneId: string }
@@ -115,8 +122,39 @@ function toMinutes(time: string): number | null {
 }
 
 /** Whether the zone wants to hear about this kind of change. */
-export function zoneAlertsOn(zone: StoredGeofenceZone, kind: ZoneTransition["kind"]): boolean {
+export type ZoneAlertKind = ZoneTransition["kind"] | "speeding";
+
+export function zoneAlertsOn(zone: StoredGeofenceZone, kind: ZoneAlertKind): boolean {
   if (kind === "entered") return zone.entryAlertsEnabled;
   if (kind === "exited") return zone.exitAlertsEnabled;
+  if (kind === "speeding") return zone.speedLimitEnabled;
   return zone.dwellAlertsEnabled;
+}
+
+/**
+ * The zone whose speed limit a vehicle is breaking, if any. Where zones
+ * overlap the strictest limit applies; a zone off duty enforces none.
+ */
+export function zoneSpeedBreach(
+  zones: StoredGeofenceZone[],
+  speedKph: number | null | undefined,
+  at: Date,
+): { zone: StoredGeofenceZone; limitKph: number } | null {
+  if (speedKph == null) return null;
+  const limits = armedSpeedLimits(zones, at);
+  if (limits.length === 0) return null;
+  const strictest = limits.reduce((a, b) => (b.limitKph < a.limitKph ? b : a));
+  return speedKph > strictest.limitKph ? strictest : null;
+}
+
+/** Zones enforcing a speed limit right now. */
+export function armedSpeedLimits(
+  zones: StoredGeofenceZone[],
+  at: Date,
+): Array<{ zone: StoredGeofenceZone; limitKph: number }> {
+  return zones.flatMap((zone) =>
+    zone.speedLimitEnabled && zone.speedLimitKph != null && zoneIsArmed(zone, at)
+      ? [{ zone, limitKph: zone.speedLimitKph }]
+      : [],
+  );
 }

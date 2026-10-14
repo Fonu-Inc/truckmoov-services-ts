@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { RecommendVehiclesUseCase } from "../../../apps/fleet/src/contexts/fleet/dispatch/application/recommend-vehicles.use-case";
 import { Vehicle } from "../../../apps/fleet/src/contexts/fleet/vehicles/domain/entities/vehicle.entity";
-import { VehicleHealthService } from "../../../apps/fleet/src/vehicle-health.service";
+import { InMemoryVehiclePositionRepository } from "../../../apps/fleet/src/contexts/fleet/tracking/infrastructure/in-memory-vehicle-position.repository";
 
 function vehicle(id: string, overrides: Partial<{ capacity: number | null; type: string; fuelType: string; status: string }> = {}) {
   return Vehicle.create({
@@ -15,8 +15,8 @@ function vehicle(id: string, overrides: Partial<{ capacity: number | null; type:
 function build(vehicles: Vehicle[], jobs: Array<{ assignedVehicleId: string | null; status: string }> = []) {
   const vehicleRepo = { findAll: vi.fn().mockResolvedValue(vehicles) };
   const dispatchJobs = { listJobs: vi.fn().mockResolvedValue(jobs) };
-  const health = new VehicleHealthService();
-  return { uc: new RecommendVehiclesUseCase(vehicleRepo as any, dispatchJobs as any, health), health };
+  const positions = new InMemoryVehiclePositionRepository();
+  return { uc: new RecommendVehiclesUseCase(vehicleRepo as any, dispatchJobs as any, positions), positions };
 }
 
 describe("RecommendVehiclesUseCase", () => {
@@ -64,9 +64,9 @@ describe("RecommendVehiclesUseCase", () => {
   });
 
   it("rewards proximity when pickup coords and a recent fix exist", async () => {
-    const { uc, health } = build([vehicle("far"), vehicle("near")]);
-    health.touch("near", Date.now(), null, 6.5, 3.4);
-    health.touch("far", Date.now(), null, 7.5, 4.4);
+    const { uc, positions } = build([vehicle("far"), vehicle("near")]);
+    await positions.record({ tenantId: "t1", vehicleId: "near", deviceId: null, point: { lat: 6.5, lng: 3.4 }, recordedAt: new Date() });
+    await positions.record({ tenantId: "t1", vehicleId: "far", deviceId: null, point: { lat: 7.5, lng: 4.4 }, recordedAt: new Date() });
 
     const ranked = await uc.execute("t1", { pickupLat: 6.5, pickupLng: 3.4 });
 

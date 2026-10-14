@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { AppConfigService } from "@shared/config";
 import {
   GEOFENCE_ZONE_REPOSITORY,
   type GeofenceZoneRepository,
@@ -11,16 +10,19 @@ import {
   type StoredZoneOccupancy,
   type ZoneOccupancyRepository,
 } from "../domain/zone-occupancy.repository";
-import { isInsideZone, zoneWatchesVehicle, type Point } from "../domain/zone-geometry";
 import {
   diffZoneMembership,
   dwellBreaches,
   zoneAlertsOn,
   zoneIsArmed,
+  zoneSpeedBreach,
+  zoneWatchesVehicle,
+  type Point,
+  type ZoneAlertKind,
 } from "../domain/zone-transitions";
 
 export type GeofenceAlert = {
-  type: "geofence_entry" | "geofence_exit" | "geofence_dwell";
+  type: "geofence_entry" | "geofence_exit" | "geofence_dwell" | "geofence_speeding";
   severity: "low" | "medium" | "high";
   tenantId: string;
   vehicleId: string;
@@ -34,6 +36,7 @@ const ALERT_TYPE = {
   entered: "geofence_entry",
   exited: "geofence_exit",
   dwelled: "geofence_dwell",
+  speeding: "geofence_speeding",
 } as const;
 
 /**
@@ -50,39 +53,39 @@ const ALERT_TYPE = {
  */
 @Injectable()
 export class GeofenceEvaluatorService {
-  private readonly logger = new Logger(GeofenceEvaluatorService.name);
-  private readonly zoneCache = new Map<string, { zones: StoredGeofenceZone[]; expiresAt: number }>();
-
   constructor(
     @Inject(GEOFENCE_ZONE_REPOSITORY) private readonly zones: GeofenceZoneRepository,
     @Inject(ZONE_OCCUPANCY_REPOSITORY) private readonly occupancy: ZoneOccupancyRepository,
-    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   /**
    * Evaluates one position and returns the alerts it raises.
    *
-   * Returning them rather than publishing keeps the geometry testable without a
-   * bus, and lets the caller decide what a transition is worth.
+   * Returning them rather than publishing keeps the evaluation testable without
+   * a bus, and lets the caller decide what a transition is worth. A failed zone
+   * lookup throws instead of answering "in no zones", which would raise an exit
+   * for every zone the vehicle is in.
    */
   async evaluate(input: {
     tenantId: string;
     vehicleId: string;
     point: Point;
+    speedKph?: number | null;
     at?: Date;
   }): Promise<GeofenceAlert[]> {
     const at = input.at ?? new Date();
-    const zones = await this.activeZones(input.tenantId);
-    if (zones.length === 0) return [];
-
-    const watching = zones.filter((zone) => zoneWatchesVehicle(zone, input.vehicleId));
-    const zonesById = new Map(watching.map((zone) => [zone.id, zone]));
-
-    const inside = new Set(
-      watching.filter((zone) => isInsideZone(zone, input.point)).map((zone) => zone.id),
-    );
-
     const previous = await this.occupancy.findByVehicle(input.tenantId, input.vehicleId);
+    const positioned = await this.zones.findForPosition(
+      input.tenantId,
+      input.point,
+      previous.map((entry) => entry.zoneId),
+    );
+    if (positioned.length === 0) return [];
+
+    const watching = positioned.filter(({ zone }) => zoneWatchesVehicle(zone, input.vehicleId));
+    const zonesById = new Map(watching.map(({ zone }) => [zone.id, zone]));
+    const inside = new Set(watching.filter((entry) => entry.inside).map(({ zone }) => zone.id));
+
     // Only membership of zones this vehicle is watched by is diffed. A zone
     // whose assignment changed must not read as an exit the vehicle never made.
     const held = previous.filter((entry) => zonesById.has(entry.zoneId));
@@ -97,6 +100,8 @@ export class GeofenceEvaluatorService {
       await this.occupancy.markDwellNotified(input.tenantId, input.vehicleId, dwell.zoneId, at);
     }
 
+    const speeding = await this.speedingAlerts(input, watching, at);
+
     return [
       ...this.alertsFor(input, zonesById, entered, "entered", at),
       ...this.alertsFor(input, zonesById, exited, "exited", at),
@@ -105,7 +110,26 @@ export class GeofenceEvaluatorService {
           minutesInside: dwell.minutesInside,
         }),
       ),
+      ...speeding,
     ];
+  }
+
+  /** One alert per stay, against the strictest limit of the zones the vehicle is in. */
+  private async speedingAlerts(
+    input: { tenantId: string; vehicleId: string; point: Point; speedKph?: number | null },
+    watching: Array<{ zone: StoredGeofenceZone; inside: boolean }>,
+    at: Date,
+  ): Promise<GeofenceAlert[]> {
+    const insideZones = watching.filter((entry) => entry.inside).map(({ zone }) => zone);
+    const breach = zoneSpeedBreach(insideZones, input.speedKph, at);
+    if (!breach) return [];
+    if (!(await this.occupancy.claimSpeedingAlert(input.tenantId, input.vehicleId, breach.zone.id, at))) return [];
+
+    const zonesById = new Map([[breach.zone.id, breach.zone]]);
+    return this.alertsFor(input, zonesById, [breach.zone.id], "speeding", at, {
+      speedKph: input.speedKph,
+      limitKph: breach.limitKph,
+    });
   }
 
   /** Vehicles currently inside each zone, for the zone list's count chip. */
@@ -132,6 +156,7 @@ export class GeofenceEvaluatorService {
         zoneId,
         enteredAt: at,
         dwellNotifiedAt: null,
+        speedingNotifiedAt: null,
       });
     }
   }
@@ -140,7 +165,7 @@ export class GeofenceEvaluatorService {
     input: { tenantId: string; vehicleId: string; point: Point },
     zonesById: Map<string, StoredGeofenceZone>,
     zoneIds: string[],
-    kind: "entered" | "exited" | "dwelled",
+    kind: ZoneAlertKind,
     at: Date,
     extra: Record<string, unknown> = {},
   ): GeofenceAlert[] {
@@ -176,37 +201,12 @@ export class GeofenceEvaluatorService {
 
     return alerts;
   }
-
-  /**
-   * Zones change far less often than positions arrive, so they are cached for
-   * the same window the overview uses. Archived zones are never loaded.
-   */
-  private async activeZones(tenantId: string): Promise<StoredGeofenceZone[]> {
-    const cached = this.zoneCache.get(tenantId);
-    if (cached && cached.expiresAt > Date.now()) return cached.zones;
-
-    try {
-      const zones = await this.zones.findAllByTenant(tenantId, { status: "ACTIVE" });
-      this.zoneCache.set(tenantId, {
-        zones,
-        expiresAt: Date.now() + this.config.overview.cacheTtlSeconds * 1000,
-      });
-      return zones;
-    } catch (error) {
-      this.logger.warn(
-        `geofence_zone_load_failed:${tenantId}:${error instanceof Error ? error.message : "unknown"}`,
-      );
-      // Serve the stale copy rather than silently reporting that a vehicle left
-      // every zone it was in.
-      return cached?.zones ?? [];
-    }
-  }
 }
 
-function severityFor(zone: StoredGeofenceZone, kind: "entered" | "exited" | "dwelled"): GeofenceAlert["severity"] {
+function severityFor(zone: StoredGeofenceZone, kind: ZoneAlertKind): GeofenceAlert["severity"] {
   // Entering somewhere off-limits is the case worth waking someone for.
   if (zone.category.toLowerCase().includes("restricted")) {
     return kind === "entered" ? "high" : "medium";
   }
-  return kind === "dwelled" ? "medium" : "low";
+  return kind === "dwelled" || kind === "speeding" ? "medium" : "low";
 }

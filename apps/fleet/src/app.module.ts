@@ -213,7 +213,6 @@ import { DocumentsController } from "./documents.controller";
 import { AuditController } from "./audit.controller";
 import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtime.port";
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
-import { VehicleHealthService } from "./vehicle-health.service";
 import { DeviceTelemetryListener } from "./device-telemetry.listener";
 import { VehicleLocationListener } from "./vehicle-location.listener";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
@@ -222,6 +221,19 @@ import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/
 import { ZONE_OCCUPANCY_REPOSITORY } from "./contexts/fleet/tracking/domain/zone-occupancy.repository";
 import { MikroZoneOccupancyRepository } from "./contexts/fleet/tracking/infrastructure/mikro-zone-occupancy.repository";
 import { InMemoryZoneOccupancyRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-zone-occupancy.repository";
+import { VEHICLE_POSITION_REPOSITORY } from "./contexts/fleet/tracking/domain/vehicle-position.repository";
+import { MikroVehiclePositionRepository } from "./contexts/fleet/tracking/infrastructure/mikro-vehicle-position.repository";
+import { InMemoryVehiclePositionRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-vehicle-position.repository";
+import { ROAD_SPEED_REPOSITORY } from "./contexts/fleet/tracking/domain/road-speed.repository";
+import { MikroRoadSpeedRepository } from "./contexts/fleet/tracking/infrastructure/mikro-road-speed.repository";
+import { InMemoryRoadSpeedRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-road-speed.repository";
+import { PLANNED_ROUTE_REPOSITORY } from "./contexts/fleet/tracking/domain/planned-route.repository";
+import { MikroPlannedRouteRepository } from "./contexts/fleet/tracking/infrastructure/mikro-planned-route.repository";
+import { InMemoryPlannedRouteRepository } from "./contexts/fleet/tracking/infrastructure/in-memory-planned-route.repository";
+import { RoadSpeedEvaluatorService } from "./contexts/fleet/tracking/application/road-speed-evaluator.service";
+import { RouteDeviationService } from "./contexts/fleet/tracking/application/route-deviation.service";
+import { RoadMatchListener } from "./road-match.listener";
+import { PlannedRouteListener } from "./planned-route.listener";
 import { LiveTrackingUseCase } from "./contexts/fleet/tracking/application/live-tracking.use-case";
 import { TrackingController } from "./tracking.controller";
 import { PublicTrackingController } from "./public-tracking.controller";
@@ -373,7 +385,6 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     ReadinessController,
   ],
   providers: [
-    VehicleHealthService,
     VehicleLocationListener,
     LiveTrackingCountsService,
     LiveTrackingUseCase,
@@ -404,6 +415,43 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
         config: AppConfigService,
       ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
     },
+    InMemoryVehiclePositionRepository,
+    MikroVehiclePositionRepository,
+    {
+      provide: VEHICLE_POSITION_REPOSITORY,
+      inject: [InMemoryVehiclePositionRepository, MikroVehiclePositionRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryVehiclePositionRepository,
+        mikro: MikroVehiclePositionRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    InMemoryRoadSpeedRepository,
+    MikroRoadSpeedRepository,
+    {
+      provide: ROAD_SPEED_REPOSITORY,
+      inject: [InMemoryRoadSpeedRepository, MikroRoadSpeedRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryRoadSpeedRepository,
+        mikro: MikroRoadSpeedRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    InMemoryPlannedRouteRepository,
+    MikroPlannedRouteRepository,
+    {
+      provide: PLANNED_ROUTE_REPOSITORY,
+      inject: [InMemoryPlannedRouteRepository, MikroPlannedRouteRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemoryPlannedRouteRepository,
+        mikro: MikroPlannedRouteRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    RoadSpeedEvaluatorService,
+    RouteDeviationService,
+    RoadMatchListener,
+    PlannedRouteListener,
     DeviceTelemetryListener,
     AlertDetectionListener,
     AlertEscalationService,

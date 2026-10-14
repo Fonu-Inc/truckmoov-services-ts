@@ -4,7 +4,6 @@ import { DRIVER_REPOSITORY, type DriverRepository } from "./contexts/fleet/drive
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertFilters, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
 import { ownedDriverIdsFrom } from "./contexts/fleet/drivers/domain/driver-roster";
-import { VehicleHealthService } from "./vehicle-health.service";
 
 type AllowedVehicleIds = ReadonlySet<string> | null;
 
@@ -44,7 +43,6 @@ export class FleetAnalyticsUseCase {
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(ALERT_REPOSITORY) private readonly alertRepo: AlertRepository,
-    private readonly healthService: VehicleHealthService,
   ) {}
 
   /*

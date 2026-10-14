@@ -677,7 +677,7 @@ export class GeofenceAlertDetailsSchema {
 
 export class GeofenceAlertFeedItemSchema {
   id!: string;
-  @ApiProperty({ enum: ["geofence_entry", "geofence_exit", "geofence_dwell"] })
+  @ApiProperty({ enum: ["geofence_entry", "geofence_exit", "geofence_dwell", "geofence_speeding"] })
   type!: string;
   @ApiProperty({ enum: ["entry", "exit", "dwell"] })
   direction!: string;

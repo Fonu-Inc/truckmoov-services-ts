@@ -20,7 +20,7 @@ import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositor
 import { ALERT_REPOSITORY, type AlertRepository } from "../../../alerts/domain/alert.repository";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const GEOFENCE_ALERT_TYPES = ["geofence_entry", "geofence_exit", "geofence_dwell"];
+const GEOFENCE_ALERT_TYPES = ["geofence_entry", "geofence_exit", "geofence_dwell", "geofence_speeding"];
 
 @Injectable()
 export class DriverBehaviorUseCase {

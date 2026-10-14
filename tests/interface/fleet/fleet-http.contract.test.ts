@@ -318,8 +318,8 @@ describe("Fleet HTTP contract", () => {
       .get("/fleet/devices?query=359779090012399")
       .set("Authorization", authToken("dispatcher"));
     expect(listDevices.status).toBe(200);
-    expect(listDevices.body).toHaveLength(1);
-    expect(listDevices.body[0]).toMatchObject({
+    expect(listDevices.body.data).toHaveLength(1);
+    expect(listDevices.body.data[0]).toMatchObject({
       imei: "359779090012399",
       manufacturer: "Teltonika",
       model: "FMC130",
@@ -415,14 +415,14 @@ describe("Fleet HTTP contract", () => {
       .get("/fleet/devices?status=offline")
       .set("Authorization", authToken("fleet_manager"));
     expect(offline.status).toBe(200);
-    expect(offline.body).toHaveLength(summary.body.data.offline);
-    expect(offline.body.every((device: { lastSeen: string | null }) => device.lastSeen === null)).toBe(true);
+    expect(offline.body.data).toHaveLength(summary.body.data.offline);
+    expect(offline.body.data.every((device: { lastSeen: string | null }) => device.lastSeen === null)).toBe(true);
 
     const online = await request(app.getHttpServer())
       .get("/fleet/devices?status=online")
       .set("Authorization", authToken("fleet_manager"));
     expect(online.status).toBe(200);
-    expect(online.body).toHaveLength(summary.body.data.online);
+    expect(online.body.data).toHaveLength(summary.body.data.online);
 
     // The dropdown offers buckets that are not lifecycle states, so they have
     // to survive the round trip through the query string.
@@ -430,7 +430,7 @@ describe("Fleet HTTP contract", () => {
       .get("/fleet/devices?status=unassigned")
       .set("Authorization", authToken("fleet_manager"));
     expect(unassigned.status).toBe(200);
-    expect(unassigned.body.every((device: { vehicleId: string | null }) => device.vehicleId === null)).toBe(true);
+    expect(unassigned.body.data.every((device: { vehicleId: string | null }) => device.vehicleId === null)).toBe(true);
 
     const template = await request(app.getHttpServer())
       .get("/fleet/devices/import/template")

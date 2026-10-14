@@ -187,6 +187,32 @@ export class AppConfigService {
     };
   }
 
+  get roadSpeed() {
+    return {
+      // Default truck limits (km/h) where OpenStreetMap has no posted limit,
+      // which in Nigeria is almost every road. "Town" is a GHSL built-up area.
+      highwayOpenKph: Number(this.config.get("ROAD_LIMIT_HIGHWAY_OPEN_KPH", 80)),
+      highwayTownKph: Number(this.config.get("ROAD_LIMIT_HIGHWAY_TOWN_KPH", 40)),
+      mainOpenKph: Number(this.config.get("ROAD_LIMIT_MAIN_OPEN_KPH", 60)),
+      mainTownKph: Number(this.config.get("ROAD_LIMIT_MAIN_TOWN_KPH", 40)),
+      minorKph: Number(this.config.get("ROAD_LIMIT_MINOR_KPH", 40)),
+      // A breach alerts only when another came this soon before it, so one GPS
+      // spike or one snap onto the wrong road raises nothing.
+      confirmWithinSeconds: Number(this.config.get("ROAD_SPEEDING_CONFIRM_WITHIN_SECONDS", 120)),
+      // After an alert the vehicle is quiet this long, whatever road it is on.
+      alertCooldownMinutes: Number(this.config.get("ROAD_SPEEDING_COOLDOWN_MINUTES", 15)),
+    };
+  }
+
+  get routeDeviation() {
+    return {
+      // Half-width of the corridor around a job's planned route.
+      bufferMeters: Number(this.config.get("ROUTE_DEVIATION_BUFFER_METERS", 100)),
+      // Consecutive road-matched fixes outside it before it counts as a deviation.
+      confirmFixes: Number(this.config.get("ROUTE_DEVIATION_CONFIRM_FIXES", 2)),
+    };
+  }
+
   get liveTracking() {
     return {
       // One coalesced frame per tenant per tick. A browser cannot repaint a map

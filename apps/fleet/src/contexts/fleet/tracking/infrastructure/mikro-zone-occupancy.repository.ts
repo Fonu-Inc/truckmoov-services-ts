@@ -10,6 +10,18 @@ import type {
   ZoneOccupantCount,
 } from "../domain/zone-occupancy.repository";
 
+// Vehicles of the zone's tenant whose last position the zone covers, honouring
+// its vehicle assignments (none means every vehicle).
+const COVERED_VEHICLES = `
+  select p.vehicle_id
+    from fleet_geofence_zones z
+    join fleet_vehicle_last_positions p on p.tenant_id = z.tenant_id
+   where z.tenant_id = ? and z.id = ? and z.status = 'ACTIVE'
+     and ST_Covers(z.geom, p.geom)
+     and (not exists (select 1 from fleet_geofence_vehicle_assignments a where a.zone_id = z.id)
+          or exists (select 1 from fleet_geofence_vehicle_assignments a
+                      where a.zone_id = z.id and a.vehicle_id = p.vehicle_id))`;
+
 @Injectable()
 export class MikroZoneOccupancyRepository implements ZoneOccupancyRepository {
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
@@ -33,6 +45,7 @@ export class MikroZoneOccupancyRepository implements ZoneOccupancyRepository {
         zoneId: occupancy.zoneId,
         enteredAt: occupancy.enteredAt,
         dwellNotifiedAt: occupancy.dwellNotifiedAt,
+        speedingNotifiedAt: occupancy.speedingNotifiedAt,
       },
       { onConflictFields: ["tenantId", "vehicleId", "zoneId"], onConflictAction: "ignore" },
     );
@@ -56,6 +69,48 @@ export class MikroZoneOccupancyRepository implements ZoneOccupancyRepository {
       { tenantId, vehicleId, zoneId },
       { dwellNotifiedAt: at },
     );
+  }
+
+  async claimSpeedingAlert(
+    tenantId: string,
+    vehicleId: string,
+    zoneId: string,
+    at: Date,
+  ): Promise<boolean> {
+    const em = await this.em();
+    const updated = await em.nativeUpdate(
+      ZoneOccupancyRecord,
+      { tenantId, vehicleId, zoneId, speedingNotifiedAt: null },
+      { speedingNotifiedAt: at },
+    );
+    return updated > 0;
+  }
+
+  async syncZone(tenantId: string, zoneId: string): Promise<void> {
+    const em = await this.em();
+    await em.transactional(async (tx) => {
+      // A vehicle with no known position yet keeps its membership; it is
+      // judged on its next fix, not dropped because the table is still filling.
+      await tx.execute(
+        `delete from fleet_zone_occupancy o
+          where o.tenant_id = ? and o.zone_id = ?
+            and (
+              not exists (select 1 from fleet_geofence_zones z
+                           where z.tenant_id = o.tenant_id and z.id = o.zone_id and z.status = 'ACTIVE')
+              or (exists (select 1 from fleet_vehicle_last_positions p
+                           where p.tenant_id = o.tenant_id and p.vehicle_id = o.vehicle_id and p.geom is not null)
+                  and o.vehicle_id not in (${COVERED_VEHICLES}))
+            )`,
+        [tenantId, zoneId, tenantId, zoneId],
+      );
+      await tx.execute(
+        `insert into fleet_zone_occupancy (id, tenant_id, vehicle_id, zone_id, entered_at)
+         select gen_random_uuid()::text, ?, covered.vehicle_id, ?, now()
+           from (${COVERED_VEHICLES}) as covered
+         on conflict (tenant_id, vehicle_id, zone_id) do nothing`,
+        [tenantId, zoneId, tenantId, zoneId],
+      );
+    });
   }
 
   async countByZone(tenantId: string): Promise<ZoneOccupantCount[]> {
@@ -106,5 +161,6 @@ function toStored(record: ZoneOccupancyRecord): StoredZoneOccupancy {
     zoneId: record.zoneId,
     enteredAt: record.enteredAt,
     dwellNotifiedAt: record.dwellNotifiedAt ?? null,
+    speedingNotifiedAt: record.speedingNotifiedAt ?? null,
   };
 }

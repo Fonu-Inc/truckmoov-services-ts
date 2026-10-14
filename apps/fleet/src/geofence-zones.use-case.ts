@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import {
   GEOFENCE_ZONE_REPOSITORY,
@@ -9,6 +9,10 @@ import {
   type StoredGeofenceZone,
 } from "./geofence-zone.repository";
 import { QuotaService } from "./quota.service";
+import {
+  ZONE_OCCUPANCY_REPOSITORY,
+  type ZoneOccupancyRepository,
+} from "./contexts/fleet/tracking/domain/zone-occupancy.repository";
 
 export class GeofenceZoneNotFoundError extends Error {}
 
@@ -70,11 +74,15 @@ export function toApiShape(zone: StoredGeofenceZone) {
 
 @Injectable()
 export class GeofenceZonesUseCase {
+  private readonly logger = new Logger(GeofenceZonesUseCase.name);
+
   constructor(
     @Inject(GEOFENCE_ZONE_REPOSITORY)
     private readonly repo: GeofenceZoneRepository,
     @Inject(QuotaService)
     private readonly quotaService: QuotaService,
+    @Inject(ZONE_OCCUPANCY_REPOSITORY)
+    private readonly occupancy: ZoneOccupancyRepository,
   ) {}
 
   async list(tenantId: string, filters?: GeofenceZoneFilters) {
@@ -130,6 +138,7 @@ export class GeofenceZonesUseCase {
       await this.repo.setVehicleAssignments(id, tenantId, data.assignedVehicleIds);
       zone.assignedVehicleIds = data.assignedVehicleIds;
     }
+    await this.syncOccupancy(tenantId, id);
     return toApiShape(zone);
   }
 
@@ -166,6 +175,7 @@ export class GeofenceZonesUseCase {
       await this.repo.setVehicleAssignments(id, tenantId, data.assignedVehicleIds);
       updated.assignedVehicleIds = data.assignedVehicleIds;
     }
+    await this.syncOccupancy(tenantId, id);
     return toApiShape(updated);
   }
 
@@ -173,12 +183,23 @@ export class GeofenceZonesUseCase {
     const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
     await this.repo.save({ ...zone, status: "ARCHIVED", updatedAt: new Date() });
+    await this.syncOccupancy(tenantId, id);
   }
 
   async setVehicleAssignments(tenantId: string, id: string, vehicleIds: string[]) {
     const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
     await this.repo.setVehicleAssignments(id, tenantId, vehicleIds);
+    await this.syncOccupancy(tenantId, id);
     return toApiShape({ ...zone, assignedVehicleIds: vehicleIds });
+  }
+
+  /** The zone is already saved; a failed sync is corrected by the next fixes, so it only warns. */
+  private async syncOccupancy(tenantId: string, zoneId: string): Promise<void> {
+    try {
+      await this.occupancy.syncZone(tenantId, zoneId);
+    } catch (error) {
+      this.logger.warn(`zone_occupancy_sync_failed:${zoneId}:${error instanceof Error ? error.message : "unknown"}`);
+    }
   }
 }
