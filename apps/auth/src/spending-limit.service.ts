@@ -62,21 +62,16 @@ export class SpendingLimitService {
     const settings = await this.repository.findByTenantId(tenantId);
     if (!settings || !settings.enabled) return;
 
-    const current = this.rollWindowForward(settings);
-    const spentThisMonthKobo = current.spentThisMonthKobo + amountKobo;
+    const windowStart = windowStartFor(settings.resetDayOfMonth, new Date());
+    const current = await this.repository.addSpend(tenantId, amountKobo, windowStart);
+    if (!current) return;
 
-    const crossed = this.thresholdsCrossed(current, spentThisMonthKobo);
-    const notifiedPercentages = [...current.notifiedPercentages, ...crossed];
-
-    await this.repository.save({
-      ...current,
-      spentThisMonthKobo,
-      notifiedPercentages,
-      updatedAt: new Date(),
-    });
+    const crossed = this.thresholdsCrossed(current, current.spentThisMonthKobo);
+    if (crossed.length === 0) return;
+    await this.repository.markNotified(tenantId, windowStart, crossed);
 
     for (const percentage of crossed) {
-      await this.announce(tenantId, percentage, spentThisMonthKobo, current.monthlyLimitKobo);
+      await this.announce(tenantId, percentage, current.spentThisMonthKobo, current.monthlyLimitKobo);
     }
   }
 

@@ -14,7 +14,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
   ) {}
 
   async onApplicationBootstrap() {
-    const [u1, u2, u3, u4] = await Promise.all([
+    const [u1, u2] = await Promise.all([
       this.bus.subscribe("tm.*.job.status.changed", async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {
@@ -37,7 +37,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: entry.metadata,
           occurredAt: entry.occurredAt,
         });
-      }),
+      }, "audit_log"),
       this.bus.subscribe("tm.*.alert.triggered", async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {
@@ -61,55 +61,9 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           occurredAt: entry.occurredAt,
         });
       }, "audit_log"),
-      this.bus.subscribe("tm.*.vehicle.geofence.exited", async (event) => {
-        const d = event.data as Record<string, unknown>;
-        const entry: Omit<AuditEntry, "id"> = {
-          tenantId: event.tenant_id,
-          entityType: "geofence",
-          entityId: String(d["vehicle_id"] ?? ""),
-          action: "geofence.exited",
-          actorId: "system",
-          metadata: { vehicleId: d["vehicle_id"], lat: d["lat"], lng: d["lng"] },
-          occurredAt: event.occurred_at,
-        };
-        await this.audit.record(entry);
-        await this.publishCentralActivity(event.tenant_id, {
-          service: "tracking",
-          action: "vehicle.geofence.exited",
-          entityType: entry.entityType,
-          entityId: entry.entityId,
-          summary: "Vehicle exited geofence",
-          actorId: entry.actorId,
-          metadata: entry.metadata,
-          occurredAt: entry.occurredAt,
-        });
-      }, "audit_log"),
-      this.bus.subscribe("tm.*.vehicle.geofence.entered", async (event) => {
-        const d = event.data as Record<string, unknown>;
-        const entry: Omit<AuditEntry, "id"> = {
-          tenantId: event.tenant_id,
-          entityType: "geofence",
-          entityId: String(d["vehicle_id"] ?? ""),
-          action: "geofence.entered",
-          actorId: "system",
-          metadata: { vehicleId: d["vehicle_id"], lat: d["lat"], lng: d["lng"] },
-          occurredAt: event.occurred_at,
-        };
-        await this.audit.record(entry);
-        await this.publishCentralActivity(event.tenant_id, {
-          service: "tracking",
-          action: "vehicle.geofence.entered",
-          entityType: entry.entityType,
-          entityId: entry.entityId,
-          summary: "Vehicle entered geofence",
-          actorId: entry.actorId,
-          metadata: entry.metadata,
-          occurredAt: entry.occurredAt,
-        });
-      }),
     ]);
 
-    this.unsubs.push(u1, u2, u3, u4);
+    this.unsubs.push(u1, u2);
     this.logger.log("Audit event listeners active");
   }
 

@@ -4,17 +4,7 @@ import type {
   SystemTenantFilters,
   SystemTenantRow,
 } from './list-system-tenants.use-case';
-
-function escapeCsvValue(value: unknown): string {
-  if (value == null) {
-    return '';
-  }
-  const normalized = typeof value === 'string' ? value : String(value);
-  if (/[\",\n]/.test(normalized)) {
-    return `"${normalized.replace(/"/g, '""')}"`;
-  }
-  return normalized;
-}
+import { escapeCsvValue } from '@shared/csv';
 
 function formatFeatures(row: SystemTenantRow) {
   return [
@@ -84,8 +74,8 @@ export class ExportSystemTenantsUseCase {
       tenant.businessInfo.verificationStatus,
       tenant.lastActiveAt,
       tenant.createdAt,
-      tenant.invitationStatus.hasPendingInvitation,
-      tenant.invitationStatus.invitationAccepted,
+      String(tenant.invitationStatus.hasPendingInvitation),
+      String(tenant.invitationStatus.invitationAccepted),
       formatFeatures(tenant),
     ]);
 

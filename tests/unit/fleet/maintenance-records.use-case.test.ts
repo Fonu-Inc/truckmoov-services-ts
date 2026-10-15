@@ -193,3 +193,16 @@ describe("a maintenance record's vehicle", () => {
     await expect(useCase.update(TENANT, "rec-1", { vehicleId: "nope" })).rejects.toThrow(/nope/);
   });
 });
+
+describe("MaintenanceRecordsUseCase export", () => {
+  it("neutralises a cell a spreadsheet would run as a formula", async () => {
+    const useCase = new MaintenanceRecordsUseCase(
+      fakeMaintenanceRepo([seedRecord({ technician: '=HYPERLINK("http://x")' })]),
+      fakeVehicleRepo(),
+    );
+
+    const row = (await useCase.export(TENANT)).split("\n")[1];
+
+    expect(row).toContain(`"'=HYPERLINK(""http://x"")"`);
+  });
+});

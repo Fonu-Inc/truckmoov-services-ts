@@ -112,6 +112,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new JsonLogger("fleet-service"),
   });
+  app.enableShutdownHooks();
 
   // Fail closed: abort boot if any controller lacks @TenantScoped()/@Public().
   assertTenantScopedControllers(app);
@@ -119,6 +120,11 @@ async function bootstrap() {
   const cfg = app.get(AppConfigService);
   new JsonLogger("fleet-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });
   const sentryEnabled = initializeSentry(cfg);
+
+  // Rate limits key on req.ip; without this it is the gateway pod's address.
+  if (cfg.audit.trustedProxies.length) {
+    app.getHttpAdapter().getInstance().set("trust proxy", cfg.audit.trustedProxies);
+  }
 
   // This service owns the /fleet namespace at the gateway. Keeping the
   // prefix on the URL is what stops two services claiming the same path: both

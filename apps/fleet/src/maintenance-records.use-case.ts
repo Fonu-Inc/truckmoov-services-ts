@@ -12,6 +12,8 @@ import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
 import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
 import { knownVehicleId, resolveVehicleReference } from "./vehicle-reference";
+import { toCsv } from "./utils/csv";
+import { lagosToday } from "./utils/lagos-date";
 
 export class MaintenanceRecordNotFoundError extends Error {}
 
@@ -107,7 +109,7 @@ export class MaintenanceRecordsUseCase {
 
   async transition(tenantId: string, id: string, status: MaintenanceRecordStatus, allowed?: AllowedVehicleIds) {
     const existing = await this.findRaw(tenantId, id, allowed);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = lagosToday();
     const updated: StoredMaintenanceRecord = {
       ...existing,
       status,
@@ -120,7 +122,7 @@ export class MaintenanceRecordsUseCase {
 
   async summary(tenantId: string, allowed?: AllowedVehicleIds) {
     const records = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = lagosToday();
     return {
       total: records.length,
       scheduled: records.filter((r) => r.status === "scheduled").length,
@@ -134,10 +136,6 @@ export class MaintenanceRecordsUseCase {
   async export(tenantId: string, allowed?: AllowedVehicleIds): Promise<string> {
     const records = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const headers = ["id", "vehicleId", "maintenanceType", "status", "priority", "scheduledDate", "completedDate", "cost", "currency", "technician"];
-    const rows = [
-      headers.join(","),
-      ...records.map((r) => headers.map((h) => JSON.stringify((r as Record<string, unknown>)[h] ?? "")).join(",")),
-    ];
-    return rows.join("\n");
+    return toCsv(records, headers);
   }
 }

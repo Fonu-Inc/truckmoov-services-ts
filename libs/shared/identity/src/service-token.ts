@@ -125,13 +125,15 @@ export class ServiceCaller {
 type ServiceTokenPayload = { iss?: string; sub?: string; aud?: string | string[]; exp?: number; nbf?: number };
 type ClusterJwk = JsonWebKey & { kid?: string };
 
-export type ClusterKeySource = () => Promise<{ issuer: string; keys: ClusterJwk[] }>;
+/** namespace is this pod's own: only service accounts from it are callers. */
+export type ClusterKeySource = () => Promise<{ issuer: string; namespace: string; keys: ClusterJwk[] }>;
 
 /** Checks the token a calling service presents, and names the caller. */
 export class ServiceTokenVerifier {
   private readonly devSecret: string;
   private keys = new Map<string, KeyObject>();
   private issuer = "";
+  private namespace = "";
   private fetchedAt = 0;
 
   constructor(
@@ -146,12 +148,12 @@ export class ServiceTokenVerifier {
     const parts = (token ?? "").trim().split(".");
     if (parts.length === 3 && this.clusterKeys) {
       const payload = await this.verifyCluster(parts);
-      return payload ? this.caller(payload) : null;
+      return payload ? this.caller(payload, this.namespace) : null;
     }
     if (parts.length === 2 && this.devSecret) {
       if (!sameString(parts[1], hmac(this.devSecret, parts[0]))) return null;
       const payload = decode<ServiceTokenPayload>(parts[0]);
-      return payload?.iss === DEV_ISSUER ? this.caller(payload) : null;
+      return payload?.iss === DEV_ISSUER ? this.caller(payload, "dev") : null;
     }
     return null;
   }
@@ -173,8 +175,9 @@ export class ServiceTokenVerifier {
     }
     this.fetchedAt = Date.now();
     try {
-      const { issuer, keys } = await this.clusterKeys();
+      const { issuer, namespace, keys } = await this.clusterKeys();
       this.issuer = issuer;
+      this.namespace = namespace;
       this.keys = new Map(keys.filter((k) => k.kty === "RSA").map((k) => [k.kid ?? "", createPublicKey({ key: k, format: "jwk" })]));
     } catch {
       return undefined;
@@ -182,14 +185,14 @@ export class ServiceTokenVerifier {
     return this.keys.get(kid);
   }
 
-  private caller(payload: ServiceTokenPayload): string | null {
+  private caller(payload: ServiceTokenPayload, namespace: string): string | null {
     const now = Math.floor(Date.now() / 1000);
     const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
     if (typeof payload.exp !== "number" || payload.exp <= now || (payload.nbf ?? 0) > now) return null;
     if (!audience.includes(this.self)) return null;
     const account = payload.sub?.startsWith(SERVICE_ACCOUNT_PREFIX) ? payload.sub.slice(SERVICE_ACCOUNT_PREFIX.length) : "";
-    const [, name] = account.split(":");
-    return name || null;
+    const [ns, name] = account.split(":");
+    return namespace && ns === namespace && name ? name : null;
   }
 }
 
@@ -214,12 +217,13 @@ function getJson<T>(path: string, token: string, ca: Buffer): Promise<T> {
 }
 
 /** The issuer and keys the API server publishes for service account tokens. */
-async function fetchClusterKeys(): Promise<{ issuer: string; keys: ClusterJwk[] }> {
+async function fetchClusterKeys(): Promise<{ issuer: string; namespace: string; keys: ClusterJwk[] }> {
   const token = readFileSync(join(SERVICE_ACCOUNT_DIR, "token"), "utf8").trim();
+  const namespace = readFileSync(join(SERVICE_ACCOUNT_DIR, "namespace"), "utf8").trim();
   const ca = readFileSync(join(SERVICE_ACCOUNT_DIR, "ca.crt"));
   const discovery = await getJson<{ issuer: string }>("/.well-known/openid-configuration", token, ca);
   const jwks = await getJson<{ keys: ClusterJwk[] }>("/openid/v1/jwks", token, ca);
-  return { issuer: discovery.issuer, keys: jwks.keys };
+  return { issuer: discovery.issuer, namespace, keys: jwks.keys };
 }
 
 /** The identity settings every service reads from its configuration. */

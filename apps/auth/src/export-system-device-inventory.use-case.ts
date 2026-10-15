@@ -1,16 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
-
-function escapeCsvValue(value: unknown) {
-  if (value == null) {
-    return '';
-  }
-  const normalized = typeof value === 'string' ? value : String(value);
-  if (/[\",\n]/.test(normalized)) {
-    return `"${normalized.replace(/"/g, '""')}"`;
-  }
-  return normalized;
-}
+import { escapeCsvValue } from '@shared/csv';
 
 @Injectable()
 export class ExportSystemDeviceInventoryUseCase {

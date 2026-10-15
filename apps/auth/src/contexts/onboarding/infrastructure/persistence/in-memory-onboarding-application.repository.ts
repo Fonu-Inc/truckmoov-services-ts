@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   OnboardingApplicationQueueFilters,
   OnboardingApplicationRepository,
+  OnboardingApplicationStatus,
   OnboardingVerificationChannel,
   StoredOnboardingApplication,
   StoredOnboardingApplicationDocument,
@@ -70,6 +71,19 @@ export class InMemoryOnboardingApplicationRepository
     application.paymentNoticeAttempts = (application.paymentNoticeAttempts ?? 0) + 1;
     application.paymentNoticeError = error.slice(0, 500);
     return application.paymentNoticeAttempts;
+  }
+
+  async transitionStatus(
+    id: string,
+    from: readonly OnboardingApplicationStatus[],
+    to: OnboardingApplicationStatus,
+    at: Date,
+  ): Promise<boolean> {
+    const application = this.applications.get(id);
+    if (!application || !from.includes(application.status)) return false;
+    application.status = to;
+    application.updatedAt = at;
+    return true;
   }
 
   async replaceTokenHash(id: string, tokenHash: string): Promise<void> {

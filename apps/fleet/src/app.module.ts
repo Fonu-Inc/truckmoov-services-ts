@@ -5,7 +5,6 @@ import { ConfigModule, AppConfigService } from "@shared/config";
 import { EVENT_BUS, EventBusModule, type EventBus } from "@shared/eventbus";
 import { MetricsModule } from "@shared/metrics";
 import { ReadinessController } from "./readiness.controller";
-import { GeofenceModule } from "@shared/geofence";
 import { LoggerModule } from "@shared/logger";
 import { ObjectStorageModule } from "@shared/object-storage";
 import { IdempotencyGuard, RolesGuard, RedisClientProvider } from "@shared/rbac";
@@ -93,7 +92,6 @@ import {
   VEHICLE_REPOSITORY,
 } from "./contexts/fleet/vehicles";
 import { FleetController } from "./fleet.controller";
-import { RoutesController } from "./routes.controller";
 import { VehiclesController } from "./vehicles.controller";
 import { DeviceInstallationController } from "./device-installation.controller";
 import { InstallerDevicesController } from "./installer-devices.controller";
@@ -324,7 +322,6 @@ import {
   FILE_SCANNER,
   UnscannedFileScanner,
 } from "./contexts/fleet/documents";
-import { ScheduledReportService } from "./scheduled-report.service";
 import { WebhookController } from "./webhook.controller";
 import { IntegrationHealthService } from "./integration-health.service";
 import { RateLimitGuard } from "./rate-limit.guard";
@@ -351,11 +348,10 @@ import { createServiceCaller } from "@shared/identity";
 import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./access-refusals";
 
 @Module({
-  imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, GeofenceModule, MetricsModule, MailerModule],
+  imports: [DiscoveryModule, ConfigModule, LoggerModule, EventBusModule, ObjectStorageModule, MetricsModule, MailerModule],
   controllers: [
     InternalFleetController,
     FleetController,
-    RoutesController,
     VehiclesController,
     DevicesController,
     DeviceInstallationController,
@@ -455,7 +451,6 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     DeviceTelemetryListener,
     AlertDetectionListener,
     AlertEscalationService,
-    ScheduledReportService,
     DashboardUseCase,
     OverviewUseCase,
     MikroDriverQuotaReader,
@@ -962,7 +957,6 @@ export class AppModule implements NestModule {
       .exclude({ path: "health", method: RequestMethod.GET })
       .forRoutes(
         FleetController,
-        RoutesController,
         VehiclesController,
         DevicesController,
         DeviceInstallationController,

@@ -56,6 +56,20 @@ export class MikroWaybillRepository implements WaybillRepository {
     });
   }
 
+  async failExtractionIfPending(waybill: Waybill): Promise<boolean> {
+    const orm = await getFleetOrm(this.config.db);
+    const updated = await orm.em.fork().nativeUpdate(
+      WaybillRecord,
+      { id: waybill.id, tenantId: waybill.tenantId, status: "pending" },
+      {
+        status: waybill.status,
+        extractionError: waybill.extractionError,
+        updatedAt: new Date(waybill.updatedAt),
+      },
+    );
+    return updated > 0;
+  }
+
   async findById(id: string, tenantId: string): Promise<Waybill | null> {
     const orm = await getFleetOrm(this.config.db);
     const record = await orm.em.fork().findOne(WaybillRecord, { id, tenantId });

@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { AlertRecord, getFleetOrm } from "../../shared/infrastructure/persistence/fleet-orm";
 import { Alert, type AlertSeverity, type AlertStatus } from "../domain/alert.entity";
-import type { AlertFilters, AlertRepository } from "../domain/alert.repository";
+import type { AlertCount, AlertFilters, AlertRepository } from "../domain/alert.repository";
 
 function toDomain(record: AlertRecord): Alert {
   return Alert.create({
@@ -33,6 +33,7 @@ function toWhere(tenantId: string, filters?: AlertFilters) {
     ...(filters?.status ? { status: filters.status } : {}),
     ...(filters?.type ? { type: filters.type } : {}),
     ...(filters?.vehicleId ? { vehicleId: filters.vehicleId } : {}),
+    ...(filters?.vehicleIdIn ? { vehicleId: { $in: filters.vehicleIdIn } } : {}),
     ...(filters?.jobId ? { jobId: filters.jobId } : {}),
   };
 }
@@ -67,8 +68,33 @@ export class MikroAlertRepository implements AlertRepository {
     const orm = await getFleetOrm(this.config.db);
     const records = await orm.em
       .fork()
-      .find(AlertRecord, toWhere(tenantId, filters), { orderBy: { createdAt: "desc" } });
+      .find(AlertRecord, toWhere(tenantId, filters), { orderBy: { triggeredAt: "desc" }, limit: filters?.limit });
     return records.map(toDomain);
+  }
+
+  async countBy(tenantId: string): Promise<AlertCount[]> {
+    const orm = await getFleetOrm(this.config.db);
+    const rows = await orm.em.fork().getConnection().execute<
+      Array<{ status: AlertStatus; type: string; severity: AlertSeverity; count: number | string }>
+    >(
+      `select status, type, severity, count(*)::int as count
+         from fleet_alerts
+        where tenant_id = ?
+        group by status, type, severity`,
+      [tenantId],
+    );
+    return rows.map((row) => ({ status: row.status, type: row.type, severity: row.severity, count: Number(row.count) }));
+  }
+
+  async meanTimeToResolveMs(tenantId: string): Promise<number | null> {
+    const orm = await getFleetOrm(this.config.db);
+    const [row] = await orm.em.fork().getConnection().execute<Array<{ mean_ms: number | string | null }>>(
+      `select avg(extract(epoch from resolved_at - triggered_at)) * 1000 as mean_ms
+         from fleet_alerts
+        where tenant_id = ? and resolved_at is not null`,
+      [tenantId],
+    );
+    return row?.mean_ms == null ? null : Number(row.mean_ms);
   }
 
   async findOpenTriggeredBefore(cutoff: Date, limit: number): Promise<Alert[]> {
@@ -77,5 +103,13 @@ export class MikroAlertRepository implements AlertRepository {
       .fork()
       .find(AlertRecord, { status: "open", triggeredAt: { $lt: cutoff } }, { orderBy: { triggeredAt: "asc" }, limit });
     return records.map(toDomain);
+  }
+
+  async escalateIfOpen(tenantId: string, id: string, at: Date): Promise<boolean> {
+    const orm = await getFleetOrm(this.config.db);
+    const updated = await orm.em
+      .fork()
+      .nativeUpdate(AlertRecord, { id, tenantId, status: "open" }, { status: "escalated", escalatedAt: at });
+    return updated > 0;
   }
 }

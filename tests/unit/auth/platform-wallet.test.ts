@@ -177,6 +177,26 @@ describe("Platform top-up", () => {
 });
 
 describe("Wallet credit settings", () => {
+  it("keeps a credit that lands between reading the wallet and saving the settings", async () => {
+    const kit = harness();
+    const ensure = kit.wallets.ensure.bind(kit.wallets);
+    kit.wallets.ensure = async (tenantId: string) => {
+      const snapshot = { ...(await ensure(tenantId)) };
+      await kit.wallets.credit(tenantId, 5_000 * NAIRA, { category: "top_up", quantity: 1, unitRateKobo: 0, reason: "race" });
+      return snapshot;
+    };
+
+    await kit.settings.execute({
+      accessToken: "token",
+      tenantId: "tenant-a",
+      creditEnabled: true,
+      creditLimitKobo: null,
+      lowBalanceThresholdKobo: 0,
+    });
+
+    expect((await kit.wallets.findByTenantId("tenant-a"))?.balanceKobo).toBe(5_000 * NAIRA);
+  });
+
   it("stores an omitted limit as unlimited rather than zero", async () => {
     const kit = harness();
 

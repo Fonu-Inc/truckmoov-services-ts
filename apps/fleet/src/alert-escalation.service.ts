@@ -40,11 +40,13 @@ export class AlertEscalationService implements OnApplicationBootstrap, OnApplica
 
   async escalateStale(now = new Date()): Promise<number> {
     const stale = await this.repo.findOpenTriggeredBefore(new Date(now.getTime() - this.thresholdMs), SWEEP_BATCH);
+    let escalated = 0;
     for (const alert of stale) {
-      await this.repo.save(alert.escalate(now));
+      if (!(await this.repo.escalateIfOpen(alert.tenantId, alert.id, now))) continue;
+      escalated += 1;
       this.logger.warn(`Alert ${alert.id} escalated (tenant=${alert.tenantId} type=${alert.type})`);
     }
-    return stale.length;
+    return escalated;
   }
 
   private logFailure(error: unknown): void {

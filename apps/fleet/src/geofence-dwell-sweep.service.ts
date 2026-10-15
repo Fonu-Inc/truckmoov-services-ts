@@ -69,9 +69,9 @@ export class GeofenceDwellSweepService implements OnApplicationBootstrap, OnAppl
         const minutesInside = Math.floor((now.getTime() - stay.enteredAt.getTime()) / 60_000);
         if (minutesInside < zone.dwellMinutes) continue;
 
-        // Marked before publishing. A publish that fails is one missed alert;
-        // marking afterwards would re-raise it on every sweep from then on.
-        await this.occupancy.markDwellNotified(stay.tenantId, stay.vehicleId, stay.zoneId, now);
+        // Claimed before publishing. A publish that fails is one missed alert;
+        // claiming afterwards would re-raise it on every sweep from then on.
+        if (!(await this.occupancy.claimDwellAlert(stay.tenantId, stay.vehicleId, stay.zoneId, now))) continue;
         if (!zoneIsArmed(zone, now)) continue;
 
         await this.publish(stay.tenantId, stay.vehicleId, zone.id, zone.name, zone.category, minutesInside);

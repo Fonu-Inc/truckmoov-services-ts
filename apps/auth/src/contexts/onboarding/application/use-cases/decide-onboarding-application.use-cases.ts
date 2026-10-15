@@ -29,9 +29,14 @@ import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicantType,
   type OnboardingApplicationRepository,
+  type OnboardingApplicationStatus,
   type StoredOnboardingApplication,
   type StoredOnboardingApplicationDocument,
 } from '@auth/onboarding/domain/onboarding-application.repository';
+import {
+  assertStageAdvance,
+  type OnboardingStage,
+} from '@auth/onboarding/domain/onboarding-stage';
 import {
   ApplicationNotFoundError,
   missingDocumentTypes,
@@ -121,6 +126,19 @@ export function sendChangesRequestedLink(
   );
 }
 
+/** Takes the decision on the row first, so a second decider is refused before any side effect. */
+async function claimDecision(
+  applications: OnboardingApplicationRepository,
+  application: StoredOnboardingApplication,
+  to: OnboardingApplicationStatus,
+  at: Date,
+): Promise<void> {
+  const fromStatus = application.status;
+  if (await applications.transitionStatus(application.id, REVIEWABLE_STATUSES, to, at)) return;
+  const current = await applications.findById(application.id);
+  throw new ApplicationNotUnderReviewError(current?.status ?? fromStatus);
+}
+
 const INFORMATION_REQUEST_SECTION_LABEL: Record<InformationRequestSection, string> = {
   business_details: 'Business details',
   fleet_requirements: 'Fleet requirements',
@@ -200,9 +218,53 @@ export class ApproveOnboardingApplicationUseCase {
     const existingUser = await this.users.findByEmail(application.businessEmail);
     if (existingUser) throw new BusinessEmailInUseError();
 
+    const deviceRequests = await this.applications.findDeviceRequestsByApplicationId(application.id);
+    const stock = await this.inventory.availability();
+    const allocationCanProceed =
+      !stock.tracked || requestedDeviceCount(deviceRequests) <= stock.availableQuantity;
+    // A provisioned request moves itself forward. When stock changed after
+    // the customer accepted the disclosed amount, it remains at Provisioning
+    // for the inventory sweep rather than allowing a manual UI switch.
+    const stage = allocationCanProceed ? 'payment' : 'provisioning';
+    assertStageAdvance(application.stage, stage);
+
+    const now = new Date();
+    const fromStatus = application.status;
+    await claimDecision(this.applications, application, 'approved', now);
+    const approved = await this.provisionTenant(application, actorId, stage, now).catch(
+      async (error: unknown) => {
+        await this.applications.transitionStatus(application.id, ['approved'], fromStatus, new Date());
+        throw error;
+      },
+    );
+    await this.startTrial(approved.tenantId!, now);
+
+    return {
+      status: true,
+      // No setup link yet: the account is created when an installation is
+      // booked, which is the first moment there is anything to log in and see.
+      message: allocationCanProceed
+        ? 'Application approved, awaiting payment'
+        : 'Application approved, awaiting inventory availability',
+      data: {
+        applicationId: approved.id,
+        reference: approved.reference,
+        status: approved.status,
+        stage: approved.stage,
+        tenantId: approved.tenantId!,
+        bootstrapRole: ORG_TYPE_TO_BOOTSTRAP_ROLE[application.applicantType],
+      },
+    };
+  }
+
+  private async provisionTenant(
+    application: StoredOnboardingApplication,
+    actorId: string,
+    stage: OnboardingStage,
+    now: Date,
+  ): Promise<StoredOnboardingApplication> {
     const tenantId = this.idGenerator.generate();
     const bootstrapRole = ORG_TYPE_TO_BOOTSTRAP_ROLE[application.applicantType];
-    const now = new Date();
 
     const settings = buildDefaultOrganizationSettings(tenantId);
     settings.branding.organizationName = application.organizationName;
@@ -253,17 +315,10 @@ export class ApproveOnboardingApplicationUseCase {
     // the platform's storage prefix for life.
     await this.applications.assignDocumentsToTenant(application.id, tenantId);
 
-    const deviceRequests = await this.applications.findDeviceRequestsByApplicationId(application.id);
-    const stock = await this.inventory.availability();
-    const allocationCanProceed =
-      !stock.tracked || requestedDeviceCount(deviceRequests) <= stock.availableQuantity;
     const approved: StoredOnboardingApplication = {
       ...application,
       status: 'approved',
-      // A provisioned request moves itself forward. When stock changed after
-      // the customer accepted the disclosed amount, it remains at Provisioning
-      // for the inventory sweep rather than allowing a manual UI switch.
-      stage: allocationCanProceed ? 'payment' : 'provisioning',
+      stage,
       tenantId,
       reviewedBy: actorId,
       reviewedAt: now,
@@ -271,24 +326,7 @@ export class ApproveOnboardingApplicationUseCase {
       updatedAt: now,
     };
     await this.applications.save(approved);
-    await this.startTrial(tenantId, now);
-
-    return {
-      status: true,
-      // No setup link yet: the account is created when an installation is
-      // booked, which is the first moment there is anything to log in and see.
-      message: allocationCanProceed
-        ? 'Application approved, awaiting payment'
-        : 'Application approved, awaiting inventory availability',
-      data: {
-        applicationId: approved.id,
-        reference: approved.reference,
-        status: approved.status,
-        stage: approved.stage,
-        tenantId,
-        bootstrapRole,
-      },
-    };
+    return approved;
   }
 
   /**
@@ -371,6 +409,7 @@ export class RejectOnboardingApplicationUseCase {
     }
 
     const now = new Date();
+    await claimDecision(this.applications, application, 'rejected', now);
     const rejected: StoredOnboardingApplication = {
       ...application,
       status: 'rejected',
@@ -437,6 +476,7 @@ export class RequestOnboardingApplicationChangesUseCase {
     }
 
     const now = new Date();
+    await claimDecision(this.applications, application, 'changes_requested', now);
     await this.applications.save({
       ...application,
       status: 'changes_requested',
@@ -569,28 +609,26 @@ async function deliverSetupLink(
   invite: InviteEmail,
 ): Promise<{ delivered: boolean; status: 'sent' | 'failed'; error: string | null }> {
   const attemptedAt = new Date();
+  const record = async (status: 'sent' | 'failed', error: string | null) => {
+    const current = await applications.findById(application.id);
+    if (!current) return;
+    await applications.save({
+      ...current,
+      setupLinkStatus: status,
+      setupLinkSentAt: attemptedAt,
+      setupLinkError: error,
+      setupLinkAttempts: current.setupLinkAttempts + 1,
+      updatedAt: attemptedAt,
+    });
+  };
 
   try {
     await notifier.sendTenantInviteEmail(invite);
-    await applications.save({
-      ...application,
-      setupLinkStatus: 'sent',
-      setupLinkSentAt: attemptedAt,
-      setupLinkError: null,
-      setupLinkAttempts: application.setupLinkAttempts + 1,
-      updatedAt: attemptedAt,
-    });
+    await record('sent', null);
     return { delivered: true, status: 'sent', error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown';
-    await applications.save({
-      ...application,
-      setupLinkStatus: 'failed',
-      setupLinkSentAt: attemptedAt,
-      setupLinkError: message,
-      setupLinkAttempts: application.setupLinkAttempts + 1,
-      updatedAt: attemptedAt,
-    });
+    await record('failed', message);
     return { delivered: false, status: 'failed', error: message };
   }
 }

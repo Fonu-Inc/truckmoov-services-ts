@@ -1,3 +1,5 @@
+import { lagosDayOffset, lagosToday } from "./utils/lagos-date";
+
 export type ComplianceDocumentStatus = "valid" | "expiring" | "expired";
 
 export type StoredComplianceDocument = {
@@ -65,12 +67,8 @@ export const COMPLIANCE_DOCUMENT_REPOSITORY = Symbol("COMPLIANCE_DOCUMENT_REPOSI
  */
 export function statusFromExpiry(expiryDate: string | null, reminderDays: number): ComplianceDocumentStatus {
   if (!expiryDate) return "valid";
-  const today = new Date().toISOString().slice(0, 10);
-  if (expiryDate < today) return "expired";
-  const soonDate = new Date();
-  soonDate.setDate(soonDate.getDate() + reminderDays);
-  const soonStr = soonDate.toISOString().slice(0, 10);
-  if (expiryDate <= soonStr) return "expiring";
+  if (expiryDate < lagosToday()) return "expired";
+  if (expiryDate <= lagosDayOffset(reminderDays)) return "expiring";
   return "valid";
 }
 

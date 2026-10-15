@@ -22,10 +22,12 @@ function makeEvent(tenantId: string, data: Record<string, unknown>) {
 }
 
 describe("AuditEventListener", () => {
-  it("subscribes to all 4 subjects on bootstrap", async () => {
+  it("subscribes to both subjects on bootstrap, each on its own durable", async () => {
     const { listener, bus } = buildListener();
     await listener.onApplicationBootstrap();
-    expect(bus.subscribe).toHaveBeenCalledTimes(4);
+    expect(bus.subscribe).toHaveBeenCalledTimes(2);
+    expect(bus.subscribe).toHaveBeenCalledWith("tm.*.job.status.changed", expect.any(Function), "audit_log");
+    expect(bus.subscribe).toHaveBeenCalledWith("tm.*.alert.triggered", expect.any(Function), "audit_log");
   });
 
   it("records job status change audit entry", async () => {
@@ -50,25 +52,6 @@ describe("AuditEventListener", () => {
     expect(entries[0].action).toBe("alert.triggered");
   });
 
-  it("records geofence exited audit entry", async () => {
-    const { listener, audit, handlers } = buildListener();
-    await listener.onApplicationBootstrap();
-    await handlers.get("tm.*.vehicle.geofence.exited")!(
-      makeEvent("t1", { vehicle_id: "v1", lat: 6.5, lng: 3.4 }),
-    );
-    const entries = await audit.query("t1", { entityType: "geofence" });
-    expect(entries[0].action).toBe("geofence.exited");
-  });
-
-  it("records geofence entered audit entry", async () => {
-    const { listener, audit, handlers } = buildListener();
-    await listener.onApplicationBootstrap();
-    await handlers.get("tm.*.vehicle.geofence.entered")!(
-      makeEvent("t1", { vehicle_id: "v1", lat: 6.5, lng: 3.4 }),
-    );
-    expect((await audit.query("t1", { entityType: "geofence" }))[0].action).toBe("geofence.entered");
-  });
-
   it("uses system as actorId when no driver_id or source", async () => {
     const { listener, audit, handlers } = buildListener();
     await listener.onApplicationBootstrap();
@@ -82,6 +65,6 @@ describe("AuditEventListener", () => {
     const { listener, unsubFn } = buildListener();
     await listener.onApplicationBootstrap();
     await listener.onApplicationShutdown();
-    expect(unsubFn).toHaveBeenCalledTimes(4);
+    expect(unsubFn).toHaveBeenCalledTimes(2);
   });
 });

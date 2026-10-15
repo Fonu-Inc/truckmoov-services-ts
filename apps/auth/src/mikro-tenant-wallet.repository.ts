@@ -17,6 +17,7 @@ import { withNormalizedKey, type StoredWalletLedgerEntry, type WalletLedgerDraft
 import {
   DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
   walletCreditFloorKobo,
+  type WalletCreditSettings,
 } from './wallet-credit';
 
 function toStored(r: TenantWalletRecord): StoredTenantWallet {
@@ -51,6 +52,22 @@ export class MikroTenantWalletRepository implements TenantWalletRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
     await em.upsert(TenantWalletRecord, wallet as unknown as TenantWalletRecord);
+  }
+
+  async updateCreditSettings(tenantId: string, settings: WalletCreditSettings): Promise<StoredTenantWallet> {
+    const orm = await getAuthOrm(this.config.db);
+    const em = orm.em.fork();
+    await em.nativeUpdate(
+      TenantWalletRecord,
+      { tenantId },
+      {
+        creditEnabled: settings.creditEnabled,
+        creditLimitKobo: settings.creditLimitKobo,
+        lowBalanceThresholdKobo: settings.lowBalanceThresholdKobo,
+        updatedAt: new Date(),
+      },
+    );
+    return toStored(await em.findOneOrFail(TenantWalletRecord, { tenantId }));
   }
 
   async findAll(): Promise<StoredTenantWallet[]> {

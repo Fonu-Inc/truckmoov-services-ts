@@ -1,4 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { QuotaService } from "../../../../../quota.service";
+import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
@@ -7,6 +9,7 @@ import { VehicleNotFoundError } from "../../domain/errors/vehicle-not-found.erro
 import type { FleetAssetStatus } from "../../../shared/domain/fleet-status";
 import type { FleetVehicleType, FleetFuelType } from "../../domain/entities/vehicle.entity";
 import type { VehicleCapacityUnit } from "../../domain/vehicle-capacity";
+import { assertRoomForActiveVehicles } from "./create-vehicle.use-case";
 
 export type UpdateVehicleCommand = {
   id: string;
@@ -29,6 +32,8 @@ export class UpdateVehicleUseCase {
   constructor(
     @Inject(VEHICLE_REPOSITORY)
     private readonly vehicleRepository: VehicleRepository,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async execute(command: UpdateVehicleCommand) {
@@ -36,13 +41,18 @@ export class UpdateVehicleUseCase {
     if (!existingVehicle) {
       throw new VehicleNotFoundError(command.id);
     }
+    const plateNumber = command.registrationNumber ?? command.plateNumber;
+    await this.assertPlateFree(plateNumber, command.tenantId, existingVehicle.id);
+    if (command.status === "active" && existingVehicle.status !== "active") {
+      await assertRoomForActiveVehicles(this.vehicleRepository, this.quotaService, command.tenantId, 1);
+    }
 
     // Keep the same aliasing rule on updates so the UI never has to know about plateNumber.
     // tenantId is never taken from the command here — it's only used above to
     // scope the lookup. Passing it through would let a caller reassign this
     // vehicle into their own tenant.
     const updatedVehicle = existingVehicle.update({
-      plateNumber: command.registrationNumber ?? command.plateNumber,
+      plateNumber,
       vin: command.vin,
       make: command.make,
       model: command.model,
@@ -56,5 +66,13 @@ export class UpdateVehicleUseCase {
 
     await this.vehicleRepository.save(updatedVehicle);
     return updatedVehicle.toPrimitives();
+  }
+
+  private async assertPlateFree(plateNumber: string | undefined, tenantId: string, vehicleId: string) {
+    if (!plateNumber?.trim()) return;
+    const holder = await this.vehicleRepository.findByPlateNumber(plateNumber, tenantId);
+    if (holder && holder.id !== vehicleId) {
+      throw new FleetRuleError(`vehicle with plate ${holder.plateNumber} already exists`);
+    }
   }
 }

@@ -12,6 +12,7 @@ import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from 
 import { BUNDLE_CARRIER_REPOSITORY, type BundleCarrierRepository } from './bundle-carrier.repository';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 import { InsufficientWalletBalanceError } from './charge-usage.use-case';
+import { WALLET_LEDGER_REPOSITORY, type StoredWalletLedgerEntry, type WalletLedgerRepository } from './wallet-ledger.repository';
 
 type Payload = { carrierId: string; planType: string; bundleId: string; mobileNumbers: string[]; idempotencyKey?: string };
 type Allocation = Awaited<ReturnType<BundleAllocationRepository['findByPaymentReference']>>[number];
@@ -53,6 +54,7 @@ export class AllocateBundleUseCase {
     @Inject(SpendingLimitService) private readonly spendingLimitService: SpendingLimitService,
     @Inject(BUNDLE_CARRIER_REPOSITORY) private readonly bundleCarrierRepository: BundleCarrierRepository,
     @Inject(SIM_REPOSITORY) private readonly simRepository: SimRepository,
+    @Inject(WALLET_LEDGER_REPOSITORY) private readonly ledger: WalletLedgerRepository,
   ) {}
 
   async execute(accessToken: string, payload: Payload) {
@@ -67,8 +69,11 @@ export class AllocateBundleUseCase {
     const mobileNumbers = [...new Set(payload.mobileNumbers.map((n) => n.trim()))];
 
     const existing = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
+    if (existing.length > 0) {
+      const original = await this.ledger.findByIdempotencyKey(tenantId, `bundle:${tenantId}:${key}`);
+      return this.settlePrior(tenantId, key, original, existing);
+    }
     const count = mobileNumbers.length;
-    if (existing.length > 0) return this.settlePrior(tenantId, key, bundle, count, existing);
 
     await this.assertTenantSims(tenantId, mobileNumbers);
 
@@ -87,15 +92,15 @@ export class AllocateBundleUseCase {
     if (!debited.ok) throw new InsufficientWalletBalanceError(totalCostKobo);
     if (debited.replayed) {
       const prior = await this.bundleAllocationRepository.findByPaymentReference(tenantId, key);
-      return this.settlePrior(tenantId, key, bundle, count, prior);
+      return this.settlePrior(tenantId, key, debited.entry, prior);
     }
 
     try {
       const allocationIds = await this.persistPurchase(tenantId, key, bundle, mobileNumbers);
       await this.spendingLimitService.recordSpend(tenantId, totalCostKobo);
-      return this.toResponse(bundle, allocationIds);
+      return this.toResponse(totalCostKobo, allocationIds);
     } catch (err) {
-      await this.tryRefund(tenantId, key, bundle, count, err);
+      await this.tryRefund(tenantId, key, debited.entry, err);
       throw err;
     }
   }
@@ -117,16 +122,17 @@ export class AllocateBundleUseCase {
     if (unknown.length > 0) throw new AllocationReferenceError('mobileNumbers', `No SIM found for: ${unknown.join(', ')}`);
   }
 
-  private async settlePrior(tenantId: string, key: string, bundle: Bundle, count: number, prior: Allocation[]) {
-    const complete = prior.length >= count && prior.every((a) => a.status !== 'cancelled');
-    if (complete) return this.toResponse(bundle, prior.map((a) => a.id));
-    await this.refundPurchase(tenantId, key, bundle, bundle.priceKobo * count, count);
+  // A replay is judged and refunded against the original debit, never the replaying request.
+  private async settlePrior(tenantId: string, key: string, debit: StoredWalletLedgerEntry | null, prior: Allocation[]) {
+    const complete = !!debit && prior.length >= debit.quantity && prior.every((a) => a.status !== 'cancelled');
+    if (complete) return this.toResponse(debit.amountKobo, prior.map((a) => a.id));
+    await this.refundPurchase(tenantId, key, debit);
     throw new PurchaseRefundedError();
   }
 
-  private async tryRefund(tenantId: string, key: string, bundle: Bundle, count: number, cause: unknown) {
+  private async tryRefund(tenantId: string, key: string, debit: StoredWalletLedgerEntry | null, cause: unknown) {
     try {
-      await this.refundPurchase(tenantId, key, bundle, bundle.priceKobo * count, count);
+      await this.refundPurchase(tenantId, key, debit);
     } catch (refundErr) {
       this.logger.error(`Refund failed for ${tenantId}:${key} after: ${String(cause)}`, refundErr as Error);
     }
@@ -167,14 +173,15 @@ export class AllocateBundleUseCase {
     return allocationIds;
   }
 
-  private async refundPurchase(tenantId: string, key: string, bundle: Bundle, amountKobo: number, count: number) {
+  private async refundPurchase(tenantId: string, key: string, debit: StoredWalletLedgerEntry | null) {
     await this.cancelAllocations(tenantId, key);
-    await this.tenantWalletRepository.credit(tenantId, amountKobo, {
+    if (!debit) return;
+    await this.tenantWalletRepository.credit(tenantId, debit.amountKobo, {
       category: 'refund',
-      quantity: count,
-      unitRateKobo: bundle.priceKobo,
-      reason: `Refund: ${bundle.name} for ${count} SIM(s) could not be allocated`,
-      reference: bundle.id,
+      quantity: debit.quantity,
+      unitRateKobo: debit.unitRateKobo,
+      reason: `Refund: ${debit.reason} could not be allocated`,
+      reference: debit.reference,
       idempotencyKey: `bundle-refund:${tenantId}:${key}`,
     });
   }
@@ -186,13 +193,13 @@ export class AllocateBundleUseCase {
     }
   }
 
-  private toResponse(bundle: Bundle, allocationIds: string[]) {
+  private toResponse(totalKobo: number, allocationIds: string[]) {
     return {
       status: true,
       message: 'success',
       data: {
         allocationIds,
-        totalAmount: (bundle.priceKobo * allocationIds.length) / 100,
+        totalAmount: totalKobo / 100,
         successfulCount: allocationIds.length,
         failedCount: 0,
       },

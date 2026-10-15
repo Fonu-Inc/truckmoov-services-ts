@@ -156,16 +156,6 @@ export class AuthController extends BaseAuthController {
     }
   }
 
-  @Portals('public')
-  @Get('test-sentry')
-  @ApiOperation({
-    summary: 'Trigger a test Sentry error',
-    description: 'Throws an unhandled error so Sentry capture can be verified.',
-  })
-  testSentry(): never {
-    throw new Error('Sentry test error from auth service');
-  }
-
   @Portals('tenant', 'admin')
   @Post('media/upload')
   @ApiConsumes('multipart/form-data')
@@ -461,23 +451,19 @@ export class AuthController extends BaseAuthController {
   @UseGuards(LoginRateLimitGuard)
   @ApiOkResponse({ type: MessageResponse })
   async forgotPassword(@Body(BodyOrDataPipe) payload: ForgotPasswordDto) {
-    try {
-      const result = await this.forgotPasswordUseCase.execute(payload);
+    const result = await this.forgotPasswordUseCase.execute(payload);
+    if (result.user) {
       await this.tryRecordActivity({
-        tenantId: result.tenantId,
+        tenantId: result.user.tenantId,
         service: 'auth',
         action: 'user.password_reset.requested',
         entityType: 'user',
-        entityId: result.userId,
+        entityId: result.user.id,
         summary: 'Password reset requested',
-        metadata: { email: result.email },
+        metadata: { email: result.user.email },
       });
-      return { message: result.message };
-    } catch (error) {
-      if (error instanceof UserNotFoundError)
-        throw new NotFoundException(error.message);
-      throw error;
     }
+    return { message: result.message };
   }
 
   /**
@@ -566,6 +552,7 @@ export class AuthController extends BaseAuthController {
 
   /** Complete invited-user profile (fullName + password) */
 
+  @Portals('public')
   @Post('complete-profile')
   @ApiOkResponse({ type: MessageResponse })
   async completeProfile(@Body(BodyOrDataPipe) payload: CompleteProfileDto) {

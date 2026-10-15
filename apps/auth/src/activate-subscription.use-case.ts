@@ -6,6 +6,7 @@ import {
   type StoredTenantOnboarding,
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
+import { PlatformAlertPublisher } from './platform-alert.publisher';
 
 export class OnboardingNotFoundError extends Error {}
 
@@ -18,12 +19,13 @@ export class ActivateSubscriptionUseCase {
   constructor(
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboardingRepository: TenantOnboardingRepository,
+    @Inject(PlatformAlertPublisher) private readonly alerts: PlatformAlertPublisher,
   ) {}
 
   async execute(
     tenantId: string,
     reference: string,
-    _selection?: { planCode?: string; billingCycle?: string },
+    selection?: { planCode?: string; billingCycle?: string },
     paid?: PaidAmount,
   ): Promise<void> {
     const onboarding = await this.onboardingRepository.findByTenantId(tenantId);
@@ -36,12 +38,28 @@ export class ActivateSubscriptionUseCase {
     );
     if (!charge) {
       this.logger.warn(`No pending subscription charge ${reference} for tenant ${tenantId}`);
+      // Every tenant callback lands here; only one naming a plan was a subscription payment.
+      if (selection?.planCode) await this.raiseUnapplied(tenantId, reference, 'no pending subscription charge matches it', paid);
       return;
     }
-    if (!this.paymentMatches(tenantId, charge, paid)) return;
-    if (!this.planChangeAllowed(tenantId, onboarding, charge)) return;
+    if (!this.paymentMatches(tenantId, charge, paid)) {
+      return this.raiseUnapplied(tenantId, reference, 'the amount or currency does not match the pending charge', paid);
+    }
+    if (!this.planChangeAllowed(tenantId, onboarding, charge)) {
+      return this.raiseUnapplied(tenantId, reference, `it targets plan ${charge.planCode}, not the tenant's current plan`, paid);
+    }
 
     await this.onboardingRepository.activateSubscription(tenantId, charge, new Date());
+  }
+
+  private raiseUnapplied(tenantId: string, reference: string, why: string, paid?: PaidAmount): Promise<void> {
+    return this.alerts.raise({
+      alertType: 'billing_alerts',
+      severity: 'high',
+      subject: `Subscription payment not applied (${reference})`,
+      body: `A successful payment from tenant ${tenantId} was not applied because ${why}. Review it for a refund or a manual activation.`,
+      context: { tenantId, reference, paidKobo: paid?.amountKobo ?? null, currency: paid?.currency ?? null },
+    });
   }
 
   private isAlreadyActivated(onboarding: StoredTenantOnboarding, reference: string): boolean {

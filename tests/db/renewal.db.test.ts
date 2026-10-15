@@ -25,6 +25,7 @@ import { MikroArrearsRepository } from "../../apps/auth/src/arrears.repository";
 import { EnforcementAudit } from "../../apps/auth/src/enforcement-audit";
 import { EnforcementNoticeService } from "../../apps/auth/src/enforcement-notice.service";
 import { MikroTenantWalletRepository } from "../../apps/auth/src/mikro-tenant-wallet.repository";
+import { MikroWalletLedgerRepository } from "../../apps/auth/src/mikro-wallet-ledger.repository";
 import { MikroInvoiceNumberRepository } from "../../apps/auth/src/mikro-invoice-number.repository";
 import { InvoiceNumberService } from "../../apps/auth/src/invoice-number.service";
 import { InvoiceSeriesInvoiceNumbers } from "../../apps/auth/src/invoice-number.allocator";
@@ -81,7 +82,7 @@ describe.skipIf(!dbEnabled)("renewal invoicing on real postgres", () => {
     payments, invoices, periods, wallets, new RenewalAudit(billingAudit), new PaymentEventService(), restore as never,
   );
   const payWallet = new PayRenewalFromWalletUseCase(
-    invoices, payments, wallets, settle, settings, { generate: () => `${tag}-${randomUUID()}` },
+    invoices, payments, wallets, settle, settings, { generate: () => `${tag}-${randomUUID()}` }, new MikroWalletLedgerRepository(config),
   );
 
   let orm: Awaited<ReturnType<typeof getOrm>>;
@@ -286,8 +287,8 @@ describe.skipIf(!dbEnabled)("renewal invoicing on real postgres", () => {
 
     it("lets only one of two sweep services hold the advisory lock", async () => {
       const t = await tenant("lock", { periodEnd: "2026-10-08" });
-      const first = new RenewalSweepService(config, service);
-      const second = new RenewalSweepService(config, service);
+      const first = new RenewalSweepService(config, service, payWallet);
+      const second = new RenewalSweepService(config, service, payWallet);
       const [a, b] = await Promise.all([first.run(NOW), second.run(NOW)]);
 
       expect(await renewalInvoices(t.tenantId)).toHaveLength(1);

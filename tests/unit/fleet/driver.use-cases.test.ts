@@ -14,7 +14,7 @@ import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/flee
  * Enforces nothing. The quota rules have their own tests; these exercise the
  * behaviour around them.
  */
-const unlimitedQuota = { assertWithinQuota: async () => {} } as never;
+const unlimitedQuota = { assertWithinQuota: async () => {}, assertRoomFor: async () => {} } as never;
 
 const fakeRuntime = {
   generateId: () => "generated-id",

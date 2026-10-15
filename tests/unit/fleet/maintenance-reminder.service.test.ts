@@ -58,7 +58,7 @@ function buildService(records: Record<string, unknown[]>) {
   const recordRepo = {
     findAllByTenant: vi.fn(async (tenantId: string) => records[tenantId] ?? []),
   };
-  const config = { fleet: { maintenanceReminderSweepHours: 24 } };
+  const config = { fleet: { maintenanceReminderSweepHours: 24 }, persistence: { backend: "in-memory" } };
 
   const service = new MaintenanceReminderService(
     schedules,

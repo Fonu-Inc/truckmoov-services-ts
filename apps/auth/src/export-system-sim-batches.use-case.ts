@@ -1,13 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ListSystemSimBatchesUseCase } from './list-system-sim-batches.use-case';
 import type { SimActivationBatchFilters } from './sim-activation-batch.repository';
-
-function escapeCsvValue(value: unknown) {
-  if (value == null) return '';
-  const normalized = typeof value === 'string' ? value : String(value);
-  if (/[",\n]/.test(normalized)) return `"${normalized.replace(/"/g, '""')}"`;
-  return normalized;
-}
+import { escapeCsvValue } from '@shared/csv';
 
 @Injectable()
 export class ExportSystemSimBatchesUseCase {

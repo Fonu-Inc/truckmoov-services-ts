@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { normalizeCsvHeader, splitCsvLine, stripFormulaGuard } from '@shared/csv';
 import {
   TOKEN_SERVICE,
   USER_REPOSITORY,
@@ -103,7 +104,7 @@ export class ImportSimsCsvUseCase {
       .filter(Boolean);
     if (lines.length < 2) throw new InvalidCsvError('CSV file is empty or has no data rows');
 
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const headers = splitCsvLine(lines[0]).map(normalizeCsvHeader);
     const iccidIdx = headers.indexOf('iccid');
     const msisdnIdx = headers.indexOf('msisdn');
     const carrierIdx = headers.indexOf('carrier');
@@ -111,7 +112,7 @@ export class ImportSimsCsvUseCase {
     if (iccidIdx === -1) throw new InvalidCsvError('CSV missing required column: iccid');
 
     return lines.slice(1).map((line) => {
-      const cells = line.split(',').map((c) => c.trim());
+      const cells = splitCsvLine(line).map((c) => stripFormulaGuard(c.trim()));
       return {
         iccid: cells[iccidIdx] ?? '',
         msisdn: msisdnIdx >= 0 ? (cells[msisdnIdx] ?? '') : '',

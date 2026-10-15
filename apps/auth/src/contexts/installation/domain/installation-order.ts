@@ -72,7 +72,7 @@ export const TERMINAL_JOB_STATUSES: readonly InstallationOrderStatus[] = [
 ];
 
 /** Statuses the sweep moves to overdue once their date has passed. */
-export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['assigned', 'scheduled'];
+export const OVERDUE_SOURCE_STATUSES: readonly InstallationOrderStatus[] = ['scheduled'];
 
 export const REMINDER_STATUSES: readonly InstallationOrderStatus[] = ['scheduled'];
 

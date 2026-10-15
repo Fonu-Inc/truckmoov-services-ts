@@ -71,10 +71,16 @@ describe('InvoiceNumberService', () => {
   });
 
   it('restarts the sequence in a new year', async () => {
-    await service.allocateForTenant('tenant-a', new Date('2026-12-31T23:00:00Z'));
+    await service.allocateForTenant('tenant-a', new Date('2026-12-31T22:00:00Z'));
     const next = await service.allocateForTenant('tenant-a', new Date('2027-01-01T01:00:00Z'));
 
     expect(next.invoiceNumber).toBe('INV-2027-0001');
+  });
+
+  it('takes the year in Lagos, so 00:30 on 1 January is the new year', async () => {
+    const result = await service.allocateForTenant('tenant-a', new Date('2026-12-31T23:30:00Z'));
+
+    expect(result.invoiceNumber).toBe('INV-2027-0001');
   });
 
   it('uses a tenant prefix when one is configured', async () => {

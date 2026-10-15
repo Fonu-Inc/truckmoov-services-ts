@@ -1,4 +1,4 @@
-import { BadRequestException, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
@@ -12,7 +12,8 @@ import { registrationKey } from "./contexts/fleet/waybills/domain/vehicle-regist
 import { InvoiceNotFoundError } from "./contexts/fleet/waybills/application/use-cases/invoice-lifecycle.use-cases";
 import { PricingRuleNotFoundError } from "./contexts/fleet/waybills/application/use-cases/pricing-rule.use-cases";
 import { DriverNotFoundError } from "./contexts/fleet/drivers";
-import { VehicleNotFoundError } from "./contexts/fleet/vehicles";
+import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
+import { FleetQuotaExceededError } from "./quota.service";
 import { VehicleCapacityError } from "./contexts/fleet/vehicles/domain/vehicle-capacity";
 import { FleetRuleError } from "./contexts/fleet/shared/domain/errors/fleet-rule.error";
 
@@ -231,6 +232,9 @@ export abstract class BaseFleetController {
       }
       if (error instanceof FleetRuleError) {
         throw new BadRequestException(error.message);
+      }
+      if (error instanceof VehicleQuotaExceededError || error instanceof FleetQuotaExceededError) {
+        throw new ConflictException(error.message);
       }
       if (error instanceof VehicleCapacityError) {
         throw new BadRequestException({

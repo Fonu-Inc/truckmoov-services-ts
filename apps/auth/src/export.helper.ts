@@ -1,4 +1,5 @@
 import { Workbook } from 'exceljs';
+import { escapeCsvValue } from '@shared/csv';
 
 /** A cell starting with =, +, -, @, tab or CR is a formula in Excel/Sheets, not text. */
 function neutralizeFormula(value: unknown): unknown {
@@ -6,12 +7,8 @@ function neutralizeFormula(value: unknown): unknown {
   return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
-function escapeCsvValue(value: unknown): string {
-  const safe = neutralizeFormula(value);
-  if (safe == null) return '';
-  const s = typeof safe === 'string' ? safe : String(safe);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+function csvCell(value: unknown): string {
+  return escapeCsvValue(typeof value === 'number' || value == null ? value : String(value));
 }
 
 export async function buildExport(
@@ -34,8 +31,8 @@ export async function buildExport(
   }
 
   const csv = [
-    headers.map(escapeCsvValue).join(','),
-    ...rows.map((r) => r.map(escapeCsvValue).join(',')),
+    headers.map(csvCell).join(','),
+    ...rows.map((r) => r.map(csvCell).join(',')),
   ].join('\n');
 
   return { buffer: Buffer.from(csv, 'utf-8'), contentType: 'text/csv; charset=utf-8', ext: 'csv' };

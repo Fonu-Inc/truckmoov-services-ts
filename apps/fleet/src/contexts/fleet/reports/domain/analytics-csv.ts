@@ -1,3 +1,5 @@
+import { escapeCsvValue } from "@shared/csv";
+
 export type AnalyticsCsvInput = {
   periodDays: number;
   summary: Record<string, unknown>;
@@ -76,15 +78,7 @@ function flatten(source: Record<string, unknown>, prefix = ""): Array<[string, u
   });
 }
 
-// Cells carry driver names, station names and plate numbers, all typed by
-// people. A spreadsheet treats a leading =, +, -, @ or control character as a
-// formula, so those are neutralised with a leading apostrophe before the usual
-// quoting.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-
 function escape(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  const raw = Array.isArray(value) ? value.join(" | ") : typeof value === "object" ? JSON.stringify(value) : String(value);
-  const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  if (typeof value === "number" || value == null) return escapeCsvValue(value);
+  return escapeCsvValue(Array.isArray(value) ? value.join(" | ") : typeof value === "object" ? JSON.stringify(value) : String(value));
 }

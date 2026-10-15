@@ -43,10 +43,7 @@ export class RefreshUseCase {
       // A spent token only comes back if someone kept a copy: either the
       // holder or a thief is now replaying it. There is no telling which, so
       // the whole session ends and both have to sign in again.
-      if (await this.sessionStore.isSpent(refreshToken)) {
-        await this.sessionStore.revokeFamily(refreshToken);
-        this.logger.warn('refresh_token_reused: session revoked');
-      }
+      if (await this.sessionStore.isSpent(refreshToken)) await this.revokeReused(refreshToken);
       throw new InvalidRefreshTokenError();
     }
 
@@ -87,13 +84,22 @@ export class RefreshUseCase {
     // one issued, so a leaked/replayed token has a single-use window
     // instead of being valid indefinitely.
     const newRefreshToken = this.tokenService.issueRefreshToken(current);
-    await this.sessionStore.rotate(refreshToken, newRefreshToken, current);
+    // A concurrent refresh spent the token between the read above and here: same reuse.
+    if (!(await this.sessionStore.rotate(refreshToken, newRefreshToken, current))) {
+      await this.revokeReused(refreshToken);
+      throw new InvalidRefreshTokenError();
+    }
 
     return {
       accessToken: this.tokenService.issueAccessToken(current),
       refreshToken: newRefreshToken,
       expiresIn: 3600,
     };
+  }
+
+  private async revokeReused(refreshToken: string): Promise<void> {
+    await this.sessionStore.revokeFamily(refreshToken);
+    this.logger.warn('refresh_token_reused: session revoked');
   }
 
   /**

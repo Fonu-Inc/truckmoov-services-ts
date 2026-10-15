@@ -35,6 +35,11 @@ export interface WaybillRepository {
    * sweep runs platform-wide, so this deliberately takes no tenant.
    */
   findPendingCapturedBefore(cutoff: Date, limit: number): Promise<Waybill[]>;
+  /**
+   * Writes the waybill's status and extraction error only while the stored row
+   * is still pending; false when extraction or a person moved it first.
+   */
+  failExtractionIfPending(waybill: Waybill): Promise<boolean>;
 }
 
 export const WAYBILL_REPOSITORY = Symbol("WAYBILL_REPOSITORY");

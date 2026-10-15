@@ -47,6 +47,15 @@ describe('login refuses an unverified address', () => {
     expect(user.toPrimitives().id).toBe('user-1');
   });
 
+  it('reports a wrong password before it reports a disabled account', async () => {
+    const provider = new DbIdentityProvider(
+      { findByEmail: vi.fn(async () => storedUser({ accountStatus: 'disabled' })) } as never,
+      { verify: vi.fn(async () => false) } as never,
+    );
+
+    await expect(provider.verifyCredentials('new@example.com', 'wrong')).rejects.toBeInstanceOf(InvalidCredentialsError);
+  });
+
   it('reports a wrong password before it reports the unverified address', async () => {
     const provider = new DbIdentityProvider(
       { findByEmail: vi.fn(async () => storedUser()) } as never,
@@ -67,7 +76,7 @@ describe('refresh refuses an unverified address', () => {
         getByRefreshToken: vi.fn(async () => ({ id: 'user-1', toPrimitives: () => ({}) })),
         deleteByRefreshToken,
         save: vi.fn(async () => {}),
-        rotate: vi.fn(async () => {}),
+        rotate: vi.fn(async () => true),
         isSpent: vi.fn(async () => false),
         revokeFamily: vi.fn(async () => {}),
       } as never,

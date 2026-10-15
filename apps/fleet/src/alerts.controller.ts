@@ -31,6 +31,8 @@ import { AlertStatsResponse, AlertResponse, AlertListResponse } from "./dto/flee
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
 
+const MAX_ALERTS = 200;
+
 @ApiTags("Alerts")
 @Portals("tenant")
 @OnResource("tenant.alerts")
@@ -64,17 +66,20 @@ export class AlertsController extends BaseFleetController {
   @ApiQuery({ name: "status", required: false, enum: ["open", "acknowledged", "resolved", "escalated"] })
   @ApiQuery({ name: "type", required: false, type: String })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Newest first; default and maximum 200" })
   @ApiOkResponse({ type: AlertListResponse })
   async listAlerts(
     @Req() req: FleetRequestContext,
     @Query("status") status?: string,
     @Query("type") type?: string,
     @Query("vehicleId") vehicleId?: string,
+    @Query("limit") limit?: string,
   ): Promise<AlertListResponse> {
     const alerts = await this.listAlertsUseCase.execute(this.tenantIdFromRequest(req), {
       status: status as AlertStatus | undefined,
       type,
       vehicleId,
+      limit: Math.min(Math.max(Math.floor(Number(limit)) || MAX_ALERTS, 1), MAX_ALERTS),
     });
     const data = alerts.map((alert) => this.serializeAlert(alert));
     return { status: true, message: "success", data } as unknown as AlertListResponse;
@@ -83,18 +88,16 @@ export class AlertsController extends BaseFleetController {
   @Post(":id/acknowledge")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Acknowledge alert — H04" })
-  @ApiQuery({ name: "by", required: false, type: String, description: "Actor id recording the acknowledgement; defaults to the authenticated user." })
   @ApiOkResponse({ type: AlertResponse })
   async acknowledgeAlert(
     @Param("id") id: string,
-    @Query("by") by = "system",
     @Req() req: FleetRequestContext,
   ): Promise<AlertResponse> {
     try {
       const alert = await this.acknowledgeAlertUseCase.execute(
         this.tenantIdFromRequest(req),
         id,
-        by === "system" ? req.user?.userId ?? "system" : by,
+        req.user?.userId ?? "system",
       );
       await this.recordActivity(req, {
         entityType: "alert",
@@ -117,18 +120,16 @@ export class AlertsController extends BaseFleetController {
   @Post(":id/resolve")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
   @ApiOperation({ summary: "Resolve alert — H04" })
-  @ApiQuery({ name: "by", required: false, type: String, description: "Actor id recording the resolution; defaults to the authenticated user." })
   @ApiOkResponse({ type: AlertResponse })
   async resolveAlert(
     @Param("id") id: string,
-    @Query("by") by = "system",
     @Req() req: FleetRequestContext,
   ): Promise<AlertResponse> {
     try {
       const alert = await this.resolveAlertUseCase.execute(
         this.tenantIdFromRequest(req),
         id,
-        by === "system" ? req.user?.userId ?? "system" : by,
+        req.user?.userId ?? "system",
       );
       await this.recordActivity(req, {
         entityType: "alert",

@@ -36,7 +36,9 @@ type GeofenceZoneInput = {
 
 /** Maps the flat, MikroORM-shaped repository record into the nested API response shape the UI expects. */
 export function toApiShape(zone: StoredGeofenceZone) {
-  const shape = zone.centerLatitude != null && zone.centerLongitude != null ? ("CIRCLE" as const) : ("POLYGON" as const);
+  // Same rule as the geom trigger: a zero radius with a center is a polygon zone.
+  const isCircle = zone.centerLatitude != null && zone.centerLongitude != null && (zone.radiusMeters ?? 0) > 0;
+  const shape = isCircle ? ("CIRCLE" as const) : ("POLYGON" as const);
   return {
     id: zone.id,
     tenantId: zone.tenantId,

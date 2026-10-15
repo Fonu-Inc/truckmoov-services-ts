@@ -85,9 +85,15 @@ describe('Auth HTTP contract', () => {
     buildDefaultOrganizationSettings =
       organizationSettingsModule.buildDefaultOrganizationSettings;
 
+    const { IpBlockGuard } = await import('../../../apps/auth/src/ip-block.guard');
+
+    // Wrong-password cases across this suite share one IP; auto-blocking is covered in ip-block.guard.test.
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideGuard(IpBlockGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleRef.createNestApplication();
     // mirrors main.ts: this service owns the /auth namespace
@@ -188,13 +194,6 @@ describe('Auth HTTP contract', () => {
     expect(response.body.data.service).toBe('auth');
     expect(response.body.data.persistenceBackend).toBe('in-memory');
     expect(response.body.data.database).toBe('n/a');
-  });
-
-  it('GET /auth/test-sentry returns 500', async () => {
-    const response = await request(app.getHttpServer()).get(
-      '/auth/test-sentry',
-    );
-    expect(response.status).toBe(500);
   });
 
 
@@ -2285,12 +2284,17 @@ describe('Auth HTTP contract', () => {
 
   // ── Forgot / Verify / Reset password ──────────────────
 
-  it('POST /auth/forgot-password returns 404 for unknown user', async () => {
-    const res = await request(app.getHttpServer())
+  it('POST /auth/forgot-password answers an unknown user exactly as a registered one', async () => {
+    await seedEnterpriseAdmin('known@contract.com');
+    const known = await request(app.getHttpServer())
+      .post('/auth/forgot-password')
+      .send({ identifier: 'known@contract.com' });
+    const unknown = await request(app.getHttpServer())
       .post('/auth/forgot-password')
       .send({ identifier: 'ghost@unknown.com' });
 
-    expect(res.status).toBe(404);
+    expect(unknown.status).toBe(known.status);
+    expect(unknown.body).toEqual(known.body);
   });
 
   it('POST /auth/forgot-password succeeds for registered user', async () => {

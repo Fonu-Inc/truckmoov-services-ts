@@ -76,7 +76,7 @@ describe.skipIf(!dbEnabled)("subscription payment on postgres", () => {
       {} as never,
       gateway as never,
     );
-    return { intent, gateway, activate: new ActivateSubscriptionUseCase(onboardings) };
+    return { intent, gateway, activate: new ActivateSubscriptionUseCase(onboardings, { raise: async () => {} } as never) };
   }
 
   const request = (planCode: string, billingCycle: "monthly" | "yearly" = "monthly") =>

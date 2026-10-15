@@ -10,6 +10,7 @@ vi.mock(
 
 import { AllocateBundleUseCase } from "../../../apps/auth/src/allocate-bundle.use-case";
 import { InMemoryTenantWalletRepository } from "../../../apps/auth/src/in-memory-tenant-wallet.repository";
+import { InMemoryWalletLedgerRepository } from "../../../apps/auth/src/in-memory-wallet-ledger.repository";
 import { InMemoryBundleAllocationRepository } from "../../../apps/auth/src/in-memory-bundle-allocation.repository";
 import { InMemoryBundleCarrierRepository } from "../../../apps/auth/src/in-memory-bundle-carrier.repository";
 import { InMemoryBundleCatalogRepository } from "../../../apps/auth/src/in-memory-bundle-catalog.repository";
@@ -58,6 +59,7 @@ function makeUseCase(wallet: InMemoryTenantWalletRepository) {
     noSpendingLimit(),
     carrierC1(),
     anySims(),
+    new InMemoryWalletLedgerRepository(wallet),
   );
 }
 
@@ -72,7 +74,7 @@ function build(
   const catalog = {
     findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 1000, dataAmountGb: 1, validityDays: 30, active: true }),
   };
-  return new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, allocations as any, transactions as any, limit, carrierC1(), anySims());
+  return new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, allocations as any, transactions as any, limit, carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
 }
 
 describe("AllocateBundleUseCase — double-spend guard", () => {
@@ -206,6 +208,35 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(1000);
   });
 
+  it("replaying a key with a pricier bundle and more SIMs refunds nothing beyond the original debit", async () => {
+    const wallet = new InMemoryTenantWalletRepository();
+    await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: new Date() });
+    const allocations = new InMemoryBundleAllocationRepository();
+    await build(wallet, allocations).execute("tok", { ...payload, idempotencyKey: "k8" });
+    const pricey = {
+      findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 99_000, dataAmountGb: 1, validityDays: 30, active: true }),
+    };
+    const replay = new AllocateBundleUseCase({} as any, {} as any, pricey as any, wallet, allocations as any, { save: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
+    const many = Array.from({ length: 500 }, (_, i) => `n${i}`);
+
+    const result = await replay.execute("tok", { ...payload, mobileNumbers: many, idempotencyKey: "k8" });
+
+    expect(result.data.totalAmount).toBe(10);
+    expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(4000);
+  });
+
+  it("refunds the original debit when a replay finds the purchase incomplete", async () => {
+    const wallet = new InMemoryTenantWalletRepository();
+    await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: new Date() });
+    const allocations = new InMemoryBundleAllocationRepository();
+    await build(wallet, allocations).execute("tok", { ...payload, idempotencyKey: "k9" });
+    const [saved] = await allocations.findByPaymentReference("t1", "k9");
+    await allocations.save({ ...saved, status: "cancelled" });
+
+    await expect(build(wallet, allocations).execute("tok", { ...payload, mobileNumbers: ["1", "2", "3"], idempotencyKey: "k9" })).rejects.toBeInstanceOf(PurchaseRefundedError);
+    expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);
+  });
+
   it("retry with partially saved active allocations cancels them and refunds", async () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 2000, currency: "NGN", updatedAt: new Date() });
@@ -261,7 +292,7 @@ describe("AllocateBundleUseCase — unknown references", () => {
     const limit = { assertWithinLimit: vi.fn(), recordSpend: vi.fn() };
     const debit = vi.spyOn(wallet, "debit");
     const useCase = new AllocateBundleUseCase(
-      {} as any, {} as any, catalog, wallet, allocations, transactions as any, limit as any, carriers, sims,
+      {} as any, {} as any, catalog, wallet, allocations, transactions as any, limit as any, carriers, sims, new InMemoryWalletLedgerRepository(wallet),
     );
     return { useCase, wallet, allocations, transactions, debit, limit };
   }
@@ -316,7 +347,7 @@ describe("AllocateBundleUseCase — what a purchase may name", () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: new Date() });
     const catalog = { findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 1000, dataAmountGb: 1, validityDays: 30, active: false }) };
-    const useCase = new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, new InMemoryBundleAllocationRepository() as any, { save: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims());
+    const useCase = new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, new InMemoryBundleAllocationRepository() as any, { save: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
 
     await expect(useCase.execute("tok", payload)).rejects.toMatchObject({ field: "bundleId", message: "Bundle is not available" });
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);

@@ -11,6 +11,8 @@ import { InMemoryPlanEntitlementsRepository } from '../../../apps/auth/src/in-me
 import { EntitlementService } from '../../../apps/auth/src/entitlement.service';
 import { InMemoryTenantWalletRepository } from '../../../apps/auth/src/in-memory-tenant-wallet.repository';
 import { InMemoryWalletLedgerRepository } from '../../../apps/auth/src/in-memory-wallet-ledger.repository';
+import { InMemorySpendingLimitRepository } from '../../../apps/auth/src/in-memory-spending-limit.repository';
+import { SpendingLimitExceededError, SpendingLimitService, windowStartFor } from '../../../apps/auth/src/spending-limit.service';
 import {
   ChargeReferenceRequiredError,
   allowanceMonth,
@@ -33,13 +35,14 @@ function build(options: {
 
   const useCase = new ChargeUsageUseCase(
     rates,
-    { assertWithinLimit } as never,
+    { assertWithinLimit, recordSpend: async () => {} } as never,
     // The low-balance warning has its own tests; here it must not affect the charge.
     { afterDebit: async () => {} } as never,
     { debit, ensure: async () => ({}), findByTenantId: async () => null } as never,
     new EntitlementService(planRepo),
     planRepo,
     { findByIdempotencyKey: async () => null } as never,
+    { findByTenantId: async () => null } as never,
   );
   return { useCase, rates, debit, assertWithinLimit, planRepo };
 }
@@ -159,13 +162,14 @@ describe('the monthly SIM charge is idempotent per month', () => {
   });
 
   it('gives two months two different keys', () => {
-    expect(billingMonth(new Date('2026-08-31T23:59:59.000Z'))).not.toBe(
-      billingMonth(new Date('2026-09-01T00:00:00.000Z')),
+    expect(billingMonth(new Date('2026-08-31T22:59:59.000Z'))).not.toBe(
+      billingMonth(new Date('2026-08-31T23:00:00.000Z')),
     );
   });
 
-  it('uses UTC, so a sweep near midnight does not double-charge a boundary', () => {
-    expect(billingMonth(new Date('2026-09-01T00:30:00.000Z'))).toBe('2026-09');
+  it('uses Lagos time, so 00:30 on the 1st in Lagos is already the new month', () => {
+    expect(billingMonth(new Date('2026-08-31T23:30:00.000Z'))).toBe('2026-09');
+    expect(allowanceMonth(new Date('2026-08-31T23:30:00.000Z'))).toBe('2026-09');
   });
 });
 
@@ -241,12 +245,13 @@ async function buildWithRealWallet(balanceKobo: number, includedMessages = 0) {
   stored.balanceKobo = balanceKobo;
   const useCase = new ChargeUsageUseCase(
     new CommunicationRateService(new InMemoryCommunicationRatesRepository()),
-    { assertWithinLimit: async () => {} } as never,
+    { assertWithinLimit: async () => {}, recordSpend: async () => {} } as never,
     { afterDebit: async () => {} } as never,
     wallet,
     new EntitlementService(planRepo),
     planRepo,
     new InMemoryWalletLedgerRepository(wallet),
+    { findByTenantId: async () => null } as never,
   );
   const usedMessages = async () =>
     (await planRepo.findUsage('tenant-a', allowanceMonth(new Date()))).find(
@@ -327,6 +332,7 @@ describe('a refused debit', () => {
       (useCase as never as { entitlements: never }).entitlements,
       (useCase as never as { planEntitlements: never }).planEntitlements,
       (useCase as never as { ledger: never }).ledger,
+      { findByTenantId: async () => null } as never,
     );
 
     await expect(limited.execute({ ...command, planCode: 'starter' })).rejects.toThrow(
@@ -344,5 +350,48 @@ describe('the reference is required', () => {
       ChargeReferenceRequiredError,
     );
     expect(debit).not.toHaveBeenCalled();
+  });
+});
+
+describe('what a charge reads from the tenant', () => {
+  async function buildWith(limit: SpendingLimitService, planCode: string | null) {
+    const planRepo = new InMemoryPlanEntitlementsRepository();
+    await withPlan(planRepo, 40);
+    const wallet = new InMemoryTenantWalletRepository();
+    (await wallet.ensure('tenant-a')).balanceKobo = 1_000_000;
+    return new ChargeUsageUseCase(
+      new CommunicationRateService(new InMemoryCommunicationRatesRepository()),
+      limit,
+      { afterDebit: async () => {} } as never,
+      wallet,
+      new EntitlementService(planRepo),
+      planRepo,
+      new InMemoryWalletLedgerRepository(wallet),
+      { findByTenantId: async () => (planCode ? { subscription: { planCode } } : null) } as never,
+    );
+  }
+
+  it('applies the subscribed plan allowance when the caller names no plan', async () => {
+    const limit = new SpendingLimitService(new InMemorySpendingLimitRepository(), { publish: async () => {} } as never);
+    const useCase = await buildWith(limit, 'starter');
+
+    const result = await useCase.execute(command);
+
+    expect(result).toMatchObject({ coveredByAllowance: 40, chargedUnits: 60 });
+  });
+
+  it('counts a charge toward the spending limit, so the next one past it is refused', async () => {
+    const repo = new InMemorySpendingLimitRepository();
+    await repo.save({
+      tenantId: 'tenant-a', enabled: true, monthlyLimitKobo: 100_000, spentThisMonthKobo: 0, resetDayOfMonth: 1,
+      alertEmail: null, notifyAtPercentages: [], windowStartedOn: windowStartFor(1, new Date()), notifiedPercentages: [],
+      updatedAt: new Date(),
+    });
+    const useCase = await buildWith(new SpendingLimitService(repo, { publish: async () => {} } as never), null);
+
+    await useCase.execute(command);
+
+    expect((await repo.findByTenantId('tenant-a'))?.spentThisMonthKobo).toBe(60_000);
+    await expect(useCase.execute({ ...command, reference: 'campaign-2' })).rejects.toBeInstanceOf(SpendingLimitExceededError);
   });
 });

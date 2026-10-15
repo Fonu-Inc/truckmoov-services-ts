@@ -25,8 +25,8 @@ const UNREACHABLE_BACKOFF_MS = 5_000;
  * minted before a suspension stays cryptographically valid to it. Two
  * independent mechanisms close that window, and each covers the other's gap:
  *
- *  - the suspension event marks the tenant immediately, but a pod that started
- *    after the event was published never saw it;
+ *  - the suspension event marks the tenant immediately on every pod, but a pod
+ *    that started after the event was published never saw it;
  *  - the query to auth is authoritative for any tenant not in the cache, which
  *    is exactly the case a freshly started pod is in.
  *
@@ -45,11 +45,11 @@ export class TenantStatusService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     try {
-      await this.bus.subscribe("tm.*.tenant.suspended", this.verified(async (event) => {
+      await this.bus.subscribeEveryInstance?.("tm.*.tenant.suspended", this.verified(async (event) => {
         this.logger.warn(`tenant_suspended:${event.tenant_id}`);
         this.cache.set(event.tenant_id, { active: false, checkedAtMs: Date.now() });
       }));
-      await this.bus.subscribe("tm.*.tenant.reinstated", this.verified(async (event) => {
+      await this.bus.subscribeEveryInstance?.("tm.*.tenant.reinstated", this.verified(async (event) => {
         this.logger.log(`tenant_reinstated:${event.tenant_id}`);
         // Evicted rather than marked active, so the next request confirms the
         // reinstatement with auth instead of trusting the event on its own.

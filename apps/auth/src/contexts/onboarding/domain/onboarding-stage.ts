@@ -34,12 +34,15 @@ export const STAGE_ORDER: Record<OnboardingStage, number> = {
  *
  * A skipped stage is a bug that is invisible afterwards: an onboarding sitting
  * in `installation` with no payment recorded looks identical to one that was
- * paid for. Refusing the jump is what keeps the trail honest.
+ * paid for. Refusing the jump is what keeps the trail honest. The one
+ * exception is approval with stock in hand, which passes provisioning in the
+ * same write.
  */
 export function canAdvanceTo(
   current: OnboardingStage,
   next: OnboardingStage,
 ): boolean {
+  if (current === 'application' && next === 'payment') return true;
   return STAGE_ORDER[next] === STAGE_ORDER[current] + 1;
 }
 

@@ -103,6 +103,10 @@ export interface OnboardingPaymentRepository {
   findLatestForApplication(
     applicationId: string,
   ): Promise<StoredOnboardingPayment | null>;
+  /** A paid onboarding payment for the application, if any. Renewals never count. */
+  findPaidForApplication(applicationId: string): Promise<StoredOnboardingPayment | null>;
+  /** Wallet renewal rows (RNW-W-) still pending or paid, created in [createdFrom, createdBefore). */
+  findWalletRenewalAttempts(createdFrom: Date, createdBefore: Date): Promise<StoredOnboardingPayment[]>;
   /** Onboarding payments whose refund claim was taken before `claimedBefore` and is still unresolved, oldest claim first. */
   findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]>;
   /** Onboarding payments in mismatch, newest first; refunded ones follow when asked for. Renewals are never listed. */

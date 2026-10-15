@@ -13,7 +13,8 @@ export class InMemoryUserRepository implements UserRepository {
   private readonly store = new Map<string, StoredUser>();
 
   async findByEmail(email: string): Promise<StoredUser | null> {
-    const user = this.store.get(email);
+    const wanted = email.toLowerCase();
+    const user = [...this.store.values()].find((stored) => stored.email.toLowerCase() === wanted);
     return user ? normalizeStoredUser(user) : null;
   }
 

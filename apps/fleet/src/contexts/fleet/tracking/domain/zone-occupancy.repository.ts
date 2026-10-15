@@ -22,9 +22,12 @@ export type ZoneOccupantCount = { zoneId: string; vehicles: number };
  */
 export interface ZoneOccupancyRepository {
   findByVehicle(tenantId: string, vehicleId: string): Promise<StoredZoneOccupancy[]>;
-  enter(occupancy: StoredZoneOccupancy): Promise<void>;
-  exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<void>;
-  markDwellNotified(tenantId: string, vehicleId: string, zoneId: string, at: Date): Promise<void>;
+  /** True only when this call recorded the stay; a racing duplicate gets false. */
+  enter(occupancy: StoredZoneOccupancy): Promise<boolean>;
+  /** The zones whose stay this call ended. */
+  exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<string[]>;
+  /** Marks the stay as alerted for dwell; true only for the first caller of the stay. */
+  claimDwellAlert(tenantId: string, vehicleId: string, zoneId: string, at: Date): Promise<boolean>;
   /** Marks the stay as alerted for speeding; true only for the first caller of the stay. */
   claimSpeedingAlert(tenantId: string, vehicleId: string, zoneId: string, at: Date): Promise<boolean>;
   /**

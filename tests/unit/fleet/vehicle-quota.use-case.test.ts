@@ -3,6 +3,10 @@ import {
   CreateVehicleUseCase,
   VehicleQuotaExceededError,
 } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/create-vehicle.use-case";
+import { SetVehicleStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/set-vehicle-status.use-case";
+import { UpdateVehicleUseCase } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/update-vehicle.use-case";
+import { BulkImportVehiclesUseCase } from "../../../apps/fleet/src/contexts/fleet/vehicles/application/use-cases/bulk-import-vehicles.use-case";
+import { InMemoryDriverRepository } from "../../../apps/fleet/src/contexts/fleet/drivers/infrastructure/repositories/in-memory-driver.repository";
 import { InMemoryVehicleRepository } from "../../../apps/fleet/src/contexts/fleet/vehicles/infrastructure/repositories/in-memory-vehicle.repository";
 import { FleetQuotaExceededError } from "../../../apps/fleet/src/quota.service";
 
@@ -19,10 +23,10 @@ let counter = 0;
  */
 function quotaOf(limit: number | null) {
   return {
-    assertWithinQuota: async (_tenantId: string, resource: string, currentCount: number) => {
+    assertRoomFor: async (_tenantId: string, resource: string, currentCount: number, additional: number) => {
       if (limit === null) return;
-      if (currentCount >= limit) {
-        throw new FleetQuotaExceededError(resource as never, limit, currentCount);
+      if (currentCount + additional > limit) {
+        throw new FleetQuotaExceededError(resource as never, limit, currentCount, additional);
       }
     },
   } as never;
@@ -110,5 +114,46 @@ describe("CreateVehicleUseCase quota enforcement", () => {
     await expect(build(2).execute({ plateNumber: "X-1", model: "T-x", tenantId: "tenant-a" })).rejects.toThrow(
       /allows 2 active vehicles and 2 are already active/,
     );
+  });
+});
+
+describe("activating a vehicle another way respects the quota", () => {
+  let repo: InMemoryVehicleRepository;
+
+  beforeEach(async () => {
+    repo = new InMemoryVehicleRepository();
+    const seeder = new CreateVehicleUseCase(repo, runtime, quotaOf(null));
+    await seeder.execute({ plateNumber: "ACT-1", model: "T", tenantId: "tenant-a" });
+    await seeder.execute({ plateNumber: "OFF-1", model: "T", tenantId: "tenant-a", status: "inactive" });
+  });
+
+  const inactiveId = async () => (await repo.findByPlateNumber("OFF-1", "tenant-a"))!.id;
+
+  it("PATCH status refuses the activation past the limit", async () => {
+    const useCase = new SetVehicleStatusUseCase(repo, new InMemoryDriverRepository(), quotaOf(1));
+    await expect(
+      useCase.execute({ id: await inactiveId(), tenantId: "tenant-a", status: "active" }),
+    ).rejects.toBeInstanceOf(VehicleQuotaExceededError);
+  });
+
+  it("update refuses the activation past the limit", async () => {
+    const useCase = new UpdateVehicleUseCase(repo, quotaOf(1));
+    await expect(
+      useCase.execute({ id: await inactiveId(), tenantId: "tenant-a", status: "active" }),
+    ).rejects.toBeInstanceOf(VehicleQuotaExceededError);
+  });
+
+  it("bulk import refuses a file that would pass the limit and writes nothing", async () => {
+    const useCase = new BulkImportVehiclesUseCase(repo, runtime, quotaOf(2));
+    await expect(
+      useCase.execute({
+        tenantId: "tenant-a",
+        items: [
+          { plateNumber: "NEW-1", model: "T" },
+          { plateNumber: "OFF-1", model: "T", status: "active" },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(VehicleQuotaExceededError);
+    expect(await repo.findByPlateNumber("NEW-1", "tenant-a")).toBeNull();
   });
 });

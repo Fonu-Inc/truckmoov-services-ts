@@ -12,6 +12,7 @@ import {
   buildComplianceTotals,
   type ComplianceItem,
 } from "./contexts/fleet/reports/domain/compliance-audit";
+import { lagosDayOffset } from "./utils/lagos-date";
 
 type AllowedVehicleIds = ReadonlySet<string> | null | undefined;
 
@@ -20,9 +21,7 @@ const ACTIVITY_LIMIT = 2000;
 export const DRIVER_LICENCE_CATEGORY = "Driver Licences";
 
 function isoDay(offsetDays: number): string {
-  const day = new Date();
-  day.setDate(day.getDate() + offsetDays);
-  return day.toISOString().slice(0, 10);
+  return lagosDayOffset(offsetDays);
 }
 
 @Injectable()

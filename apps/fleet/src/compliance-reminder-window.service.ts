@@ -25,7 +25,7 @@ export class ComplianceReminderWindowService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     try {
-      await this.bus.subscribe(SYSTEM_SETTINGS_CHANGED_SUBJECT, (envelope) =>
+      await this.bus.subscribeEveryInstance?.(SYSTEM_SETTINGS_CHANGED_SUBJECT, (envelope) =>
         this.apply(envelope),
       );
     } catch (error) {

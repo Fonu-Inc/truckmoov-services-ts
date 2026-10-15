@@ -1,13 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ListSystemDeviceSetupRequestsUseCase } from './list-system-device-setup-requests.use-case';
 import type { DeviceSetupRequestFilters } from './device-setup-request.repository';
-
-function escapeCsvValue(value: unknown) {
-  if (value == null) return '';
-  const normalized = typeof value === 'string' ? value : String(value);
-  if (/[",\n]/.test(normalized)) return `"${normalized.replace(/"/g, '""')}"`;
-  return normalized;
-}
+import { escapeCsvValue } from '@shared/csv';
 
 @Injectable()
 export class ExportSystemDeviceSetupRequestsUseCase {
@@ -28,7 +22,7 @@ export class ExportSystemDeviceSetupRequestsUseCase {
     ];
     const rows = requests.map((r) => [
       r.id, r.referenceNumber, r.tenantId, r.organisationName, r.requestingEmail,
-      r.manufacturer, r.model, r.trackerType, r.quantity, r.simRequired,
+      r.manufacturer, r.model, r.trackerType, r.quantity, String(r.simRequired),
       r.state, r.city, r.preferredInstallDate, r.useCase, r.notes,
       r.status, r.kycStatus, r.assignedTo, r.decidedBy, r.decidedAt,
       r.decisionReason, r.createdAt, r.updatedAt,

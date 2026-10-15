@@ -6,12 +6,19 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { runIfLockFree } from '@shared/db';
 import { sweepSafely } from '@shared/observability';
+import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import {
   MAIL_CREDENTIALS_REPOSITORY,
   type MailCredentialsRepository,
 } from '../../mail-credentials.repository';
 import { SyncMailboxUseCase } from './sync-mailbox.use-case';
+
+export const MAILBOX_SYNC_LOCK_ID = 8_246_113_070_031;
+
+type SyncSummary = { tenants: number; failed: number };
+const EMPTY_SYNC: SyncSummary = { tenants: 0, failed: 0 };
 
 /**
  * Drives the mailbox sync on a timer.
@@ -54,36 +61,48 @@ export class MailboxSyncScheduler implements OnApplicationBootstrap, OnApplicati
     if (this.timer) clearInterval(this.timer);
   }
 
-  async run(): Promise<{ tenants: number; failed: number }> {
+  async run(): Promise<SyncSummary> {
     // A slow mailbox must not have two syncs running against it at once: the
     // second would read from a cursor the first has not yet advanced and store
     // the same messages twice.
     if (this.running) {
       this.logger.warn('mailbox_sync_still_running');
-      return { tenants: 0, failed: 0 };
+      return EMPTY_SYNC;
     }
 
     this.running = true;
     try {
-      const tenantIds = await this.credentials.listConnectedTenantIds();
-      let failed = 0;
-
-      for (const tenantId of tenantIds) {
-        try {
-          const summary = await this.syncMailbox.syncAllFolders(tenantId);
-          if (summary.failed.length > 0) failed += 1;
-        } catch (error) {
-          failed += 1;
-          // One tenant's broken mailbox must not stop everyone else's sync.
-          this.logger.warn(
-            `mailbox_sync_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
-          );
-        }
-      }
-
-      return { tenants: tenantIds.length, failed };
+      return await this.exclusively(() => this.syncAll());
     } finally {
       this.running = false;
     }
+  }
+
+  /** The same guard across replicas: only one pod syncs per tick. */
+  private async exclusively(task: () => Promise<SyncSummary>): Promise<SyncSummary> {
+    if (this.config.persistence.backend !== 'mikro-orm') return task();
+    const orm = await getAuthOrm(this.config.db);
+    const result = await runIfLockFree(orm, MAILBOX_SYNC_LOCK_ID, task);
+    return result.acquired ? result.value : EMPTY_SYNC;
+  }
+
+  private async syncAll(): Promise<SyncSummary> {
+    const tenantIds = await this.credentials.listConnectedTenantIds();
+    let failed = 0;
+
+    for (const tenantId of tenantIds) {
+      try {
+        const summary = await this.syncMailbox.syncAllFolders(tenantId);
+        if (summary.failed.length > 0) failed += 1;
+      } catch (error) {
+        failed += 1;
+        // One tenant's broken mailbox must not stop everyone else's sync.
+        this.logger.warn(
+          `mailbox_sync_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+        );
+      }
+    }
+
+    return { tenants: tenantIds.length, failed };
   }
 }

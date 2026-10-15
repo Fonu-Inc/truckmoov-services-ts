@@ -127,7 +127,14 @@ export class InMemoryInstallationOrderRepository
   }
 
   async assignIfRoom(order: StoredInstallationOrder, maxActiveJobs: number): Promise<AssignmentOutcome> {
-    if (this.orders.get(order.id)?.status !== 'unassigned') return 'taken';
+    const current = this.orders.get(order.id);
+    if (
+      current?.status !== 'unassigned' ||
+      current.scheduledDate.getTime() !== order.scheduledDate.getTime() ||
+      current.timeSlot !== order.timeSlot
+    ) {
+      return 'taken';
+    }
     if (this.rejections.has(`${order.id}:${order.installerId}`)) return 'declined';
     const active = this.all().filter(
       (o) => o.installerId === order.installerId && ACTIVE_JOB_STATUSES.includes(o.status),
@@ -141,7 +148,8 @@ export class InMemoryInstallationOrderRepository
         ACTIVE_JOB_STATUSES.includes(o.status),
     );
     if (slotTaken) return 'conflict';
-    await this.save(order);
+    await this.transition(order, 'unassigned');
+    this.orders.set(order.id, { ...this.orders.get(order.id)!, installerId: order.installerId });
     return 'assigned';
   }
 

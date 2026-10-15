@@ -9,7 +9,6 @@
 - **Auth** (166)
   - `GET /auth/health` — 
   - `GET /auth/system/health` — Get system-wide service health status
-  - `GET /auth/test-sentry` — Trigger a test Sentry error
   - `POST /auth/media/upload` — Upload media
   - `POST /auth/login` — 
   - `POST /auth/onboarding/applications` — Start an onboarding application
@@ -255,20 +254,6 @@
 ```
 - `401` — Missing or invalid bearer token
 - `403` — Not a system actor
-
----
-
-### `GET /auth/test-sentry`
-
-**Trigger a test Sentry error**
-
-Throws an unhandled error so Sentry capture can be verified.
-
-**Request body:** _none_
-
-**Responses:**
-
-- `200` — _(no body)_
 
 ---
 

@@ -46,10 +46,6 @@ const ALERT_TYPE = {
  * and dwell toggles on the zone screen had no reader, so `geofence_entry`,
  * `geofence_exit` and `geofence_dwell` were alert types nothing could produce.
  * This is that reader.
- *
- * Distinct from the `GeofenceService` bounding box, which is a single
- * per-vehicle corridor used for route deviation and has nothing to do with the
- * zones an operator draws on the map.
  */
 @Injectable()
 export class GeofenceEvaluatorService {
@@ -89,16 +85,18 @@ export class GeofenceEvaluatorService {
     // Only membership of zones this vehicle is watched by is diffed. A zone
     // whose assignment changed must not read as an exit the vehicle never made.
     const held = previous.filter((entry) => zonesById.has(entry.zoneId));
-    const { entered, exited } = diffZoneMembership(held, inside);
+    const diff = diffZoneMembership(held, inside);
 
-    await this.recordEntries(input.tenantId, input.vehicleId, entered, at);
-    await this.occupancy.exit(input.tenantId, input.vehicleId, exited);
+    // Only the caller whose write landed alerts, so a fix seen twice raises one alert.
+    const entered = await this.recordEntries(input.tenantId, input.vehicleId, diff.entered, at);
+    const exited = await this.occupancy.exit(input.tenantId, input.vehicleId, diff.exited);
 
     const stillInside = held.filter((entry) => inside.has(entry.zoneId));
-    const dwells = dwellBreaches(stillInside, zonesById, at);
-    for (const dwell of dwells) {
-      await this.occupancy.markDwellNotified(input.tenantId, input.vehicleId, dwell.zoneId, at);
-    }
+    const breaches = dwellBreaches(stillInside, zonesById, at);
+    const claimed = await Promise.all(
+      breaches.map((dwell) => this.occupancy.claimDwellAlert(input.tenantId, input.vehicleId, dwell.zoneId, at)),
+    );
+    const dwells = breaches.filter((_, index) => claimed[index]);
 
     const speeding = await this.speedingAlerts(input, watching, at);
 
@@ -147,9 +145,10 @@ export class GeofenceEvaluatorService {
     vehicleId: string,
     zoneIds: string[],
     at: Date,
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const recorded: string[] = [];
     for (const zoneId of zoneIds) {
-      await this.occupancy.enter({
+      const inserted = await this.occupancy.enter({
         id: randomUUID(),
         tenantId,
         vehicleId,
@@ -158,7 +157,9 @@ export class GeofenceEvaluatorService {
         dwellNotifiedAt: null,
         speedingNotifiedAt: null,
       });
+      if (inserted) recorded.push(zoneId);
     }
+    return recorded;
   }
 
   private alertsFor(

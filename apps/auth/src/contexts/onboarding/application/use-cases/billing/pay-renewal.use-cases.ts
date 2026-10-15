@@ -35,12 +35,19 @@ import {
   TENANT_WALLET_REPOSITORY,
   type TenantWalletRepository,
 } from '../../../../../tenant-wallet.repository';
+import {
+  WALLET_LEDGER_REPOSITORY,
+  type WalletLedgerRepository,
+} from '../../../../../wallet-ledger.repository';
 import { SettleRenewalPaymentUseCase } from '../../settle-renewal-payment.use-case';
 import { ChargeRefusedError, PaymentProviderUnavailableError } from '../pay-for-application.use-cases';
 import { success } from './billing-views';
 import { isPayable, tenantInvoiceView } from './tenant-invoice-views';
 
 type PayableInvoice = InvoiceWithLines & { isRenewal: boolean };
+
+const RECOVERY_DELAY_MS = 10 * 60 * 1000;
+const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function loadPayable(
   invoices: InvoiceRepository,
@@ -91,7 +98,37 @@ export class PayRenewalFromWalletUseCase {
     @Inject(SettleRenewalPaymentUseCase) private readonly settle: SettleRenewalPaymentUseCase,
     @Inject(ENFORCEMENT_SETTINGS_REPOSITORY) private readonly settings: EnforcementSettingsRepository,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
+    @Inject(WALLET_LEDGER_REPOSITORY) private readonly ledger: WalletLedgerRepository,
   ) {}
+
+  /** Finishes wallet renewals whose debit landed but whose settlement never ran, so the money reaches the invoice or comes back. */
+  async recoverStale(now = new Date()): Promise<number> {
+    const attempts = await this.payments.findWalletRenewalAttempts(
+      new Date(now.getTime() - RECOVERY_WINDOW_MS),
+      new Date(now.getTime() - RECOVERY_DELAY_MS),
+    );
+    let recovered = 0;
+    for (const payment of attempts) {
+      try {
+        if (await this.recover(payment, now)) recovered += 1;
+      } catch (error) {
+        this.logger.error(`renewal_recovery_failed:${payment.reference}:${String(error)}`);
+      }
+    }
+    return recovered;
+  }
+
+  private async recover(payment: StoredOnboardingPayment, now: Date): Promise<boolean> {
+    const invoice = payment.invoiceId ? await this.invoices.findById(payment.invoiceId) : null;
+    if (!invoice?.tenantId) return false;
+    // A paid row is counted in a paid invoice's total; a pending one never is, so it settles or comes back as a duplicate.
+    if (payment.status === 'paid' && invoice.status === 'paid') return false;
+    const debit = await this.ledger.findByIdempotencyKey(invoice.tenantId, this.key('renewal', invoice, payment));
+    if (!debit) return false;
+    await this.payments.settlePending(payment.id, 'paid', now, { method: 'wallet', autoReconciled: true });
+    await this.settleOrRefund(invoice.tenantId, invoice, payment, now);
+    return true;
+  }
 
   async execute(tenantId: string, invoiceId: string, now = new Date()) {
     const invoice = await loadPayable(this.invoices, tenantId, invoiceId);
@@ -155,7 +192,7 @@ export class PayRenewalFromWalletUseCase {
 
   private async settleOrRefund(
     tenantId: string,
-    invoice: PayableInvoice,
+    invoice: InvoiceWithLines,
     payment: StoredOnboardingPayment,
     now: Date,
   ) {
@@ -167,12 +204,12 @@ export class PayRenewalFromWalletUseCase {
     }
   }
 
-  private key(prefix: string, invoice: PayableInvoice, payment: StoredOnboardingPayment): string {
+  private key(prefix: string, invoice: InvoiceWithLines, payment: StoredOnboardingPayment): string {
     const first = payment.reference === `RNW-W-${invoice.number}`;
     return first ? `${prefix}:${invoice.id}` : `${prefix}:${invoice.id}:${payment.id}`;
   }
 
-  private async tryRefund(tenantId: string, invoice: PayableInvoice, payment: StoredOnboardingPayment) {
+  private async tryRefund(tenantId: string, invoice: InvoiceWithLines, payment: StoredOnboardingPayment) {
     try {
       const [current, stored] = await Promise.all([
         this.payments.findByReference(payment.reference),

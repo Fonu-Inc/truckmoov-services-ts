@@ -100,6 +100,7 @@ class FakeSessionStore {
     await this.save(newToken, user);
     this.families.set(newToken, family);
     this.families.set(oldToken, family);
+    return true;
   }
 
   async isSpent(token: string) {
@@ -349,9 +350,10 @@ class FakePasswordResetStore {
     return null;
   }
 
-  async markUsed(token: string) {
-    const r = this.store.get(token);
-    if (r) this.store.set(token, { ...r, used: true });
+  async markUsedForUser(userId: string) {
+    for (const [token, r] of this.store) {
+      if (r.userId === userId) this.store.set(token, { ...r, used: true });
+    }
   }
 
   get size() {
@@ -637,10 +639,12 @@ describe("ForgotPasswordUseCase", () => {
     expect(resetStore.size).toBe(1);
   });
 
-  it("rejects unknown user", async () => {
-    await expect(
-      uc.execute({ identifier: "nobody@test.com" }),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
+  it("answers an unknown user as a known one and sends nothing", async () => {
+    const known = await uc.execute({ identifier: "user@test.com" });
+    const unknown = await uc.execute({ identifier: "nobody@test.com" });
+
+    expect(unknown).toEqual({ message: known.message, user: null });
+    expect(notifier.resets).toHaveLength(1);
   });
 });
 

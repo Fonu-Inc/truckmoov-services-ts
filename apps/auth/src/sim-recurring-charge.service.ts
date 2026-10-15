@@ -12,6 +12,7 @@ import { sweepSafely } from '@shared/observability';
 import { ChargeUsageUseCase, InsufficientWalletBalanceError } from './charge-usage.use-case';
 import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 import { ARREARS_REPOSITORY, type ArrearsRepository } from './arrears.repository';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 
 const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SIM_SWEEP_LOCK_ID = 8_246_113_070_002;
@@ -147,5 +148,5 @@ export class SimRecurringChargeService implements OnApplicationBootstrap, OnAppl
 
 /** The month a charge belongs to, used as the idempotency key. */
 export function billingMonth(at: Date): string {
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}`;
+  return lagosDate(at).slice(0, 7);
 }

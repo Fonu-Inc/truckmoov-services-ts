@@ -52,10 +52,12 @@ export class SweepInstallationOrdersUseCase {
     if (page.length === 0) return 0;
 
     const assign = await this.assignment.assigner();
+    const today = lagosToday(now);
     let assigned = 0;
     while (page.length > 0) {
       const rejecters = rejectersByOrder(await this.orders.findOfferRejections(page.map((order) => order.id)));
       for (const order of page) {
+        if (order.scheduledDate < today) continue;
         const assignment = await assign(order, now, rejecters.get(order.id));
         if (!assignment) continue;
         assigned += 1;

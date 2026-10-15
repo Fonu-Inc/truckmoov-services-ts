@@ -16,6 +16,13 @@ export type StoredSpendingLimit = {
 export interface SpendingLimitRepository {
   findByTenantId(tenantId: string): Promise<StoredSpendingLimit | null>;
   save(settings: StoredSpendingLimit): Promise<void>;
+  /**
+   * Adds a spend to an enabled limit in one statement, restarting the total and
+   * the announced thresholds first when the stored window is not `windowStartedOn`.
+   * Returns the row after the add, or null when no limit is enabled.
+   */
+  addSpend(tenantId: string, amountKobo: number, windowStartedOn: string): Promise<StoredSpendingLimit | null>;
+  markNotified(tenantId: string, windowStartedOn: string, percentages: number[]): Promise<void>;
   deleteByTenantId(tenantId: string): Promise<void>;
 }
 

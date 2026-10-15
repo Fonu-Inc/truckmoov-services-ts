@@ -5,6 +5,7 @@ import {
   DEVICE_REPOSITORY,
   type DeviceRepository,
 } from "../../../devices/domain/repositories/device.repository";
+import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import { VehicleNotFoundError } from "../../domain/errors/vehicle-not-found.error";
 import {
   VEHICLE_REPOSITORY,
@@ -44,6 +45,9 @@ export class RegisterVehicleGpsDeviceUseCase {
     }
 
     const existingDevice = await this.deviceRepository.findByImei(command.imei, vehicle.tenantId);
+    if (!existingDevice && (await this.deviceRepository.findLiveByImei(command.imei))) {
+      throw new FleetRuleError(`device with IMEI ${command.imei} is registered to another account`);
+    }
     if (existingDevice?.vehicleId && existingDevice.vehicleId !== vehicle.id) {
       const previousVehicle = await this.vehicleRepository.findById(existingDevice.vehicleId, vehicle.tenantId);
       if (previousVehicle && previousVehicle.gpsDevice?.imei === existingDevice.imei) {

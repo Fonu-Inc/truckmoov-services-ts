@@ -10,6 +10,7 @@ import {
 import { DEVICE_REPOSITORY, type DeviceRepository } from "../../domain/repositories/device.repository";
 import { emitDeviceIdentity } from "./device-identity-emit";
 import type { CsvRowError } from "@shared/csv";
+import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 
 export type BulkImportDevicesCommand = {
   tenantId?: string;
@@ -42,8 +43,13 @@ export class BulkImportDevicesUseCase {
     // Only rows that would register a new device consume plan seats. Updating a
     // device already on the account does not, so a correction file still
     // imports on a full plan.
-    const creates = rows.filter((row) => !byImei.has(row.imei)).length;
-    await this.quotaService.assertRoomFor(tenantId, "devices", existing.length, creates);
+    const newRows = rows.filter((row) => !byImei.has(row.imei));
+    for (const row of newRows) {
+      if (await this.deviceRepository.findLiveByImei(row.imei)) {
+        throw new FleetRuleError(`device with IMEI ${row.imei} is registered to another account`);
+      }
+    }
+    await this.quotaService.assertRoomFor(tenantId, "devices", existing.length, newRows.length);
 
     let created = 0;
     let updated = 0;

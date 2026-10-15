@@ -52,7 +52,7 @@ export class InviteUserUseCase {
       throw new ForbiddenError("Cannot grant a role broader than your own");
     }
 
-    const email = command.email.trim();
+    const email = command.email.trim().toLowerCase();
 
     // Registration already refuses an email that has an account. Without the
     // same check here, one address ends up holding both a verification token

@@ -11,10 +11,8 @@ import {
 import { calculateDriverPerformance } from "./contexts/fleet/drivers/domain/driver-performance";
 
 type JobStatusChangedEvent = {
-  tenantId?: string;
-  jobId?: string;
-  newStatus?: string;
-  assignedDriverId?: string;
+  new_status?: string;
+  assigned_driver_id?: string;
 };
 
 /**
@@ -34,15 +32,15 @@ export class DriverPerformanceListener implements OnModuleInit {
 
   onModuleInit(): void {
     this.bus.subscribe("tm.*.job.status.changed", async (event) => {
-      const payload = (event as { data?: JobStatusChangedEvent })?.data ?? (event as JobStatusChangedEvent);
-      if (payload?.newStatus !== "delivered") return;
-      await this.recalculate(payload);
-    });
+      const payload = event.data as JobStatusChangedEvent;
+      if (payload?.new_status !== "delivered") return;
+      await this.recalculate(event.tenant_id, payload);
+    }, "driver_performance");
   }
 
-  private async recalculate(event: JobStatusChangedEvent): Promise<void> {
-    const tenantId = event.tenantId?.trim();
-    const driverId = event.assignedDriverId?.trim();
+  private async recalculate(tenant: string | undefined, event: JobStatusChangedEvent): Promise<void> {
+    const tenantId = tenant?.trim();
+    const driverId = event.assigned_driver_id?.trim();
     if (!tenantId || !driverId) return;
 
     try {

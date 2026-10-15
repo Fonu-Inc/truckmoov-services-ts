@@ -9,6 +9,7 @@ import {
   type StoredWalletTopUp,
   type WalletTopUpRepository,
 } from './wallet-top-up.repository';
+import { PlatformAlertPublisher } from './platform-alert.publisher';
 
 export type SettleWalletTopUpOutcome =
   | 'credited'
@@ -35,6 +36,7 @@ export class SettleWalletTopUpUseCase {
     private readonly walletTopUpRepository: WalletTopUpRepository,
     @Inject(TENANT_WALLET_REPOSITORY)
     private readonly tenantWalletRepository: TenantWalletRepository,
+    @Inject(PlatformAlertPublisher) private readonly alerts: PlatformAlertPublisher,
   ) {}
 
   async execute(reference: string, paid?: PaidAmount): Promise<SettleResult> {
@@ -47,6 +49,19 @@ export class SettleWalletTopUpUseCase {
       this.logger.warn(
         `wallet_top_up_amount_mismatch:${topUp.id}:expected=${topUp.amountKobo}:paid=${paid?.amountKobo ?? 'none'}:currency=${paid?.currency ?? 'none'}`,
       );
+      await this.alerts.raise({
+        alertType: 'billing_alerts',
+        severity: 'high',
+        subject: `Wallet top-up amount mismatch (${reference})`,
+        body: `Tenant ${topUp.tenantId} paid ${paid?.amountKobo ?? 'an unknown amount'} kobo ${paid?.currency ?? ''} against a top-up of ${topUp.amountKobo} kobo NGN, so the wallet was not credited. Review it for a refund or a manual credit.`,
+        context: {
+          tenantId: topUp.tenantId,
+          reference,
+          expectedKobo: topUp.amountKobo,
+          paidKobo: paid?.amountKobo ?? null,
+          currency: paid?.currency ?? null,
+        },
+      });
       return { outcome: 'amount_mismatch', tenantId: topUp.tenantId };
     }
 

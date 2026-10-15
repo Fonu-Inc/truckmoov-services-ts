@@ -569,7 +569,7 @@ export class VehiclesController extends BaseFleetController {
     const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
     await this.assertImportTouchesOnlyOwnVehicles(parsed.rows, tenantId, ownerOperatorId);
 
-    const result = await this.bulkImportVehiclesUseCase.execute({
+    const result = await this.runFleetUseCase(() => this.bulkImportVehiclesUseCase.execute({
       ownerOperatorId,
       items: parsed.rows.map((row) => ({
         registrationNumber: row.registrationNumber,
@@ -585,7 +585,7 @@ export class VehiclesController extends BaseFleetController {
         status: (row.status ?? undefined) as never,
       })),
       tenantId,
-    });
+    }));
     (result as unknown as Record<string, unknown>)["skipped"] = parsed.errors;
     await this.recordActivity(req, {
       entityType: "vehicle",

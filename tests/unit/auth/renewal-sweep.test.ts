@@ -15,7 +15,7 @@ describe("renewal sweep", () => {
   it("runs the generator and reports the counts", async () => {
     const h = await buildRenewals();
     h.addPeriod();
-    const sweep = new RenewalSweepService(inMemory, h.service);
+    const sweep = new RenewalSweepService(inMemory, h.service, h.payWallet);
     expect(await sweep.run(h.clock.now)).toMatchObject({ issued: 1 });
     expect(await sweep.run(h.clock.now)).toMatchObject({ issued: 0 });
   });
@@ -28,7 +28,7 @@ describe("renewal sweep", () => {
       await gate;
       return { seeded: 0, cancelled: 0, repriced: 0, issued: 1, failed: 0 };
     });
-    const sweep = new RenewalSweepService(inMemory, h.service);
+    const sweep = new RenewalSweepService(inMemory, h.service, h.payWallet);
     const first = sweep.run();
     expect(await sweep.run()).toMatchObject({ issued: 0 });
     release();
@@ -38,7 +38,7 @@ describe("renewal sweep", () => {
 
   it("starts no timer outside the database backend", () => {
     const timers = vi.spyOn(global, "setTimeout");
-    new RenewalSweepService(inMemory, {} as never).onApplicationBootstrap();
+    new RenewalSweepService(inMemory, {} as never, {} as never).onApplicationBootstrap();
     expect(timers).not.toHaveBeenCalled();
     timers.mockRestore();
   });

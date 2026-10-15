@@ -1,14 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
+import { runIfLockFree } from "@shared/db";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
+import { getFleetOrm } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import {
   COMPLIANCE_DOCUMENT_REPOSITORY,
   type ComplianceDocumentRepository,
   type StoredComplianceDocument,
 } from "./compliance-document.repository";
 import { ComplianceReminderWindowService } from "./compliance-reminder-window.service";
+import { lagosDayOffset, lagosToday } from "./utils/lagos-date";
 
 const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const COMPLIANCE_REMINDER_LOCK_ID = 8_246_113_070_042;
+const NOTHING_SENT = { tenants: 0, documents: 0 };
 
 /**
  * Announces compliance documents that are about to expire, or already have.
@@ -18,12 +24,11 @@ const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
  * an account and deliberately does not look.
  *
  * Each document is announced once per expiry date: the sweep stamps
- * `reminder_sent_at`, and changing the expiry clears it again. That also keeps
- * several replicas from sending duplicates, since only the first to stamp a row
- * includes it.
+ * `reminder_sent_at`, and changing the expiry clears it again. A sweep holds an
+ * advisory lock, so two replicas never read the same unstamped rows at once.
  */
 @Injectable()
-export class ComplianceReminderSweepService implements OnApplicationBootstrap {
+export class ComplianceReminderSweepService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(ComplianceReminderSweepService.name);
   private timer: NodeJS.Timeout | null = null;
 
@@ -33,46 +38,54 @@ export class ComplianceReminderSweepService implements OnApplicationBootstrap {
     @Inject(ComplianceReminderWindowService)
     private readonly window: ComplianceReminderWindowService,
     @Inject(EVENT_BUS) private readonly bus: EventBus,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
       void this.run();
     }, SWEEP_INTERVAL_MS);
+    this.timer.unref?.();
   }
 
   onApplicationShutdown(): void {
     if (this.timer) clearInterval(this.timer);
+    this.timer = null;
   }
 
   async run(): Promise<{ tenants: number; documents: number }> {
     try {
-      const cutoff = this.cutoffDate();
-      const due = await this.repo.findDueForReminder(cutoff);
-      if (due.length === 0) return { tenants: 0, documents: 0 };
-
-      const byTenant = this.groupByTenant(due);
-      let announced = 0;
-
-      for (const [tenantId, docs] of byTenant) {
-        const stamped = await this.announce(tenantId, docs);
-        if (stamped) announced += docs.length;
-      }
-
-      this.logger.log(
-        `compliance_reminder_sweep:tenants=${byTenant.size}:documents=${announced}`,
-      );
-      return { tenants: byTenant.size, documents: announced };
+      if (this.config.persistence.backend !== "mikro-orm") return await this.sweep();
+      const orm = await getFleetOrm(this.config.db);
+      const result = await runIfLockFree(orm, COMPLIANCE_REMINDER_LOCK_ID, () => this.sweep());
+      return result.acquired ? result.value : NOTHING_SENT;
     } catch (error) {
       this.logger.error(`compliance_reminder_sweep_failed:${(error as Error).message}`);
-      return { tenants: 0, documents: 0 };
+      return NOTHING_SENT;
     }
   }
 
+  private async sweep(): Promise<{ tenants: number; documents: number }> {
+    const cutoff = this.cutoffDate();
+    const due = await this.repo.findDueForReminder(cutoff);
+    if (due.length === 0) return NOTHING_SENT;
+
+    const byTenant = this.groupByTenant(due);
+    let announced = 0;
+
+    for (const [tenantId, docs] of byTenant) {
+      const stamped = await this.announce(tenantId, docs);
+      if (stamped) announced += docs.length;
+    }
+
+    this.logger.log(
+      `compliance_reminder_sweep:tenants=${byTenant.size}:documents=${announced}`,
+    );
+    return { tenants: byTenant.size, documents: announced };
+  }
+
   private cutoffDate(): string {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() + this.window.reminderDays);
-    return cutoff.toISOString().slice(0, 10);
+    return lagosDayOffset(this.window.reminderDays);
   }
 
   private groupByTenant(
@@ -91,7 +104,7 @@ export class ComplianceReminderSweepService implements OnApplicationBootstrap {
     tenantId: string,
     docs: StoredComplianceDocument[],
   ): Promise<boolean> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = lagosToday();
     try {
       await this.bus.publish(`tm.${tenantId}.compliance.documents.expiring`, {
         id: randomUUID(),

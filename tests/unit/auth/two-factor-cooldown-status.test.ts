@@ -12,10 +12,11 @@ describe('the admin code step during a cooldown', () => {
           throw new TwoFactorCooldownError(42);
         },
       },
+      loginEvents: { recordingFailure: (_origin: unknown, _email: unknown, step: () => Promise<unknown>) => step() },
     }) as SystemController;
 
     const error = await controller
-      .systemLoginTwoFactor({ challengeToken: 'challenge', code: '123456' })
+      .systemLoginTwoFactor({ challengeToken: 'challenge', code: '123456' }, {})
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(HttpException);

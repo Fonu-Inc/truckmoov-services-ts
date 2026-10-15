@@ -75,7 +75,12 @@ export class UploadDocumentUseCase {
     const id = crypto.randomUUID();
     const key = `${cmd.tenantId}/${cmd.entityType}/${cmd.entityId}/${cmd.docType}/${id}-${cmd.filename}`;
 
-    await this.storage.putObject({ key, body: cmd.buffer, contentType: cmd.contentType });
+    try {
+      await this.storage.putObject({ key, body: cmd.buffer, contentType: cmd.contentType });
+    } catch (error) {
+      await this.storageReporter.recordDeletion(cmd.tenantId, cmd.buffer.byteLength);
+      throw error;
+    }
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.retentionDays);

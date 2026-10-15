@@ -52,6 +52,13 @@ export class InMemoryDriverRepository implements DriverRepository {
     return driver;
   }
 
+  async findByIds(ids: string[], tenantId: string): Promise<Driver[]> {
+    return ids.flatMap((id) => {
+      const driver = this.data.get(id);
+      return driver && driver.tenantId === tenantId ? [driver] : [];
+    });
+  }
+
   async findByLicenseNumber(licenseNumber: string, tenantId: string): Promise<Driver | null> {
     const normalizedLicense = licenseNumber.trim().toUpperCase();
     return (

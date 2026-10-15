@@ -3,6 +3,7 @@ import { InMemoryWalletTopUpRepository } from '../../../apps/auth/src/in-memory-
 import { InMemoryTenantWalletRepository } from '../../../apps/auth/src/in-memory-tenant-wallet.repository';
 import { SettleWalletTopUpUseCase } from '../../../apps/auth/src/settle-wallet-top-up.use-case';
 import type { StoredWalletTopUp } from '../../../apps/auth/src/wallet-top-up.repository';
+import type { RaisedAlert } from '../../../apps/auth/src/platform-alert.publisher';
 
 const PAID = { amountKobo: 500_000, currency: 'NGN' };
 
@@ -25,11 +26,13 @@ describe('SettleWalletTopUpUseCase', () => {
   let topUps: InMemoryWalletTopUpRepository;
   let wallets: InMemoryTenantWalletRepository;
   let useCase: SettleWalletTopUpUseCase;
+  let raised: RaisedAlert[];
 
   beforeEach(async () => {
     topUps = new InMemoryWalletTopUpRepository();
     wallets = new InMemoryTenantWalletRepository();
-    useCase = new SettleWalletTopUpUseCase(topUps, wallets);
+    raised = [];
+    useCase = new SettleWalletTopUpUseCase(topUps, wallets, { raise: async (alert: RaisedAlert) => void raised.push(alert) } as never);
 
     await topUps.save(buildTopUp());
     await wallets.save({
@@ -117,6 +120,13 @@ describe('SettleWalletTopUpUseCase', () => {
 
     expect((await wallets.findByTenantId('tenant-a'))?.balanceKobo).toBe(100_000);
     expect((await topUps.findByReference('MOMO-ABCD1234'))?.status).toBe('pending');
+  });
+
+  it('raises a billing alert when the paid amount differs', async () => {
+    await useCase.execute('MOMO-ABCD1234', { amountKobo: 400_000, currency: 'NGN' });
+
+    expect(raised).toHaveLength(1);
+    expect(raised[0]).toMatchObject({ alertType: 'billing_alerts', context: { reference: 'MOMO-ABCD1234', paidKobo: 400_000 } });
   });
 
   it('rejects a payment in another currency', async () => {

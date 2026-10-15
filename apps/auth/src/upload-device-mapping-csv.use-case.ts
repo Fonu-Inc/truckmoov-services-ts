@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { normalizeCsvHeader, splitCsvLine, stripFormulaGuard } from '@shared/csv';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -22,9 +23,9 @@ function parseCsvRows(csvBuffer: Buffer): { headers: string[]; rows: CsvRow[] } 
 
   if (lines.length < 1) throw new Error('CSV file is empty');
 
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+  const headers = splitCsvLine(lines[0]).map(normalizeCsvHeader);
   const rows = lines.slice(1).map((line) => {
-    const cells = line.split(',').map((c) => c.trim());
+    const cells = splitCsvLine(line).map((c) => stripFormulaGuard(c.trim()));
     return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']));
   });
 

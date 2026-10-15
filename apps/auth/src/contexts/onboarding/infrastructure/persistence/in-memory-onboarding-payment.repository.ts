@@ -45,6 +45,27 @@ export class InMemoryOnboardingPaymentRepository
     );
   }
 
+  async findPaidForApplication(applicationId: string): Promise<StoredOnboardingPayment | null> {
+    return (
+      [...this.payments.values()].find(
+        (payment) =>
+          payment.applicationId === applicationId &&
+          payment.status === 'paid' &&
+          !isRenewalReference(payment.reference),
+      ) ?? null
+    );
+  }
+
+  async findWalletRenewalAttempts(createdFrom: Date, createdBefore: Date): Promise<StoredOnboardingPayment[]> {
+    return [...this.payments.values()].filter(
+      (payment) =>
+        payment.reference.startsWith('RNW-W-') &&
+        (payment.status === 'pending' || payment.status === 'paid') &&
+        payment.createdAt >= createdFrom &&
+        payment.createdAt < createdBefore,
+    );
+  }
+
   async findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]> {
     return [...this.payments.values()]
       .filter(

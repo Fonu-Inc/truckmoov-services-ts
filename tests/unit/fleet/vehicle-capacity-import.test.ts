@@ -78,7 +78,7 @@ describe("bulk import keeps the unit", () => {
   function useCase() {
     const repo = new InMemoryVehicleRepository();
     const runtime = { getDefaultTenantId: () => "t1", generateId: (() => { let n = 0; return () => `v${++n}`; })() };
-    return { repo, useCase: Reflect.construct(BulkImportVehiclesUseCase, [repo, runtime]) as BulkImportVehiclesUseCase };
+    return { repo, useCase: Reflect.construct(BulkImportVehiclesUseCase, [repo, runtime, { assertRoomFor: async () => {} }]) as BulkImportVehiclesUseCase };
   }
 
   it("stores each row in its own unit", async () => {

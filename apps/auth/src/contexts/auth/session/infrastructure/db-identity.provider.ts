@@ -22,15 +22,15 @@ export class DbIdentityProvider implements IdentityProvider {
   async verifyCredentials(email: string, password: string): Promise<AuthUser> {
     const stored = await this.userRepo.findByEmail(email);
     if (!stored) throw new InvalidCredentialsError();
-    if (stored.accountStatus === "disabled") {
-      throw new ForbiddenError("This account has been disabled");
-    }
 
     const valid = await this.passwordHasher.verify(password, stored.passwordHash);
     if (!valid) throw new InvalidCredentialsError();
 
-    // Checked after the password, so an unverified address cannot be
-    // distinguished from an unregistered one without the right password.
+    // Checked after the password, so a disabled or unverified account cannot
+    // be distinguished from an unregistered one without the right password.
+    if (stored.accountStatus === "disabled") {
+      throw new ForbiddenError("This account has been disabled");
+    }
     if (stored.emailVerificationToken) {
       throw new EmailNotVerifiedError();
     }

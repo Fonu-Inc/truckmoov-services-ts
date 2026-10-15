@@ -82,6 +82,13 @@ export class MikroDriverRepository implements DriverRepository {
     return record ? this.toDomain(record) : null;
   }
 
+  async findByIds(ids: string[], tenantId: string): Promise<Driver[]> {
+    if (ids.length === 0) return [];
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(DriverRecord, { id: { $in: ids }, tenantId });
+    return records.map((record) => this.toDomain(record));
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();

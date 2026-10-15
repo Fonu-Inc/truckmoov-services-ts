@@ -12,6 +12,7 @@ import { MikroBundleAllocationRepository } from "../../apps/auth/src/mikro-bundl
 import { MikroBundleCatalogRepository } from "../../apps/auth/src/mikro-bundle-catalog.repository";
 import { MikroBundleTransactionRepository } from "../../apps/auth/src/mikro-bundle-transaction.repository";
 import { MikroTenantWalletRepository } from "../../apps/auth/src/mikro-tenant-wallet.repository";
+import { MikroWalletLedgerRepository } from "../../apps/auth/src/mikro-wallet-ledger.repository";
 import { MikroSpendingLimitRepository } from "../../apps/auth/src/mikro-spending-limit.repository";
 import { SpendingLimitService } from "../../apps/auth/src/spending-limit.service";
 import type { StoredBundleAllocation } from "../../apps/auth/src/bundle-allocation.repository";
@@ -50,7 +51,7 @@ describe.skipIf(!dbEnabled)("bundles purchase (db)", () => {
   let orm: Awaited<ReturnType<typeof getOrm>>;
 
   const build = (allocRepo: MikroBundleAllocationRepository = allocations) =>
-    new AllocateBundleUseCase({} as any, {} as any, catalog, wallets, allocRepo, transactions, limit, carriers, sims);
+    new AllocateBundleUseCase({} as any, {} as any, catalog, wallets, allocRepo, transactions, limit, carriers, sims, new MikroWalletLedgerRepository(config));
 
   async function fundedTenant(balanceKobo: number) {
     const tenantId = uniqueId("bundles-t");
@@ -200,7 +201,7 @@ describe.skipIf(!dbEnabled)("bundles purchase (db)", () => {
     const found = await realCatalog.findById(id);
     expect(Number(found!.priceKobo)).toBe(250000);
     const tenantId = await fundedTenant(1_000_000);
-    const uc = new AllocateBundleUseCase({} as any, {} as any, realCatalog, wallets, allocations, transactions, limit, carriers, sims);
+    const uc = new AllocateBundleUseCase({} as any, {} as any, realCatalog, wallets, allocations, transactions, limit, carriers, sims, new MikroWalletLedgerRepository(config));
     const key = uniqueId("bundles-k");
     const res = await uc.execute(tenantId, { carrierId: "c", planType: "p", bundleId: id, mobileNumbers: ["2348000000009"], idempotencyKey: key });
     expect(res.data.totalAmount).toBe(2500);

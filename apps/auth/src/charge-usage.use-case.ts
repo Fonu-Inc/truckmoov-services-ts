@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import { EntitlementService } from './entitlement.service';
 import {
   PLAN_ENTITLEMENTS_REPOSITORY,
@@ -21,6 +22,10 @@ import {
   type WalletLedgerDraft,
   type WalletLedgerRepository,
 } from './wallet-ledger.repository';
+import {
+  TENANT_ONBOARDING_REPOSITORY,
+  type TenantOnboardingRepository,
+} from './tenant-onboarding.repository';
 
 export class ChargeReferenceRequiredError extends Error {
   constructor() {
@@ -57,7 +62,7 @@ export type ChargeUsageCommand = {
   reference: string;
   /** When the usage happened. Priced at the rate live then, not the rate now. */
   occurredAt?: Date;
-  /** The tenant's plan, which decides how much monthly allowance applies. */
+  /** The tenant's plan, which decides how much monthly allowance applies. Looked up when omitted. */
   planCode?: string;
 };
 
@@ -89,9 +94,9 @@ const CHANNEL_USAGE_ITEM: Record<CommunicationChannel, UsageItem> = {
   iot_sim: 'sim_connectivity',
 };
 
-/** The month an allowance belongs to. UTC, so a boundary is unambiguous. */
+/** The month an allowance belongs to, on the Lagos calendar the tenant is billed on. */
 export function allowanceMonth(at: Date): string {
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
+  return lagosDate(at).slice(0, 7);
 }
 
 /**
@@ -115,6 +120,7 @@ export class ChargeUsageUseCase {
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly planEntitlements: PlanEntitlementsRepository,
     @Inject(WALLET_LEDGER_REPOSITORY) private readonly ledger: WalletLedgerRepository,
+    @Inject(TENANT_ONBOARDING_REPOSITORY) private readonly onboarding: TenantOnboardingRepository,
   ) {}
 
   async execute(command: ChargeUsageCommand): Promise<ChargeResult> {
@@ -159,6 +165,7 @@ export class ChargeUsageUseCase {
       await allowance.restore();
       return this.replayOf(debited.entry, command.quantity);
     }
+    await this.recordSpend(command.tenantId, totalKobo);
 
     return {
       charged: true,
@@ -235,6 +242,15 @@ export class ChargeUsageUseCase {
     };
   }
 
+  /** The debit already happened, so a failed counter update is logged rather than failing the charge. */
+  private async recordSpend(tenantId: string, amountKobo: number): Promise<void> {
+    try {
+      await this.spendingLimit.recordSpend(tenantId, amountKobo);
+    } catch (error) {
+      this.logger.error(`spending_record_failed:${tenantId}:${(error as Error).message}`);
+    }
+  }
+
   /**
    * The limit check and the debit, with the allowance given back when either
    * refuses. Without that, a tenant who cannot pay loses allowance for a send
@@ -281,11 +297,12 @@ export class ChargeUsageUseCase {
     quantity: number,
   ): Promise<AllowanceClaim> {
     const none: AllowanceClaim = { covered: 0, restore: async () => {} };
-    if (!command.planCode) return none;
-
     const item = CHANNEL_USAGE_ITEM[command.channel];
     try {
-      const included = await this.entitlements.monthlyAllowance(command.planCode, item);
+      const planCode =
+        command.planCode ?? (await this.onboarding.findByTenantId(command.tenantId))?.subscription?.planCode;
+      if (!planCode) return none;
+      const included = await this.entitlements.monthlyAllowance(planCode, item);
       if (included <= 0) return none;
 
       const month = allowanceMonth(command.occurredAt ?? new Date());

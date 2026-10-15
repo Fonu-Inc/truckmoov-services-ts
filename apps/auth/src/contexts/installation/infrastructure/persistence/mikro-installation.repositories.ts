@@ -316,8 +316,11 @@ export class MikroInstallationOrderRepository
         ],
       );
       if (Number(slot?.count ?? 0) > 0) return 'conflict';
-      const { id, ...fields } = order;
-      const changed = await tx.nativeUpdate(InstallationOrderRecord, { id, status: 'unassigned' }, fields);
+      const changed = await tx.nativeUpdate(
+        InstallationOrderRecord,
+        { id: order.id, status: 'unassigned', scheduledDate: order.scheduledDate, timeSlot: order.timeSlot },
+        { ...transitionFields(order), installerId: order.installerId },
+      );
       return changed > 0 ? 'assigned' : 'taken';
     });
   }

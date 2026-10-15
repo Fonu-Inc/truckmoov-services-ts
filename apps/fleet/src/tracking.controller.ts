@@ -82,22 +82,21 @@ export class TrackingController extends BaseFleetController {
   async alertFeed(@Query("limit") limit: string | undefined, @Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const owned = await this.ownedVehicleIdsFor(this.vehicles, tenantId, req);
-    const all = await this.alerts.findAll(tenantId);
 
     // Alerts are keyed on the vehicle, so an owner operator sees only alerts
     // raised on vehicles they hold.
-    const items = all
-      .filter((alert) => owned === null || (alert.vehicleId !== null && owned.has(alert.vehicleId)))
-      .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())
-      .slice(0, this.alertLimit(limit))
-      .map((alert) => ({
-        id: alert.id,
-        type: alert.type,
-        severity: alert.severity,
-        vehicleId: alert.vehicleId,
-        details: alert.details,
-        triggeredAt: alert.triggeredAt.toISOString(),
-      }));
+    const recent = await this.alerts.findAll(tenantId, {
+      vehicleIdIn: owned === null ? undefined : [...owned],
+      limit: this.alertLimit(limit),
+    });
+    const items = recent.map((alert) => ({
+      id: alert.id,
+      type: alert.type,
+      severity: alert.severity,
+      vehicleId: alert.vehicleId,
+      details: alert.details,
+      triggeredAt: alert.triggeredAt.toISOString(),
+    }));
 
     return { status: true, message: "success", data: { total: items.length, items } };
   }

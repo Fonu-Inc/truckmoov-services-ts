@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
-import { EVENT_BUS, type EventBus } from "@shared/eventbus";
-import { GeofenceService } from "@shared/geofence";
+import { EVENT_BUS, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
 import {
@@ -16,7 +15,6 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
-    private readonly geofenceService: GeofenceService,
     private readonly liveCounts: LiveTrackingCountsService,
     private readonly geofenceEvaluator: GeofenceEvaluatorService,
   ) {}
@@ -26,8 +24,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       const vehicleId = envelope.data["vehicle_id"] as string;
       if (!vehicleId) return;
 
-      // The device's fix time, so a buffered upload arriving late never replaces a newer position.
-      const ts = timestampOf(envelope.data["fix_time"]) ?? new Date(envelope.occurred_at).getTime();
+      const ts = fixTimeOf(envelope);
       const deviceId = (envelope.data["device_id"] as string) || null;
       const lat = envelope.data["lat"] as number;
       const lng = envelope.data["lng"] as number;
@@ -35,28 +32,20 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
 
       const point = lat != null && lng != null ? { lat, lng } : null;
       await this.recordPosition(envelope.tenant_id, vehicleId, deviceId, point, ts);
+      if (point) await this.evaluateZones(envelope.tenant_id, vehicleId, point, speedKph, ts);
+    });
+
+    // Counts live in each pod's memory, so every pod needs every fix, not its share of the durable.
+    await this.bus.subscribeEveryInstance?.("tm.*.vehicle.location.updated", async (envelope) => {
+      const vehicleId = envelope.data["vehicle_id"] as string;
+      if (!vehicleId) return;
+      const ts = fixTimeOf(envelope);
       this.liveCounts.record({
         tenantId: envelope.tenant_id,
         vehicleId,
-        fixedAt: new Date(ts).toISOString(),
-        speedKph,
+        fixedAt: new Date(Number.isFinite(ts) ? ts : Date.now()).toISOString(),
+        speedKph: (envelope.data["speed_kph"] as number | null | undefined) ?? null,
       });
-
-      if (point) {
-        await this.evaluateZones(envelope.tenant_id, vehicleId, point, speedKph);
-
-        const transition = this.geofenceService.checkTransition(vehicleId, point);
-        if (transition) {
-          await this.bus.publish(`tm.${envelope.tenant_id}.vehicle.geofence.${transition}`, {
-            id: crypto.randomUUID(),
-            type: `vehicle.geofence.${transition}`,
-            version: 1,
-            occurred_at: new Date().toISOString(),
-            tenant_id: envelope.tenant_id,
-            data: { vehicle_id: vehicleId, lat, lng },
-          });
-        }
-      }
     });
   }
 
@@ -79,9 +68,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
   }
 
   /**
-   * Zone entry, exit and dwell. Separate from the bounding-box check above,
-   * which is one corridor per vehicle for route deviation; these are the zones
-   * an operator drew on the map.
+   * Zone entry, exit and dwell for the zones an operator drew on the map.
    *
    * A failure here must not stop the position being recorded — the map staying
    * live matters more than one missed alert.
@@ -91,9 +78,11 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
     vehicleId: string,
     point: GeoPoint,
     speedKph: number | null,
+    timestamp: number,
   ): Promise<void> {
     try {
-      const alerts = await this.geofenceEvaluator.evaluate({ tenantId, vehicleId, point, speedKph });
+      const at = Number.isFinite(timestamp) ? new Date(timestamp) : undefined;
+      const alerts = await this.geofenceEvaluator.evaluate({ tenantId, vehicleId, point, speedKph, at });
 
       for (const alert of alerts) {
         await this.bus.publish(`tm.${tenantId}.alert.triggered`, {
@@ -116,6 +105,11 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       );
     }
   }
+}
+
+/** The device's fix time, so a buffered upload arriving late never replaces a newer position. */
+function fixTimeOf(envelope: EventEnvelope): number {
+  return timestampOf(envelope.data["fix_time"]) ?? new Date(envelope.occurred_at).getTime();
 }
 
 function timestampOf(value: unknown): number | null {

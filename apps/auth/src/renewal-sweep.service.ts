@@ -12,6 +12,7 @@ import {
   RenewalInvoiceService,
   type RenewalRunSummary,
 } from '@auth/onboarding/application/services/renewal-invoice.service';
+import { PayRenewalFromWalletUseCase } from '@auth/onboarding/application/use-cases/billing/pay-renewal.use-cases';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 
 export const RENEWAL_SWEEP_LOCK_ID = 8_246_113_070_004;
@@ -30,6 +31,7 @@ export class RenewalSweepService implements OnApplicationBootstrap, OnApplicatio
   constructor(
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(RenewalInvoiceService) private readonly renewals: RenewalInvoiceService,
+    @Inject(PayRenewalFromWalletUseCase) private readonly walletRenewals: PayRenewalFromWalletUseCase,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -50,7 +52,11 @@ export class RenewalSweepService implements OnApplicationBootstrap, OnApplicatio
     if (this.running) return EMPTY;
     this.running = true;
     try {
-      const summary = await this.exclusively(() => this.renewals.run(now));
+      const summary = await this.exclusively(async () => {
+        const result = await this.renewals.run(now);
+        await this.walletRenewals.recoverStale(now);
+        return result;
+      });
       this.logger.log(`renewal_sweep:${JSON.stringify(summary)}`);
       return summary;
     } finally {

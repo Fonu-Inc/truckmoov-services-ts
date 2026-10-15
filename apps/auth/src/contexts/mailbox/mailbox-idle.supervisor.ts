@@ -104,19 +104,19 @@ export class MailboxIdleSupervisor implements OnApplicationBootstrap, OnApplicat
   private async startWatch(tenantId: string): Promise<boolean> {
     if (this.shuttingDown || this.watches.has(tenantId)) return false;
 
-    const stored = await this.credentials.findByTenant(tenantId);
-    if (!stored) return false;
-
-    const connection = {
-      host: stored.imap.host,
-      port: stored.imap.port,
-      username: stored.imap.username,
-      password: this.decryptOrNull(stored.imap.passwordCiphertext),
-      secure: stored.imap.secure,
-    };
-    if (!connection.password) return false;
-
     try {
+      const stored = await this.credentials.findByTenant(tenantId);
+      if (!stored) return false;
+
+      const connection = {
+        host: stored.imap.host,
+        port: stored.imap.port,
+        username: stored.imap.username,
+        password: this.decryptOrNull(stored.imap.passwordCiphertext),
+        secure: stored.imap.secure,
+      };
+      if (!connection.password) return false;
+
       const folders = await this.reader.discoverFolders({
         ...connection,
         password: connection.password,

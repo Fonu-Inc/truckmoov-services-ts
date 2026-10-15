@@ -14,6 +14,7 @@ export class NatsLink implements OnApplicationShutdown {
   private readonly logger = new Logger(NatsLink.name);
   private connecting: Promise<NatsConnection> | null = null;
   private connection: NatsConnection | null = null;
+  private up = false;
   private readonly subscriptions: Subscription[] = [];
   private readonly fanouts = new Map<string, EnvelopeHandler[]>();
 
@@ -28,6 +29,7 @@ export class NatsLink implements OnApplicationShutdown {
     }).then(
       (connection) => {
         this.connection = connection;
+        this.up = true;
         this.watch(connection);
         return connection;
       },
@@ -37,6 +39,10 @@ export class NatsLink implements OnApplicationShutdown {
       },
     );
     return this.connecting;
+  }
+
+  isUp(): boolean {
+    return this.up && !!this.connection && !this.connection.isClosed();
   }
 
   async publish(subject: string, payload: unknown): Promise<void> {
@@ -104,7 +110,11 @@ export class NatsLink implements OnApplicationShutdown {
     void (async () => {
       for await (const status of connection.status()) {
         if (status.type === 'disconnect' || status.type === 'error') this.logger.warn(`nats_link_${status.type}`);
-        if (status.type === 'reconnect') this.logger.log('nats_link_reconnected');
+        if (status.type === 'disconnect') this.up = false;
+        if (status.type === 'reconnect') {
+          this.up = true;
+          this.logger.log('nats_link_reconnected');
+        }
       }
     })();
   }

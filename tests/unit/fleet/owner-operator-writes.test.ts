@@ -155,7 +155,7 @@ describe("an owner operator's vehicle writes", () => {
   it("creates imported vehicles as the importing owner's", async () => {
     const repo = new InMemoryVehicleRepository();
     const runtime = { getDefaultTenantId: () => "t1", generateId: () => "v-new" };
-    const useCase = Reflect.construct(BulkImportVehiclesUseCase, [repo, runtime]) as BulkImportVehiclesUseCase;
+    const useCase = Reflect.construct(BulkImportVehiclesUseCase, [repo, runtime, { assertRoomFor: async () => {} }]) as BulkImportVehiclesUseCase;
 
     const result = await useCase.execute({ tenantId: "t1", ownerOperatorId: "op-1", items: [{ registrationNumber: "LAG-9-ZZ", model: "Van" }] });
 

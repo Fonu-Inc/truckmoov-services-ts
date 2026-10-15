@@ -13,9 +13,8 @@ import {
 } from "./contexts/fleet/tracking/domain/share-link.repository";
 
 type JobStatusChangedEvent = {
-  tenantId?: string;
-  jobId?: string;
-  newStatus?: string;
+  job_id?: string;
+  new_status?: string;
 };
 
 /** A job that has ended, whichever way it ended. */
@@ -64,8 +63,8 @@ export class ShareLinkLifecycleService implements OnApplicationBootstrap, OnAppl
   }
 
   async revokeIfJobEnded(payload: JobStatusChangedEvent): Promise<number> {
-    const jobId = payload?.jobId?.trim();
-    const status = payload?.newStatus?.trim().toLowerCase();
+    const jobId = payload?.job_id?.trim();
+    const status = payload?.new_status?.trim().toLowerCase();
     if (!jobId || !status || !TERMINAL_JOB_STATUSES.includes(status)) return 0;
 
     try {

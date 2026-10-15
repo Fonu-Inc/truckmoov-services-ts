@@ -365,7 +365,8 @@ describe("the installation sweep", () => {
 
   it("marks jobs overdue once their Lagos day has passed", async () => {
     const lateEvening = new Date("2026-09-24T23:30:00Z");
-    await h.orders.save(order("yesterday", { status: "assigned", installerId: "ada", scheduledDate: day("2026-09-24") }));
+    await h.orders.save(order("yesterday", { status: "scheduled", installerId: "ada", scheduledDate: day("2026-09-24") }));
+    await h.orders.save(order("offered", { status: "assigned", installerId: "bola", scheduledDate: day("2026-09-24"), timeSlot: "afternoon" }));
     await h.orders.save(order("today", { status: "scheduled", installerId: "ada", scheduledDate: day("2026-09-25") }));
     await h.orders.save(order("started", { status: "in_progress", installerId: "ada", scheduledDate: day("2026-09-20") }));
 
@@ -375,6 +376,26 @@ describe("the installation sweep", () => {
     expect((await h.orders.findById("yesterday"))?.status).toBe("overdue");
     expect((await h.orders.findById("today"))?.status).toBe("scheduled");
     expect((await h.orders.findById("started"))?.status).toBe("in_progress");
+    expect((await h.orders.findById("offered"))?.status).toBe("assigned");
+  });
+
+  it("does not offer an order whose date has passed", async () => {
+    await h.installers.save(installer("ada"));
+    await h.orders.save(order("past", { scheduledDate: day("2026-09-23") }));
+
+    expect(await sweep.run(NOW)).toEqual({ assigned: 0, overdue: 0, reminded: 0 });
+    expect((await h.orders.findById("past"))?.status).toBe("unassigned");
+  });
+
+  it("does not assign over a date the admin changed after the sweep read the order", async () => {
+    await h.installers.save(installer("ada"));
+    await h.orders.save(order("o1", { scheduledDate: day("2026-09-30") }));
+    const stale = (await h.orders.findById("o1"))!;
+    await h.orders.save({ ...stale, scheduledDate: day("2026-10-02"), addressLine: "New site" });
+
+    const assign = await new InstallerAssignmentService(h.installers, h.orders).assigner();
+    expect(await assign(stale, NOW)).toBeNull();
+    expect(await h.orders.findById("o1")).toMatchObject({ status: "unassigned", scheduledDate: day("2026-10-02"), addressLine: "New site" });
   });
 });
 

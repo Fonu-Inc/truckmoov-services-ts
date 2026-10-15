@@ -13,9 +13,10 @@ export interface SessionStore {
   getByRefreshToken(refreshToken: string): Promise<AuthUser | null>;
   /**
    * Spends oldToken and continues its session under newToken. The spent token
-   * is kept, so presenting it again is recognised as reuse.
+   * is kept, so presenting it again is recognised as reuse. False when
+   * oldToken was already spent, e.g. by a concurrent refresh.
    */
-  rotate(oldToken: string, newToken: string, user: AuthUser): Promise<void>;
+  rotate(oldToken: string, newToken: string, user: AuthUser): Promise<boolean>;
   /** Whether this token was valid once and has since been rotated away. */
   isSpent(refreshToken: string): Promise<boolean>;
   /** Ends the whole session the token belongs to, every token of it. */

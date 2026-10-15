@@ -3,6 +3,7 @@ import { MailerService } from "@shared/mailer";
 import { COMPLIANCE_DOCUMENT_REPOSITORY, type ComplianceDocumentRepository, type StoredComplianceDocument } from "./compliance-document.repository";
 import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
 import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
+import { lagosDayOffset, lagosToday } from "./utils/lagos-date";
 
 export const DEFAULT_COMPLIANCE_LEAD_DAYS = 30;
 
@@ -50,7 +51,7 @@ export class ComplianceReminderSendService {
       const vehicle = await this.vehicles.findById(id, tenantId);
       if (vehicle) plates.set(id, vehicle.plateNumber);
     }
-    const today = now.toISOString().slice(0, 10);
+    const today = lagosToday(now);
     return docs.map((doc) => {
       const vehicle = doc.vehicleId ? (plates.get(doc.vehicleId) ?? doc.vehicleId) : "—";
       const when = doc.expiryDate! < today ? `expired ${doc.expiryDate}` : `expires ${doc.expiryDate}`;
@@ -60,9 +61,7 @@ export class ComplianceReminderSendService {
 }
 
 function cutoff(now: Date, leadDays: number): string {
-  const date = new Date(now);
-  date.setDate(date.getDate() + leadDays);
-  return date.toISOString().slice(0, 10);
+  return lagosDayOffset(leadDays, now);
 }
 
 function escapeHtml(value: string): string {

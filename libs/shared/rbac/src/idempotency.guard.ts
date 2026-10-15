@@ -51,17 +51,28 @@ export class IdempotencyGuard implements CanActivate {
       return true;
     }
 
-    const fingerprint = `${request.method}:${request.originalUrl}:${key}`;
+    const fingerprint = `${request.user?.tenantId ?? ""}:${request.method}:${request.originalUrl}:${key}`;
+    const release = await this.claim(fingerprint);
+    // A failed request must not spend the key, or every retry is refused until the TTL ends.
+    const response = context.switchToHttp().getResponse();
+    response.once("finish", () => {
+      if (response.statusCode >= 400) void release();
+    });
+    return true;
+  }
 
+  /** Spends the key for this request; returns how to give it back. */
+  private async claim(fingerprint: string): Promise<() => Promise<unknown>> {
     // Prefer Redis (shared across replicas, survives restarts). SET NX only
     // succeeds for the first request; a null reply means the key already exists.
-    if (this.redis) {
+    const redis = this.redis;
+    if (redis) {
       try {
-        const stored = await this.redis.set(`idem:${fingerprint}`, "1", "EX", this.ttlSeconds, "NX");
+        const stored = await redis.set(`idem:${fingerprint}`, "1", "EX", this.ttlSeconds, "NX");
         if (stored === null) {
           throw new ConflictException("Duplicate idempotent request");
         }
-        return true;
+        return () => redis.del(`idem:${fingerprint}`).catch(() => undefined);
       } catch (error) {
         if (error instanceof ConflictException) throw error;
         // Redis unreachable — degrade to the in-memory fallback below.
@@ -72,6 +83,6 @@ export class IdempotencyGuard implements CanActivate {
       throw new ConflictException("Duplicate idempotent request");
     }
     this.seenKeys.add(fingerprint);
-    return true;
+    return async () => this.seenKeys.delete(fingerprint);
   }
 }

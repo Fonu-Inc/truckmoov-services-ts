@@ -68,7 +68,9 @@ describe("ComplianceReminderSweepService", () => {
 
   function build(docs: StoredComplianceDocument[], days = 7) {
     const repo = new FakeRepo(docs);
-    const service = new ComplianceReminderSweepService(repo, windowOf(days), bus as never);
+    const service = new ComplianceReminderSweepService(repo, windowOf(days), bus as never, {
+      persistence: { backend: "in-memory" },
+    } as never);
     return { repo, service };
   }
 

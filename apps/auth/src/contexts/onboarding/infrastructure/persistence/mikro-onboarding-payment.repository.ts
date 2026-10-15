@@ -102,6 +102,26 @@ export class MikroOnboardingPaymentRepository
     return record ? toStored(record) : null;
   }
 
+  async findPaidForApplication(applicationId: string): Promise<StoredOnboardingPayment | null> {
+    const em = await this.em();
+    const record = await em.findOne(OnboardingPaymentRecord, {
+      applicationId,
+      status: 'paid',
+      reference: { $not: { $like: 'RNW-%' } },
+    });
+    return record ? toStored(record) : null;
+  }
+
+  async findWalletRenewalAttempts(createdFrom: Date, createdBefore: Date): Promise<StoredOnboardingPayment[]> {
+    const em = await this.em();
+    const records = await em.find(OnboardingPaymentRecord, {
+      reference: { $like: 'RNW-W-%' },
+      status: { $in: ['pending', 'paid'] },
+      createdAt: { $gte: createdFrom, $lt: createdBefore },
+    });
+    return records.map(toStored);
+  }
+
   async findStaleRefundClaims(claimedBefore: Date, limit: number): Promise<StoredOnboardingPayment[]> {
     const em = await this.em();
     const records = await em.find(

@@ -21,9 +21,9 @@ export type CsvRowError = { line: number; message: string };
 // so a negative amount stays a number.
 const FORMULA_LEAD = /^[=+\-@\t\r]/;
 
-export function escapeCsvValue(value: string | number | null | undefined): string {
+export function escapeCsvValue(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return "";
-  if (typeof value === "number") return String(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
   const raw = value;
   const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -67,6 +67,24 @@ export function splitCsvLine(line: string): string[] {
   return values;
 }
 
+// A quoted value may span lines, so records are split on newlines outside quotes only.
+function splitCsvRecords(content: string): string[] {
+  const records: string[] = [];
+  let current = "";
+  let quoted = false;
+
+  for (const character of content) {
+    if (character === '"') quoted = !quoted;
+    if (character === "\n" && !quoted) {
+      records.push(current.replace(/\r$/, ""));
+      current = "";
+    } else current += character;
+  }
+
+  records.push(current);
+  return records.filter((record) => record.trim().length > 0);
+}
+
 export function buildCsvTemplate(columns: readonly CsvColumn[]): string {
   const headers = columns.map((column) => column.header);
   const example = columns.map((column) => column.example);
@@ -101,7 +119,7 @@ export function parseCsvRecords<T>(
   onMissingColumns: (missing: string[]) => Error,
   onEmpty: () => Error,
 ): CsvRecordParseResult<T> {
-  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const lines = splitCsvRecords(content);
   if (lines.length === 0) throw onEmpty();
 
   const headers = splitCsvLine(lines[0]).map(normalizeCsvHeader);

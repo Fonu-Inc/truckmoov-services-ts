@@ -13,6 +13,7 @@ import {
 import {
   DEFAULT_LOW_BALANCE_THRESHOLD_KOBO,
   walletCreditFloorKobo,
+  type WalletCreditSettings,
 } from './wallet-credit';
 
 const NOT_APPLIED: WalletMovementResult = {
@@ -35,6 +36,13 @@ export class InMemoryTenantWalletRepository implements TenantWalletRepository {
 
   async save(wallet: StoredTenantWallet): Promise<void> {
     this.store.set(wallet.tenantId, wallet);
+  }
+
+  async updateCreditSettings(tenantId: string, settings: WalletCreditSettings): Promise<StoredTenantWallet> {
+    const wallet = this.store.get(tenantId);
+    if (!wallet) throw new Error(`No wallet for ${tenantId}`);
+    Object.assign(wallet, settings, { updatedAt: new Date() });
+    return { ...wallet };
   }
 
   async findAll(): Promise<StoredTenantWallet[]> {

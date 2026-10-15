@@ -8,6 +8,7 @@ export const REDIS_CLIENT = Symbol("REDIS_CLIENT");
 // with a light mock and decoupled from the concrete ioredis type.
 export interface RedisLike {
   set(...args: any[]): Promise<unknown>;
+  del(...args: any[]): Promise<unknown>;
 }
 
 // Builds a lazily-connecting Redis client, or null when disabled. Commands

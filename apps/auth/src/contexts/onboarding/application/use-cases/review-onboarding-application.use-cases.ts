@@ -311,13 +311,7 @@ export class ReviewOnboardingApplicationDocumentUseCase {
       updatedAt: now,
     });
 
-    if (application.status === 'submitted') {
-      await this.applications.save({
-        ...application,
-        status: 'under_review',
-        updatedAt: now,
-      });
-    }
+    await this.applications.transitionStatus(application.id, ['submitted'], 'under_review', now);
 
     return {
       status: true,

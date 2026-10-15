@@ -16,6 +16,6 @@ export class VerifyResetUseCase {
   async execute(command: VerifyResetCommand) {
     const reset = await this.resetStore.findByToken(command.token);
     if (!reset || reset.expiresAt < new Date()) throw new InvalidResetTokenError();
-    return { valid: true, token: reset.token };
+    return { valid: true, token: command.token };
   }
 }

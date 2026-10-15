@@ -39,7 +39,8 @@ export class CreateSystemAdminUseCase {
       throw new ForbiddenError("Only the super admin can create admin accounts");
     }
 
-    const existing = await this.userRepo.findByEmail(command.email);
+    const email = command.email.trim().toLowerCase();
+    const existing = await this.userRepo.findByEmail(email);
     if (existing) {
       throw new EmailTakenError();
     }
@@ -55,7 +56,7 @@ export class CreateSystemAdminUseCase {
 
     await this.userRepo.save({
       id,
-      email: command.email.trim().toLowerCase(),
+      email,
       passwordHash,
       role: Role.SYSTEM_ADMIN,
       tenantId: SYSTEM_TENANT_ID,
@@ -70,7 +71,7 @@ export class CreateSystemAdminUseCase {
       message: "Admin account created successfully",
       user: {
         userId: id,
-        email: command.email.trim().toLowerCase(),
+        email,
         role: Role.SYSTEM_ADMIN,
         tenantId: SYSTEM_TENANT_ID,
         accountStatus: "enabled" as const,

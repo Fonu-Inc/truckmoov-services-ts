@@ -163,15 +163,12 @@ export class UpdateWalletCreditSettingsUseCase {
       }
     }
 
-    const wallet = await this.wallets.ensure(command.tenantId);
-    const updated: StoredTenantWallet = {
-      ...wallet,
+    await this.wallets.ensure(command.tenantId);
+    const updated = await this.wallets.updateCreditSettings(command.tenantId, {
       creditEnabled: command.creditEnabled,
       creditLimitKobo: command.creditLimitKobo ?? null,
       lowBalanceThresholdKobo: command.lowBalanceThresholdKobo,
-      updatedAt: new Date(),
-    };
-    await this.wallets.save(updated);
+    });
 
     // How far a tenant may go into debt is a commercial decision, so who
     // changed it and when has to survive.

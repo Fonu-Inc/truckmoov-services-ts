@@ -78,7 +78,6 @@ export class AppConfigService {
       // schedule, not a button: this is what actually fires it.
       maintenanceReminderSweepHours: this.config.get<number>("MAINTENANCE_REMINDER_SWEEP_HOURS", 24),
       defaultTenant: this.config.get("DEFAULT_TENANT", "default"),
-      reportIntervalHours: this.config.get<number>("REPORT_INTERVAL_HOURS", 24),
       alertEscalationMinutes: this.config.get<number>("ALERT_ESCALATION_MINUTES", 30),
       documentRetentionDays: this.config.get<number>("DOCUMENT_RETENTION_DAYS", 365),
       // 10 MB is the cap the requirements state for tenant-facing uploads.

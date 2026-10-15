@@ -24,11 +24,12 @@ export class InMemorySessionStore implements SessionStore {
     return session && !session.spent ? session.user : null;
   }
 
-  async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<void> {
+  async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<boolean> {
     const old = this.refreshToUser.get(oldToken);
-    const familyId = old?.familyId ?? randomUUID();
-    if (old) this.refreshToUser.set(oldToken, { ...old, spent: true });
-    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId, spent: false });
+    if (!old || old.spent) return false;
+    this.refreshToUser.set(oldToken, { ...old, spent: true });
+    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId: old.familyId, spent: false });
+    return true;
   }
 
   async isSpent(refreshToken: string): Promise<boolean> {

@@ -66,12 +66,13 @@ describe.skipIf(!dbEnabled)("sim monthly charge on real postgres", () => {
     const wallet = new MikroTenantWalletRepository(cfg);
     const chargeUsage = new ChargeUsageUseCase(
       new CommunicationRateService(rates),
-      { assertWithinLimit: async () => {} } as never,
+      { assertWithinLimit: async () => {}, recordSpend: async () => {} } as never,
       { afterDebit: async () => {} } as never,
       wallet,
       new EntitlementService(planRepo),
       planRepo,
       new MikroWalletLedgerRepository(cfg),
+      { findByTenantId: async () => null } as never,
     );
     return new SimRecurringChargeService(cfg, chargeUsage, sims, new MikroArrearsRepository(cfg));
   }

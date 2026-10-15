@@ -27,25 +27,3 @@ export function redactPrompt(prompt: string, protection: AiDataProtection): stri
 
   return output;
 }
-
-/**
- * Partially masks a name: first name and an initial.
- *
- * Kept partial on purpose. A matching prompt that refers to drivers as
- * "[driver]" cannot say which of them it means, so the answer comes back
- * useless; "Adebayo J." is enough to disambiguate and not enough to identify.
- */
-export function maskDriverName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
-}
-
-export function applyDriverNameRedaction(
-  names: string[],
-  protection: AiDataProtection,
-): string[] {
-  if (!protection.redactDriverNames) return names;
-  return names.map(maskDriverName);
-}

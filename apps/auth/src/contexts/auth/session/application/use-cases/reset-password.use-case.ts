@@ -30,7 +30,7 @@ export class ResetPasswordUseCase {
 
     const passwordHash = await this.passwordHasher.hash(command.newPassword);
     await this.userRepo.updatePassword(reset.userId, passwordHash);
-    await this.resetStore.markUsed(command.token);
+    await this.resetStore.markUsedForUser(reset.userId);
 
     await this.sessionStore.deleteAllForUser(reset.userId);
 

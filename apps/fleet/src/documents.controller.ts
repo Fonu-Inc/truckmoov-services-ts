@@ -76,14 +76,12 @@ export class DocumentsController extends BaseFleetController {
   @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
   @ApiQuery({ name: "entityId", required: true, type: String })
   @ApiQuery({ name: "docType", required: true, enum: ["pod", "invoice", "permit", "other"] })
-  @ApiQuery({ name: "uploadedBy", required: false, type: String, description: "Actor id credited with the upload; defaults to the authenticated user." })
   @ApiCreatedResponse({ type: DocumentResponse })
   async uploadDocument(
     @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     @Query("entityType") entityType: string,
     @Query("entityId") entityId: string,
     @Query("docType") docType: string,
-    @Query("uploadedBy") uploadedBy = "system",
     @Req() req: FleetRequestContext,
   ): Promise<DocumentResponse> {
     const validEntityTypes: EntityType[] = ["job", "vehicle", "driver"];
@@ -102,7 +100,7 @@ export class DocumentsController extends BaseFleetController {
         filename: file.originalname,
         contentType: file.mimetype,
         buffer: file.buffer,
-        uploadedBy: uploadedBy === "system" ? req.user?.userId ?? "system" : uploadedBy,
+        uploadedBy: req.user?.userId ?? "system",
       });
     } catch (error) {
       if (error instanceof StorageQuotaExceededError) {
@@ -154,17 +152,15 @@ export class DocumentsController extends BaseFleetController {
   @Get(":id/download-url")
   @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
   @ApiOperation({ summary: "Get secure download URL — J02" })
-  @ApiQuery({ name: "userId", required: false, type: String, description: "Actor id requesting the download; defaults to the authenticated user." })
   @ApiOkResponse({ type: DownloadUrlResponse })
   async getDocumentDownloadUrl(
     @Param("id") id: string,
-    @Query("userId") userId = "system",
     @Req() req: FleetRequestContext,
   ): Promise<DownloadUrlResponse> {
     const result = await this.getDownloadUrlUseCase.execute(
       this.tenantIdFromRequest(req),
       id,
-      userId == "system" ? req.user?.userId ?? "system" : userId,
+      req.user?.userId ?? "system",
       req.ip ?? "unknown",
     );
     return { status: true, message: "success", data: result } as unknown as DownloadUrlResponse;

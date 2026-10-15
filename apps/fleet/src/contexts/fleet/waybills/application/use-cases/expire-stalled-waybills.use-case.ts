@@ -30,19 +30,19 @@ export class ExpireStalledWaybillsUseCase {
       now.getTime() - this.config.fleet.waybillExtractionStallMinutes * 60_000,
     );
 
-    const stalled = await this.waybills.findPendingCapturedBefore(cutoff, SWEEP_BATCH_SIZE);
-    for (const waybill of stalled) {
-      await this.waybills.save(
-        waybill.failExtraction(
-          "Extraction did not run in time. Enter the fields by hand.",
-          now.toISOString(),
-        ),
+    const candidates = await this.waybills.findPendingCapturedBefore(cutoff, SWEEP_BATCH_SIZE);
+    let stalled = 0;
+    for (const waybill of candidates) {
+      const failed = waybill.failExtraction(
+        "Extraction did not run in time. Enter the fields by hand.",
+        now.toISOString(),
       );
+      if (await this.waybills.failExtractionIfPending(failed)) stalled += 1;
     }
 
-    if (stalled.length > 0) {
-      this.logger.warn(`waybill_extraction_stalled:${stalled.length}`);
+    if (stalled > 0) {
+      this.logger.warn(`waybill_extraction_stalled:${stalled}`);
     }
-    return { stalled: stalled.length };
+    return { stalled };
   }
 }

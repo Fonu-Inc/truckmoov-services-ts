@@ -3,11 +3,12 @@ import { AUTH_NOTIFIER, type AuthNotifier } from "@auth/session/domain/ports/aut
 import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
 import { PASSWORD_RESET_STORE, type PasswordResetStore } from "../../domain/ports/password-reset-store.port";
-import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 
 export type ForgotPasswordCommand = {
   identifier: string;
 };
+
+const SENT = "If an account uses that email, a password reset link is on its way.";
 
 @Injectable()
 export class ForgotPasswordUseCase {
@@ -22,9 +23,10 @@ export class ForgotPasswordUseCase {
     private readonly idGenerator: IdGenerator,
   ) {}
 
+  // Same answer for a known and an unknown address, so this cannot enumerate accounts.
   async execute(command: ForgotPasswordCommand) {
     const user = await this.userRepo.findByEmail(command.identifier);
-    if (!user) throw new UserNotFoundError();
+    if (!user) return { message: SENT, user: null };
 
     const token = this.idGenerator.generate();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -47,10 +49,8 @@ export class ForgotPasswordUseCase {
     });
 
     return {
-      message: "Password reset link sent to your email",
-      userId: user.id,
-      tenantId: user.tenantId,
-      email: user.email,
+      message: SENT,
+      user: { id: user.id, tenantId: user.tenantId, email: user.email },
     };
   }
 }

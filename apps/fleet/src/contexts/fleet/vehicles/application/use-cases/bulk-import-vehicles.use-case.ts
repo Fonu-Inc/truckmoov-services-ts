@@ -1,12 +1,15 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { FleetAssetStatus } from "@fleet/shared/domain/fleet-status";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
+import { QuotaService } from "../../../../../quota.service";
+import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import { Vehicle, type FleetVehicleType, type FleetFuelType } from "../../domain/entities/vehicle.entity";
 import type { VehicleCapacityUnit } from "../../domain/vehicle-capacity";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
 } from "../../domain/repositories/vehicle.repository";
+import { assertRoomForActiveVehicles } from "./create-vehicle.use-case";
 
 export type BulkImportVehicleItem = {
   plateNumber?: string;
@@ -37,18 +40,25 @@ export class BulkImportVehiclesUseCase {
     private readonly vehicleRepository: VehicleRepository,
     @Inject(FLEET_RUNTIME)
     private readonly runtime: FleetRuntime,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
   ) {}
 
   async execute(command: BulkImportVehiclesCommand) {
     let created = 0;
     let updated = 0;
     const records: ReturnType<Vehicle["toPrimitives"]>[] = [];
+    const tenantId = (command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
+    const rows = await this.matchExisting(command.items, tenantId);
 
-    for (const item of command.items) {
-      const tenantId = (command.tenantId ?? this.runtime.getDefaultTenantId()).trim();
-      const plateNumber = item.registrationNumber ?? item.plateNumber ?? "";
-      const existingVehicle = await this.vehicleRepository.findByPlateNumber(plateNumber, tenantId);
+    // Whole file refused, as with devices: a partial import leaves a spreadsheet to reconcile.
+    const activations = rows.filter(
+      ({ item, existingVehicle }) =>
+        (item.status ?? existingVehicle?.status ?? "active") === "active" && existingVehicle?.status !== "active",
+    ).length;
+    await assertRoomForActiveVehicles(this.vehicleRepository, this.quotaService, tenantId, activations);
 
+    for (const { item, plateNumber, existingVehicle } of rows) {
       if (existingVehicle) {
         const updatedVehicle = existingVehicle.update({
           plateNumber,
@@ -97,5 +107,21 @@ export class BulkImportVehiclesUseCase {
       total: records.length,
       records,
     };
+  }
+
+  private async matchExisting(items: BulkImportVehicleItem[], tenantId: string) {
+    const seen = new Set<string>();
+    const rows = [];
+    for (const item of items) {
+      const plateNumber = item.registrationNumber ?? item.plateNumber ?? "";
+      const key = plateNumber.trim().toUpperCase();
+      if (key && seen.has(key)) {
+        throw new FleetRuleError(`plate ${key} appears more than once in the file`);
+      }
+      seen.add(key);
+      const existingVehicle = await this.vehicleRepository.findByPlateNumber(plateNumber, tenantId);
+      rows.push({ item, plateNumber, existingVehicle });
+    }
+    return rows;
   }
 }

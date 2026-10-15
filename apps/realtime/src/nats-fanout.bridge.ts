@@ -26,10 +26,10 @@ const FORWARDED_SUBJECTS = [
   'tm.*.vehicle.location.updated',
   'tm.*.tracking.counts',
   'tm.*.alert.triggered',
-  'tm.*.vehicle.geofence.entered',
-  'tm.*.vehicle.geofence.exited',
-  'tm.*.vehicle.geofence.dwelled',
 ] as const;
+
+const SUSPENDED_EVENT = 'tenant.suspended';
+const REINSTATED_EVENT = 'tenant.reinstated';
 
 /** Forwarded as a batched frame, not per message. */
 const COALESCED_SUBJECT_EVENT = 'vehicle.location.updated';
@@ -70,6 +70,7 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
       this.logger.error(
         `nats_fanout_connect_failed:${error instanceof Error ? error.message : 'unknown'}`,
       );
+      throw error;
     }
   }
 
@@ -99,6 +100,8 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     // rebuilt client-side from the event, so a tenant never sees another
     // tenant's identifier even in a routing field.
     this.gateway.emitToTenant(tenantId, event, data?.data ?? {});
+    if (event === SUSPENDED_EVENT) this.gateway.disconnectTenant(tenantId);
+    if (event === REINSTATED_EVENT) this.gateway.reinstateTenant(tenantId);
   }
 
   /**

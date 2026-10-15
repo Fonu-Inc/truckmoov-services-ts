@@ -19,7 +19,10 @@ import { NatsJetStreamEventBus } from "./nats-jetstream.eventbus";
             user: configService.get<string>("NATS_USER"),
             password: configService.get<string>("NATS_PASSWORD"),
           },
-          { signingSecret: configService.get<string>("EVENT_SIGNING_SECRET") },
+          {
+            signingSecret: configService.get<string>("EVENT_SIGNING_SECRET"),
+            optional: configService.get<string>("NODE_ENV") !== "production",
+          },
         );
       },
     },

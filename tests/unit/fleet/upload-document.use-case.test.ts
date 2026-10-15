@@ -58,4 +58,21 @@ describe("UploadDocumentUseCase", () => {
     expect(diffDays).toBeGreaterThanOrEqual(29);
     expect(diffDays).toBeLessThanOrEqual(31);
   });
+
+  it("releases the reserved bytes when the write to storage fails", async () => {
+    const reporter = { recordUpload: vi.fn(async () => {}), recordDeletion: vi.fn(async () => {}) };
+    const config = { fleet: { documentRetentionDays: 30, documentMaxBytes: 1024, documentScanRequired: false } } as AppConfigService;
+    const storage = { putObject: vi.fn().mockRejectedValue(new Error("s3 down")) };
+    const uc = new UploadDocumentUseCase(
+      new InMemoryDocumentRepository(),
+      new InMemoryAccessLogRepository(),
+      storage as never,
+      config,
+      { scan: async () => ({ scanned: false, clean: false }) },
+      reporter as never,
+    );
+
+    await expect(uc.execute(baseCmd)).rejects.toThrow("s3 down");
+    expect(reporter.recordDeletion).toHaveBeenCalledWith("t1", baseCmd.buffer.byteLength);
+  });
 });

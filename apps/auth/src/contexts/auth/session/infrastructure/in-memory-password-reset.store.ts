@@ -21,8 +21,9 @@ export class InMemoryPasswordResetStore implements PasswordResetStore {
     return null;
   }
 
-  async markUsed(token: string): Promise<void> {
-    const r = this.store.get(token);
-    if (r) this.store.set(token, { ...r, used: true });
+  async markUsedForUser(userId: string): Promise<void> {
+    for (const [token, r] of this.store) {
+      if (r.userId === userId) this.store.set(token, { ...r, used: true });
+    }
   }
 }

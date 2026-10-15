@@ -70,6 +70,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new JsonLogger("auth-service"),
   });
+  app.enableShutdownHooks();
 
   const cfg = app.get(AppConfigService);
   new JsonLogger("auth-service").log("jwt_key_id", { keyId: cfg.auth.jwtKeyId });

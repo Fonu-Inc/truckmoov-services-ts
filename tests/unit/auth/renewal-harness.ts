@@ -32,6 +32,7 @@ import {
 import { EnforcementAudit } from "../../../apps/auth/src/enforcement-audit";
 import { EnforcementNoticeService } from "../../../apps/auth/src/enforcement-notice.service";
 import { InMemoryTenantWalletRepository } from "../../../apps/auth/src/in-memory-tenant-wallet.repository";
+import { InMemoryWalletLedgerRepository } from "../../../apps/auth/src/in-memory-wallet-ledger.repository";
 import { PaymentEventService } from "../../../apps/auth/src/payment-event.service";
 import { RenewalAudit } from "../../../apps/auth/src/renewal-audit";
 import { InMemoryInvoiceNumberRepository } from "../../../apps/auth/src/in-memory-invoice-number.repository";
@@ -101,7 +102,7 @@ export async function buildRenewals(start = "2026-10-01T09:00:00+01:00") {
     })),
     verifyCallbackSignature: () => true, parseCallback: () => null,
   };
-  const payWallet = new PayRenewalFromWalletUseCase(invoices, payments, wallet, settle, settings, idGenerator);
+  const payWallet = new PayRenewalFromWalletUseCase(invoices, payments, wallet, settle, settings, idGenerator, new InMemoryWalletLedgerRepository(wallet));
   const payCard = new PayRenewalByCardUseCase(invoices, payments, gateway as never, idGenerator);
   const fieldActivity = new InMemoryTenantFieldActivityReader();
   const tenantViews = {

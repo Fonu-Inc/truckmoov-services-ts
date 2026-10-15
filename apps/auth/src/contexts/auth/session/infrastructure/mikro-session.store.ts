@@ -18,7 +18,7 @@ import {
  * out sessions. Rows from before hashing are still found by their plain value
  * until they are rotated away.
  */
-function hashed(refreshToken: string): string {
+export function hashed(refreshToken: string): string {
   return `sha256:${createHash("sha256").update(refreshToken).digest("hex")}`;
 }
 
@@ -60,13 +60,18 @@ export class MikroSessionStore implements SessionStore {
     return record && !record.spentAt ? this.toDomain(record) : null;
   }
 
-  async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<void> {
+  async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<boolean> {
     const old = await this.find(oldToken);
-    const familyId = old?.familyId ?? randomUUID();
-    if (old) {
-      await (await this.em()).nativeUpdate(AuthSessionRecord, { refreshToken: old.refreshToken }, { spentAt: new Date(), familyId });
-    }
+    if (!old) return false;
+    const familyId = old.familyId ?? randomUUID();
+    const spent = await (await this.em()).nativeUpdate(
+      AuthSessionRecord,
+      { refreshToken: old.refreshToken, spentAt: null },
+      { spentAt: new Date(), familyId },
+    );
+    if (!spent) return false;
     await this.write(newToken, user, familyId);
+    return true;
   }
 
   async isSpent(refreshToken: string): Promise<boolean> {

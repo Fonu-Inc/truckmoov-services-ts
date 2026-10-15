@@ -44,12 +44,8 @@ export class DeviceVerificationListener implements OnApplicationBootstrap, OnApp
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    try {
-      this.unsub = await this.bus.subscribe(DEVICE_VERIFICATION_SUBJECT, (envelope) => this.handle(envelope), 'installer_notifications');
-      this.logger.log('Device verification listener active');
-    } catch (error) {
-      this.logger.warn(`device_verification_subscribe_failed:${(error as Error).message}`);
-    }
+    this.unsub = await this.bus.subscribe(DEVICE_VERIFICATION_SUBJECT, (envelope) => this.handle(envelope), 'installer_notifications');
+    this.logger.log('Device verification listener active');
   }
 
   async onApplicationShutdown(): Promise<void> {

@@ -50,8 +50,7 @@ export const CALLER_AUDIENCE = Symbol("CALLER_AUDIENCE");
 export const REFUSAL_REPORTER = Symbol("REFUSAL_REPORTER");
 export const PORTAL_ENFORCEMENT = Symbol("PORTAL_ENFORCEMENT");
 
+/** Express resolves req.ip through the configured trust proxy; raw X-Forwarded-For is caller-controlled. */
 export function clientIp(req: RequestLike): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  return first || req.ip || "";
+  return req.ip || "";
 }

@@ -33,6 +33,8 @@ export type WalletMovementResult = {
 export interface TenantWalletRepository {
   findByTenantId(tenantId: string): Promise<StoredTenantWallet | null>;
   save(wallet: StoredTenantWallet): Promise<void>;
+  /** Writes only the credit settings, so a concurrent debit or credit to the balance is never overwritten. */
+  updateCreditSettings(tenantId: string, settings: WalletCreditSettings): Promise<StoredTenantWallet>;
   /**
    * Atomically debit the wallet iff the current balance covers `amountKobo`,
    * and write the matching ledger entry under the same lock.

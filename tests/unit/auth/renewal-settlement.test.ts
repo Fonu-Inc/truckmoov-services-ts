@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BillingNotFoundError } from "@auth/onboarding/domain/billing-errors";
 import {
   RenewalAmountTooLargeError,
@@ -215,6 +215,43 @@ describe("paying from the wallet", () => {
     const retry = await h.payWallet.execute(TENANT, invoice.id);
     expect(retry.data.invoice.status).toBe("paid");
     expect((await h.wallet.findByTenantId(TENANT))?.balanceKobo).toBe(0);
+  });
+
+  it("the sweep settles a wallet renewal whose debit landed but whose settlement and refund both failed", async () => {
+    const h = await buildRenewals();
+    const { invoice } = await issued(h);
+    await fund(h, 3_000_000);
+    const real = h.periods.settleRenewalPayment.bind(h.periods);
+    h.periods.settleRenewalPayment = async () => { throw new Error("db down"); };
+    vi.spyOn(h.wallet, "credit").mockRejectedValueOnce(new Error("wallet down"));
+    await expect(h.payWallet.execute(TENANT, invoice.id, h.clock.now)).rejects.toThrow("db down");
+    h.periods.settleRenewalPayment = real;
+
+    expect(await h.payWallet.recoverStale(h.clock.now)).toBe(0);
+    expect(await h.payWallet.recoverStale(new Date(h.clock.now.getTime() + 60 * 60 * 1000))).toBe(1);
+
+    expect(await h.invoices.findById(invoice.id)).toMatchObject({ status: "paid" });
+    expect((await h.wallet.findByTenantId(TENANT))?.balanceKobo).toBe(0);
+    expect(h.wallet.ledger.filter((e) => e.direction === "debit")).toHaveLength(1);
+  });
+
+  it("the sweep refunds a stuck wallet debit once when a card paid the invoice meanwhile", async () => {
+    const h = await buildRenewals();
+    const { invoice } = await issued(h);
+    await fund(h, 3_000_000);
+    vi.spyOn(h.payments, "settlePending").mockRejectedValueOnce(new Error("db down"));
+    await expect(h.payWallet.execute(TENANT, invoice.id, h.clock.now)).rejects.toThrow("db down");
+    expect((await h.wallet.findByTenantId(TENANT))?.balanceKobo).toBe(0);
+    await h.gatewayPayment("RNW-1", invoice.id, invoice.totalKobo);
+    await gatewaySettle(h, "RNW-1", invoice.totalKobo);
+
+    const later = new Date(h.clock.now.getTime() + 60 * 60 * 1000);
+    expect(await h.payWallet.recoverStale(later)).toBe(1);
+    expect(await h.payWallet.recoverStale(later)).toBe(0);
+
+    expect((await h.wallet.findByTenantId(TENANT))?.balanceKobo).toBe(3_000_000);
+    expect(h.wallet.ledger.filter((e) => e.direction === "credit" && e.category === "refund")).toHaveLength(1);
+    expect(await h.invoices.findById(invoice.id)).toMatchObject({ status: "paid" });
   });
 
   it("does not find another tenant's invoice", async () => {

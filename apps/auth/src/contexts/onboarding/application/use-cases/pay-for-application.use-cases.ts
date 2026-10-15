@@ -185,10 +185,7 @@ export class CreateApplicationPaymentUseCase {
       application,
     );
 
-    const existing = await this.payments.findLatestForApplication(
-      application.id,
-    );
-    if (existing?.status === 'paid') {
+    if (await this.payments.findPaidForApplication(application.id)) {
       throw new ApplicationNotPayableError('This application is already paid');
     }
 
@@ -347,6 +344,13 @@ export class ConfirmApplicationPaymentUseCase {
       return;
     }
 
+    // A paid row with an order summary was charged for the whole order, so anything after it is a duplicate.
+    const earlier = await this.payments.findPaidForApplication(payment.applicationId);
+    if (earlier?.orderSummary) {
+      await this.recordMismatch(payment, paid, earlier.reference);
+      return;
+    }
+
     if (payment.refundPendingAt) {
       await this.payments.flagForReview(payment.id, 'review: charge succeeded during refund');
       this.logger.error(`onboarding_payment_settle_skipped_refund_in_flight:${reference}`);
@@ -367,6 +371,7 @@ export class ConfirmApplicationPaymentUseCase {
   private async recordMismatch(
     payment: StoredOnboardingPayment,
     paid?: PaidAmount,
+    duplicateOf?: string,
   ): Promise<void> {
     const settled = await this.payments.settlePending(payment.id, 'mismatch', null, {
       method: methodFromChannel(paid?.channel),
@@ -376,16 +381,21 @@ export class ConfirmApplicationPaymentUseCase {
     });
     if (!settled) return;
     this.logger.error(
-      `onboarding_payment_mismatch:${payment.reference}:expected=${payment.amountKobo}:paid=${paid?.amountKobo ?? 'unknown'}:${paid?.currency ?? 'unknown'}`,
+      `onboarding_payment_mismatch:${payment.reference}:expected=${payment.amountKobo}:paid=${paid?.amountKobo ?? 'unknown'}:${paid?.currency ?? 'unknown'}:duplicate_of=${duplicateOf ?? 'none'}`,
     );
     await this.alerts.raise({
       alertType: 'billing_alerts',
       severity: 'high',
-      subject: `Onboarding payment amount mismatch (${payment.reference})`,
-      body: `Expected ${formatKobo(payment.amountKobo, 'NGN')} but the provider reported ${formatKobo(paid?.amountKobo ?? null, paid?.currency)}. The applicant is waiting at the payment step. Review the payment on the application page.`,
+      subject: duplicateOf
+        ? `Duplicate onboarding payment (${payment.reference})`
+        : `Onboarding payment amount mismatch (${payment.reference})`,
+      body: duplicateOf
+        ? `The application was already paid by ${duplicateOf}, so this second payment of ${formatKobo(paid?.amountKobo ?? null, paid?.currency)} was not accepted. Review it for a refund on the application page.`
+        : `Expected ${formatKobo(payment.amountKobo, 'NGN')} but the provider reported ${formatKobo(paid?.amountKobo ?? null, paid?.currency)}. The applicant is waiting at the payment step. Review the payment on the application page.`,
       context: {
         applicationId: payment.applicationId,
         reference: payment.reference,
+        duplicateOf: duplicateOf ?? null,
         expectedKobo: payment.amountKobo,
         paidKobo: paid?.amountKobo ?? null,
         currency: paid?.currency ?? null,

@@ -118,7 +118,7 @@ describe("Share link lifecycle", () => {
       const { links, service } = build();
       await seed(links, { id: `l-${status}`, jobId: "job-1", expiresAt: future() });
 
-      expect(await service.revokeIfJobEnded({ jobId: "job-1", newStatus: status })).toBe(1);
+      expect(await service.revokeIfJobEnded({ job_id: "job-1", new_status: status })).toBe(1);
       expect(await links.findActiveForVehicle("tenant-a", "v1")).toBeNull();
     }
   });
@@ -127,13 +127,13 @@ describe("Share link lifecycle", () => {
     const { links, service } = build();
     await seed(links, { id: "l1", jobId: "job-1", expiresAt: future() });
 
-    expect(await service.revokeIfJobEnded({ jobId: "job-1", newStatus: "en-route" })).toBe(0);
+    expect(await service.revokeIfJobEnded({ job_id: "job-1", new_status: "en-route" })).toBe(0);
     expect(await links.findActiveForVehicle("tenant-a", "v1")).not.toBeNull();
   });
 
   it("ignores an event with no job", async () => {
     const { service } = build();
-    expect(await service.revokeIfJobEnded({ newStatus: "delivered" })).toBe(0);
+    expect(await service.revokeIfJobEnded({ new_status: "delivered" })).toBe(0);
   });
 
   // A job that is never marked delivered would otherwise leave its row behind

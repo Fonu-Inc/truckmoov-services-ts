@@ -66,7 +66,7 @@ async function setup(opts: { plan?: StoredSubscriptionPlan; planCode?: string } 
     {} as never,
     gateway as never,
   );
-  return { intent, onboardings, gateway, activate: new ActivateSubscriptionUseCase(onboardings) };
+  return { intent, onboardings, gateway, activate: new ActivateSubscriptionUseCase(onboardings, { raise: async () => {} } as never) };
 }
 
 const pay = (billingCycle: "monthly" | "yearly" = "monthly", planCode = "professional") =>

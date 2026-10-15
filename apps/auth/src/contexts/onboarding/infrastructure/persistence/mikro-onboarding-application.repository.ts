@@ -12,6 +12,7 @@ import {
 import type {
   OnboardingApplicationQueueFilters,
   OnboardingApplicationRepository,
+  OnboardingApplicationStatus,
   OnboardingVerificationChannel,
   StoredOnboardingApplication,
   StoredOnboardingApplicationDocument,
@@ -198,6 +199,21 @@ export class MikroOnboardingApplicationRepository
       [error.slice(0, 500), id],
     );
     return rows[0]?.notice_attempts ?? 0;
+  }
+
+  async transitionStatus(
+    id: string,
+    from: readonly OnboardingApplicationStatus[],
+    to: OnboardingApplicationStatus,
+    at: Date,
+  ): Promise<boolean> {
+    const rows = await this.run<{ id: string }>(
+      `update onboarding_applications set status = ?, updated_at = ?
+       where id = ? and status in (${from.map(() => '?').join(', ')})
+       returning id`,
+      [to, at, id, ...from],
+    );
+    return rows.length === 1;
   }
 
   async replaceTokenHash(id: string, tokenHash: string): Promise<void> {

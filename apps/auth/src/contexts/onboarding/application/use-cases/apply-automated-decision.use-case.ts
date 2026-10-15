@@ -71,18 +71,19 @@ export class ApplyAutomatedDecisionUseCase {
     application: StoredOnboardingApplication,
     reason: string,
   ): Promise<void> {
-    const current = await this.applications.findById(application.id);
+    const now = new Date();
     // A decision may already have landed by another route while the checks
     // ran; only a still-submitted application is moved into the queue.
-    if (!current || current.status !== 'submitted') return;
+    if (!(await this.applications.transitionStatus(application.id, ['submitted'], 'under_review', now))) return;
 
+    const current = await this.applications.findById(application.id);
+    if (!current) return;
     await this.applications.save({
       ...current,
-      status: 'under_review',
       // Held on the application so the queue can show why a person is needed,
       // without a reviewer having to open the verification results first.
       decisionReason: reason,
-      updatedAt: new Date(),
+      updatedAt: now,
     });
   }
 }

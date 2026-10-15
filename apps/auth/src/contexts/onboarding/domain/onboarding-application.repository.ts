@@ -297,6 +297,13 @@ export interface OnboardingApplicationRepository {
   completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void>;
   /** The mail was not accepted: keeps why and counts the attempt; returns the attempts so far. */
   recordPaymentNoticeFailure(id: string, error: string): Promise<number>;
+  /** Moves the status only while it is still one of `from`; false when another writer moved it first. */
+  transitionStatus(
+    id: string,
+    from: readonly OnboardingApplicationStatus[],
+    to: OnboardingApplicationStatus,
+    at: Date,
+  ): Promise<boolean>;
   /** Replaces the applicant token alone, leaving every other field as it is. */
   replaceTokenHash(id: string, tokenHash: string): Promise<void>;
   /** Removes the application and everything filed against it. */

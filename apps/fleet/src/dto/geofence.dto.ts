@@ -6,16 +6,6 @@ import type { GeofenceZoneStatus } from "../geofence-zone.repository";
 const GEOFENCE_STATUSES: GeofenceZoneStatus[] = ["ACTIVE", "ARCHIVED"];
 const GEOFENCE_SHAPES = ["CIRCLE", "POLYGON"] as const;
 
-class LatLngDto {
-  @ApiProperty({ description: "Latitude in decimal degrees" })
-  @IsNumber()
-  lat!: number;
-
-  @ApiProperty({ description: "Longitude in decimal degrees" })
-  @IsNumber()
-  lng!: number;
-}
-
 class GeofenceCenterDto {
   @ApiProperty()
   @IsNumber()
@@ -64,28 +54,6 @@ class GeofenceScheduleDto {
   @IsOptional()
   @IsString()
   endTime?: string | null;
-}
-
-export class SetGeofenceDto {
-  @ApiProperty({ type: LatLngDto })
-  @ValidateNested()
-  @Type(() => LatLngDto)
-  northeast!: LatLngDto;
-
-  @ApiProperty({ type: LatLngDto })
-  @ValidateNested()
-  @Type(() => LatLngDto)
-  southwest!: LatLngDto;
-}
-
-export class LocationUpdateDto {
-  @ApiProperty({ description: "Decimal latitude" })
-  @IsNumber()
-  lat!: number;
-
-  @ApiProperty({ description: "Decimal longitude" })
-  @IsNumber()
-  lng!: number;
 }
 
 export class CreateGeofenceZoneDto {

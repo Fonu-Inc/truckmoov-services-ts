@@ -12,12 +12,7 @@ import {
   InvalidAiSettingsError,
   UpdateAiGovernanceUseCase,
 } from '../../../apps/auth/src/ai-governance.use-cases';
-import { maskDriverName, redactPrompt } from '../../../apps/auth/src/ai-redaction';
-import {
-  buildMatchingPrompt,
-  parseMatchingResponse,
-  type MatchCandidate,
-} from '../../../apps/auth/src/ai-matching';
+import { redactPrompt } from '../../../apps/auth/src/ai-redaction';
 
 const TOKEN = 'system-token';
 
@@ -234,119 +229,5 @@ describe('Prompt redaction', () => {
     expect(redactPrompt('call 08012345678 about LAG-234-XY', off)).toBe(
       'call 08012345678 about LAG-234-XY',
     );
-  });
-
-  // A prompt that calls every driver "[driver]" cannot say which one it means,
-  // so the answer comes back useless.
-  it('masks a driver name partially, not completely', () => {
-    expect(maskDriverName('Adebayo Johnson')).toBe('Adebayo J.');
-    expect(maskDriverName('Ada')).toBe('Ada');
-    expect(maskDriverName('  ')).toBe('');
-  });
-});
-
-describe('Load matching', () => {
-  const candidates: MatchCandidate[] = [
-    {
-      vehicleId: 'veh-1',
-      registrationNumber: 'LAG-234-XY',
-      make: 'Mercedes',
-      model: 'Actros',
-      capacity: 30,
-      capacityUnit: 'tons',
-      driverId: 'drv-1',
-      driverName: 'Adebayo Johnson',
-      currentRegion: 'Lagos',
-      status: 'active',
-    },
-    {
-      vehicleId: 'veh-2',
-      registrationNumber: 'LAG-567-AB',
-      make: 'MAN',
-      model: 'TGS',
-      capacity: 20,
-      capacityUnit: 'tons',
-      driverId: null,
-      driverName: null,
-      currentRegion: 'Ibadan',
-      status: 'idle',
-    },
-  ];
-
-  const load = {
-    jobReference: 'JOB-2481',
-    pickupAddress: 'Apapa Port',
-    dropoffAddress: 'Victoria Island',
-    weightKg: 18000,
-    requiredVehicleType: 'truck',
-    deadline: null,
-  };
-
-  const protection = {
-    redactPhoneNumbers: true,
-    redactDriverNames: true,
-    redactVehiclePlates: false,
-    storePromptsAndResponses: false,
-  };
-
-  it('numbers candidates rather than naming them', () => {
-    const prompt = buildMatchingPrompt(load, candidates, protection);
-    expect(prompt).toContain('1. Mercedes Actros');
-    expect(prompt).toContain('2. MAN TGS');
-    // The identifier never leaves, so a hallucinated one cannot come back.
-    expect(prompt).not.toContain('veh-1');
-  });
-
-  it('honours driver-name redaction in the prompt', () => {
-    expect(buildMatchingPrompt(load, candidates, protection)).toContain('driver Adebayo J.');
-  });
-
-  it('resolves an index back to a vehicle and its driver', () => {
-    const suggestions = parseMatchingResponse(
-      '{"suggestions":[{"candidate":1,"score":88,"reason":"Closest and big enough"}]}',
-      candidates,
-    );
-    expect(suggestions).toEqual([
-      { vehicleId: 'veh-1', driverId: 'drv-1', score: 88, reason: 'Closest and big enough' },
-    ]);
-  });
-
-  it('reads JSON out of a reply wrapped in prose', () => {
-    const suggestions = parseMatchingResponse(
-      'Sure! ```json\n{"suggestions":[{"candidate":2,"score":50,"reason":"Available"}]}\n```',
-      candidates,
-    );
-    expect(suggestions).toHaveLength(1);
-    expect(suggestions[0].vehicleId).toBe('veh-2');
-  });
-
-  // A suggestion is something a dispatcher acts on, so a fabricated one is
-  // worse than a missing one.
-  it('drops a candidate the model invented', () => {
-    expect(
-      parseMatchingResponse('{"suggestions":[{"candidate":9,"score":99,"reason":"x"}]}', candidates),
-    ).toEqual([]);
-  });
-
-  it('drops a repeated candidate and clamps a silly score', () => {
-    const suggestions = parseMatchingResponse(
-      '{"suggestions":[{"candidate":1,"score":500,"reason":"a"},{"candidate":1,"score":10,"reason":"b"}]}',
-      candidates,
-    );
-    expect(suggestions).toHaveLength(1);
-    expect(suggestions[0].score).toBe(100);
-  });
-
-  it('returns nothing for an unparseable reply', () => {
-    expect(parseMatchingResponse('I cannot help with that', candidates)).toEqual([]);
-    expect(parseMatchingResponse('{broken', candidates)).toEqual([]);
-  });
-
-  it('ranks best first and keeps at most three', () => {
-    const many = parseMatchingResponse(
-      '{"suggestions":[{"candidate":2,"score":40,"reason":"b"},{"candidate":1,"score":90,"reason":"a"}]}',
-      candidates,
-    );
-    expect(many.map((suggestion) => suggestion.score)).toEqual([90, 40]);
   });
 });

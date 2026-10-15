@@ -1,6 +1,15 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+  type OnApplicationShutdown,
+} from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
+import { runIfLockFree } from "@shared/db";
 import { MailerService } from "@shared/mailer";
+import { sweepSafely } from "@shared/observability";
+import { getFleetOrm } from "./contexts/fleet/shared/infrastructure/persistence/fleet-orm";
 import {
   MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY,
   type MaintenanceReminderSchedule,
@@ -13,6 +22,9 @@ import {
 } from "./maintenance-record.repository";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAINTENANCE_REMINDER_LOCK_ID = 8_246_113_070_041;
+/** Slack for timer drift, so a replica's own next run is never mistaken for a repeat. */
+const RERUN_TOLERANCE_MS = 60_000;
 
 export type MaintenanceReminderDue = {
   vehicleId: string;
@@ -24,9 +36,10 @@ export type MaintenanceReminderDue = {
 };
 
 @Injectable()
-export class MaintenanceReminderService implements OnApplicationBootstrap {
+export class MaintenanceReminderService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(MaintenanceReminderService.name);
   private readonly sweepIntervalMs: number;
+  private timer: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(MAINTENANCE_REMINDER_SCHEDULE_REPOSITORY)
@@ -34,15 +47,22 @@ export class MaintenanceReminderService implements OnApplicationBootstrap {
     @Inject(MAINTENANCE_RECORD_REPOSITORY)
     private readonly records: MaintenanceRecordRepository,
     @Inject(MailerService) private readonly mailer: MailerService,
-    @Inject(AppConfigService) config: AppConfigService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {
     this.sweepIntervalMs = config.fleet.maintenanceReminderSweepHours * 3_600_000;
   }
 
   onApplicationBootstrap(): void {
-    setInterval(() => {
-      void this.sweep();
-    }, this.sweepIntervalMs);
+    this.timer = setInterval(
+      () => sweepSafely(this.logger, "maintenance_reminder", () => this.sweep()),
+      this.sweepIntervalMs,
+    );
+    this.timer.unref?.();
+  }
+
+  onApplicationShutdown(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
   }
 
   /**
@@ -52,6 +72,12 @@ export class MaintenanceReminderService implements OnApplicationBootstrap {
    * vehicles.
    */
   async sweep(now: Date = new Date()): Promise<void> {
+    if (this.config.persistence.backend !== "mikro-orm") return this.sweepAll(now);
+    const orm = await getFleetOrm(this.config.db);
+    await runIfLockFree(orm, MAINTENANCE_REMINDER_LOCK_ID, () => this.sweepAll(now));
+  }
+
+  private async sweepAll(now: Date): Promise<void> {
     let schedules: MaintenanceReminderSchedule[];
     try {
       schedules = await this.schedules.listEnabled();
@@ -61,12 +87,19 @@ export class MaintenanceReminderService implements OnApplicationBootstrap {
     }
 
     for (const schedule of schedules) {
+      // Every replica's timer fires on its own clock; the lock only stops them overlapping.
+      if (this.ranThisPeriod(schedule, now)) continue;
       try {
         await this.runForTenant(schedule, now);
       } catch (error) {
         this.logger.warn(`reminder sweep failed for tenant ${schedule.tenantId}: ${message(error)}`);
       }
     }
+  }
+
+  private ranThisPeriod(schedule: MaintenanceReminderSchedule, now: Date): boolean {
+    if (!schedule.lastRunAt) return false;
+    return now.getTime() - schedule.lastRunAt.getTime() < this.sweepIntervalMs - RERUN_TOLERANCE_MS;
   }
 
   async runForTenant(

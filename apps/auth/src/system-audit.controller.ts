@@ -19,6 +19,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { escapeCsvValue } from '@shared/csv';
 import { ActivityLogService } from './activity-log.service';
 import type { AuditLogQuery } from './activity-log.types';
 import {
@@ -203,14 +204,4 @@ function toCsv(rows: AuditLogRow[]): string {
     AUDIT_CSV_COLUMNS.map((column) => escapeCsvValue(row[column])).join(','),
   );
   return [AUDIT_CSV_COLUMNS.join(','), ...body].join('\n');
-}
-
-// Summaries and names are arbitrary text. A spreadsheet reads a leading =, +,
-// - or @ as a formula, so it is neutralised on the way out.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-
-function escapeCsvValue(value: string | null | undefined): string {
-  if (value === null || value === undefined) return '';
-  const text = FORMULA_LEAD.test(value) ? `'${value}` : value;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

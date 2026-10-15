@@ -14,6 +14,8 @@ export interface DriverRepository {
   save(driver: Driver): Promise<void>;
   findAll(filters: DriverFilters): Promise<Driver[]>;
   findById(id: string, tenantId: string): Promise<Driver | null>;
+  /** The named drivers this tenant holds; ids held elsewhere are left out. */
+  findByIds(ids: string[], tenantId: string): Promise<Driver[]>;
   findByLicenseNumber(licenseNumber: string, tenantId: string): Promise<Driver | null>;
   findByAssignedVehicleId(vehicleId: string, tenantId: string): Promise<Driver | null>;
   findByWhatsappNumber(whatsappNumber: string, tenantId: string): Promise<Driver | null>;

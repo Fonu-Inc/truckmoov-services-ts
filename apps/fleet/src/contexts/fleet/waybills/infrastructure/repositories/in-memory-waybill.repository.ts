@@ -19,6 +19,12 @@ export class InMemoryWaybillRepository implements WaybillRepository {
     this.data.set(waybill.id, waybill);
   }
 
+  async failExtractionIfPending(waybill: Waybill): Promise<boolean> {
+    if (this.data.get(waybill.id)?.status !== "pending") return false;
+    this.data.set(waybill.id, waybill);
+    return true;
+  }
+
   async findById(id: string, tenantId: string): Promise<Waybill | null> {
     const waybill = this.data.get(id);
     if (!waybill || waybill.tenantId !== tenantId) return null;

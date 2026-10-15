@@ -1,3 +1,5 @@
+import { lagosDayOffset, lagosToday } from "./utils/lagos-date";
+
 export type MaintenanceIntervalType = "date" | "mileage" | "both" | "months";
 export type MaintenanceMileageSource = "telemetry" | "manual";
 export type MaintenanceLifecycleStatus = "overdue" | "due" | "upcoming" | "completed";
@@ -54,11 +56,8 @@ export const MAINTENANCE_SERVICE_CATEGORIES = [
 ] as const;
 
 export function computeLifecycleStatus(profile: StoredMaintenanceProfile): MaintenanceLifecycleStatus {
-  const today = new Date().toISOString().slice(0, 10);
-  const soonDays = 14;
-  const soonDate = new Date();
-  soonDate.setDate(soonDate.getDate() + soonDays);
-  const soonStr = soonDate.toISOString().slice(0, 10);
+  const today = lagosToday();
+  const soonStr = lagosDayOffset(14);
 
   if (profile.nextDueDate) {
     if (profile.nextDueDate < today) return "overdue";

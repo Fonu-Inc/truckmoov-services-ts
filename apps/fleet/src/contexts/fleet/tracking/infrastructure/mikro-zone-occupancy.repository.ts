@@ -32,43 +32,54 @@ export class MikroZoneOccupancyRepository implements ZoneOccupancyRepository {
     return records.map(toStored);
   }
 
-  async enter(occupancy: StoredZoneOccupancy): Promise<void> {
+  async enter(occupancy: StoredZoneOccupancy): Promise<boolean> {
     const em = await this.em();
-    // Upsert on the natural key rather than the id: two positions racing for
-    // the same crossing must record one entry, not two.
-    await em.upsert(
-      ZoneOccupancyRecord,
-      {
-        id: occupancy.id,
-        tenantId: occupancy.tenantId,
-        vehicleId: occupancy.vehicleId,
-        zoneId: occupancy.zoneId,
-        enteredAt: occupancy.enteredAt,
-        dwellNotifiedAt: occupancy.dwellNotifiedAt,
-        speedingNotifiedAt: occupancy.speedingNotifiedAt,
-      },
-      { onConflictFields: ["tenantId", "vehicleId", "zoneId"], onConflictAction: "ignore" },
+    // Conflicts on the natural key rather than the id: two positions racing for
+    // the same crossing must record one entry, and only that one may alert.
+    const inserted = await em.getConnection().execute(
+      `insert into fleet_zone_occupancy
+         (id, tenant_id, vehicle_id, zone_id, entered_at, dwell_notified_at, speeding_notified_at)
+       values (?, ?, ?, ?, ?, ?, ?)
+       on conflict (tenant_id, vehicle_id, zone_id) do nothing
+       returning id`,
+      [
+        occupancy.id,
+        occupancy.tenantId,
+        occupancy.vehicleId,
+        occupancy.zoneId,
+        occupancy.enteredAt,
+        occupancy.dwellNotifiedAt,
+        occupancy.speedingNotifiedAt,
+      ],
     );
+    return inserted.length > 0;
   }
 
-  async exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<void> {
-    if (zoneIds.length === 0) return;
+  async exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<string[]> {
+    if (zoneIds.length === 0) return [];
     const em = await this.em();
-    await em.nativeDelete(ZoneOccupancyRecord, { tenantId, vehicleId, zoneId: { $in: zoneIds } });
+    const deleted = await em.getConnection().execute<Array<{ zone_id: string }>>(
+      `delete from fleet_zone_occupancy
+        where tenant_id = ? and vehicle_id = ? and zone_id = any(?::text[])
+        returning zone_id`,
+      [tenantId, vehicleId, zoneIds],
+    );
+    return deleted.map((row) => row.zone_id);
   }
 
-  async markDwellNotified(
+  async claimDwellAlert(
     tenantId: string,
     vehicleId: string,
     zoneId: string,
     at: Date,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const em = await this.em();
-    await em.nativeUpdate(
+    const updated = await em.nativeUpdate(
       ZoneOccupancyRecord,
-      { tenantId, vehicleId, zoneId },
+      { tenantId, vehicleId, zoneId, dwellNotifiedAt: null },
       { dwellNotifiedAt: at },
     );
+    return updated > 0;
   }
 
   async claimSpeedingAlert(

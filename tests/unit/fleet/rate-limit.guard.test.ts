@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { type AppConfigService } from "@shared/config";
+import { GUARDS_METADATA } from "@nestjs/common/constants";
 import { RateLimitGuard } from "../../../apps/fleet/src/rate-limit.guard";
+import { PublicTrackingController } from "../../../apps/fleet/src/public-tracking.controller";
 
 function makeGuard(rps = 10, burst = 5): RateLimitGuard {
   const config = { fleet: { rateLimitRps: rps, rateLimitBurst: burst } } as AppConfigService;
@@ -64,5 +66,11 @@ describe("RateLimitGuard", () => {
     guard.canActivate(ctx);
     vi.advanceTimersByTime(1000);
     expect(guard.canActivate(ctx)).toBe(true);
+  });
+});
+
+describe("public tracking link", () => {
+  it("is rate limited", () => {
+    expect(Reflect.getMetadata(GUARDS_METADATA, PublicTrackingController)).toContain(RateLimitGuard);
   });
 });

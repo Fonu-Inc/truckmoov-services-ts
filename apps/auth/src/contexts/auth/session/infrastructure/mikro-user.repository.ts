@@ -1,3 +1,4 @@
+import { sql } from "@mikro-orm/core";
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
 import {
@@ -31,7 +32,7 @@ export class MikroUserRepository implements UserRepository {
   async findByEmail(email: string): Promise<StoredUser | null> {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
-    const record = await em.findOne(AuthUserRecord, { email });
+    const record = await em.findOne(AuthUserRecord, { [sql.lower("email")]: email.toLowerCase() });
     return record ? normalizeStoredUser(toStoredUser(record)) : null;
   }
 

@@ -23,7 +23,7 @@ type Handlers = Record<string, (event: Record<string, unknown>) => Promise<void>
 
 function bus(handlers: Handlers) {
   return {
-    subscribe: vi.fn(async (subject: string, handler: never) => {
+    subscribeEveryInstance: vi.fn(async (subject: string, handler: never) => {
       const raw = handler as (event: unknown, meta: { subject: string }) => Promise<void>;
       const concrete = (event: Record<string, unknown>) => subject.replace('*', String(event.tenant_id));
       handlers[subject] = async (event) =>
@@ -195,7 +195,7 @@ describe('TenantStatusService', () => {
 
   it('starts up even when the event bus refuses the subscription', async () => {
     const brokenBus = {
-      subscribe: vi.fn(async () => {
+      subscribeEveryInstance: vi.fn(async () => {
         throw new Error('nats down');
       }),
     } as never;

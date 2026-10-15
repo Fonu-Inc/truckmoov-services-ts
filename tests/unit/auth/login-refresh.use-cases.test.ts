@@ -74,6 +74,7 @@ class FakeSessionStore {
     await this.save(newToken, user);
     this.families.set(newToken, family);
     this.families.set(oldToken, family);
+    return true;
   }
 
   async isSpent(token: string) {

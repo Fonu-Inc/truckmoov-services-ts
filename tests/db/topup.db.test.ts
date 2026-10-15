@@ -42,7 +42,7 @@ describe.skipIf(!dbEnabled)("wallet top-up on real repositories", () => {
     topUps = new MikroWalletTopUpRepository(config);
     wallets = new MikroTenantWalletRepository(config);
     ledger = new MikroWalletLedgerRepository(config);
-    settle = new SettleWalletTopUpUseCase(topUps, wallets);
+    settle = new SettleWalletTopUpUseCase(topUps, wallets, { raise: async () => {} } as never);
   });
 
   afterAll(async () => {
@@ -128,7 +128,7 @@ describe.skipIf(!dbEnabled)("wallet top-up on real repositories", () => {
         return topUps.markSettled(id, at);
       },
     };
-    const crashing = new SettleWalletTopUpUseCase(flaky, wallets);
+    const crashing = new SettleWalletTopUpUseCase(flaky, wallets, { raise: async () => {} } as never);
 
     await expect(crashing.execute(row.reference!, NGN(row.amountKobo))).rejects.toThrow("crash");
     expect(await balance(tenantId)).toBe(row.amountKobo);

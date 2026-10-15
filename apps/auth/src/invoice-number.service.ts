@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
 import {
   INVOICE_NUMBER_REPOSITORY,
   PLATFORM_SCOPE,
@@ -64,7 +65,7 @@ export class InvoiceNumberService {
     prefixOverride?: string | null,
   ): Promise<AllocatedInvoiceNumber> {
     const format = SERIES_FORMAT[series];
-    const year = issuedAt.getUTCFullYear();
+    const year = Number(lagosDate(issuedAt).slice(0, 4));
     const sequence = await this.repository.allocate(series, scope, year);
 
     const prefix = normalizePrefix(prefixOverride) ?? format.prefix;

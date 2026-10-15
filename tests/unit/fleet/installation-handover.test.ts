@@ -51,7 +51,7 @@ describe("installation handover", () => {
       devices,
       vehicles,
       new StartDeviceVerificationUseCase(devices, config),
-      new CreateVehicleUseCase(vehicles, runtime, { assertWithinQuota: async () => {} } as never),
+      new CreateVehicleUseCase(vehicles, runtime, { assertRoomFor: async () => {} } as never),
       new AssignDeviceToVehicleUseCase(devices, vehicles, { publish: vi.fn(async () => {}) } as never),
     );
   });

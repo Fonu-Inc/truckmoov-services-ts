@@ -12,12 +12,12 @@ const FLEET_DB = "truckmoov_fleet_zones_test";
 const APAPA = { lat: 6.4433, lng: 3.3641 };
 // About 200 m east of the Apapa centre, so inside a 500 m circle and outside a 100 m one.
 const NEAR_APAPA = { lat: 6.4433, lng: 3.3659 };
-// [lat, lng] pairs, as the API stores them: a box around Lagos Island.
+// [lng, lat] pairs, as the API stores them: a box around Lagos Island.
 const ISLAND: Array<[number, number]> = [
-  [6.44, 3.38],
-  [6.44, 3.42],
-  [6.47, 3.42],
-  [6.47, 3.38],
+  [3.38, 6.44],
+  [3.42, 6.44],
+  [3.42, 6.47],
+  [3.38, 6.47],
 ];
 const ON_ISLAND = { lat: 6.455, lng: 3.4 };
 
@@ -94,13 +94,19 @@ describe.skipIf(!dbEnabled)("geofence zone containment on real PostGIS", () => {
     expect(await insideIds(t, APAPA)).toEqual(expect.arrayContaining([wide, tight]));
   });
 
-  it("tests a polygon stored as [lat, lng] pairs in the right axis order", async () => {
+  it("tests a polygon stored as [lng, lat] pairs in the right axis order", async () => {
     const t = tenant();
     const island = await saveZone(t, { coordinates: ISLAND });
     expect(await insideIds(t, ON_ISLAND)).toEqual([island]);
-    // The same numbers read as (lat, lng) would put the box near 3.4N 6.45E, in the sea off Cameroon.
+    // The same numbers read as [lat, lng] would put the box near 3.4N 6.45E, in the sea off Cameroon.
     expect(await insideIds(t, { lat: 3.4, lng: 6.455 })).toEqual([]);
     expect(await insideIds(t, APAPA)).toEqual([]);
+  });
+
+  it("treats a zero radius with a center as the polygon, not a circle", async () => {
+    const t = tenant();
+    const island = await saveZone(t, { ...circle(0), coordinates: ISLAND });
+    expect(await insideIds(t, ON_ISLAND)).toEqual([island]);
   });
 
   // Geography edges are great-circle arcs, not lines of constant latitude, so a
@@ -115,7 +121,7 @@ describe.skipIf(!dbEnabled)("geofence zone containment on real PostGIS", () => {
   // triangle meeting at the centre, with gaps above and below.
   it("repairs a self-intersecting polygon into its valid parts", async () => {
     const t = tenant();
-    const bowTie = await saveZone(t, { coordinates: [[6.44, 3.38], [6.47, 3.42], [6.44, 3.42], [6.47, 3.38]] });
+    const bowTie = await saveZone(t, { coordinates: [[3.38, 6.44], [3.42, 6.47], [3.42, 6.44], [3.38, 6.47]] });
     expect(await insideIds(t, { lat: 6.455, lng: 3.415 })).toEqual([bowTie]);
     expect(await insideIds(t, { lat: 6.455, lng: 3.385 })).toEqual([bowTie]);
     expect(await insideIds(t, { lat: 6.442, lng: 3.40 })).toEqual([]);
@@ -123,7 +129,7 @@ describe.skipIf(!dbEnabled)("geofence zone containment on real PostGIS", () => {
 
   it("never matches a polygon with too few points, but keeps a vehicle already held in it", async () => {
     const t = tenant();
-    const sliver = await saveZone(t, { coordinates: [[6.44, 3.38], [6.47, 3.42]] });
+    const sliver = await saveZone(t, { coordinates: [[3.38, 6.44], [3.42, 6.47]] });
     expect(await insideIds(t, ON_ISLAND)).toEqual([]);
     expect(await insideIds(t, ON_ISLAND, [sliver])).toEqual([sliver]);
   });

@@ -1,12 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ListSystemSimsUseCase, type SystemSimListFilters } from './list-system-sims.use-case';
-
-function escapeCsvValue(value: unknown) {
-  if (value == null) return '';
-  const normalized = typeof value === 'string' ? value : String(value);
-  if (/[",\n]/.test(normalized)) return `"${normalized.replace(/"/g, '""')}"`;
-  return normalized;
-}
+import { escapeCsvValue } from '@shared/csv';
 
 const iso = (date: Date | null) => date?.toISOString() ?? '';
 
@@ -33,7 +27,7 @@ export class ExportSystemSimsUseCase {
         s.id, s.iccid, s.imsi, s.msisdn, s.carrier, s.plan, s.status,
         s.tenantId, s.tenantName, s.deviceId, s.deviceImei, s.dataUsageMb, s.dataLimitMb,
         s.smsUsage, s.smsLimit, s.monthlyCostNgn, iso(s.activationDate), iso(s.expiryDate),
-        iso(s.lastActivity), s.signalStrength, s.networkType, s.roaming,
+        iso(s.lastActivity), s.signalStrength, s.networkType, String(s.roaming),
         s.fonuStatus, iso(s.createdAt),
       ]
         .map(escapeCsvValue)

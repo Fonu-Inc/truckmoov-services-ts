@@ -15,24 +15,27 @@ export class InMemoryZoneOccupancyRepository implements ZoneOccupancyRepository 
     );
   }
 
-  async enter(occupancy: StoredZoneOccupancy): Promise<void> {
+  async enter(occupancy: StoredZoneOccupancy): Promise<boolean> {
     const key = this.keyFor(occupancy.tenantId, occupancy.vehicleId, occupancy.zoneId);
-    if (this.store.has(key)) return;
+    if (this.store.has(key)) return false;
     this.store.set(key, { ...occupancy });
+    return true;
   }
 
-  async exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<void> {
-    for (const zoneId of zoneIds) this.store.delete(this.keyFor(tenantId, vehicleId, zoneId));
+  async exit(tenantId: string, vehicleId: string, zoneIds: string[]): Promise<string[]> {
+    return zoneIds.filter((zoneId) => this.store.delete(this.keyFor(tenantId, vehicleId, zoneId)));
   }
 
-  async markDwellNotified(
+  async claimDwellAlert(
     tenantId: string,
     vehicleId: string,
     zoneId: string,
     at: Date,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const entry = this.store.get(this.keyFor(tenantId, vehicleId, zoneId));
-    if (entry) entry.dwellNotifiedAt = at;
+    if (!entry || entry.dwellNotifiedAt) return false;
+    entry.dwellNotifiedAt = at;
+    return true;
   }
 
   async claimSpeedingAlert(

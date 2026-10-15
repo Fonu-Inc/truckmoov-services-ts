@@ -1,10 +1,11 @@
-import { Controller, Get, GoneException, Inject, Param } from "@nestjs/common";
+import { Controller, Get, GoneException, Inject, Param, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { Public } from "@shared/rbac";
 import {
   ShareLinkExpiredError,
   ViewSharedLocationUseCase,
 } from "./contexts/fleet/tracking/application/share-location.use-cases";
+import { RateLimitGuard } from "./rate-limit.guard";
 
 /**
  * The customer-facing tracking link.
@@ -18,6 +19,7 @@ import {
  */
 @ApiExcludeController()
 @Public()
+@UseGuards(RateLimitGuard)
 @Controller("track")
 export class PublicTrackingController {
   constructor(

@@ -12,6 +12,8 @@ import {
   computeLifecycleStatus,
 } from "./maintenance-profile.repository";
 import { isVehicleAllowed, onlyAllowedVehicles, type AllowedVehicleIds } from "./allowed-vehicles";
+import { toCsv } from "./utils/csv";
+import { lagosToday } from "./utils/lagos-date";
 import { VEHICLE_REPOSITORY } from "./contexts/fleet/vehicles";
 import type { VehicleRepository } from "./contexts/fleet/vehicles/domain/repositories/vehicle.repository";
 import { knownVehicleId } from "./vehicle-reference";
@@ -96,24 +98,12 @@ export class MaintenanceProfilesUseCase {
 
   async complete(tenantId: string, id: string, allowed?: AllowedVehicleIds) {
     const profile = await this.findProfile(tenantId, id, allowed);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = lagosToday();
     const updated: StoredMaintenanceProfile = {
       ...profile,
       lastServiceDate: today,
       lastServiceMileage: profile.currentMileage,
-      nextDueDate: profile.intervalDays
-        ? (() => {
-            const d = new Date();
-            d.setDate(d.getDate() + profile.intervalDays!);
-            return d.toISOString().slice(0, 10);
-          })()
-        : profile.intervalMonths
-          ? (() => {
-              const d = new Date();
-              d.setMonth(d.getMonth() + profile.intervalMonths!);
-              return d.toISOString().slice(0, 10);
-            })()
-          : null,
+      nextDueDate: nextDueDateFrom(today, profile),
       nextDueMileage: profile.intervalKm && profile.currentMileage
         ? profile.currentMileage + profile.intervalKm
         : profile.nextDueMileage,
@@ -143,13 +133,14 @@ export class MaintenanceProfilesUseCase {
   async export(tenantId: string, allowed?: AllowedVehicleIds): Promise<string> {
     const profiles = onlyAllowedVehicles(await this.repo.findAllByTenant(tenantId), allowed);
     const headers = ["id", "vehicleId", "serviceType", "serviceLabel", "intervalType", "nextDueDate", "nextDueMileage", "lastServiceDate", "lifecycleStatus"];
-    const rows = [
-      headers.join(","),
-      ...profiles.map((p) => {
-        const status = computeLifecycleStatus(p);
-        return headers.map((h) => JSON.stringify(h === "lifecycleStatus" ? status : (p as Record<string, unknown>)[h] ?? "")).join(",");
-      }),
-    ];
-    return rows.join("\n");
+    return toCsv(profiles.map((p) => ({ ...p, lifecycleStatus: computeLifecycleStatus(p) })), headers);
   }
+}
+
+function nextDueDateFrom(today: string, profile: StoredMaintenanceProfile): string | null {
+  const day = new Date(`${today}T00:00:00Z`);
+  if (profile.intervalDays) day.setUTCDate(day.getUTCDate() + profile.intervalDays);
+  else if (profile.intervalMonths) day.setUTCMonth(day.getUTCMonth() + profile.intervalMonths);
+  else return null;
+  return day.toISOString().slice(0, 10);
 }

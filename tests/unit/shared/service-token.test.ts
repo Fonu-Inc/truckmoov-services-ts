@@ -27,7 +27,7 @@ const claimsFor = (caller: string, audience: string, extra: object = {}) => ({
   exp: Math.floor(Date.now() / 1000) + 3600,
   ...extra,
 });
-const cluster = () => new ServiceTokenVerifier("fleet", "", async () => ({ issuer: ISSUER, keys: [jwk] }));
+const cluster = () => new ServiceTokenVerifier("fleet", "", async () => ({ issuer: ISSUER, namespace: "truckmoov", keys: [jwk] }));
 
 afterEach(() => {
   delete process.env.KUBERNETES_SERVICE_HOST;
@@ -42,6 +42,12 @@ describe("service tokens from the cluster", () => {
   // notification cannot be replayed against fleet.
   it("refuses a token addressed to another service", async () => {
     expect(await cluster().verify(clusterToken(claimsFor("dispatch", "notification")))).toBeNull();
+  });
+
+  // Any namespace's default account can mint a token for audience "fleet".
+  it("refuses a service account from another namespace with the same name", async () => {
+    const claims = claimsFor("dispatch", "fleet", { sub: "system:serviceaccount:sandbox:dispatch" });
+    expect(await cluster().verify(clusterToken(claims))).toBeNull();
   });
 
   it("refuses expired, foreign, mis-signed and malformed tokens", async () => {
@@ -75,7 +81,7 @@ describe("service calls outside the cluster", () => {
     process.env.KUBERNETES_SERVICE_HOST = "10.43.0.1";
 
     expect(new ServiceCaller(config(mkdtempSync(join(tmpdir(), "svc-")))).headers("fleet")).toBeNull();
-    expect(await new ServiceTokenVerifier("fleet", "dev-secret", async () => ({ issuer: ISSUER, keys: [] })).verify(devToken)).toBeNull();
+    expect(await new ServiceTokenVerifier("fleet", "dev-secret", async () => ({ issuer: ISSUER, namespace: "truckmoov", keys: [] })).verify(devToken)).toBeNull();
   });
 
   it("presents the projected token when the cluster mounted one", () => {

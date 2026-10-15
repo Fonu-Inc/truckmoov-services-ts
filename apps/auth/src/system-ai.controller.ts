@@ -22,6 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { escapeCsvValue } from '@shared/csv';
 import { ActivityLogService } from './activity-log.service';
 import {
   GetAiGovernanceUseCase,
@@ -204,7 +205,7 @@ export class SystemAiController extends BaseAuthController {
           item.feature,
           item.tokens,
           item.latencyMs,
-          item.succeeded,
+          String(item.succeeded),
           item.errorMessage ?? '',
         ]
           .map(escapeCsvValue)
@@ -247,15 +248,4 @@ function parseLimit(raw: string | undefined): number | undefined {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
   return Math.min(Math.floor(parsed), 1000);
-}
-
-// A tenant id or an error message is arbitrary text. A spreadsheet reads a
-// leading =, +, - or @ as a formula, so it is neutralised on the way out.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-
-function escapeCsvValue(value: string | number | boolean | null): string {
-  if (value === null || value === undefined) return '';
-  const raw = String(value);
-  const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

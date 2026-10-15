@@ -6,6 +6,7 @@ import {
   PRICING_RULE_REPOSITORY,
   type PricingRuleRepository,
 } from "../../domain/repositories/pricing-rule.repository";
+import { lagosToday } from "../../../../../utils/lagos-date";
 
 export class PricingRuleNotFoundError extends Error {
   constructor(id: string) {
@@ -110,7 +111,7 @@ export class ListPricingRulesUseCase {
 
 export function pricingRulesView(all: PricingRule[], query?: string, now = new Date()) {
   const search = query?.trim().toLowerCase();
-  const today = now.toISOString().slice(0, 10);
+  const today = lagosToday(now);
 
   const filtered = !search
     ? all

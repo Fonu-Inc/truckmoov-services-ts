@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { escapeCsvValue } from '@shared/csv';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -100,14 +101,4 @@ export class ExportMySupportTicketsUseCase {
 
     return [CSV_COLUMNS.join(','), ...rows].join('\n');
   }
-}
-
-// A subject is whatever a person typed. A spreadsheet reads a leading =, +, -
-// or @ as a formula, so it is neutralised on the way out.
-const FORMULA_LEAD = /^[=+\-@\t\r]/;
-
-function escapeCsvValue(value: string): string {
-  const raw = String(value ?? '');
-  const text = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

@@ -49,27 +49,21 @@ export class ComplianceReminderListener
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    try {
-      const unsub = await this.bus.subscribe(
-        'tm.*.compliance.documents.expiring',
-        verifiedHandler(
-          async (event) => {
-            await this.handle(event);
-          },
-          {
-            secret: this.config.eventSigningSecret,
-            acceptUnsigned: this.config.eventAcceptUnsigned,
-            logger: this.logger,
-          },
-        ),
-      );
-      this.unsubs.push(unsub);
-      this.logger.log('Compliance reminder listener active');
-    } catch (error) {
-      this.logger.warn(
-        `compliance_reminder_subscribe_failed:${(error as Error).message}`,
-      );
-    }
+    const unsub = await this.bus.subscribe(
+      'tm.*.compliance.documents.expiring',
+      verifiedHandler(
+        async (event) => {
+          await this.handle(event);
+        },
+        {
+          secret: this.config.eventSigningSecret,
+          acceptUnsigned: this.config.eventAcceptUnsigned,
+          logger: this.logger,
+        },
+      ),
+    );
+    this.unsubs.push(unsub);
+    this.logger.log('Compliance reminder listener active');
   }
 
   async onApplicationShutdown(): Promise<void> {

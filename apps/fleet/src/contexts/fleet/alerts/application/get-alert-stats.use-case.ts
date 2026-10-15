@@ -1,5 +1,4 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Alert } from "../domain/alert.entity";
 import { ALERT_REPOSITORY, type AlertRepository } from "../domain/alert.repository";
 
 export type AlertStats = {
@@ -15,29 +14,22 @@ export class GetAlertStatsUseCase {
   constructor(@Inject(ALERT_REPOSITORY) private readonly repo: AlertRepository) {}
 
   async execute(tenantId: string): Promise<AlertStats> {
-    const alerts = await this.repo.findAll(tenantId);
+    const [counts, meanTimeToResolveMs] = await Promise.all([
+      this.repo.countBy(tenantId),
+      this.repo.meanTimeToResolveMs(tenantId),
+    ]);
     const byStatus: Record<string, number> = {};
     const byType: Record<string, number> = {};
     const bySeverity: Record<string, number> = {};
-    const resolveTimes: number[] = [];
+    let total = 0;
 
-    for (const alert of alerts) {
-      byStatus[alert.status] = (byStatus[alert.status] ?? 0) + 1;
-      byType[alert.type] = (byType[alert.type] ?? 0) + 1;
-      bySeverity[alert.severity] = (bySeverity[alert.severity] ?? 0) + 1;
-      if (alert.resolvedAt) {
-        resolveTimes.push(alert.resolvedAt.getTime() - alert.triggeredAt.getTime());
-      }
+    for (const { status, type, severity, count } of counts) {
+      byStatus[status] = (byStatus[status] ?? 0) + count;
+      byType[type] = (byType[type] ?? 0) + count;
+      bySeverity[severity] = (bySeverity[severity] ?? 0) + count;
+      total += count;
     }
 
-    return {
-      total: alerts.length,
-      byStatus,
-      byType,
-      bySeverity,
-      meanTimeToResolveMs: resolveTimes.length
-        ? resolveTimes.reduce((a, b) => a + b, 0) / resolveTimes.length
-        : null,
-    };
+    return { total, byStatus, byType, bySeverity, meanTimeToResolveMs };
   }
 }

@@ -6,6 +6,7 @@ import type {
   MaintenanceRecordRepository,
   StoredMaintenanceRecord,
 } from "./maintenance-record.repository";
+import { lagosToday } from "./utils/lagos-date";
 
 @Injectable()
 export class MikroMaintenanceRecordRepository implements MaintenanceRecordRepository {
@@ -56,7 +57,7 @@ export class MikroMaintenanceRecordRepository implements MaintenanceRecordReposi
     if (filters?.status && !isOverdueFilter) where.status = filters.status;
     const records = await em.find(MaintenanceRecordOrmRecord, where as any);
     let result = records as unknown as StoredMaintenanceRecord[];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = lagosToday();
     if (isOverdueFilter) {
       result = result.filter((r) => (r.scheduledDate ?? "") < today && r.status === "scheduled");
     }

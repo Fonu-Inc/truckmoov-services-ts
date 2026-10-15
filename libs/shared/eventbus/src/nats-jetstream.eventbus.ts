@@ -28,11 +28,16 @@ function sanitizeJetStreamName(streamName: string): string {
   return normalized || "truckmoov_events";
 }
 
-export type NatsBusOptions = { signingSecret?: string };
+/** `optional`: outside production, subscribing without a bus is a no-op instead of a boot failure. */
+export type NatsBusOptions = { signingSecret?: string; optional?: boolean };
+
+const MAX_DELIVERIES = 10;
+const REDELIVERY_DELAY_MS = 5_000;
+const NO_UNSUBSCRIBE = async () => Promise.resolve();
 
 export class NatsJetStreamEventBus implements EventBus {
   private connection: NatsConnection | null = null;
-  private jetstream: JetStreamClient | null = null;
+  private connecting: Promise<JetStreamClient | null> | null = null;
   private readonly jsonCodec = JSONCodec<EventEnvelope>();
   private readonly streamName: string;
   private warnedUnsigned = false;
@@ -93,10 +98,7 @@ export class NatsJetStreamEventBus implements EventBus {
     consumer?: string,
   ): Promise<() => Promise<void>> {
     const js = await this.getJetStream();
-    if (!js || !this.connection) {
-      this.logger.warn("Skipping subscribe because NATS is not reachable", { subject });
-      return async () => Promise.resolve();
-    }
+    if (!js || !this.connection) return this.unreachable(subject);
 
     // The consumer name is part of the durable, so two subscribers to one
     // subject get one consumer each. Derived from the subject alone, they would
@@ -132,7 +134,8 @@ export class NatsJetStreamEventBus implements EventBus {
           msg.ack();
         } catch (err) {
           this.logger.warn("event_handler_failed", { subject, error: (err as Error).message });
-          msg.nak();
+          if (msg.info.redeliveryCount >= MAX_DELIVERIES) msg.term();
+          else msg.nak(REDELIVERY_DELAY_MS);
         }
       }
     })();
@@ -145,10 +148,7 @@ export class NatsJetStreamEventBus implements EventBus {
     handler: BusHandler,
   ): Promise<() => Promise<void>> {
     await this.getJetStream();
-    if (!this.connection) {
-      this.logger.warn("Skipping subscribe because NATS is not reachable", { subject });
-      return async () => Promise.resolve();
-    }
+    if (!this.connection) return this.unreachable(subject);
     const sub = this.connection.subscribe(subject);
     (async () => {
       for await (const msg of sub) {
@@ -171,20 +171,31 @@ export class NatsJetStreamEventBus implements EventBus {
     }
   }
 
-  private async getJetStream(): Promise<JetStreamClient | null> {
-    if (this.jetstream) {
-      return this.jetstream;
-    }
+  /** A subscriber that silently gets nothing is worse than a pod that restarts until NATS is back. */
+  private unreachable(subject: string): () => Promise<void> {
+    if (!this.options.optional) throw new Error(`NATS is not reachable; cannot subscribe to ${subject}`);
+    this.logger.warn("Skipping subscribe because NATS is not reachable", { subject });
+    return NO_UNSUBSCRIBE;
+  }
 
+  private getJetStream(): Promise<JetStreamClient | null> {
+    this.connecting ??= this.connect().then((js) => {
+      if (!js) this.connecting = null;
+      return js;
+    });
+    return this.connecting;
+  }
+
+  private async connect(): Promise<JetStreamClient | null> {
     try {
       this.connection = await connect({ servers: this.natsUrl, ...natsLogin(this.credentials) });
-      this.jetstream = this.connection.jetstream();
+      const jetstream = this.connection.jetstream();
       await this.ensureStream();
       this.logger.log("Connected to NATS JetStream", {
         natsUrl: this.natsUrl,
         stream: this.streamName,
       });
-      return this.jetstream;
+      return jetstream;
     } catch (error) {
       this.logger.warn("NATS connection failed", {
         error: (error as Error).message,

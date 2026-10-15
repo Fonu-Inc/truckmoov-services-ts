@@ -15,6 +15,7 @@ import {
   Query,
   UseGuards,
   Delete,
+  Req,
 } from '@nestjs/common';
 import {
   ApiUnauthorizedResponse,
@@ -96,6 +97,8 @@ import { InvalidChallengeError, TwoFactorLogin, challengeBody } from './two-fact
 import { InvalidTwoFactorCodeError } from './two-factor.use-cases';
 import { LoginTwoFactorDto } from './dto/two-factor.dto';
 import { ListSystemFeatureFlagsUseCase } from './list-system-feature-flags.use-case';
+import { IpBlockGuard } from './ip-block.guard';
+import { LoginEvents, loginOrigin, type LoginOrigin } from './login-events';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { ResendSystemAdminInviteUseCase } from './resend-system-admin-invite.use-case';
 import { InvalidSystemDeviceProvisioningError } from './system-device-model.errors';
@@ -111,6 +114,7 @@ export class SystemController extends BaseAuthController {
   constructor(
     @Inject(LoginUseCase) private readonly loginUseCase: LoginUseCase,
     @Inject(TwoFactorLogin) private readonly twoFactorLogin: TwoFactorLogin,
+    @Inject(LoginEvents) private readonly loginEvents: LoginEvents,
     @Inject(ChangeSystemPasswordUseCase) private readonly changeSystemPasswordUseCase: ChangeSystemPasswordUseCase,
     @Inject(CreateSystemAdminUseCase) private readonly createSystemAdminUseCase: CreateSystemAdminUseCase,
     @Inject(CreateSystemAdminInviteUseCase) private readonly createSystemAdminInviteUseCase: CreateSystemAdminInviteUseCase,
@@ -156,19 +160,25 @@ export class SystemController extends BaseAuthController {
 
   @Portals('public')
   @Post('login')
-  @UseGuards(LoginRateLimitGuard)
+  @UseGuards(LoginRateLimitGuard, IpBlockGuard)
   @ApiAdminLoginResponse()
+  @ApiErrorResponse(403, '"This IP address is blocked"')
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
   ): Promise<AuthResponse | Record<string, unknown>> {
-    const started = await this.runAuthUseCase(() => this.twoFactorLogin.start('system', payload));
-    if (started.kind === 'session') return this.signedIn(started.session);
+    const origin = loginOrigin(req, userAgent);
+    const started = await this.runAuthUseCase(() =>
+      this.loginEvents.recordingFailure(origin, payload.email, () => this.twoFactorLogin.start('system', payload)),
+    );
+    if (started.kind === 'session') return this.signedIn(started.session, origin);
     return challengeBody(started);
   }
 
   @Portals('public')
   @Post('login/two-factor')
-  @UseGuards(LoginRateLimitGuard)
+  @UseGuards(LoginRateLimitGuard, IpBlockGuard)
   @ApiOperation({
     summary: 'Complete admin sign-in with a code',
     description:
@@ -179,10 +189,19 @@ export class SystemController extends BaseAuthController {
     401,
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
   )
+  @ApiErrorResponse(403, '"This IP address is blocked"')
   @CodeAttemptsLimited()
-  async systemLoginTwoFactor(@Body(BodyOrDataPipe) payload: LoginTwoFactorDto) {
+  async systemLoginTwoFactor(
+    @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
+    @Req() req: { ip?: string },
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const origin = loginOrigin(req, userAgent);
     try {
-      return await this.signedIn((await this.twoFactorLogin.complete('system', payload.challengeToken, payload.code)).session);
+      const { session } = await this.loginEvents.recordingFailure(origin, null, () =>
+        this.twoFactorLogin.complete('system', payload.challengeToken, payload.code),
+      );
+      return await this.signedIn(session, origin);
     } catch (error) {
       this.rethrowCodeCooldown(error);
       if (error instanceof InvalidChallengeError || error instanceof InvalidTwoFactorCodeError) {
@@ -192,7 +211,11 @@ export class SystemController extends BaseAuthController {
     }
   }
 
-  private async signedIn<T extends { user: { id: string; tenantId: string; role: string; email: string } }>(result: T) {
+  private async signedIn<T extends { user: { id: string; tenantId: string; role: string; email: string } }>(
+    result: T,
+    origin: LoginOrigin,
+  ) {
+    await this.loginEvents.succeeded(result.user, origin);
     await this.tryRecordActivity({
       tenantId: result.user.tenantId,
       service: 'auth',

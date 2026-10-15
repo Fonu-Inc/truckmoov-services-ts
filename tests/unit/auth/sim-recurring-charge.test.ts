@@ -25,12 +25,13 @@ async function build(funds: Record<string, number>) {
   const planRepo = new InMemoryPlanEntitlementsRepository();
   const chargeUsage = new ChargeUsageUseCase(
     new CommunicationRateService(new InMemoryCommunicationRatesRepository()),
-    { assertWithinLimit: async () => {} } as never,
+    { assertWithinLimit: async () => {}, recordSpend: async () => {} } as never,
     { afterDebit: async () => {} } as never,
     wallet,
     new EntitlementService(planRepo),
     planRepo,
     new InMemoryWalletLedgerRepository(wallet),
+    { findByTenantId: async () => null } as never,
   );
   const sims = new InMemorySimRepository();
   const config = { persistence: { backend: 'memory' } } as never;

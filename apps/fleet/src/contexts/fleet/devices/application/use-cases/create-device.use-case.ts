@@ -46,6 +46,9 @@ export class CreateDeviceUseCase {
     if (existing) {
       throw new FleetRuleError(`device with IMEI ${command.imei} already exists`);
     }
+    if (await this.deviceRepository.findLiveByImei(command.imei)) {
+      throw new FleetRuleError(`device with IMEI ${command.imei} is registered to another account`);
+    }
 
     // Checked after the duplicate test: re-registering a device the tenant
     // already has is a different failure from being out of device seats.

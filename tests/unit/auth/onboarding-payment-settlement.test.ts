@@ -257,6 +257,21 @@ describe("Onboarding payment settlement", () => {
     expect(raised[0]!.context).toMatchObject({ reference, expectedKobo: TOTAL_KOBO });
   });
 
+  it("settles a second payment on an already paid application as a mismatch and alerts", async () => {
+    const first = await startPayment();
+    const stored = (await payments.findByReference(first.reference))!;
+    await payments.save({ ...stored, createdAt: new Date(Date.now() - 31 * 60 * 1000) });
+    const second = await startPayment();
+    const paid = { amountKobo: TOTAL_KOBO, currency: "NGN" };
+
+    await confirm.execute(first.reference, true, paid);
+    await confirm.execute(second.reference, true, paid);
+
+    expect((await payments.findByReference(second.reference))!.status).toBe("mismatch");
+    expect(raised).toHaveLength(1);
+    expect(raised[0]!.context).toMatchObject({ reference: second.reference, duplicateOf: first.reference });
+  });
+
   it("raises no alert for a correct payment", async () => {
     const { reference } = await startPayment();
 

@@ -10,6 +10,8 @@ import { AppConfigService } from '@shared/config';
 import { RealtimeTokenService } from './realtime-token.service';
 import { roomFor } from './tenant-subject';
 
+const MAX_TIMER_MS = 2_147_483_647;
+
 /**
  * The socket surface. Server to client only.
  *
@@ -30,6 +32,8 @@ import { roomFor } from './tenant-subject';
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
   private connections = 0;
+  // shortcut: only suspensions seen since this pod booted, add an auth status lookup if a restart window matters.
+  private readonly suspended = new Set<string>();
 
   @WebSocketServer()
   server!: Server;
@@ -61,23 +65,41 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       this.refuse(client, 'unauthenticated');
       return;
     }
+    if (this.suspended.has(principal.tenantId)) {
+      this.refuse(client, 'tenant_suspended');
+      return;
+    }
 
     // The room comes from the verified claim. A client cannot ask to join a
     // room, so it cannot ask for another tenant's traffic.
     client.data.tenantId = principal.tenantId;
     void client.join(roomFor(principal.tenantId));
+    const expiry = setTimeout(() => client.disconnect(true), Math.min(principal.exp * 1000 - Date.now(), MAX_TIMER_MS));
+    expiry.unref?.();
+    client.data.expiry = expiry;
 
     this.connections += 1;
     this.logger.log(`socket_connected:${principal.tenantId}:open=${this.connections}`);
   }
 
   handleDisconnect(client: Socket): void {
+    clearTimeout(client.data?.expiry);
     if (client.data?.tenantId) this.connections = Math.max(0, this.connections - 1);
   }
 
   /** Delivers to one tenant's room. Called by the bridge, never by a client. */
   emitToTenant(tenantId: string, event: string, payload: unknown): void {
     this.server?.to(roomFor(tenantId)).emit(event, payload);
+  }
+
+  /** A suspended tenant keeps no live sockets. */
+  disconnectTenant(tenantId: string): void {
+    this.suspended.add(tenantId);
+    this.server?.in(roomFor(tenantId)).disconnectSockets(true);
+  }
+
+  reinstateTenant(tenantId: string): void {
+    this.suspended.delete(tenantId);
   }
 
   openConnections(): number {
