@@ -49,7 +49,9 @@ describe("runMigrationsExclusively", () => {
 
     expect(fake.events).toEqual([
       "acquire",
+      "set lock_timeout = 120000",
       "select pg_advisory_lock(?)",
+      "reset lock_timeout",
       "migrate",
       "select pg_advisory_unlock(?)",
       "release",
@@ -67,7 +69,9 @@ describe("runMigrationsExclusively", () => {
 
     expect(fake.events).toEqual([
       "acquire",
+      "set lock_timeout = 120000",
       "select pg_advisory_lock(?)",
+      "reset lock_timeout",
       "migrate",
       "select pg_advisory_unlock(?)",
       "release",
@@ -104,7 +108,51 @@ describe("runMigrationsExclusively", () => {
 
     await runMigrationsExclusively(orm);
 
-    expect(events).toEqual(["select pg_advisory_lock(?)", "release-disposed"]);
+    expect(events).toEqual([
+      "set lock_timeout = 120000",
+      "select pg_advisory_lock(?)",
+      "reset lock_timeout",
+      "release-disposed",
+    ]);
     expect(held.__knex__disposed).toBeInstanceOf(Error);
+  });
+
+  it("gives up without migrating when the lock wait times out", async () => {
+    const held: Held = { id: "locked-session" };
+    const events: string[] = [];
+    const knex = {
+      raw(sql: string) {
+        return {
+          connection(conn: Held) {
+            if (conn !== held) throw new Error("wrong connection");
+            events.push(sql);
+            return sql.includes("advisory_lock")
+              ? Promise.reject(new Error("canceling statement due to lock timeout"))
+              : Promise.resolve();
+          },
+        };
+      },
+      client: {
+        async acquireConnection() {
+          return held;
+        },
+        async releaseConnection() {
+          events.push("release");
+        },
+      },
+    };
+    const orm = {
+      em: { getConnection: () => ({ getKnex: () => knex }) },
+      getMigrator: () => ({ up: async () => events.push("migrate") }),
+    } as unknown as MikroORM;
+
+    await expect(runMigrationsExclusively(orm)).rejects.toThrow("lock timeout");
+
+    expect(events).toEqual([
+      "set lock_timeout = 120000",
+      "select pg_advisory_lock(?)",
+      "reset lock_timeout",
+      "release",
+    ]);
   });
 });

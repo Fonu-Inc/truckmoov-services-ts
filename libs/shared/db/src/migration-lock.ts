@@ -9,6 +9,13 @@ import type { MikroORM } from "@mikro-orm/core";
  */
 const MIGRATION_LOCK_ID = 8_246_113_070_001;
 
+/**
+ * How long a replica waits for another one's migration before giving up. The
+ * pod then fails startup and restarts, instead of holding a database connection
+ * indefinitely. It must stay below the startupProbe budget in the deployments.
+ */
+const LOCK_WAIT_MS = 120_000;
+
 interface LockedClient {
   __knex__disposed?: unknown;
 }
@@ -52,7 +59,7 @@ export async function runMigrationsExclusively(orm: MikroORM): Promise<void> {
   const client = await knex.client.acquireConnection();
 
   try {
-    await knex.raw("select pg_advisory_lock(?)", [MIGRATION_LOCK_ID]).connection(client);
+    await acquireLock(knex, client);
     try {
       await orm.getMigrator().up();
     } finally {
@@ -65,5 +72,23 @@ export async function runMigrationsExclusively(orm: MikroORM): Promise<void> {
     }
   } finally {
     await knex.client.releaseConnection(client);
+  }
+}
+
+/**
+ * lock_timeout covers advisory locks, but it also covers the DDL the migration
+ * runs, so it is set only around the wait and reset before migrating.
+ */
+async function acquireLock(knex: MigrationKnex, client: LockedClient): Promise<void> {
+  await knex.raw(`set lock_timeout = ${LOCK_WAIT_MS}`).connection(client);
+  try {
+    await knex.raw("select pg_advisory_lock(?)", [MIGRATION_LOCK_ID]).connection(client);
+  } finally {
+    await knex
+      .raw("reset lock_timeout")
+      .connection(client)
+      .catch((error: unknown) => {
+        client.__knex__disposed = error;
+      });
   }
 }
