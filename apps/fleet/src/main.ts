@@ -258,4 +258,8 @@ async function bootstrap() {
   await app.listen(cfg.server.fleetPort);
 }
 
-void bootstrap();
+// A failed startup must exit so Kubernetes restarts it, instead of hanging without listening.
+bootstrap().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

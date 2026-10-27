@@ -188,7 +188,14 @@ export class NatsJetStreamEventBus implements EventBus {
 
   private async connect(): Promise<JetStreamClient | null> {
     try {
-      this.connection = await connect({ servers: this.natsUrl, ...natsLogin(this.credentials) });
+      this.connection = await connect({
+        servers: this.natsUrl,
+        ...natsLogin(this.credentials),
+        maxReconnectAttempts: -1,
+        reconnectTimeWait: 2_000,
+        // A required bus waits for NATS at startup; an optional one (dev, tests) fails fast and runs without it.
+        waitOnFirstConnect: !this.options.optional,
+      });
       const jetstream = this.connection.jetstream();
       await this.ensureStream();
       this.logger.log("Connected to NATS JetStream", {

@@ -40,4 +40,8 @@ async function bootstrap(): Promise<void> {
   logger.log(`realtime_listening:${config.realtime.port}`);
 }
 
-void bootstrap();
+// A failed startup must exit so Kubernetes restarts it, instead of hanging without listening.
+bootstrap().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
