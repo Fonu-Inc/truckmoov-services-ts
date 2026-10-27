@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,6 +62,38 @@ describe("service tokens from the cluster", () => {
     ];
     for (const token of refused) {
       expect(await verifier.verify(token)).toBeNull();
+    }
+  });
+
+  it("verifies calls that arrive while the keys are still being fetched", async () => {
+    let fetches = 0;
+    const verifier = new ServiceTokenVerifier("fleet", "", async () => {
+      fetches += 1;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return { issuer: ISSUER, namespace: "truckmoov", keys: [jwk] };
+    });
+    const token = clusterToken(claimsFor("dispatch", "fleet"));
+
+    expect(await Promise.all([verifier.verify(token), verifier.verify(token), verifier.verify(token)])).toEqual(["dispatch", "dispatch", "dispatch"]);
+    expect(fetches).toBe(1);
+  });
+
+  it("retries a failed key fetch within seconds, not a minute", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      let calls = 0;
+      const verifier = new ServiceTokenVerifier("fleet", "", async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("jwks: 403");
+        return { issuer: ISSUER, namespace: "truckmoov", keys: [jwk] };
+      });
+      const token = clusterToken(claimsFor("dispatch", "fleet"));
+
+      expect(await verifier.verify(token)).toBeNull();
+      vi.setSystemTime(Date.now() + 6_000);
+      expect(await verifier.verify(token)).toBe("dispatch");
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

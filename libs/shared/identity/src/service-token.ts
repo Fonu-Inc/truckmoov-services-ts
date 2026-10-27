@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import { createHmac, createPublicKey, timingSafeEqual, verify, type JsonWebKey, type KeyObject } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { request } from "node:https";
@@ -14,6 +15,8 @@ const DEV_ISSUER = "truckmoov-dev";
 const DEV_TOKEN_SECONDS = 300;
 const CLUSTER_API = "https://kubernetes.default.svc";
 const SERVICE_ACCOUNT_DIR = "/var/run/secrets/kubernetes.io/serviceaccount";
+const KEY_REFRESH_MS = 60_000;
+const KEY_RETRY_MS = 5_000;
 
 export type ActingFor = {
   tenantId?: string;
@@ -135,6 +138,8 @@ export class ServiceTokenVerifier {
   private issuer = "";
   private namespace = "";
   private fetchedAt = 0;
+  private loading?: Promise<void>;
+  private readonly logger = new Logger(ServiceTokenVerifier.name);
 
   constructor(
     private readonly self: string,
@@ -169,20 +174,30 @@ export class ServiceTokenVerifier {
   }
 
   // Fetches again when a token names a key not seen yet, at most once a minute.
+  // Callers arriving during a fetch wait for it, and a failed fetch is retried
+  // after a few seconds instead of refusing every token for a minute.
   private async keyFor(kid: string): Promise<KeyObject | undefined> {
-    if (this.keys.has(kid) || !this.clusterKeys || Date.now() - this.fetchedAt < 60_000) {
-      return this.keys.get(kid);
+    if (this.keys.has(kid) || !this.clusterKeys) return this.keys.get(kid);
+    if (!this.loading && Date.now() - this.fetchedAt >= KEY_REFRESH_MS) {
+      this.loading = this.load(this.clusterKeys).finally(() => {
+        this.loading = undefined;
+      });
     }
+    await this.loading;
+    return this.keys.get(kid);
+  }
+
+  private async load(source: ClusterKeySource): Promise<void> {
     this.fetchedAt = Date.now();
     try {
-      const { issuer, namespace, keys } = await this.clusterKeys();
+      const { issuer, namespace, keys } = await source();
       this.issuer = issuer;
       this.namespace = namespace;
       this.keys = new Map(keys.filter((k) => k.kty === "RSA").map((k) => [k.kid ?? "", createPublicKey({ key: k, format: "jwk" })]));
-    } catch {
-      return undefined;
+    } catch (error) {
+      this.fetchedAt = Date.now() - KEY_REFRESH_MS + KEY_RETRY_MS;
+      this.logger.warn(`service_token_keys_unavailable:${error instanceof Error ? error.message : "unknown"}`);
     }
-    return this.keys.get(kid);
   }
 
   private caller(payload: ServiceTokenPayload, namespace: string): string | null {
