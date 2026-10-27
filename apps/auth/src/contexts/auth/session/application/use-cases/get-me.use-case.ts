@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AuthUser } from "../../domain/entities/auth-user.entity";
+import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 import {
   TOKEN_SERVICE,
   type TokenService,
@@ -21,32 +21,18 @@ export class GetMeUseCase {
 
   async execute(authorizationHeader?: string) {
     const token = this.extractBearerToken(authorizationHeader);
-    const actor = token
-      ? await resolveActorUser(token, this.tokenService, this.userRepo)
-      : null;
-
-    if (actor) {
-      return {
-        id: actor.id,
-        email: actor.email,
-        fullName: actor.profile?.fullName ?? null,
-        role: actor.role,
-        tenantId: actor.tenantId,
-        accountStatus: actor.accountStatus,
-        tokenPreview: authorizationHeader?.slice(0, 18) ?? null,
-      };
+    if (!token) {
+      throw new InvalidAccessTokenError();
     }
-
-    const resolvedUser = AuthUser.create({
-      id: "dev-user",
-      email: "dev-admin",
-      role: "admin",
-      tenantId: "dev-tenant",
-    });
+    const actor = await resolveActorUser(token, this.tokenService, this.userRepo);
 
     return {
-      ...resolvedUser.toPrimitives(),
-      accountStatus: "enabled",
+      id: actor.id,
+      email: actor.email,
+      fullName: actor.profile?.fullName ?? null,
+      role: actor.role,
+      tenantId: actor.tenantId,
+      accountStatus: actor.accountStatus,
       tokenPreview: authorizationHeader?.slice(0, 18) ?? null,
     };
   }
