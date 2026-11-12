@@ -1,4 +1,4 @@
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS base
 WORKDIR /app
 ENV HUSKY=0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.build.json nest-cli.json ./
@@ -8,9 +8,11 @@ RUN corepack enable && pnpm install --frozen-lockfile --child-concurrency=1
 RUN pnpm build:auth
 RUN pnpm prune --prod
 
-FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
 WORKDIR /app
 ENV NODE_ENV=production
+# The runtime only runs node; npm's bundled deps carry CVEs the app never loads.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/dist ./dist
