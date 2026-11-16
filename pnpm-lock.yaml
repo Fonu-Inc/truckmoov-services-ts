@@ -5,8 +5,11 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@mikro-orm/core@>=6.0.0 <6.6.10': ^6.6.10
-  '@mikro-orm/knex@>=6.0.0 <6.6.14': ^6.6.14
+  '@mikro-orm/core': 6.6.17
+  '@mikro-orm/knex': 6.6.17
+  '@mikro-orm/postgresql': 6.6.17
+  '@mikro-orm/migrations': 6.6.17
+  '@mikro-orm/cli': 6.6.17
   axios@>=1.0.0 <1.20.0: ^1.20.0
   body-parser@>=1.0.0 <1.20.9: ^1.20.9
   brace-expansion@>=1.0.0 <1.1.20: ^1.1.20
@@ -38,14 +41,14 @@ importers:
         specifier: ^3.1005.0
         version: 3.1009.0
       '@mikro-orm/core':
-        specifier: ^6.6.10
+        specifier: 6.6.17
         version: 6.6.17
       '@mikro-orm/migrations':
-        specifier: ^6.6.9
-        version: 6.6.9(@mikro-orm/core@6.6.17)(@types/node@22.19.13)(pg@8.19.0)
+        specifier: 6.6.17
+        version: 6.6.17(@mikro-orm/core@6.6.17)(@types/node@22.19.13)(pg@8.20.0)
       '@mikro-orm/postgresql':
-        specifier: ^6.5.5
-        version: 6.6.9(@mikro-orm/core@6.6.17)
+        specifier: 6.6.17
+        version: 6.6.17(@mikro-orm/core@6.6.17)
       '@nestjs/common':
         specifier: ^10.4.20
         version: 10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -123,8 +126,8 @@ importers:
         specifier: '19'
         version: 19.8.1
       '@mikro-orm/cli':
-        specifier: ^6.6.9
-        version: 6.6.9(pg@8.19.0)
+        specifier: 6.6.17
+        version: 6.6.17(pg@8.20.0)
       '@nestjs/cli':
         specifier: ^10.4.7
         version: 10.4.9
@@ -779,8 +782,8 @@ packages:
   '@microsoft/tsdoc@0.15.1':
     resolution: {integrity: sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==}
 
-  '@mikro-orm/cli@6.6.9':
-    resolution: {integrity: sha512-CjYTVoVds82hTsvahq5pZedW3Wf3owt6qCbH8En3DtZCH64iSoG1XQ9LSAGJbyer+YIodeHwBv1aRALc6VoTUA==}
+  '@mikro-orm/cli@6.6.17':
+    resolution: {integrity: sha512-cQ9HXCVe1L+MXvlg3jNPVGkIgA4ngsH48GoGj3SfxJdrdB7W5JOLuu8dGQrc6HDUvuff78lkBpIy/XROm8t/fg==}
     engines: {node: '>= 18.12.0'}
     hasBin: true
 
@@ -788,11 +791,11 @@ packages:
     resolution: {integrity: sha512-LFl6s0U6evvhB2iqifGEAzY0Nl1DC4Ge2N6GcPoNEvtg3OC/0GjvIftyzXnpaANjo/IxEaY/ge5BgMLt1B729g==}
     engines: {node: '>= 18.12.0'}
 
-  '@mikro-orm/knex@6.6.14':
-    resolution: {integrity: sha512-xQWq9+7TwE8LLul1RkhjB7/0/iCHMlkSmEToVpz+NNFoPj6M32DfY9mhNnM6qPZ/HF50WjpcVgCgi9ADrEBSFA==}
+  '@mikro-orm/knex@6.6.17':
+    resolution: {integrity: sha512-v65plaUKRuPsmMBXl/0h6ejqhVvS0Np4bGJSxHGOuWPONNEQHvSlt1aIpddhSYtdnzCXKV2hQNVBEaj8/wkA2Q==}
     engines: {node: '>= 18.12.0'}
     peerDependencies:
-      '@mikro-orm/core': ^6.6.10
+      '@mikro-orm/core': 6.6.17
       better-sqlite3: '*'
       libsql: '*'
       mariadb: '*'
@@ -804,17 +807,17 @@ packages:
       mariadb:
         optional: true
 
-  '@mikro-orm/migrations@6.6.9':
-    resolution: {integrity: sha512-ZJ73qSJfmh4AtGl87YYZ2JGMUwn2TbP8jnKWzXxkUM3HU+kG4lHcV8NnWFlKmh24R2520rfJTiDwxrjHxPM0sg==}
+  '@mikro-orm/migrations@6.6.17':
+    resolution: {integrity: sha512-wkEiYM1o4v5ym8iQJ6QllvdRZLWRv3SF2GiXob0A8VVD6343ZSxU4bPoo1eSdhzssq0cBttdmL6pObnRlwEGDA==}
     engines: {node: '>= 18.12.0'}
     peerDependencies:
-      '@mikro-orm/core': ^6.6.10
+      '@mikro-orm/core': 6.6.17
 
-  '@mikro-orm/postgresql@6.6.9':
-    resolution: {integrity: sha512-1HYURnRIi5QIOLhifbL0KLMFlNxvZYAEPgWl16AKAElzJqnYzE493fp+P5mrZvG2vE+hudUL3lYVGqakg4Lq+A==}
+  '@mikro-orm/postgresql@6.6.17':
+    resolution: {integrity: sha512-9cFWSVn77uk93SCu822gpYxYUiDi9jMBxSq1x0PGAPLF+froYrRCsTfYoGLV686mdnQS0Ac0GStp0E3dNNTHqg==}
     engines: {node: '>= 18.12.0'}
     peerDependencies:
-      '@mikro-orm/core': ^6.6.10
+      '@mikro-orm/core': 6.6.17
 
   '@nestjs/cli@10.4.9':
     resolution: {integrity: sha512-s8qYd97bggqeK7Op3iD49X2MpFtW4LVNLAwXFkfbRxKME6IYT7X0muNTJ2+QfI8hpbNx9isWkrLWIp+g5FOhiA==}
@@ -3722,8 +3725,8 @@ packages:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
     engines: {node: '>=4'}
 
-  pg@8.19.0:
-    resolution: {integrity: sha512-QIcLGi508BAHkQ3pJNptsFz5WQMlpGbuBGBaIaXsWK8mel2kQ/rThYI+DbgjUvZrIr7MiuEuc9LcChJoEZK1xQ==}
+  pg@8.20.0:
+    resolution: {integrity: sha512-ldhMxz2r8fl/6QkXnBD3CR9/xg694oT6DZQ2s6c/RI28OjtSOpxnPrUCGOBJ46RCUxcWdx3p6kw/xnDHjKvaRA==}
     engines: {node: '>= 16.0.0'}
     peerDependencies:
       pg-native: '>=3.0.1'
@@ -5705,11 +5708,11 @@ snapshots:
 
   '@microsoft/tsdoc@0.15.1': {}
 
-  '@mikro-orm/cli@6.6.9(pg@8.19.0)':
+  '@mikro-orm/cli@6.6.17(pg@8.20.0)':
     dependencies:
       '@jercle/yargonaut': 1.1.5
       '@mikro-orm/core': 6.6.17
-      '@mikro-orm/knex': 6.6.14(@mikro-orm/core@6.6.17)(pg@8.19.0)
+      '@mikro-orm/knex': 6.6.17(@mikro-orm/core@6.6.17)(pg@8.20.0)
       fs-extra: 11.3.3
       tsconfig-paths: 4.2.0
       yargs: 17.7.2
@@ -5736,11 +5739,11 @@ snapshots:
       mikro-orm: 6.6.17
       reflect-metadata: 0.2.2
 
-  '@mikro-orm/knex@6.6.14(@mikro-orm/core@6.6.17)(pg@8.19.0)':
+  '@mikro-orm/knex@6.6.17(@mikro-orm/core@6.6.17)(pg@8.20.0)':
     dependencies:
       '@mikro-orm/core': 6.6.17
       fs-extra: 11.3.3
-      knex: 3.2.10(pg@8.19.0)
+      knex: 3.2.10(pg@8.20.0)
       sqlstring: 2.3.3
     transitivePeerDependencies:
       - mysql
@@ -5752,10 +5755,10 @@ snapshots:
       - supports-color
       - tedious
 
-  '@mikro-orm/migrations@6.6.9(@mikro-orm/core@6.6.17)(@types/node@22.19.13)(pg@8.19.0)':
+  '@mikro-orm/migrations@6.6.17(@mikro-orm/core@6.6.17)(@types/node@22.19.13)(pg@8.20.0)':
     dependencies:
       '@mikro-orm/core': 6.6.17
-      '@mikro-orm/knex': 6.6.14(@mikro-orm/core@6.6.17)(pg@8.19.0)
+      '@mikro-orm/knex': 6.6.17(@mikro-orm/core@6.6.17)(pg@8.20.0)
       fs-extra: 11.3.3
       umzug: 3.8.2(@types/node@22.19.13)
     transitivePeerDependencies:
@@ -5772,11 +5775,11 @@ snapshots:
       - supports-color
       - tedious
 
-  '@mikro-orm/postgresql@6.6.9(@mikro-orm/core@6.6.17)':
+  '@mikro-orm/postgresql@6.6.17(@mikro-orm/core@6.6.17)':
     dependencies:
       '@mikro-orm/core': 6.6.17
-      '@mikro-orm/knex': 6.6.14(@mikro-orm/core@6.6.17)(pg@8.19.0)
-      pg: 8.19.0
+      '@mikro-orm/knex': 6.6.17(@mikro-orm/core@6.6.17)(pg@8.20.0)
+      pg: 8.20.0
       postgres-array: 3.0.4
       postgres-date: 2.1.0
       postgres-interval: 4.0.2
@@ -8596,7 +8599,7 @@ snapshots:
 
   is-core-module@2.16.1:
     dependencies:
-      hasown: 2.0.2
+      hasown: 2.0.4
 
   is-extglob@2.1.1: {}
 
@@ -8683,7 +8686,7 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  knex@3.2.10(pg@8.19.0):
+  knex@3.2.10(pg@8.20.0):
     dependencies:
       colorette: 2.0.19
       commander: 10.0.1
@@ -8700,7 +8703,7 @@ snapshots:
       tarn: 3.0.2
       tildify: 2.0.0
     optionalDependencies:
-      pg: 8.19.0
+      pg: 8.20.0
     transitivePeerDependencies:
       - supports-color
 
@@ -9076,9 +9079,9 @@ snapshots:
 
   pg-int8@1.0.1: {}
 
-  pg-pool@3.13.0(pg@8.19.0):
+  pg-pool@3.13.0(pg@8.20.0):
     dependencies:
-      pg: 8.19.0
+      pg: 8.20.0
 
   pg-protocol@1.13.0: {}
 
@@ -9090,10 +9093,10 @@ snapshots:
       postgres-date: 1.0.7
       postgres-interval: 1.2.0
 
-  pg@8.19.0:
+  pg@8.20.0:
     dependencies:
       pg-connection-string: 2.12.0
-      pg-pool: 3.13.0(pg@8.19.0)
+      pg-pool: 3.13.0(pg@8.20.0)
       pg-protocol: 1.13.0
       pg-types: 2.2.0
       pgpass: 1.0.5
