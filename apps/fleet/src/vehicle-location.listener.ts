@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
+import { busVerifier } from "./verified-bus-handler";
 import {
   VEHICLE_POSITION_REPOSITORY,
   type GeoPoint,
@@ -17,10 +19,12 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
     @Inject(VEHICLE_POSITION_REPOSITORY) private readonly positions: VehiclePositionRepository,
     private readonly liveCounts: LiveTrackingCountsService,
     private readonly geofenceEvaluator: GeofenceEvaluatorService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap() {
-    await this.bus.subscribe("tm.*.vehicle.location.updated", async (envelope) => {
+    const verified = busVerifier(this.config, this.logger);
+    await this.bus.subscribe("tm.*.vehicle.location.updated", verified(async (envelope) => {
       const vehicleId = envelope.data["vehicle_id"] as string;
       if (!vehicleId) return;
 
@@ -33,10 +37,10 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       const point = lat != null && lng != null ? { lat, lng } : null;
       await this.recordPosition(envelope.tenant_id, vehicleId, deviceId, point, ts);
       if (point) await this.evaluateZones(envelope.tenant_id, vehicleId, point, speedKph, ts);
-    });
+    }));
 
     // Counts live in each pod's memory, so every pod needs every fix, not its share of the durable.
-    await this.bus.subscribeEveryInstance?.("tm.*.vehicle.location.updated", async (envelope) => {
+    await this.bus.subscribeEveryInstance?.("tm.*.vehicle.location.updated", verified(async (envelope) => {
       const vehicleId = envelope.data["vehicle_id"] as string;
       if (!vehicleId) return;
       const ts = fixTimeOf(envelope);
@@ -46,7 +50,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
         fixedAt: new Date(Number.isFinite(ts) ? ts : Date.now()).toISOString(),
         speedKph: (envelope.data["speed_kph"] as number | null | undefined) ?? null,
       });
-    });
+    }));
   }
 
   /** A failed write must not stop zone evaluation or the live counts. */

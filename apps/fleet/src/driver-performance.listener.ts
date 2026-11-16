@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import {
   DISPATCH_JOBS_READER,
@@ -9,6 +10,7 @@ import {
   type DriverRepository,
 } from "./contexts/fleet/drivers/domain/repositories/driver.repository";
 import { calculateDriverPerformance } from "./contexts/fleet/drivers/domain/driver-performance";
+import { busVerifier } from "./verified-bus-handler";
 
 type JobStatusChangedEvent = {
   new_status?: string;
@@ -28,14 +30,15 @@ export class DriverPerformanceListener implements OnModuleInit {
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(DISPATCH_JOBS_READER) private readonly dispatchJobs: DispatchJobsReader,
     @Inject(DRIVER_REPOSITORY) private readonly driverRepo: DriverRepository,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   onModuleInit(): void {
-    this.bus.subscribe("tm.*.job.status.changed", async (event) => {
+    this.bus.subscribe("tm.*.job.status.changed", busVerifier(this.config, this.logger)(async (event) => {
       const payload = event.data as JobStatusChangedEvent;
       if (payload?.new_status !== "delivered") return;
       await this.recalculate(event.tenant_id, payload);
-    }, "driver_performance");
+    }), "driver_performance");
   }
 
   private async recalculate(tenant: string | undefined, event: JobStatusChangedEvent): Promise<void> {

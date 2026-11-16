@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { RoadSpeedEvaluatorService } from "./contexts/fleet/tracking/application/road-speed-evaluator.service";
 import { RouteDeviationService } from "./contexts/fleet/tracking/application/route-deviation.service";
 import type { RoadMatchedFix } from "./contexts/fleet/tracking/domain/road-matched-fix";
+import { busVerifier } from "./verified-bus-handler";
 
 type Alert = { type: string; severity: string; jobId?: string; details: Record<string, unknown> };
 
@@ -18,15 +20,16 @@ export class RoadMatchListener implements OnApplicationBootstrap {
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     private readonly roadSpeed: RoadSpeedEvaluatorService,
     private readonly routeDeviation: RouteDeviationService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap() {
-    await this.bus.subscribe("tm.*.vehicle.road.matched", async (envelope) => {
+    await this.bus.subscribe("tm.*.vehicle.road.matched", busVerifier(this.config, this.logger)(async (envelope) => {
       const fix = toFix(envelope.tenant_id, envelope.data, envelope.occurred_at);
       if (!fix) return;
       await this.apply("road_speed", fix, () => this.roadSpeed.evaluate(fix));
       await this.apply("route_deviation", fix, () => this.routeDeviation.check(fix));
-    }, "road_rules");
+    }), "road_rules");
   }
 
   private async apply(rule: string, fix: RoadMatchedFix, run: () => Promise<Alert | null>): Promise<void> {

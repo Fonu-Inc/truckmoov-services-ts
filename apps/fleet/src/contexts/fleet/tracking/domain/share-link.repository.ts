@@ -19,7 +19,7 @@ export interface ShareLinkRepository {
   save(link: StoredShareLink): Promise<void>;
   findByTokenHash(tokenHash: string): Promise<StoredShareLink | null>;
   findActiveForVehicle(tenantId: string, vehicleId: string): Promise<StoredShareLink | null>;
-  revokeForJob(jobId: string, at: Date): Promise<number>;
+  revokeForJob(tenantId: string, jobId: string, at: Date): Promise<number>;
   /** Links whose window has closed, across every tenant, for the reaper. */
   findExpired(now: Date, limit: number): Promise<StoredShareLink[]>;
   recordView(id: string, at: Date): Promise<void>;

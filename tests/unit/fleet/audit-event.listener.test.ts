@@ -1,24 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
+import { signBusEvent, type BusHandler } from "@shared/eventbus";
 import { AuditEventListener } from "../../../apps/fleet/src/audit-event.listener";
 import { AuditLogService } from "../../../apps/fleet/src/audit-log.service";
 import { InMemoryAuditLogRepository } from "../../../apps/fleet/src/in-memory-audit-log.repository";
+
+const SECRET = "bus-secret";
 
 function buildListener() {
   const handlers = new Map<string, (event: any) => Promise<void>>();
   const unsubFn = vi.fn().mockResolvedValue(undefined);
   const bus = {
-    subscribe: vi.fn().mockImplementation((subject: string, handler: (event: any) => Promise<void>) => {
-      handlers.set(subject, handler);
+    subscribe: vi.fn().mockImplementation((subject: string, handler: BusHandler) => {
+      handlers.set(subject, (event) => {
+        const concrete = subject.replace("*", event.tenant_id);
+        return handler(signBusEvent(SECRET, concrete, event), { subject: concrete });
+      });
       return Promise.resolve(unsubFn);
     }),
   };
   const audit = new AuditLogService(new InMemoryAuditLogRepository());
-  const listener = new AuditEventListener(bus as any, audit);
+  const listener = new AuditEventListener(bus as any, audit, { eventSigningSecret: SECRET, eventAcceptUnsigned: false } as never);
   return { listener, bus, audit, handlers, unsubFn };
 }
 
 function makeEvent(tenantId: string, data: Record<string, unknown>) {
-  return { tenant_id: tenantId, occurred_at: new Date().toISOString(), data };
+  return { id: "evt-1", type: "test", version: 1, tenant_id: tenantId, occurred_at: new Date().toISOString(), data };
 }
 
 describe("AuditEventListener", () => {

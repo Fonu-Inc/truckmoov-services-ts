@@ -28,10 +28,10 @@ export class InMemoryShareLinkRepository implements ShareLinkRepository {
     );
   }
 
-  async revokeForJob(jobId: string, at: Date): Promise<number> {
+  async revokeForJob(tenantId: string, jobId: string, at: Date): Promise<number> {
     let revoked = 0;
     for (const link of this.store.values()) {
-      if (link.jobId !== jobId || link.revokedAt !== null) continue;
+      if (link.tenantId !== tenantId || link.jobId !== jobId || link.revokedAt !== null) continue;
       link.revokedAt = at;
       revoked += 1;
     }

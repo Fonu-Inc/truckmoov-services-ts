@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SimDeviceInfoListener } from "../../../apps/auth/src/sim-device-info.listener";
 import type { SimRepository, StoredSim } from "../../../apps/auth/src/sim.repository";
-import type { EventBus } from "@shared/eventbus";
-import type { EventEnvelope } from "@shared/eventbus";
+import { signBusEvent, type BusHandler, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import type { SimChangedEventPublisher } from "../../../apps/auth/src/sim-changed-event.publisher";
 
 function makeSim(overrides: Partial<StoredSim> = {}): StoredSim {
@@ -91,8 +90,12 @@ class FakeSimRepository implements SimRepository {
   }
 }
 
+const SECRET = "bus-secret";
+const config = { eventSigningSecret: SECRET, eventAcceptUnsigned: false } as never;
+const subject = (tenantId: string) => `tm.${tenantId}.fleet.device.updated`;
+
 class FakeEventBus implements EventBus {
-  private handler?: (envelope: EventEnvelope) => Promise<void>;
+  private handler?: BusHandler;
 
   async publish(): Promise<void> {}
 
@@ -100,13 +103,14 @@ class FakeEventBus implements EventBus {
     return true;
   }
 
-  async subscribe(_subject: string, handler: (envelope: EventEnvelope) => Promise<void>) {
+  async subscribe(_subject: string, handler: BusHandler) {
     this.handler = handler;
     return async () => {};
   }
 
-  async emit(envelope: EventEnvelope) {
-    if (this.handler) await this.handler(envelope);
+  async emit(envelope: EventEnvelope, signed = true) {
+    const s = subject(envelope.tenant_id);
+    if (this.handler) await this.handler(signed ? signBusEvent(SECRET, s, envelope) : envelope, { subject: s });
   }
 }
 
@@ -134,7 +138,7 @@ describe("SimDeviceInfoListener", () => {
     repo.seed(makeSim({ id: "sim-1", tenantId: "tenant-a", deviceName: "old-name" }));
     const bus = new FakeEventBus();
     const publisher = new FakeSimChangedPublisher();
-    const listener = new SimDeviceInfoListener(bus, repo, publisher);
+    const listener = new SimDeviceInfoListener(bus, repo, publisher, config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope("tenant-a", { simId: "sim-1", deviceName: "new-name" }));
@@ -149,7 +153,7 @@ describe("SimDeviceInfoListener", () => {
     repo.seed(makeSim({ id: "sim-1", tenantId: "tenant-a", deviceName: "old-name" }));
     const bus = new FakeEventBus();
     const publisher = new FakeSimChangedPublisher();
-    const listener = new SimDeviceInfoListener(bus, repo, publisher);
+    const listener = new SimDeviceInfoListener(bus, repo, publisher, config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope("tenant-b", { simId: "sim-1", deviceName: "hijacked-name" }));
@@ -159,17 +163,29 @@ describe("SimDeviceInfoListener", () => {
     expect(repo.saved).toHaveLength(0);
   });
 
-  it("allows the update when the SIM has no tenant assigned yet", async () => {
+  it("rejects the update when the SIM is unassigned inventory", async () => {
     const repo = new FakeSimRepository();
     repo.seed(makeSim({ id: "sim-1", tenantId: null, deviceName: "old-name" }));
     const bus = new FakeEventBus();
     const publisher = new FakeSimChangedPublisher();
-    const listener = new SimDeviceInfoListener(bus, repo, publisher);
+    const listener = new SimDeviceInfoListener(bus, repo, publisher, config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope("tenant-a", { simId: "sim-1", deviceName: "new-name" }));
 
-    const updated = await repo.findById("sim-1");
-    expect(updated?.deviceName).toBe("new-name");
+    expect((await repo.findById("sim-1"))?.deviceName).toBe("old-name");
+    expect(repo.saved).toHaveLength(0);
+  });
+
+  it("ignores an unsigned event", async () => {
+    const repo = new FakeSimRepository();
+    repo.seed(makeSim({ id: "sim-1", tenantId: "tenant-a", deviceName: "old-name" }));
+    const bus = new FakeEventBus();
+    const listener = new SimDeviceInfoListener(bus, repo, new FakeSimChangedPublisher(), config);
+    await listener.onApplicationBootstrap();
+
+    await bus.emit(makeEnvelope("tenant-a", { simId: "sim-1", deviceName: "new-name" }), false);
+
+    expect(repo.saved).toHaveLength(0);
   });
 });

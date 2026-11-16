@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { OnResource, Portals, Requires } from '@shared/access';
 import { BillingActorResolver } from './billing-actor';
 import { bearerToken, mapBillingErrors } from './billing-controller.support';
+import { assertStaff } from '@auth/onboarding/application/use-cases/billing/enforcement-access';
 import {
   GetQuotationUseCase,
   ListQuotationsUseCase,
@@ -25,13 +26,17 @@ export class SystemBillingQuotationsController {
     @Inject(GetQuotationUseCase) private readonly getQuotation: GetQuotationUseCase,
   ) {}
 
+  private async staff(authorization?: string): Promise<void> {
+    assertStaff(await this.actors.resolve(bearerToken(authorization)), 'Only system admins can view billing.');
+  }
+
   @Get('quotations')
   @Requires('admin.billing.read')
   @ApiOperation({ summary: 'Quotation history, newest first' })
   @ApiOkResponse({ type: QuotationsPageResponse })
   async list(@Query() query: ListQuotationsQueryDto, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.listQuotations.execute(query);
     });
   }
@@ -42,7 +47,7 @@ export class SystemBillingQuotationsController {
   @ApiOkResponse({ type: QuotationDetailResponse })
   async get(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.getQuotation.execute(id);
     });
   }

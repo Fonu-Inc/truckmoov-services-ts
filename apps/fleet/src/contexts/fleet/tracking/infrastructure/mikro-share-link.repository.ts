@@ -29,9 +29,9 @@ export class MikroShareLinkRepository implements ShareLinkRepository {
     return record ? toStored(record) : null;
   }
 
-  async revokeForJob(jobId: string, at: Date): Promise<number> {
+  async revokeForJob(tenantId: string, jobId: string, at: Date): Promise<number> {
     const em = await this.em();
-    return em.nativeUpdate(ShareLinkRecord, { jobId, revokedAt: null }, { revokedAt: at });
+    return em.nativeUpdate(ShareLinkRecord, { tenantId, jobId, revokedAt: null }, { revokedAt: at });
   }
 
   async findExpired(now: Date, limit: number): Promise<StoredShareLink[]> {

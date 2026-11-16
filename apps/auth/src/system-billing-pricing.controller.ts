@@ -25,6 +25,7 @@ import {
 import { OnResource, Portals, Requires } from '@shared/access';
 import { BillingActorResolver } from './billing-actor';
 import { rethrowActorError } from './base.controller';
+import { assertStaff } from '@auth/onboarding/application/use-cases/billing/enforcement-access';
 import {
   CreateLicensePlanUseCase,
 } from '@auth/onboarding/application/use-cases/billing/create-license-plan.use-case';
@@ -97,8 +98,10 @@ export class SystemBillingPricingController {
     @Inject(UpdateInstallationPriceUseCase) private readonly updateInstallation: UpdateInstallationPriceUseCase,
   ) {}
 
-  private actor(authorization?: string): Promise<BillingActor> {
-    return this.actors.resolve(bearer(authorization));
+  private async actor(authorization?: string): Promise<BillingActor> {
+    const actor = await this.actors.resolve(bearer(authorization));
+    assertStaff(actor, 'Only system admins can manage pricing.');
+    return actor;
   }
 
   @Get('plans')

@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { RecordDeviceTelemetryUseCase } from "./contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
+import { busVerifier } from "./verified-bus-handler";
 
 /**
  * Closes a verification window when the device finally speaks.
@@ -20,12 +22,13 @@ export class DeviceTelemetryListener implements OnApplicationBootstrap {
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(RecordDeviceTelemetryUseCase)
     private readonly recordTelemetry: RecordDeviceTelemetryUseCase,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     await this.bus.subscribe(
       "tm.*.vehicle.location.updated",
-      async (envelope) => {
+      busVerifier(this.config, this.logger)(async (envelope) => {
         const deviceId = (envelope.data["device_id"] as string) || null;
         const imei = (envelope.data["imei"] as string) || null;
         if (!deviceId && !imei) return;
@@ -47,7 +50,7 @@ export class DeviceTelemetryListener implements OnApplicationBootstrap {
             }`,
           );
         }
-      },
+      }),
       "device-verification",
     );
   }

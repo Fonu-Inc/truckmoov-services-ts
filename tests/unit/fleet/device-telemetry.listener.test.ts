@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { EventBus, EventEnvelope } from "@shared/eventbus";
+import { signBusEvent, type BusHandler, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { DeviceTelemetryListener } from "../../../apps/fleet/src/device-telemetry.listener";
 import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/entities/device.entity";
 import { InMemoryDeviceRepository } from "../../../apps/fleet/src/contexts/fleet/devices/infrastructure/repositories/in-memory-device.repository";
 import { RecordDeviceTelemetryUseCase } from "../../../apps/fleet/src/contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
 
 const TENANT = "tenant-1";
+const SECRET = "bus-secret";
+const config = { eventSigningSecret: SECRET, eventAcceptUnsigned: false } as never;
 
 function makeDevice(overrides: Partial<Parameters<typeof Device.create>[0]> = {}) {
   return Device.create({
@@ -28,7 +30,7 @@ function makeDevice(overrides: Partial<Parameters<typeof Device.create>[0]> = {}
 }
 
 class FakeEventBus implements EventBus {
-  private handler?: (envelope: EventEnvelope) => Promise<void>;
+  private handler?: BusHandler;
 
   async publish(): Promise<void> {}
 
@@ -36,13 +38,14 @@ class FakeEventBus implements EventBus {
     return true;
   }
 
-  async subscribe(_subject: string, handler: (envelope: EventEnvelope) => Promise<void>) {
+  async subscribe(_subject: string, handler: BusHandler) {
     this.handler = handler;
     return async () => {};
   }
 
-  async emit(envelope: EventEnvelope) {
-    if (this.handler) await this.handler(envelope);
+  async emit(envelope: EventEnvelope, signed = true) {
+    const subject = `tm.${envelope.tenant_id}.vehicle.location.updated`;
+    if (this.handler) await this.handler(signed ? signBusEvent(SECRET, subject, envelope) : envelope, { subject });
   }
 }
 
@@ -62,7 +65,7 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice());
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }), config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { device_id: "dev-1", protocol: "teltonika" }));
@@ -76,7 +79,7 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice({ verificationStatus: "verified", reportedProtocol: "teltonika" }));
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }), config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { device_id: "dev-1" }));
@@ -89,10 +92,23 @@ describe("DeviceTelemetryListener", () => {
     const devices = new InMemoryDeviceRepository();
     await devices.save(makeDevice());
     const bus = new FakeEventBus();
-    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }));
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }), config);
     await listener.onApplicationBootstrap();
 
     await bus.emit(makeEnvelope(TENANT, { protocol: "teltonika" }));
+
+    const unchanged = await devices.findById("dev-1", TENANT);
+    expect(unchanged?.reportedProtocol).toBeNull();
+  });
+
+  it("ignores an unsigned event", async () => {
+    const devices = new InMemoryDeviceRepository();
+    await devices.save(makeDevice());
+    const bus = new FakeEventBus();
+    const listener = new DeviceTelemetryListener(bus, new RecordDeviceTelemetryUseCase(devices, { verified: async () => {}, failed: async () => {} }), config);
+    await listener.onApplicationBootstrap();
+
+    await bus.emit(makeEnvelope(TENANT, { device_id: "dev-1", protocol: "teltonika" }), false);
 
     const unchanged = await devices.findById("dev-1", TENANT);
     expect(unchanged?.reportedProtocol).toBeNull();

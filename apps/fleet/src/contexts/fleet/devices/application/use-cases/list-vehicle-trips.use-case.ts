@@ -22,11 +22,18 @@ export class ListVehicleTripsUseCase {
 
   async execute(vehicleId: string, tenantId: string, lookbackDays = DEFAULT_LOOKBACK_DAYS): Promise<VehicleTrip[]> {
     const device = await this.deviceRepository.findByVehicleId(vehicleId, tenantId);
-    const traccarDeviceId = device?.toPrimitives().traccarDeviceId;
+    const primitives = device?.toPrimitives();
+    const traccarDeviceId = primitives?.traccarDeviceId;
     if (!traccarDeviceId) return [];
 
     const to = new Date();
-    const from = new Date(to.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+    // A reused IMEI keeps its Traccar history, so nothing before this tenant's row or this vehicle's assignment.
+    const from = new Date(Math.max(
+      to.getTime() - lookbackDays * 24 * 60 * 60 * 1000,
+      Date.parse(primitives.createdAt ?? "") || 0,
+      Date.parse(primitives.assignedAt ?? "") || 0,
+    ));
+    if (from >= to) return [];
 
     let trips;
     try {

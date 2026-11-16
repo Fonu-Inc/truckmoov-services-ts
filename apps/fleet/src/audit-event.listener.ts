@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { randomUUID } from "node:crypto";
 import { AuditLogService, type AuditEntry } from "./audit-log.service";
+import { busVerifier } from "./verified-bus-handler";
 
 @Injectable()
 export class AuditEventListener implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -11,11 +13,13 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     private readonly audit: AuditLogService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap() {
+    const verified = busVerifier(this.config, this.logger);
     const [u1, u2] = await Promise.all([
-      this.bus.subscribe("tm.*.job.status.changed", async (event) => {
+      this.bus.subscribe("tm.*.job.status.changed", verified(async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {
           tenantId: event.tenant_id,
@@ -37,8 +41,8 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: entry.metadata,
           occurredAt: entry.occurredAt,
         });
-      }, "audit_log"),
-      this.bus.subscribe("tm.*.alert.triggered", async (event) => {
+      }), "audit_log"),
+      this.bus.subscribe("tm.*.alert.triggered", verified(async (event) => {
         const d = event.data as Record<string, unknown>;
         const entry: Omit<AuditEntry, "id"> = {
           tenantId: event.tenant_id,
@@ -60,7 +64,7 @@ export class AuditEventListener implements OnApplicationBootstrap, OnApplication
           metadata: entry.metadata,
           occurredAt: entry.occurredAt,
         });
-      }, "audit_log"),
+      }), "audit_log"),
     ]);
 
     this.unsubs.push(u1, u2);

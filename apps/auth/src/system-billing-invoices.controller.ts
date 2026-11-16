@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { OnResource, Portals, Requires } from '@shared/access';
 import { BillingActorResolver } from './billing-actor';
 import { bearerToken, mapBillingErrors } from './billing-controller.support';
+import { assertStaff } from '@auth/onboarding/application/use-cases/billing/enforcement-access';
 import { GetBillingSummaryUseCase } from '@auth/onboarding/application/use-cases/billing/billing-summary.use-case';
 import {
   GetInvoiceUseCase,
@@ -39,13 +40,17 @@ export class SystemBillingInvoicesController {
     @Inject(GetBillingSummaryUseCase) private readonly getSummary: GetBillingSummaryUseCase,
   ) {}
 
+  private async staff(authorization?: string): Promise<void> {
+    assertStaff(await this.actors.resolve(bearerToken(authorization)), 'Only system admins can view billing.');
+  }
+
   @Get('summary')
   @Requires('admin.billing.read')
   @ApiOperation({ summary: 'Billing KPIs' })
   @ApiOkResponse({ type: BillingSummaryResponse })
   async summary(@Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.getSummary.execute();
     });
   }
@@ -56,7 +61,7 @@ export class SystemBillingInvoicesController {
   @ApiOkResponse({ type: InvoicesPageResponse })
   async invoices(@Query() query: ListInvoicesQueryDto, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.listInvoices.execute(query);
     });
   }
@@ -67,7 +72,7 @@ export class SystemBillingInvoicesController {
   @ApiOkResponse({ type: InvoiceDetailResponse })
   async invoice(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.getInvoice.execute(id);
     });
   }
@@ -78,7 +83,7 @@ export class SystemBillingInvoicesController {
   @ApiOkResponse({ type: PaymentsPageResponse })
   async payments(@Query() query: ListPaymentsQueryDto, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.listPayments.execute(query);
     });
   }
@@ -89,7 +94,7 @@ export class SystemBillingInvoicesController {
   @ApiOkResponse({ type: PaymentDetailResponse })
   async payment(@Param('id') id: string, @Headers('authorization') authorization?: string) {
     return mapBillingErrors(async () => {
-      await this.actors.resolve(bearerToken(authorization));
+      await this.staff(authorization);
       return this.getPayment.execute(id);
     });
   }

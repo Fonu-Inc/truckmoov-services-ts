@@ -4,10 +4,9 @@ import { InternalCallerService } from '../../../apps/auth/src/internal-caller.se
 
 const DEV = 'dev-secret';
 
-function service(legacyTenant: string | null = null) {
+function service() {
   return new InternalCallerService(
     { identity: { legacySecret: '', serviceTokenDir: '/nonexistent', serviceAuthDevSecret: DEV } } as never,
-    { resolveAccessToken: () => (legacyTenant ? { tenantId: legacyTenant } : null) } as never,
   );
 }
 
@@ -29,7 +28,7 @@ describe('callers of auth service-to-service routes', () => {
     expect(await service().tenantFor(call('fleet'), ['fleet'])).toBeNull();
   });
 
-  it('still accepts the older token while the compatibility window is open', async () => {
-    expect(await service('tenant-b').tenantFor({ authorization: 'Bearer legacy' }, ['fleet'])).toBe('tenant-b');
+  it('refuses a user token without a service token', async () => {
+    expect(await service().tenantFor({ authorization: 'Bearer user', 'x-acting-for-tenant': 'tenant-b' }, ['fleet'])).toBeNull();
   });
 });

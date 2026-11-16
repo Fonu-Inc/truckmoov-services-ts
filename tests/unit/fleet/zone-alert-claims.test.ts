@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { signBusEvent, type BusHandler } from "@shared/eventbus";
 import { GeofenceEvaluatorService } from "../../../apps/fleet/src/contexts/fleet/tracking/application/geofence-evaluator.service";
 import { InMemoryZoneOccupancyRepository } from "../../../apps/fleet/src/contexts/fleet/tracking/infrastructure/in-memory-zone-occupancy.repository";
 import { GeofenceDwellSweepService } from "../../../apps/fleet/src/geofence-dwell-sweep.service";
@@ -57,8 +58,8 @@ describe("Zone alerts fire once across replicas", () => {
 
 describe("Vehicle location listener", () => {
   it("evaluates zones at the fix time and feeds live counts from every instance", async () => {
-    const durable: Array<(event: unknown) => Promise<void>> = [];
-    const everyInstance: Array<(event: unknown) => Promise<void>> = [];
+    const durable: BusHandler[] = [];
+    const everyInstance: BusHandler[] = [];
     const bus = {
       subscribe: async (_s: string, handler: never) => void durable.push(handler),
       subscribeEveryInstance: async (_s: string, handler: never) => void everyInstance.push(handler),
@@ -67,21 +68,30 @@ describe("Vehicle location listener", () => {
     const evaluator = { evaluate: vi.fn(async () => []) };
     const liveCounts = { record: vi.fn() };
     const positions = { record: async () => {} };
-    const listener = new VehicleLocationListener(bus as never, positions as never, liveCounts as never, evaluator as never);
+    const config = { eventSigningSecret: "bus-secret", eventAcceptUnsigned: false };
+    const listener = new VehicleLocationListener(bus as never, positions as never, liveCounts as never, evaluator as never, config as never);
     await listener.onApplicationBootstrap();
 
-    const event = {
+    const subject = "tm.tenant-a.vehicle.location.updated";
+    const unsigned = {
+      id: "evt-1",
+      type: "vehicle.location.updated",
+      version: 1,
       tenant_id: "tenant-a",
       occurred_at: "2026-10-15T12:05:00.000Z",
       data: { vehicle_id: "v1", lat: 6.44, lng: 3.36, fix_time: "2026-10-15T12:00:00.000Z" },
     };
-    await durable[0](event);
+    const event = [signBusEvent("bus-secret", subject, unsigned), { subject }] as const;
+
+    await durable[0](unsigned, { subject });
+    await durable[0](...event);
+    expect(evaluator.evaluate).toHaveBeenCalledTimes(1);
     expect(evaluator.evaluate).toHaveBeenCalledWith(
       expect.objectContaining({ at: new Date("2026-10-15T12:00:00.000Z") }),
     );
     expect(liveCounts.record).not.toHaveBeenCalled();
 
-    await everyInstance[0](event);
+    await everyInstance[0](...event);
     expect(liveCounts.record).toHaveBeenCalledWith(
       expect.objectContaining({ vehicleId: "v1", fixedAt: "2026-10-15T12:00:00.000Z" }),
     );

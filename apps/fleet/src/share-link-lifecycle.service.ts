@@ -11,6 +11,7 @@ import {
   SHARE_LINK_REPOSITORY,
   type ShareLinkRepository,
 } from "./contexts/fleet/tracking/domain/share-link.repository";
+import { busVerifier } from "./verified-bus-handler";
 
 type JobStatusChangedEvent = {
   job_id?: string;
@@ -45,11 +46,9 @@ export class ShareLinkLifecycleService implements OnApplicationBootstrap, OnAppl
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.bus.subscribe("tm.*.job.status.changed", async (event) => {
-      const payload =
-        (event as { data?: JobStatusChangedEvent })?.data ?? (event as JobStatusChangedEvent);
-      await this.revokeIfJobEnded(payload);
-    }, "share_link_lifecycle");
+    await this.bus.subscribe("tm.*.job.status.changed", busVerifier(this.config, this.logger)(async (event) => {
+      await this.revokeIfJobEnded(event.tenant_id, event.data as JobStatusChangedEvent);
+    }), "share_link_lifecycle");
 
     // Hourly rather than on the tracking sweep's cadence: this is cleanup, and
     // an expired link is already refused whether or not the row is still there.
@@ -62,13 +61,13 @@ export class ShareLinkLifecycleService implements OnApplicationBootstrap, OnAppl
     this.timer = null;
   }
 
-  async revokeIfJobEnded(payload: JobStatusChangedEvent): Promise<number> {
+  async revokeIfJobEnded(tenantId: string, payload: JobStatusChangedEvent): Promise<number> {
     const jobId = payload?.job_id?.trim();
     const status = payload?.new_status?.trim().toLowerCase();
-    if (!jobId || !status || !TERMINAL_JOB_STATUSES.includes(status)) return 0;
+    if (!tenantId || !jobId || !status || !TERMINAL_JOB_STATUSES.includes(status)) return 0;
 
     try {
-      const revoked = await this.links.revokeForJob(jobId, new Date());
+      const revoked = await this.links.revokeForJob(tenantId, jobId, new Date());
       if (revoked > 0) this.logger.log(`share_links_revoked:${jobId}:${revoked}`);
       return revoked;
     } catch (error) {

@@ -52,11 +52,15 @@ export class HttpTraccarDeviceProvisioner implements TraccarDeviceProvisioner {
   }
 
   async deregister(traccarDeviceId: string): Promise<void> {
-    await axios.delete(`${this.baseUrl}/api/devices/${traccarDeviceId}`, {
+    const res = await axios.delete(`${this.baseUrl}/api/devices/${traccarDeviceId}`, {
       headers: { Authorization: this.authHeader },
       validateStatus: () => true,
       timeout: REQUEST_TIMEOUT_MS,
     });
+    if (res.status === 404) return;
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`traccar device deregistration failed (status ${res.status})`);
+    }
   }
 
   private async findByUniqueId(imei: string): Promise<string | null> {

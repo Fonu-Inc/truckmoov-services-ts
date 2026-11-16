@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AppConfigService } from "@shared/config";
+import { UserTokenVerifier } from "@shared/identity";
 import { IDEMPOTENCY_KEY } from "./idempotency.decorator";
 import { REDIS_CLIENT, type RedisLike } from "./redis.provider";
 
@@ -16,6 +17,7 @@ export class IdempotencyGuard implements CanActivate {
   // Per-replica fallback used only when Redis is unavailable.
   private readonly seenKeys = new Set<string>();
   private readonly ttlSeconds: number;
+  private readonly users: UserTokenVerifier | null;
 
   constructor(
     // Explicit token keeps guard wiring stable even with transpilers that drop metadata.
@@ -29,6 +31,7 @@ export class IdempotencyGuard implements CanActivate {
     config?: AppConfigService,
   ) {
     this.ttlSeconds = config?.redis.idempotencyTtlSeconds ?? 86_400;
+    this.users = config ? new UserTokenVerifier(config.identity.publicKeys, config.identity.legacySecret) : null;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -51,7 +54,7 @@ export class IdempotencyGuard implements CanActivate {
       return true;
     }
 
-    const fingerprint = `${request.user?.tenantId ?? ""}:${request.method}:${request.originalUrl}:${key}`;
+    const fingerprint = `${this.tenantOf(request)}:${request.method}:${request.originalUrl}:${key}`;
     const release = await this.claim(fingerprint);
     // A failed request must not spend the key, or every retry is refused until the TTL ends.
     const response = context.switchToHttp().getResponse();
@@ -59,6 +62,14 @@ export class IdempotencyGuard implements CanActivate {
       if (response.statusCode >= 400) void release();
     });
     return true;
+  }
+
+  // Auth has no middleware setting request.user, so the bearer is verified here.
+  private tenantOf(request: { user?: { tenantId?: string }; headers: Record<string, unknown> }): string {
+    if (request.user) return request.user.tenantId ?? "";
+    const [scheme, token] = String(request.headers.authorization ?? "").split(" ");
+    if (scheme?.toLowerCase() !== "bearer") return "";
+    return this.users?.verify(token)?.tenantId ?? "";
   }
 
   /** Spends the key for this request; returns how to give it back. */

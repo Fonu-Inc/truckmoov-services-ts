@@ -5,10 +5,14 @@ import { RealtimeGateway } from '../../../apps/realtime/src/realtime.gateway';
 import { RealtimeTokenService } from '../../../apps/realtime/src/realtime-token.service';
 import { NatsFanoutBridge } from '../../../apps/realtime/src/nats-fanout.bridge';
 import { HealthController } from '../../../apps/realtime/src/health.controller';
+import { signBusEvent } from '@shared/eventbus';
 
 const SECRET = 'test-secret';
 const ORIGIN = 'https://dev.truckmoov.com';
+const SIGNING = 'bus-secret';
 const config = {
+  eventSigningSecret: SIGNING,
+  eventAcceptUnsigned: false,
   identity: { signingKey: '', publicKeys: '', legacySecret: SECRET },
   realtime: { maxConnections: 10, allowedOrigins: [ORIGIN] },
   liveTracking: { frameIntervalMs: 1000 },
@@ -23,6 +27,11 @@ function token(expOffsetSeconds: number) {
 
 function socket(value: string) {
   return { handshake: { auth: { token: value }, headers: { origin: ORIGIN } }, data: {} as Record<string, unknown>, join: vi.fn(), emit: vi.fn(), disconnect: vi.fn() };
+}
+
+function busEvent(subject: string, data: Record<string, unknown>) {
+  const tenant = subject.split('.')[1];
+  return signBusEvent(SIGNING, subject, { id: 'e1', type: subject.split('.').slice(2).join('.'), version: 1, occurred_at: new Date().toISOString(), tenant_id: tenant, data });
 }
 
 afterEach(() => {
@@ -62,7 +71,7 @@ describe('a tenant socket', () => {
     const bridge = new NatsFanoutBridge(gateway, config, link as never);
 
     await bridge.onApplicationBootstrap();
-    handlers[0]('tm.tenant-a.tenant.suspended', { data: { reason: 'unpaid' } });
+    handlers[0]('tm.tenant-a.tenant.suspended', busEvent('tm.tenant-a.tenant.suspended', { reason: 'unpaid' }));
     bridge.onApplicationShutdown();
 
     expect(gateway.server.in).toHaveBeenCalledWith('tenant:tenant-a');
@@ -73,10 +82,29 @@ describe('a tenant socket', () => {
     expect(retry.disconnect).toHaveBeenCalledWith(true);
     expect(retry.join).not.toHaveBeenCalled();
 
-    handlers[1]('tm.tenant-a.tenant.reinstated', { data: {} });
+    handlers[1]('tm.tenant-a.tenant.reinstated', busEvent('tm.tenant-a.tenant.reinstated', {}));
     const back = socket(token(60));
     gateway.handleConnection(back as never);
     expect(back.join).toHaveBeenCalledWith('tenant:tenant-a');
+  });
+
+  it('is not disconnected by an unsigned or cross-tenant suspension', async () => {
+    const handlers: Array<(subject: string, body: unknown) => void> = [];
+    const link = { subscribe: vi.fn(async (_s: string, h: (subject: string, body: unknown) => void) => void handlers.push(h)) };
+    const disconnectSockets = vi.fn();
+    const gateway = new RealtimeGateway(config, new RealtimeTokenService(config));
+    gateway.server = { to: vi.fn(() => ({ emit: vi.fn() })), in: vi.fn(() => ({ disconnectSockets })) } as never;
+    const bridge = new NatsFanoutBridge(gateway, config, link as never);
+
+    await bridge.onApplicationBootstrap();
+    handlers[0]('tm.tenant-a.tenant.suspended', { tenant_id: 'tenant-a', data: { reason: 'forged' } });
+    handlers[0]('tm.tenant-a.tenant.suspended', busEvent('tm.tenant-b.tenant.suspended', {}));
+    bridge.onApplicationShutdown();
+
+    expect(disconnectSockets).not.toHaveBeenCalled();
+    const client = socket(token(60));
+    gateway.handleConnection(client as never);
+    expect(client.join).toHaveBeenCalledWith('tenant:tenant-a');
   });
 });
 

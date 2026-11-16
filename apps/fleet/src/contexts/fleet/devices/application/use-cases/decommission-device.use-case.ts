@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../../vehicles/domain/repositories/vehicle.repository";
 import { DeviceNotFoundError } from "../../domain/errors/device-not-found.error";
 import {
@@ -23,6 +23,8 @@ import { detachFromVehicle } from "./suspend-device.use-cases";
  */
 @Injectable()
 export class DecommissionDeviceUseCase {
+  private readonly logger = new Logger(DecommissionDeviceUseCase.name);
+
   constructor(
     @Inject(DEVICE_REPOSITORY) private readonly devices: DeviceRepository,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicles: VehicleRepository,
@@ -50,8 +52,9 @@ export class DecommissionDeviceUseCase {
     if (!traccarDeviceId) return;
     try {
       await this.traccar.deregister(traccarDeviceId);
-    } catch {
+    } catch (error) {
       // A stale Traccar record never blocks decommissioning.
+      this.logger.warn(`traccar_deregister_failed:${traccarDeviceId}:${error instanceof Error ? error.message : "unknown"}`);
     }
   }
 }

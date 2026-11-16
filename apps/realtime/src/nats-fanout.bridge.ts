@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { verifyBusEvent, type EventEnvelope } from '@shared/eventbus';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { NatsLink } from './nats-link.service';
 import { PositionCoalescer, readPosition } from './position-coalescer';
@@ -60,6 +61,7 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.config.eventSigningSecret) this.logger.error('event_signing_secret_unset');
     try {
       for (const subject of FORWARDED_SUBJECTS) {
         await this.link.subscribe(subject, (name, body) => this.forward(name, body));
@@ -84,9 +86,19 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     // No tenant in the subject, or a platform-wide event: it belongs to no
     // tenant's room, so it is dropped rather than broadcast.
     if (!tenantId || tenantId === SYSTEM_TENANT_ID) return;
+    if (typeof envelope !== 'object' || envelope === null) return;
+
+    const verdict = verifyBusEvent(this.config.eventSigningSecret, subject, envelope as EventEnvelope, {
+      acceptUnsigned: this.config.eventAcceptUnsigned,
+    });
+    if (!verdict.ok) {
+      this.logger.warn(`event_rejected:${subject}:${verdict.reason}`);
+      return;
+    }
+    if (!verdict.signed) this.logger.warn(`event_unsigned_accepted:${subject}`);
 
     const event = subject.split('.').slice(2).join('.');
-    const data = envelope as { data?: unknown } | null;
+    const data = envelope as { data?: unknown };
 
     if (event === COALESCED_SUBJECT_EVENT) {
       const position = readPosition(data?.data);

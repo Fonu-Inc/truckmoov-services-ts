@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { VEHICLE_REPOSITORY, type VehicleRepository } from "../../../vehicles/domain/repositories/vehicle.repository";
 import { DeviceNotFoundError } from "../../domain/errors/device-not-found.error";
 import {
@@ -14,6 +14,8 @@ import { emitDeviceIdentity } from "./device-identity-emit";
 
 @Injectable()
 export class DeleteDeviceUseCase {
+  private readonly logger = new Logger(DeleteDeviceUseCase.name);
+
   constructor(
     @Inject(DEVICE_REPOSITORY)
     private readonly deviceRepository: DeviceRepository,
@@ -50,8 +52,9 @@ export class DeleteDeviceUseCase {
     }
     try {
       await this.traccar.deregister(traccarDeviceId);
-    } catch {
+    } catch (error) {
       // best-effort: a stale Traccar record is reconciled out-of-band, never blocks delete.
+      this.logger.warn(`traccar_deregister_failed:${traccarDeviceId}:${error instanceof Error ? error.message : "unknown"}`);
     }
   }
 }

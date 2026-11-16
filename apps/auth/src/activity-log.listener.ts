@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from "@nestjs/common";
-import { EVENT_BUS, type EventBus, type EventEnvelope } from "@shared/eventbus";
+import { AppConfigService } from "@shared/config";
+import { EVENT_BUS, verifiedHandler, type BusHandler, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { ActivityLogService } from "./activity-log.service";
 
 @Injectable()
@@ -10,20 +11,25 @@ export class ActivityLogListener implements OnApplicationBootstrap, OnApplicatio
   constructor(
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     private readonly activityLog: ActivityLogService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap() {
     const [activityUnsub, deliveryUnsub] = await Promise.all([
-      this.bus.subscribe("tm.*.activity.logged", async (event) => {
-        await this.handleActivityLogged(event);
-      }),
-      this.bus.subscribe("tm.*.message.delivery.updated", async (event) => {
-        await this.handleDeliveryUpdated(event);
-      }),
+      this.bus.subscribe("tm.*.activity.logged", this.verified((event) => this.handleActivityLogged(event))),
+      this.bus.subscribe("tm.*.message.delivery.updated", this.verified((event) => this.handleDeliveryUpdated(event))),
     ]);
 
     this.unsubs.push(activityUnsub, deliveryUnsub);
     this.logger.log("Activity log listeners active");
+  }
+
+  private verified(handler: BusHandler): BusHandler {
+    return verifiedHandler(handler, {
+      secret: this.config.eventSigningSecret,
+      acceptUnsigned: this.config.eventAcceptUnsigned,
+      logger: this.logger,
+    });
   }
 
   async onApplicationShutdown() {

@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { AppConfigService } from "@shared/config";
 import { EVENT_BUS, type EventBus } from "@shared/eventbus";
 import { ApplyWaybillExtractionUseCase } from "./contexts/fleet/waybills/application/use-cases/apply-waybill-extraction.use-case";
 import { WAYBILL_CAPTURED_SUBJECT } from "./contexts/fleet/waybills/infrastructure/eventbus-waybill-extraction.queue";
+import { busVerifier } from "./verified-bus-handler";
 
 /**
  * Consumes captured waybills and runs extraction.
@@ -18,12 +20,13 @@ export class WaybillExtractionListener implements OnApplicationBootstrap {
     @Inject(EVENT_BUS) private readonly bus: EventBus,
     @Inject(ApplyWaybillExtractionUseCase)
     private readonly applyExtraction: ApplyWaybillExtractionUseCase,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
     await this.bus.subscribe(
       `tm.*.${WAYBILL_CAPTURED_SUBJECT}`,
-      async (envelope) => {
+      busVerifier(this.config, this.logger)(async (envelope) => {
         const waybillId = envelope.data["waybill_id"] as string;
         if (!waybillId) return;
 
@@ -41,7 +44,7 @@ export class WaybillExtractionListener implements OnApplicationBootstrap {
             }`,
           );
         }
-      },
+      }),
       "waybill-extraction",
     );
   }
