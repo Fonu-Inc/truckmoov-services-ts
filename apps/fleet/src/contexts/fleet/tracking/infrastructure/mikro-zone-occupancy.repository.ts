@@ -9,6 +9,7 @@ import type {
   ZoneOccupancyRepository,
   ZoneOccupantCount,
 } from "../domain/zone-occupancy.repository";
+import { pgTextArray } from "@shared/db";
 
 // Vehicles of the zone's tenant whose last position the zone covers, honouring
 // its vehicle assignments (none means every vehicle).
@@ -62,7 +63,7 @@ export class MikroZoneOccupancyRepository implements ZoneOccupancyRepository {
       `delete from fleet_zone_occupancy
         where tenant_id = ? and vehicle_id = ? and zone_id = any(?::text[])
         returning zone_id`,
-      [tenantId, vehicleId, zoneIds],
+      [tenantId, vehicleId, pgTextArray(zoneIds)],
     );
     return deleted.map((row) => row.zone_id);
   }

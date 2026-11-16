@@ -7,6 +7,7 @@ import type {
   TenantFieldActivityReader,
   TenantUsageCounts,
 } from '../../domain/tenant-field-activity.reader';
+import { pgTextArray } from '@shared/db';
 
 type DayGroup = { day: string; occurred_at: Date; label: string; count: number; sample: string | null };
 type Connection = ReturnType<Awaited<ReturnType<typeof getAuthOrm>>['em']['getConnection']>;
@@ -120,8 +121,8 @@ export class MikroTenantFieldActivityReader implements TenantFieldActivityReader
   private async fleetTablesExist(connection: Connection): Promise<boolean> {
     const rows = await connection.execute<ExistsRow[]>(
       `select count(*)::int as exists from information_schema.tables
-        where table_schema = 'public' and table_name = any(?)`,
-      [FLEET_TABLES],
+        where table_schema = 'public' and table_name = any(?::text[])`,
+      [pgTextArray(FLEET_TABLES)],
     );
     return Number(rows[0]?.exists) === FLEET_TABLES.length;
   }

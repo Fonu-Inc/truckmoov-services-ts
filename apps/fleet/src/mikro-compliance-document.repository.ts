@@ -6,6 +6,7 @@ import type {
   ComplianceDocumentRepository,
   StoredComplianceDocument,
 } from "./compliance-document.repository";
+import { pgTextArray } from "@shared/db";
 
 @Injectable()
 export class MikroComplianceDocumentRepository implements ComplianceDocumentRepository {
@@ -71,8 +72,8 @@ export class MikroComplianceDocumentRepository implements ComplianceDocumentRepo
     if (ids.length === 0) return;
     const orm = await getFleetOrm(this.config.db);
     await orm.em.getConnection().execute(
-      `update fleet_compliance_documents set reminder_sent_at = ? where id = any(?)`,
-      [sentAt, ids],
+      `update fleet_compliance_documents set reminder_sent_at = ? where id = any(?::text[])`,
+      [sentAt, pgTextArray(ids)],
     );
   }
 }
