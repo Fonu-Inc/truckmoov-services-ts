@@ -74,7 +74,7 @@
   "devDependencies": {
     "@commitlint/cli": "19",
     "@commitlint/config-conventional": "19",
-    "@mikro-orm/cli": "6.6.17",
+    "@mikro-orm/cli": "7.2.9",
     "@nestjs/cli": "^10.4.7",
     "@nestjs/schematics": "^10.2.3",
     "@nestjs/testing": "^10.4.20",
@@ -100,7 +100,7 @@
       "@mikro-orm/knex": "6.6.17",
       "@mikro-orm/postgresql": "6.6.17",
       "@mikro-orm/migrations": "6.6.17",
-      "@mikro-orm/cli": "6.6.17",
+      "@mikro-orm/cli": "7.2.9",
       "axios@>=1.0.0 <1.20.0": "^1.20.0",
       "body-parser@>=1.0.0 <1.20.9": "^1.20.9",
       "brace-expansion@>=1.0.0 <1.1.20": "^1.1.20",
