@@ -41,6 +41,7 @@ const SERVICE_ROLES: Record<string, { inTenant?: Role; platform?: Role }> = {
   auth: { inTenant: Role.FLEET_ADMIN, platform: Role.PLATFORM_ADMIN },
   dispatch: { inTenant: Role.FLEET_ADMIN },
   notification: { inTenant: Role.DISPATCHER },
+  realtime: { inTenant: Role.DISPATCHER },
   tracking: { platform: Role.PLATFORM_ADMIN },
 };
 

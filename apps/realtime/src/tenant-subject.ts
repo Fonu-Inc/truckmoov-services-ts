@@ -37,3 +37,13 @@ export function mayDeliver(subject: string, tenantId: string): boolean {
 export function roomFor(tenantId: string): string {
   return `tenant:${tenantId}`;
 }
+
+/** Owner operators limited to their own vehicles; used to reach them on suspension. */
+export function scopedRoomFor(tenantId: string): string {
+  return `tenant-scoped:${tenantId}`;
+}
+
+/** One vehicle's live traffic, joined only by sockets limited to that vehicle. */
+export function vehicleRoomFor(tenantId: string, vehicleId: string): string {
+  return `vehicle:${tenantId}:${vehicleId}`;
+}

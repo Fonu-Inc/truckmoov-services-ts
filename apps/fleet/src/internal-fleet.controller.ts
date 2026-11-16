@@ -6,6 +6,7 @@ import {
   Get,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Query,
@@ -13,7 +14,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
-import { Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
+import { OWNER_OPERATOR_ORGANISATION_TYPE, Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { PlatformActorGuard, PlatformOrTrackingGuard } from "./platform-actor.guard";
 import { TenantHoldUseCases } from "./contexts/fleet/tenant-hold/application/tenant-hold.use-cases";
@@ -49,7 +50,7 @@ import { SuspendDeviceDto } from "./dto/vehicle.dto";
 import { BeginJobVerificationDto, InstalledUnitDto } from "./dto/device-installation.dto";
 import { InstallationHandoverUseCases } from "./contexts/fleet/devices/application/use-cases/installation-handover.use-cases";
 import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
-import { Portals, OnResource } from "@shared/access";
+import { AccessClient, Portals, OnResource } from "@shared/access";
 import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
 import { AppConfigService } from "@shared/config";
 import {
@@ -107,8 +108,32 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(TenantHoldUseCases) private readonly tenantHolds: TenantHoldUseCases,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(DeviceIdentityDirectory) private readonly identities: DeviceIdentityDirectory,
+    @Optional() @Inject(AccessClient) private readonly access?: AccessClient,
   ) {
     super(auditLog, bus);
+  }
+
+  /**
+   * Which vehicles an owner operator's live socket may carry: null for the
+   * whole tenant, or the ids they own when they hold a seat inside someone
+   * else's organisation. Same rule as ownerOperatorIdFromRequest; an unknown
+   * organisation narrows rather than widens.
+   */
+  @Portals("service")
+  @Get("live-scope/:userId")
+  @Roles(Role.DISPATCHER)
+  async liveScope(@Req() req: FleetRequestContext, @Param("userId") userId: string) {
+    if (req.user?.service !== "realtime") throw new NotFoundException();
+    const tenantId = this.tenantIdFromRequest(req);
+    const access = await this.access?.get(userId);
+    if (access === null || access?.active === false || (access && access.tenantId !== tenantId)) {
+      throw new NotFoundException();
+    }
+    if (access?.organizationType === OWNER_OPERATOR_ORGANISATION_TYPE) {
+      return { status: true, message: "success", data: { vehicleIds: null } };
+    }
+    const owned = await this.vehicles.findAllByOwnerOperatorId(userId, tenantId);
+    return { status: true, message: "success", data: { vehicleIds: owned.map((vehicle) => vehicle.id) } };
   }
 
   /**

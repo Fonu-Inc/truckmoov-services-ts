@@ -31,6 +31,8 @@ const FORWARDED_SUBJECTS = [
 
 const SUSPENDED_EVENT = 'tenant.suspended';
 const REINSTATED_EVENT = 'tenant.reinstated';
+/** The only per-vehicle event besides positions; counts and mailbox stay whole-tenant. */
+const ALERT_EVENT = 'alert.triggered';
 
 /** Forwarded as a batched frame, not per message. */
 const COALESCED_SUBJECT_EVENT = 'vehicle.location.updated';
@@ -112,6 +114,10 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     // rebuilt client-side from the event, so a tenant never sees another
     // tenant's identifier even in a routing field.
     this.gateway.emitToTenant(tenantId, event, data?.data ?? {});
+    const vehicleId = (data?.data as { vehicle_id?: unknown } | undefined)?.vehicle_id;
+    if (event === ALERT_EVENT && typeof vehicleId === 'string' && this.gateway.hasScopedSockets(tenantId)) {
+      this.gateway.emitToVehicle(tenantId, vehicleId, event, data?.data ?? {});
+    }
     if (event === SUSPENDED_EVENT) this.gateway.disconnectTenant(tenantId);
     if (event === REINSTATED_EVENT) this.gateway.reinstateTenant(tenantId);
   }
@@ -133,6 +139,10 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     for (const { tenantId, positions } of this.coalescer.drain()) {
       if (positions.length === 0) continue;
       this.gateway.emitToTenant(tenantId, 'tracking.positions', { positions });
+      if (!this.gateway.hasScopedSockets(tenantId)) continue;
+      for (const position of positions) {
+        this.gateway.emitToVehicle(tenantId, position.vehicleId, 'tracking.positions', { positions: [position] });
+      }
     }
   }
 }

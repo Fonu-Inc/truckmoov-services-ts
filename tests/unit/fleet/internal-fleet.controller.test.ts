@@ -149,3 +149,41 @@ describe("fleet tenant-scope boot check", () => {
     expect(() => assertTenantScopedControllers(app as never)).not.toThrow();
   });
 });
+
+describe("live socket scope for owner operators", () => {
+  async function scopeHarness(access: unknown) {
+    const vehicles = new InMemoryVehicleRepository();
+    await vehicles.save(Vehicle.create({
+      id: "veh-own", plateNumber: "LAG-1", model: "Actros", tenantId: "tenant-a", status: "active",
+      assignedDriverId: null, ownerOperatorId: "op-1", gpsDevice: null,
+    }));
+    await vehicles.save(vehicle("veh-other", "tenant-a"));
+    return new InternalFleetController(
+      {} as never, {} as never, vehicles, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, { get: async () => access } as never,
+    );
+  }
+  const realtime = { user: { service: "realtime", tenantId: "tenant-a", role: "DISPATCHER" } } as never;
+
+  it("lists only the operator's own vehicles inside another organisation", async () => {
+    const controller = await scopeHarness({ tenantId: "tenant-a", active: true, organizationType: "aggregator" });
+    expect((await controller.liveScope(realtime, "op-1")).data.vehicleIds).toEqual(["veh-own"]);
+  });
+
+  it("narrows when auth cannot say what organisation they are in", async () => {
+    const controller = await scopeHarness(undefined);
+    expect((await controller.liveScope(realtime, "op-1")).data.vehicleIds).toEqual(["veh-own"]);
+  });
+
+  it("gives the whole tenant to the owner of an owner-operator organisation", async () => {
+    const controller = await scopeHarness({ tenantId: "tenant-a", active: true, organizationType: "owner_operator" });
+    expect((await controller.liveScope(realtime, "op-1")).data.vehicleIds).toBeNull();
+  });
+
+  it("refuses another tenant's user and any caller but realtime", async () => {
+    const controller = await scopeHarness({ tenantId: "tenant-b", active: true, organizationType: "aggregator" });
+    await expect(controller.liveScope(realtime, "op-1")).rejects.toBeInstanceOf(NotFoundException);
+    const dispatch = { user: { service: "dispatch", tenantId: "tenant-a", role: "FLEET_ADMIN" } } as never;
+    await expect(controller.liveScope(dispatch, "op-1")).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

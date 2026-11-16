@@ -74,7 +74,7 @@ describe('a tenant socket', () => {
     handlers[0]('tm.tenant-a.tenant.suspended', busEvent('tm.tenant-a.tenant.suspended', { reason: 'unpaid' }));
     bridge.onApplicationShutdown();
 
-    expect(gateway.server.in).toHaveBeenCalledWith('tenant:tenant-a');
+    expect(gateway.server.in).toHaveBeenCalledWith(['tenant:tenant-a', 'tenant-scoped:tenant-a']);
     expect(disconnectSockets).toHaveBeenCalledWith(true);
 
     const retry = socket(token(60));

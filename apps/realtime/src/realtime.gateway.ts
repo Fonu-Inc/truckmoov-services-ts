@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject, Logger, Optional } from '@nestjs/common';
 import {
   OnGatewayConnection,
   OnGatewayDisconnect,
@@ -7,8 +7,10 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { AppConfigService } from '@shared/config';
-import { RealtimeTokenService } from './realtime-token.service';
-import { roomFor } from './tenant-subject';
+import { RealtimeTokenService, type RealtimePrincipal } from './realtime-token.service';
+import { normalizeRole, Role } from '@shared/rbac';
+import { LiveScopeClient } from './live-scope.client';
+import { roomFor, scopedRoomFor, vehicleRoomFor } from './tenant-subject';
 
 const MAX_TIMER_MS = 2_147_483_647;
 
@@ -34,6 +36,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private connections = 0;
   // shortcut: only suspensions seen since this pod booted, add an auth status lookup if a restart window matters.
   private readonly suspended = new Set<string>();
+  // Sockets limited to their own vehicles, per tenant, so per-vehicle emits are skipped when there are none.
+  private readonly scopedSockets = new Map<string, number>();
 
   @WebSocketServer()
   server!: Server;
@@ -41,9 +45,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(RealtimeTokenService) private readonly tokens: RealtimeTokenService,
+    @Optional() @Inject(LiveScopeClient) private readonly scopes?: LiveScopeClient,
   ) {}
 
-  handleConnection(client: Socket): void {
+  handleConnection(client: Socket): void | Promise<void> {
     if (!this.originAllowed(client)) {
       this.refuse(client, 'origin_not_allowed');
       return;
@@ -70,10 +75,36 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
 
+    // An owner operator seated in someone else's organisation sees only their
+    // own vehicles, as on REST; fleet decides which those are.
+    if (normalizeRole(principal.role) === Role.OWNER_OPERATOR) return this.admitOwnerOperator(client, principal);
+
     // The room comes from the verified claim. A client cannot ask to join a
     // room, so it cannot ask for another tenant's traffic.
-    client.data.tenantId = principal.tenantId;
     void client.join(roomFor(principal.tenantId));
+    this.admit(client, principal);
+  }
+
+  // shortcut: scope is read once per connection, so a vehicle reassigned mid-session shows until the socket reconnects (at most the token's life).
+  private async admitOwnerOperator(client: Socket, principal: RealtimePrincipal): Promise<void> {
+    const scope = this.scopes ? await this.scopes.vehicleIdsFor(principal.tenantId, principal.userId) : undefined;
+    if (!client.connected) return;
+    if (scope === undefined || this.suspended.has(principal.tenantId)) {
+      this.refuse(client, scope === undefined ? 'scope_unavailable' : 'tenant_suspended');
+      return;
+    }
+    if (scope === null) {
+      void client.join(roomFor(principal.tenantId));
+    } else {
+      void client.join([scopedRoomFor(principal.tenantId), ...scope.map((id) => vehicleRoomFor(principal.tenantId, id))]);
+      client.data.scoped = true;
+      this.scopedSockets.set(principal.tenantId, (this.scopedSockets.get(principal.tenantId) ?? 0) + 1);
+    }
+    this.admit(client, principal);
+  }
+
+  private admit(client: Socket, principal: RealtimePrincipal): void {
+    client.data.tenantId = principal.tenantId;
     const expiry = setTimeout(() => client.disconnect(true), Math.min(principal.exp * 1000 - Date.now(), MAX_TIMER_MS));
     expiry.unref?.();
     client.data.expiry = expiry;
@@ -85,6 +116,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   handleDisconnect(client: Socket): void {
     clearTimeout(client.data?.expiry);
     if (client.data?.tenantId) this.connections = Math.max(0, this.connections - 1);
+    if (client.data?.scoped) {
+      const left = (this.scopedSockets.get(client.data.tenantId) ?? 1) - 1;
+      if (left > 0) this.scopedSockets.set(client.data.tenantId, left);
+      else this.scopedSockets.delete(client.data.tenantId);
+    }
+  }
+
+  /** Whether any socket in this tenant is limited to its own vehicles. */
+  hasScopedSockets(tenantId: string): boolean {
+    return this.scopedSockets.has(tenantId);
+  }
+
+  /** Delivers to the sockets limited to this vehicle. The tenant room gets its own copy. */
+  emitToVehicle(tenantId: string, vehicleId: string, event: string, payload: unknown): void {
+    this.server?.to(vehicleRoomFor(tenantId, vehicleId)).emit(event, payload);
   }
 
   /** Delivers to one tenant's room. Called by the bridge, never by a client. */
@@ -95,7 +141,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   /** A suspended tenant keeps no live sockets. */
   disconnectTenant(tenantId: string): void {
     this.suspended.add(tenantId);
-    this.server?.in(roomFor(tenantId)).disconnectSockets(true);
+    this.server?.in([roomFor(tenantId), scopedRoomFor(tenantId)]).disconnectSockets(true);
   }
 
   reinstateTenant(tenantId: string): void {

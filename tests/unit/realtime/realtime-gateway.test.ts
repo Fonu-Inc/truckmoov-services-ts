@@ -199,3 +199,48 @@ describe('delivery', () => {
     expect(emit).toHaveBeenCalledWith('mailbox.updated', { newMessages: 2 });
   });
 });
+
+describe('owner operator sockets', () => {
+  function scoped(scope: string[] | null | undefined) {
+    const cfg = config();
+    const scopes = { vehicleIdsFor: vi.fn(async () => scope) };
+    const gateway = new RealtimeGateway(cfg, new RealtimeTokenService(cfg), scopes as never);
+    gateway.server = { to: vi.fn(() => ({ emit: vi.fn() })) } as never;
+    return { gateway, scopes };
+  }
+  const ownerSocket = () => ({ ...socket(makeToken('tenant-a', SECRET, 3600, 'OWNER_OPERATOR')), connected: true });
+
+  it('joins only their own vehicles when limited to them', async () => {
+    const { gateway, scopes } = scoped(['veh-1', 'veh-2']);
+    const client = ownerSocket();
+
+    await gateway.handleConnection(client as never);
+
+    expect(scopes.vehicleIdsFor).toHaveBeenCalledWith('tenant-a', 'user-1');
+    expect(client.join).toHaveBeenCalledWith(['tenant-scoped:tenant-a', 'vehicle:tenant-a:veh-1', 'vehicle:tenant-a:veh-2']);
+    expect(client.join).not.toHaveBeenCalledWith('tenant:tenant-a');
+    expect(gateway.hasScopedSockets('tenant-a')).toBe(true);
+
+    gateway.handleDisconnect(client as never);
+    expect(gateway.hasScopedSockets('tenant-a')).toBe(false);
+  });
+
+  it('joins the tenant room when they run their own organisation', async () => {
+    const { gateway } = scoped(null);
+    const client = ownerSocket();
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.join).toHaveBeenCalledWith('tenant:tenant-a');
+  });
+
+  it('refuses when fleet cannot say which vehicles are theirs', async () => {
+    const { gateway } = scoped(undefined);
+    const client = ownerSocket();
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.join).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalled();
+  });
+});

@@ -4,6 +4,7 @@ import { AppConfigService, ConfigModule } from '@shared/config';
 import { createServiceCaller } from '@shared/identity';
 import { LoggerModule } from '@shared/logger';
 import { HealthController } from './health.controller';
+import { LiveScopeClient } from './live-scope.client';
 import { NatsFanoutBridge } from './nats-fanout.bridge';
 import { NatsLink } from './nats-link.service';
 import { PlatformMessagingBridge } from './platform-messaging/platform-messaging.bridge';
@@ -39,6 +40,7 @@ import { RealtimeTokenService } from './realtime-token.service';
         return client;
       },
     },
+    LiveScopeClient,
     RealtimeGateway,
     RealtimeTokenService,
     NatsFanoutBridge,
