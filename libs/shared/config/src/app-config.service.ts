@@ -228,6 +228,15 @@ export class AppConfigService {
     };
   }
 
+  /** Addresses, or CIDR ranges, that are never blocked by hand or by an auto-block rule. */
+  get ipBlockAllowlist(): string[] {
+    return this.config
+      .get<string>("IP_BLOCK_ALLOWLIST", "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry !== "");
+  }
+
   get audit() {
     return {
       // Socket addresses whose forwarding headers may be believed. Empty means

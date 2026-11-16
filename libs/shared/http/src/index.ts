@@ -10,6 +10,6 @@ export {
   isPubliclyRoutableHost,
   isPubliclyRoutableIp,
 } from "./private-network-guard";
-export { clientIpFrom } from "./client-ip";
+export { clientIpFrom, ipMatchesAny } from "./client-ip";
 export type { ClientIpOptions, IncomingLike } from "./client-ip";
 

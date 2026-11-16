@@ -48,6 +48,12 @@ function isTrusted(peer: string, trustedProxies: string[]): boolean {
   return trustedProxies.some((entry) => matchesProxy(peer, entry));
 }
 
+/** Whether an address equals, or falls inside, any entry: an exact IP or a CIDR range. */
+export function ipMatchesAny(ip: string, entries: readonly string[]): boolean {
+  const address = normalizeIp(ip);
+  return address !== null && entries.some((entry) => matchesProxy(address, entry));
+}
+
 function matchesProxy(peer: string, entry: string): boolean {
   const proxy = normalizeIp(entry);
   if (!proxy) return false;

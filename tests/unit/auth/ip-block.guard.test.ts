@@ -36,4 +36,16 @@ describe('IpBlockGuard', () => {
     const guard = new IpBlockGuard(blockedIps);
     await expect(guard.canActivate(contextWithIp('3.3.3.3'))).resolves.toBe(true);
   });
+
+  it('lets an allowlisted address through even while it is blocked', async () => {
+    const blockedIps = new InMemoryBlockedIpRepository();
+    await blockedIps.save({
+      id: 'blk-1', ipAddress: '102.88.169.191', reason: 'x', blockType: 'permanent',
+      blockedAt: new Date(), expiresAt: null, blockedBy: 'system:auto-block',
+      unblockedAt: null, unblockedBy: null,
+    });
+    const guard = new IpBlockGuard(blockedIps, { ipBlockAllowlist: ['102.88.160.0/20'] } as never);
+    await expect(guard.canActivate(contextWithIp('102.88.169.191'))).resolves.toBe(true);
+    await expect(guard.canActivate(contextWithIp('::ffff:102.88.169.191'))).resolves.toBe(true);
+  });
 });

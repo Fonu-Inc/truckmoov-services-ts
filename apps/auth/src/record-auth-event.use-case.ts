@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { AppConfigService } from '@shared/config';
+import { ipMatchesAny } from '@shared/http';
 import { ID_GENERATOR } from './contexts/auth/session';
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
 import {
@@ -64,6 +66,7 @@ export class RecordAuthEventUseCase {
     @Inject(SECURITY_EVENT_REPOSITORY) private readonly securityEvents: SecurityEventRepository,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(PlatformAlertPublisher) private readonly alerts: PlatformAlertPublisher,
+    @Optional() @Inject(AppConfigService) private readonly config?: AppConfigService,
   ) {}
 
   async execute(command: RecordAuthEventCommand): Promise<void> {
@@ -90,6 +93,7 @@ export class RecordAuthEventUseCase {
   }
 
   private async evaluateAutoBlock(ipAddress: string): Promise<void> {
+    if (ipMatchesAny(ipAddress, this.config?.ipBlockAllowlist ?? [])) return;
     const alreadyBlocked = await this.blockedIps.findActiveByIp(ipAddress);
     if (alreadyBlocked) return;
 

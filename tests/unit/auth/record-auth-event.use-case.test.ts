@@ -6,7 +6,7 @@ import { InMemoryAutoBlockRuleRepository } from '../../../apps/auth/src/in-memor
 import { InMemorySecurityEventRepository } from '../../../apps/auth/src/in-memory-security-event.repository';
 import { PlatformAlertPublisher } from '../../../apps/auth/src/platform-alert.publisher';
 
-function harness() {
+function harness(allowlist: string[] = []) {
   const authEvents = new InMemoryAuthEventRepository();
   const blockedIps = new InMemoryBlockedIpRepository();
   const rules = new InMemoryAutoBlockRuleRepository();
@@ -23,6 +23,7 @@ function harness() {
     securityEvents,
     idGenerator,
     alerts,
+    { ipBlockAllowlist: allowlist } as never,
   );
 
   return { useCase, authEvents, blockedIps, rules, securityEvents, raised };
@@ -132,5 +133,19 @@ describe('RecordAuthEventUseCase', () => {
       });
     }
     expect(await blockedIps.findActiveByIp('3.3.3.3')).toBeNull();
+  });
+});
+
+describe('RecordAuthEventUseCase allowlist', () => {
+  it('never auto-blocks an allowlisted address', async () => {
+    const { useCase, blockedIps } = harness(['9.9.9.9']);
+    for (let i = 0; i < 12; i++) {
+      await useCase.execute({
+        tenantId: null, userId: null, email: 'a@x.com',
+        eventType: 'login', status: 'failed', failureReason: 'invalid_password',
+        ipAddress: '9.9.9.9', userAgent: null,
+      });
+    }
+    expect(await blockedIps.findActiveByIp('9.9.9.9')).toBeNull();
   });
 });
