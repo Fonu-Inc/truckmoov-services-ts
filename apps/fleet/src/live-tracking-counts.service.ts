@@ -37,6 +37,8 @@ type TrackedVehicle = {
   speedKph: number | null;
   hasActiveJob: boolean;
   status: LiveVehicleStatus;
+  /** Set for a vehicle an owner operator holds inside someone else's organisation. */
+  ownerOperatorId: string | null;
 };
 
 /**
@@ -56,6 +58,7 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
   private readonly logger = new Logger(LiveTrackingCountsService.name);
   private readonly vehicles = new Map<string, TrackedVehicle>();
   private readonly published = new Map<string, LiveStatusCounts>();
+  private readonly publishedForOwner = new Map<string, LiveStatusCounts>();
   private readonly jobsRefreshedAt = new Map<string, number>();
   private readonly jobsRefreshing = new Set<string>();
   private sweep: NodeJS.Timeout | null = null;
@@ -98,6 +101,7 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
       // working vehicle out of "in progress".
       hasActiveJob: current?.hasActiveJob ?? false,
       status: current?.status ?? "offline",
+      ownerOperatorId: current?.ownerOperatorId ?? null,
     });
 
     this.recheckTenant(input.tenantId);
@@ -133,10 +137,15 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
    */
   private async seedVehicles(tenantId: string): Promise<void> {
     try {
-      const ids = new Set(await this.vehicleList.listIdsByTenant(tenantId));
+      const registered = await this.vehicleList.listIdsAndOwnersByTenant(tenantId);
+      const ids = new Set(registered.map((vehicle) => vehicle.id));
       const unseen = [...ids].filter((id) => !this.vehicles.has(this.keyFor(tenantId, id)));
       if (unseen.length > 0) await this.seedUnseen(tenantId, unseen);
       this.dropRemovedVehicles(tenantId, ids);
+      for (const vehicle of registered) {
+        const tracked = this.vehicles.get(this.keyFor(tenantId, vehicle.id));
+        if (tracked) tracked.ownerOperatorId = vehicle.ownerOperatorId;
+      }
     } catch (error) {
       this.logger.warn(
         `tracking_counts_vehicles_seed_failed:${tenantId}:${error instanceof Error ? error.message : "unknown"}`,
@@ -156,6 +165,7 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
         speedKph: fixedAt && typeof position?.speedKph === "number" ? position.speedKph : null,
         hasActiveJob: false,
         status: "offline",
+        ownerOperatorId: null,
       });
     }
   }
@@ -191,11 +201,32 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
 
   private recheckTenant(tenantId: string): void {
     const counts = this.countsFor(tenantId);
+    this.recheckOwners(tenantId);
     const previous = this.published.get(tenantId);
     if (previous && liveCountsEqual(previous, counts)) return;
 
     this.published.set(tenantId, counts);
     void this.publish(tenantId, counts);
+  }
+
+  /** An owner operator limited to their own vehicles gets the status bar for those alone. */
+  private recheckOwners(tenantId: string): void {
+    const byOwner = new Map<string, LiveVehicleStatus[]>();
+    for (const tracked of this.vehicles.values()) {
+      if (tracked.tenantId !== tenantId || !tracked.ownerOperatorId) continue;
+      byOwner.set(tracked.ownerOperatorId, [...(byOwner.get(tracked.ownerOperatorId) ?? []), tracked.status]);
+    }
+    for (const [ownerOperatorId, statuses] of byOwner) {
+      const counts = countLiveStatuses(statuses);
+      const key = `${tenantId}:${ownerOperatorId}`;
+      const previous = this.publishedForOwner.get(key);
+      if (previous && liveCountsEqual(previous, counts)) continue;
+      this.publishedForOwner.set(key, counts);
+      void this.publishEvent(`tm.${tenantId}.tracking.owner_counts`, "tracking.owner_counts", tenantId, {
+        owner_operator_id: ownerOperatorId,
+        counts,
+      });
+    }
   }
 
   private statusesFor(tenantId: string): LiveVehicleStatus[] {
@@ -211,14 +242,18 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
   }
 
   private async publish(tenantId: string, counts: LiveStatusCounts): Promise<void> {
+    await this.publishEvent(`tm.${tenantId}.tracking.counts`, "tracking.counts", tenantId, counts);
+  }
+
+  private async publishEvent(subject: string, type: string, tenantId: string, data: unknown): Promise<void> {
     try {
-      await this.bus.publish(`tm.${tenantId}.tracking.counts`, {
+      await this.bus.publish(subject, {
         id: randomUUID(),
-        type: "tracking.counts",
+        type,
         version: 1,
         occurred_at: new Date().toISOString(),
         tenant_id: tenantId,
-        data: counts,
+        data: data as Record<string, unknown>,
       });
     } catch (error) {
       // A missed counter refresh is not worth failing ingest over; the next

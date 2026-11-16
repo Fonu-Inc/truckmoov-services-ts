@@ -52,10 +52,10 @@ export class InMemoryVehicleRepository implements VehicleRepository {
     });
   }
 
-  async listIdsByTenant(tenantId: string): Promise<string[]> {
+  async listIdsAndOwnersByTenant(tenantId: string): Promise<Array<{ id: string; ownerOperatorId: string | null }>> {
     return Array.from(this.data.values())
       .filter((vehicle) => vehicle.tenantId === tenantId)
-      .map((vehicle) => vehicle.id);
+      .map((vehicle) => ({ id: vehicle.id, ownerOperatorId: vehicle.ownerOperatorId }));
   }
 
   async findById(id: string, tenantId: string): Promise<Vehicle | null> {

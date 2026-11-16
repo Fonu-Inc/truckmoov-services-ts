@@ -43,6 +43,11 @@ export function scopedRoomFor(tenantId: string): string {
   return `tenant-scoped:${tenantId}`;
 }
 
+/** One owner operator's limited sockets, for their own counts and newly added vehicles. */
+export function ownerRoomFor(tenantId: string, userId: string): string {
+  return `owner:${tenantId}:${userId}`;
+}
+
 /** One vehicle's live traffic, joined only by sockets limited to that vehicle. */
 export function vehicleRoomFor(tenantId: string, vehicleId: string): string {
   return `vehicle:${tenantId}:${vehicleId}`;

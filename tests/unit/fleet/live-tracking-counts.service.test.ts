@@ -16,15 +16,23 @@ const job = (vehicleId: string, status: string) => ({
   punctuality: null,
 });
 
-function build(jobs: unknown[] | Error, registered: string[] = [], latest: unknown[] | Error = []) {
+function build(jobs: unknown[] | Error, registered: string[] = [], latest: unknown[] | Error = [], owners: Record<string, string> = {}) {
   const published: Array<Record<string, number>> = [];
-  const bus = { publish: vi.fn(async (_subject: string, envelope: { data: Record<string, number> }) => { published.push(envelope.data); }) };
+  const ownerCounts: Array<{ subject: string; data: unknown }> = [];
+  const bus = {
+    publish: vi.fn(async (subject: string, envelope: { data: Record<string, number> }) => {
+      if (subject.endsWith(".tracking.owner_counts")) ownerCounts.push({ subject, data: envelope.data });
+      else published.push(envelope.data);
+    }),
+  };
   const config = { liveTracking: { sweepIntervalSeconds: 60, offlineAfterMinutes: 15 } };
   const dispatch = { listJobs: vi.fn(async () => { if (jobs instanceof Error) throw jobs; return jobs; }) };
-  const vehicleList = { listIdsByTenant: vi.fn(async () => registered) };
+  const vehicleList = {
+    listIdsAndOwnersByTenant: vi.fn(async () => registered.map((id) => ({ id, ownerOperatorId: owners[id] ?? null }))),
+  };
   const positions = { listLatestPositions: vi.fn(async () => { if (latest instanceof Error) throw latest; return latest; }) };
   const service = new LiveTrackingCountsService(bus as never, config as never, dispatch as never, vehicleList as never, positions as never);
-  return { service, published, dispatch, vehicleList, positions };
+  return { service, published, ownerCounts, dispatch, vehicleList, positions };
 }
 
 const fix = (vehicleId: string) => ({ tenantId: "t1", vehicleId, fixedAt: new Date().toISOString(), speedKph: 0 });
@@ -81,5 +89,18 @@ describe("LiveTrackingCountsService in-progress count", () => {
     service.record(fix("v1"));
     await vi.waitFor(() => expect(dispatch.listJobs).toHaveBeenCalledTimes(1));
     expect(dispatch.listJobs).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LiveTrackingCountsService per-owner counts", () => {
+  it("publishes an owner operator's own counts apart from the tenant's", async () => {
+    const { service, ownerCounts } = build([], ["v1", "v2"], [], { v1: "op-1" });
+    service.record(fix("v1"));
+    await vi.waitFor(() => expect(ownerCounts.length).toBeGreaterThan(0));
+    service.record(fix("v2"));
+
+    const last = ownerCounts.at(-1)!;
+    expect(last.subject).toBe("tm.t1.tracking.owner_counts");
+    expect(last.data).toEqual({ owner_operator_id: "op-1", counts: { active: 0, in_progress: 0, idle: 1, offline: 0 } });
   });
 });

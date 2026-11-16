@@ -10,7 +10,7 @@ import { AppConfigService } from '@shared/config';
 import { RealtimeTokenService, type RealtimePrincipal } from './realtime-token.service';
 import { normalizeRole, Role } from '@shared/rbac';
 import { LiveScopeClient } from './live-scope.client';
-import { roomFor, scopedRoomFor, vehicleRoomFor } from './tenant-subject';
+import { ownerRoomFor, roomFor, scopedRoomFor, vehicleRoomFor } from './tenant-subject';
 
 const MAX_TIMER_MS = 2_147_483_647;
 
@@ -85,7 +85,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.admit(client, principal);
   }
 
-  // shortcut: scope is read once per connection, so a vehicle reassigned mid-session shows until the socket reconnects (at most the token's life).
   private async admitOwnerOperator(client: Socket, principal: RealtimePrincipal): Promise<void> {
     const scope = this.scopes ? await this.scopes.vehicleIdsFor(principal.tenantId, principal.userId) : undefined;
     if (!client.connected) return;
@@ -96,7 +95,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (scope === null) {
       void client.join(roomFor(principal.tenantId));
     } else {
-      void client.join([scopedRoomFor(principal.tenantId), ...scope.map((id) => vehicleRoomFor(principal.tenantId, id))]);
+      void client.join([
+        scopedRoomFor(principal.tenantId),
+        ownerRoomFor(principal.tenantId, principal.userId),
+        ...scope.map((id) => vehicleRoomFor(principal.tenantId, id)),
+      ]);
       client.data.scoped = true;
       this.scopedSockets.set(principal.tenantId, (this.scopedSockets.get(principal.tenantId) ?? 0) + 1);
     }
@@ -126,6 +129,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   /** Whether any socket in this tenant is limited to its own vehicles. */
   hasScopedSockets(tenantId: string): boolean {
     return this.scopedSockets.has(tenantId);
+  }
+
+  /** Delivers to every socket limited to its own vehicles in this tenant. */
+  emitToScoped(tenantId: string, event: string, payload: unknown): void {
+    this.server?.to(scopedRoomFor(tenantId)).emit(event, payload);
+  }
+
+  /** Delivers to one owner operator's limited sockets. */
+  emitToOwner(tenantId: string, ownerOperatorId: string, event: string, payload: unknown): void {
+    this.server?.to(ownerRoomFor(tenantId, ownerOperatorId)).emit(event, payload);
+  }
+
+  /** Vehicles an owner operator added while connected join their live feed straight away. */
+  addOwnedVehicles(tenantId: string, ownerOperatorId: string, vehicleIds: readonly string[]): void {
+    this.server?.in(ownerRoomFor(tenantId, ownerOperatorId)).socketsJoin(vehicleIds.map((id) => vehicleRoomFor(tenantId, id)));
   }
 
   /** Delivers to the sockets limited to this vehicle. The tenant room gets its own copy. */

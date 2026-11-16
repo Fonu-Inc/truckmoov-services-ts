@@ -469,7 +469,30 @@ export class VehiclesController extends BaseFleetController {
         status: result.status,
       },
     });
+    await this.announceOwnedVehicles(req, [result.id]);
     return result as unknown as VehicleResponse;
+  }
+
+  /**
+   * An owner operator's live socket follows their vehicles by id; a vehicle they
+   * just added has to be pushed to it, since the socket learned its scope on connect.
+   */
+  private async announceOwnedVehicles(req: FleetRequestContext, vehicleIds: string[]): Promise<void> {
+    const ownerOperatorId = this.ownerOperatorIdFromRequest(req);
+    if (!ownerOperatorId || vehicleIds.length === 0) return;
+    const tenantId = this.tenantIdFromRequest(req);
+    try {
+      await this.bus.publish(`tm.${tenantId}.vehicle.owner.assigned`, {
+        id: randomUUID(),
+        type: "vehicle.owner.assigned",
+        version: 1,
+        occurred_at: new Date().toISOString(),
+        tenant_id: tenantId,
+        data: { owner_operator_id: ownerOperatorId, vehicle_ids: vehicleIds },
+      });
+    } catch {
+      // The vehicle is saved; the socket picks it up on its next connection.
+    }
   }
 
   /** Bulk onboarding for fleet inventory imports */
@@ -598,6 +621,7 @@ export class VehiclesController extends BaseFleetController {
         total: result.total,
       },
     });
+    await this.announceOwnedVehicles(req, result.records.map((record) => record.id));
     return result as unknown as BulkVehicleImportResponse;
   }
 

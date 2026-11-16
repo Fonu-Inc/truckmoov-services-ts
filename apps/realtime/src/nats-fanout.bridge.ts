@@ -27,12 +27,18 @@ const FORWARDED_SUBJECTS = [
   'tm.*.vehicle.location.updated',
   'tm.*.tracking.counts',
   'tm.*.alert.triggered',
+  // Only for owner operators limited to their own vehicles; never sent to the tenant room.
+  'tm.*.tracking.owner_counts',
+  'tm.*.vehicle.owner.assigned',
 ] as const;
 
 const SUSPENDED_EVENT = 'tenant.suspended';
 const REINSTATED_EVENT = 'tenant.reinstated';
 /** The only per-vehicle event besides positions; counts and mailbox stay whole-tenant. */
 const ALERT_EVENT = 'alert.triggered';
+const MAILBOX_EVENT = 'mailbox.updated';
+const OWNER_COUNTS_EVENT = 'tracking.owner_counts';
+const OWNER_ASSIGNED_EVENT = 'vehicle.owner.assigned';
 
 /** Forwarded as a batched frame, not per message. */
 const COALESCED_SUBJECT_EVENT = 'vehicle.location.updated';
@@ -110,6 +116,11 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
       return;
     }
 
+    if (event === OWNER_COUNTS_EVENT || event === OWNER_ASSIGNED_EVENT) {
+      this.forwardToOwner(tenantId, event, data?.data);
+      return;
+    }
+
     // Only the event name and its payload cross to the browser. The subject is
     // rebuilt client-side from the event, so a tenant never sees another
     // tenant's identifier even in a routing field.
@@ -118,8 +129,25 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     if (event === ALERT_EVENT && typeof vehicleId === 'string' && this.gateway.hasScopedSockets(tenantId)) {
       this.gateway.emitToVehicle(tenantId, vehicleId, event, data?.data ?? {});
     }
+    // The mailbox is the organisation's, and REST lets a limited owner operator read it.
+    if (event === MAILBOX_EVENT && this.gateway.hasScopedSockets(tenantId)) {
+      this.gateway.emitToScoped(tenantId, event, data?.data ?? {});
+    }
     if (event === SUSPENDED_EVENT) this.gateway.disconnectTenant(tenantId);
     if (event === REINSTATED_EVENT) this.gateway.reinstateTenant(tenantId);
+  }
+
+  private forwardToOwner(tenantId: string, event: string, payload: unknown): void {
+    if (!this.gateway.hasScopedSockets(tenantId) || typeof payload !== 'object' || payload === null) return;
+    const body = payload as { owner_operator_id?: unknown; counts?: unknown; vehicle_ids?: unknown };
+    if (typeof body.owner_operator_id !== 'string') return;
+    if (event === OWNER_COUNTS_EVENT && body.counts && typeof body.counts === 'object') {
+      this.gateway.emitToOwner(tenantId, body.owner_operator_id, 'tracking.counts', body.counts);
+    }
+    if (event === OWNER_ASSIGNED_EVENT && Array.isArray(body.vehicle_ids)) {
+      const ids = body.vehicle_ids.filter((id): id is string => typeof id === 'string');
+      this.gateway.addOwnedVehicles(tenantId, body.owner_operator_id, ids);
+    }
   }
 
   /**

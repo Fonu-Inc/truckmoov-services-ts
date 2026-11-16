@@ -217,7 +217,7 @@ describe('owner operator sockets', () => {
     await gateway.handleConnection(client as never);
 
     expect(scopes.vehicleIdsFor).toHaveBeenCalledWith('tenant-a', 'user-1');
-    expect(client.join).toHaveBeenCalledWith(['tenant-scoped:tenant-a', 'vehicle:tenant-a:veh-1', 'vehicle:tenant-a:veh-2']);
+    expect(client.join).toHaveBeenCalledWith(['tenant-scoped:tenant-a', 'owner:tenant-a:user-1', 'vehicle:tenant-a:veh-1', 'vehicle:tenant-a:veh-2']);
     expect(client.join).not.toHaveBeenCalledWith('tenant:tenant-a');
     expect(gateway.hasScopedSockets('tenant-a')).toBe(true);
 
@@ -242,5 +242,23 @@ describe('owner operator sockets', () => {
 
     expect(client.join).not.toHaveBeenCalled();
     expect(client.disconnect).toHaveBeenCalled();
+  });
+});
+
+describe('owner operator rooms', () => {
+  it('pushes newly added vehicles and their own counts to the owner room only', () => {
+    const cfg = config();
+    const gateway = new RealtimeGateway(cfg, new RealtimeTokenService(cfg));
+    const socketsJoin = vi.fn();
+    const emit = vi.fn();
+    gateway.server = { in: vi.fn(() => ({ socketsJoin })), to: vi.fn(() => ({ emit })) } as never;
+
+    gateway.addOwnedVehicles('tenant-a', 'op-1', ['veh-9']);
+    gateway.emitToOwner('tenant-a', 'op-1', 'tracking.counts', { active: 1 });
+
+    expect(gateway.server.in).toHaveBeenCalledWith('owner:tenant-a:op-1');
+    expect(socketsJoin).toHaveBeenCalledWith(['vehicle:tenant-a:veh-9']);
+    expect(gateway.server.to).toHaveBeenCalledWith('owner:tenant-a:op-1');
+    expect(emit).toHaveBeenCalledWith('tracking.counts', { active: 1 });
   });
 });

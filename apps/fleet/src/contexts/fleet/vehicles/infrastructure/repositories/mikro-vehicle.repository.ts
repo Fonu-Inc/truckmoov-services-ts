@@ -49,10 +49,10 @@ export class MikroVehicleRepository implements VehicleRepository {
     });
   }
 
-  async listIdsByTenant(tenantId: string): Promise<string[]> {
+  async listIdsAndOwnersByTenant(tenantId: string): Promise<Array<{ id: string; ownerOperatorId: string | null }>> {
     const orm = await getFleetOrm(this.config.db);
-    const records = await orm.em.fork().find(VehicleRecord, { tenantId }, { fields: ["id"] });
-    return records.map((record) => String(record.id));
+    const records = await orm.em.fork().find(VehicleRecord, { tenantId }, { fields: ["id", "ownerOperatorId"] });
+    return records.map((record) => ({ id: String(record.id), ownerOperatorId: record.ownerOperatorId ?? null }));
   }
 
   async findAll(filters: VehicleFilters): Promise<Vehicle[]> {
