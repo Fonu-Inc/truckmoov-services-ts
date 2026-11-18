@@ -10,6 +10,7 @@ import { AppConfigService } from '@shared/config';
 import { RealtimeTokenService, type RealtimePrincipal } from './realtime-token.service';
 import { normalizeRole, Role } from '@shared/rbac';
 import { LiveScopeClient } from './live-scope.client';
+import { AppCheckVerifier } from './app-check.verifier';
 import { ownerRoomFor, roomFor, scopedRoomFor, vehicleRoomFor } from './tenant-subject';
 
 const MAX_TIMER_MS = 2_147_483_647;
@@ -27,7 +28,7 @@ const MAX_TIMER_MS = 2_147_483_647;
 @WebSocketGateway({
   path: '/realtime/socket.io',
   // CORS does not apply to a WebSocket handshake, so the browser will not stop
-  // a cross-origin connection. This allowlist is the only thing that does.
+  // a cross-origin connection. The origin allowlist is the only thing that does.
   cors: false,
   serveClient: false,
 })
@@ -46,10 +47,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(RealtimeTokenService) private readonly tokens: RealtimeTokenService,
     @Optional() @Inject(LiveScopeClient) private readonly scopes?: LiveScopeClient,
+    @Optional() @Inject(AppCheckVerifier) private readonly appCheck?: AppCheckVerifier,
   ) {}
 
   handleConnection(client: Socket): void | Promise<void> {
-    if (!this.originAllowed(client)) {
+    // A browser always sends Origin, so one that is present must be allowlisted. Only a
+    // non-browser client sends none, and it must then prove it is the genuine mobile app
+    // with App Check, checked below once the token has passed.
+    const native = client.handshake.headers.origin === undefined;
+    if (!native && !this.originAllowed(client)) {
       this.refuse(client, 'origin_not_allowed');
       return;
     }
@@ -75,6 +81,22 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
 
+    if (native) return this.admitApp(client, principal);
+    return this.enter(client, principal);
+  }
+
+  private async admitApp(client: Socket, principal: RealtimePrincipal): Promise<void> {
+    const appCheck = (client.handshake.auth as { appCheck?: unknown } | undefined)?.appCheck;
+    const genuine = this.appCheck ? await this.appCheck.verify(appCheck) : false;
+    if (!client.connected) return;
+    if (!genuine) {
+      this.refuse(client, 'app_check_failed');
+      return;
+    }
+    return this.enter(client, principal);
+  }
+
+  private enter(client: Socket, principal: RealtimePrincipal): void | Promise<void> {
     // An owner operator seated in someone else's organisation sees only their
     // own vehicles, as on REST; fleet decides which those are.
     if (normalizeRole(principal.role) === Role.OWNER_OPERATOR) return this.admitOwnerOperator(client, principal);

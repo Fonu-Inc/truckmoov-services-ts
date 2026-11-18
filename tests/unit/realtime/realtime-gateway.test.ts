@@ -122,13 +122,14 @@ describe('origin allowlist', () => {
     expect(client.disconnect).toHaveBeenCalledWith(true);
   });
 
-  it('refuses a handshake carrying no origin at all', () => {
+  it('refuses a socket with no origin when App Check is not set up', async () => {
     const gateway = build();
-    const client = socket(makeToken('tenant-a'), null);
+    const client = { ...socket(makeToken('tenant-a'), null), connected: true };
 
-    gateway.handleConnection(client as never);
+    await gateway.handleConnection(client as never);
 
-    expect(client.disconnect).toHaveBeenCalledWith(true);
+    expect(client.emit).toHaveBeenCalledWith('refused', { reason: 'app_check_failed' });
+    expect(client.join).not.toHaveBeenCalled();
   });
 
   it('refuses everything when no origins are configured', () => {
@@ -147,6 +148,74 @@ describe('origin allowlist', () => {
     gateway.handleConnection(client as never);
 
     expect(client.emit).toHaveBeenCalledWith('refused', { reason: 'origin_not_allowed' });
+  });
+});
+
+// A socket with no Origin header is not a browser: it is admitted only with a valid user
+// token and an App Check token proving it is the genuine mobile app.
+describe('mobile app sockets', () => {
+  function appGateway(genuine: boolean) {
+    const cfg = config();
+    const appCheck = { verify: vi.fn(async () => genuine) };
+    const gateway = new RealtimeGateway(cfg, new RealtimeTokenService(cfg), undefined, appCheck as never);
+    gateway.server = { to: vi.fn(() => ({ emit: vi.fn() })) } as never;
+    return { gateway, appCheck };
+  }
+  const appSocket = (token?: string, appCheck?: string) => {
+    const client = { ...socket(token, null), connected: true };
+    if (appCheck !== undefined) (client.handshake.auth as Record<string, unknown>).appCheck = appCheck;
+    return client;
+  };
+
+  it('admits a valid token with a genuine App Check token', async () => {
+    const { gateway, appCheck } = appGateway(true);
+    const client = appSocket(makeToken('tenant-a'), 'app-check-token');
+
+    await gateway.handleConnection(client as never);
+
+    expect(appCheck.verify).toHaveBeenCalledWith('app-check-token');
+    expect(client.join).toHaveBeenCalledWith('tenant:tenant-a');
+    expect(client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('refuses a valid token whose App Check token does not verify', async () => {
+    const { gateway } = appGateway(false);
+    const client = appSocket(makeToken('tenant-a'), 'forged');
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.emit).toHaveBeenCalledWith('refused', { reason: 'app_check_failed' });
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
+  it('still needs a user token: App Check alone is not an identity', async () => {
+    const { gateway, appCheck } = appGateway(true);
+    const client = appSocket(undefined, 'app-check-token');
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.emit).toHaveBeenCalledWith('refused', { reason: 'unauthenticated' });
+    expect(appCheck.verify).not.toHaveBeenCalled();
+  });
+
+  it('keeps the origin allowlist for any socket that sends an Origin', async () => {
+    const { gateway, appCheck } = appGateway(true);
+    const client = { ...socket(makeToken('tenant-a'), 'https://evil.example.com'), connected: true };
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.emit).toHaveBeenCalledWith('refused', { reason: 'origin_not_allowed' });
+    expect(appCheck.verify).not.toHaveBeenCalled();
+  });
+
+  it('does not admit a socket that left while App Check was being checked', async () => {
+    const { gateway } = appGateway(true);
+    const client = { ...appSocket(makeToken('tenant-a'), 'app-check-token'), connected: false };
+
+    await gateway.handleConnection(client as never);
+
+    expect(client.join).not.toHaveBeenCalled();
+    expect(gateway.openConnections()).toBe(0);
   });
 });
 

@@ -13,6 +13,7 @@ import { PlatformMessagingGateway } from './platform-messaging/platform-messagin
 import { PlatformMessagingService } from './platform-messaging/platform-messaging.service';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeTokenService } from './realtime-token.service';
+import { AppCheckVerifier } from './app-check.verifier';
 
 /**
  * A service that holds connections and nothing else.
@@ -43,6 +44,11 @@ import { RealtimeTokenService } from './realtime-token.service';
     LiveScopeClient,
     RealtimeGateway,
     RealtimeTokenService,
+    {
+      provide: AppCheckVerifier,
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => new AppCheckVerifier(config.realtime.appCheck),
+    },
     NatsFanoutBridge,
     PlatformMessagingCommands,
     PlatformMessagingService,

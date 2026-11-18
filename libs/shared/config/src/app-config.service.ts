@@ -314,6 +314,16 @@ export class AppConfigService {
       // How long a draining pod keeps serving before it tells clients to
       // reconnect. Must stay under terminationGracePeriodSeconds.
       drainSeconds: this.config.get<number>("REALTIME_DRAIN_SECONDS", 10),
+      // A socket with no Origin header (the mobile app) must carry a Firebase App
+      // Check token from this project. Unset refuses every such socket.
+      appCheck: {
+        projectNumber: this.config.get<string>("FIREBASE_PROJECT_NUMBER", "").trim(),
+        appIds: this.config
+          .get<string>("APP_CHECK_APP_IDS", "")
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      },
     };
   }
 
