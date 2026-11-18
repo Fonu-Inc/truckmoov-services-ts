@@ -180,7 +180,13 @@ describe("live socket scope for owner operators", () => {
     expect((await controller.liveScope(realtime, "op-1")).data.vehicleIds).toBeNull();
   });
 
-  it("refuses another tenant's user and any caller but realtime", async () => {
+  it("answers the notification service the same way", async () => {
+    const controller = await scopeHarness({ tenantId: "tenant-a", active: true, organizationType: "aggregator" });
+    const notification = { user: { service: "notification", tenantId: "tenant-a", role: "DISPATCHER" } } as never;
+    expect((await controller.liveScope(notification, "op-1")).data.vehicleIds).toEqual(["veh-own"]);
+  });
+
+  it("refuses another tenant's user and any caller but realtime and notification", async () => {
     const controller = await scopeHarness({ tenantId: "tenant-b", active: true, organizationType: "aggregator" });
     await expect(controller.liveScope(realtime, "op-1")).rejects.toBeInstanceOf(NotFoundException);
     const dispatch = { user: { service: "dispatch", tenantId: "tenant-a", role: "FLEET_ADMIN" } } as never;
