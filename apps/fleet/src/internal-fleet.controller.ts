@@ -123,7 +123,7 @@ export class InternalFleetController extends BaseFleetController {
   @Get("live-scope/:userId")
   @Roles(Role.DISPATCHER)
   async liveScope(@Req() req: FleetRequestContext, @Param("userId") userId: string) {
-    if (req.user?.service !== "realtime") throw new NotFoundException();
+    if (req.user?.service !== "realtime" && req.user?.service !== "notification") throw new NotFoundException();
     const tenantId = this.tenantIdFromRequest(req);
     const access = await this.access?.get(userId);
     if (access === null || access?.active === false || (access && access.tenantId !== tenantId)) {

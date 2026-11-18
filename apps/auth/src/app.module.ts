@@ -253,6 +253,7 @@ import { InstallerDeviceRequestsController } from './installer-device-requests.c
 import { InstallerNotificationsController } from './installer-notifications.controller';
 import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
+import { InternalNotificationRecipientsController } from './internal-notification-recipients.controller';
 import { InternalTenantContactController } from './internal-tenant-contact.controller';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
@@ -932,6 +933,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallerSettingsController,
     InstallerSupportController,
     InternalInstallersController,
+    InternalNotificationRecipientsController,
     InternalTenantContactController,
     SystemInstallersController,
     SystemInstallationOrdersController,
