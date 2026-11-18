@@ -38,7 +38,7 @@ export class InstallerAuthController extends BaseAuthController {
   @ApiLoginResponse()
   @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
   @ApiErrorResponse(401, '"Invalid credentials"')
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   @ApiErrorResponse(404, 'Not an active installer, or the account is disabled or unverified. Answered as a missing route.')
   @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async login(
@@ -70,7 +70,7 @@ export class InstallerAuthController extends BaseAuthController {
     401,
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
   )
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   @ApiErrorResponse(404, 'The installer was suspended since the password step. Answered as a missing route.')
   @CodeAttemptsLimited()
   async loginTwoFactor(

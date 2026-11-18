@@ -20,7 +20,7 @@ export class IpBlockGuard implements CanActivate {
     if (ipMatchesAny(ip, this.allowlist)) return true;
     const active = await this.blockedIps.findActiveByIp(ip);
     if (active) {
-      throw new HttpException('This IP address is blocked', HttpStatus.FORBIDDEN);
+      throw new HttpException('Sign in is not available right now. Please try again later.', HttpStatus.FORBIDDEN);
     }
     return true;
   }

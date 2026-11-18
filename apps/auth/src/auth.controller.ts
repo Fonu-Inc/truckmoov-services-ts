@@ -219,7 +219,7 @@ export class AuthController extends BaseAuthController {
   @ApiLoginResponse()
   @ApiErrorResponse(400, 'The body failed validation', ApiValidationErrorBody)
   @ApiErrorResponse(401, '"Invalid credentials"')
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   @ApiErrorResponse(404, 'Not a tenant account, or the account is disabled or unverified. Answered as a missing route.')
   @ApiErrorResponse(429, '"Too many login attempts, please try again later"')
   async login(
@@ -250,7 +250,7 @@ export class AuthController extends BaseAuthController {
     401,
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
   )
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   @CodeAttemptsLimited()
   async loginTwoFactor(
     @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,

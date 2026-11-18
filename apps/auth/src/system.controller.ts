@@ -162,7 +162,7 @@ export class SystemController extends BaseAuthController {
   @Post('login')
   @UseGuards(LoginRateLimitGuard, IpBlockGuard)
   @ApiAdminLoginResponse()
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   async systemLogin(
     @Body(BodyOrDataPipe) payload: LoginDto,
     @Req() req: { ip?: string },
@@ -189,7 +189,7 @@ export class SystemController extends BaseAuthController {
     401,
     '"That code is not valid", or "This sign-in has expired; start again" for an expired, used, forged or other portal\'s challenge',
   )
-  @ApiErrorResponse(403, '"This IP address is blocked"')
+  @ApiErrorResponse(403, '"Sign in is not available right now. Please try again later."')
   @CodeAttemptsLimited()
   async systemLoginTwoFactor(
     @Body(BodyOrDataPipe) payload: LoginTwoFactorDto,
