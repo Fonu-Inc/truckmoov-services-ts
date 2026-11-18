@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ServiceCaller } from '@shared/identity';
 
 describe('Portal enforcement over HTTP (auth)', () => {
   let app: INestApplication;
@@ -19,6 +20,7 @@ describe('Portal enforcement over HTTP (auth)', () => {
       SUPERADMIN_TENANT_ID: 'system',
       LOGIN_RATE_LIMIT_BURST: '1000',
       PORTAL_ENFORCEMENT: 'enforce',
+      SERVICE_AUTH_DEV_SECRET: 'dev-secret',
     });
     vi.resetModules();
     const { AppModule } = await import('../../../apps/auth/src/app.module');
@@ -68,5 +70,40 @@ describe('Portal enforcement over HTTP (auth)', () => {
   it('refuses the bundle catalogue service route to a user token', async () => {
     const res = await request(app.getHttpServer()).get('/auth/internal/bundle-catalog').set('Authorization', `Bearer ${staffToken}`);
     expect(res.status).toBe(404);
+  });
+  describe('notification recipients', () => {
+    const as = (caller: string, tenantId: string) =>
+      new ServiceCaller({ self: caller, tokenDir: '/nonexistent', devSecret: 'dev-secret', legacySecret: '' }).headers('auth', { tenantId })!;
+
+    it('refuses a user token', async () => {
+      const res = await request(app.getHttpServer()).get('/auth/internal/notification-recipients').set('Authorization', `Bearer ${staffToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('refuses a service other than notification', async () => {
+      const res = await request(app.getHttpServer()).get('/auth/internal/notification-recipients').set(as('dispatch', 'system'));
+      expect(res.status).toBe(401);
+    });
+
+    it('lists the acting tenant\'s users to the notification service', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/auth/internal/notification-recipients')
+        .query({ roles: 'PLATFORM_ADMIN,SUPER_ADMIN' })
+        .set(as('notification', 'system'));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      for (const recipient of res.body.data) {
+        expect(Object.keys(recipient).sort()).toEqual(['id', 'organizationType', 'preferences', 'role']);
+        expect(['PLATFORM_ADMIN', 'SUPER_ADMIN']).toContain(recipient.role);
+        expect(recipient.preferences.pushAlerts).toBe(true);
+      }
+    });
+
+    it('lists nobody for a tenant without users', async () => {
+      const res = await request(app.getHttpServer()).get('/auth/internal/notification-recipients').set(as('notification', 'tenant-nobody'));
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual([]);
+    });
   });
 });
