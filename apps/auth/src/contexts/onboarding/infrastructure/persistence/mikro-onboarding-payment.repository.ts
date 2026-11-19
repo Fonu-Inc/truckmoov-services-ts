@@ -96,7 +96,7 @@ export class MikroOnboardingPaymentRepository
     const em = await this.em();
     const record = await em.findOne(
       OnboardingPaymentRecord,
-      { applicationId, reference: { $not: { $like: 'RNW-%' } } },
+      { applicationId, $not: { reference: { $like: 'RNW-%' } } },
       { orderBy: { createdAt: 'desc' } },
     );
     return record ? toStored(record) : null;
@@ -107,7 +107,7 @@ export class MikroOnboardingPaymentRepository
     const record = await em.findOne(OnboardingPaymentRecord, {
       applicationId,
       status: 'paid',
-      reference: { $not: { $like: 'RNW-%' } },
+      $not: { reference: { $like: 'RNW-%' } },
     });
     return record ? toStored(record) : null;
   }
