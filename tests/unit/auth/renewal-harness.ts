@@ -96,14 +96,14 @@ export async function buildRenewals(start = "2026-10-01T09:00:00+01:00") {
   const emitted = vi.spyOn(events, "emit");
   const settle = new SettleRenewalPaymentUseCase(payments, invoices, periods, wallet, audit, events, restore as never);
   const gateway = {
-    name: "paystack", signatureHeader: "x", isConfigured: () => true,
+    name: "paystack", signatureHeader: "x", isConfigured: () => true, demo: false,
     initiateCharge: vi.fn(async (request: { reference: string }) => ({
       reference: request.reference, authorizationUrl: `https://pay.test/${request.reference}`, provider: "paystack",
     })),
     verifyCallbackSignature: () => true, parseCallback: () => null,
   };
   const payWallet = new PayRenewalFromWalletUseCase(invoices, payments, wallet, settle, settings, idGenerator, new InMemoryWalletLedgerRepository(wallet));
-  const payCard = new PayRenewalByCardUseCase(invoices, payments, gateway as never, idGenerator);
+  const payCard = new PayRenewalByCardUseCase(invoices, payments, gateway as never, idGenerator, settle);
   const fieldActivity = new InMemoryTenantFieldActivityReader();
   const tenantViews = {
     list: new ListTenantInvoicesUseCase(invoices, periods, settings),

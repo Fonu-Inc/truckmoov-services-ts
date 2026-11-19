@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StandardApiResponse } from '@shared/openapi';
 import {
   AUTOMATED_OUTCOMES,
@@ -323,6 +323,8 @@ export class ApplicationPaymentSchema {
   authorizationUrl!: string | null;
   @ApiProperty({ example: 'paystack' }) provider!: string;
   @ApiProperty({ type: OnboardingOrderSchema }) order!: OnboardingOrderSchema;
+  @ApiPropertyOptional({ description: 'True when the server settled the payment without a hosted checkout.' })
+  paid?: boolean;
 }
 
 export class ApplicationPaymentResponse extends StandardApiResponse<ApplicationPaymentSchema> {

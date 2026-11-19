@@ -47,9 +47,12 @@ const REFUND_TIMEOUT_MS = 15_000;
 export class PaystackGateway implements PaymentGateway {
   readonly name = 'paystack';
   readonly signatureHeader = 'x-paystack-signature';
+  readonly demo: boolean;
   private readonly logger = new Logger(PaystackGateway.name);
 
-  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+  constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
+    this.demo = config.payment.demoMode;
+  }
 
   isConfigured(): boolean {
     return Boolean(this.config.payment.paystackSecretKey);

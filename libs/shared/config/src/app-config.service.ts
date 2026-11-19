@@ -574,6 +574,9 @@ export class AppConfigService {
     return {
       paystackBaseUrl: this.config.get<string>("PAYSTACK_BASE_URL", "https://api.paystack.co"),
       paystackSecretKey: this.config.get<string>("PAYSTACK_SECRET_KEY", ""),
+      // Demo checkout: settle the payment server-side instead of sending the
+      // customer to Paystack. Set PAYMENT_DEMO_MODE=false to take real money.
+      demoMode: this.config.get<string>("PAYMENT_DEMO_MODE", "true") === "true",
     };
   }
 }

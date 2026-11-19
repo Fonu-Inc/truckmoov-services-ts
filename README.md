@@ -51,6 +51,11 @@ Auth-specific delivery vars:
 - `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD`: when set, auth bootstraps a `SUPER_ADMIN` account on startup.
 - `SUPERADMIN_FULL_NAME`, `SUPERADMIN_TENANT_ID`: optional overrides for the seeded superadmin profile. Recommended tenant ID is `system`.
 
+Payment checkout vars:
+
+- `PAYMENT_DEMO_MODE` — defaults to `true`: the onboarding application, subscription, invoice-card and wallet-top-up flows settle server-side and never open Paystack. Set it to `false` to send customers to Paystack again; the onboarding application page must also restore its billing-email verification block, which the demo flow removes.
+- `PAYSTACK_BASE_URL`, `PAYSTACK_SECRET_KEY` — used only when demo mode is off.
+
 Fleet runtime and webhook vars:
 
 - `ALERT_ESCALATION_MINUTES`, `DOCUMENT_RETENTION_DAYS`

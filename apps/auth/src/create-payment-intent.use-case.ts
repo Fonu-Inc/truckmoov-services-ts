@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
 import {
@@ -15,7 +15,10 @@ import {
   type StoredSubscriptionPlan,
   type SubscriptionPlanRepository,
 } from './subscription-plan.repository';
-import { OnboardingNotFoundError } from './activate-subscription.use-case';
+import {
+  ActivateSubscriptionUseCase,
+  OnboardingNotFoundError,
+} from './activate-subscription.use-case';
 import {
   TENANT_ONBOARDING_REPOSITORY,
   type PendingSubscriptionCharge,
@@ -45,6 +48,9 @@ export class CreatePaymentIntentUseCase {
     private readonly onboardingRepository: TenantOnboardingRepository,
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
+    @Optional()
+    @Inject(ActivateSubscriptionUseCase)
+    private readonly activateSubscription?: ActivateSubscriptionUseCase,
   ) {}
 
   async execute(
@@ -82,6 +88,31 @@ export class CreatePaymentIntentUseCase {
       planCode: plan.code,
       billingCycle: payload.billingCycle,
     });
+
+    if (this.paymentGateway.demo) {
+      if (!this.activateSubscription) {
+        throw new Error('Demo subscription settlement is not configured');
+      }
+      await this.activateSubscription.execute(
+        actor.tenantId,
+        reference,
+        {
+          planCode: plan.code,
+          billingCycle: payload.billingCycle,
+        },
+        { amountKobo, currency: 'NGN', channel: 'demo' },
+      );
+      return {
+        status: true,
+        message: 'Payment confirmed',
+        data: {
+          gateway: 'demo',
+          reference,
+          authorizationUrl: null,
+          paid: true,
+        },
+      };
+    }
 
     if (payload.gateway === 'momo') {
       return {

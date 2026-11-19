@@ -29,6 +29,7 @@ import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboardi
 import { CheckEmailAvailabilityUseCase } from './contexts/onboarding/email-availability/check-email-availability.use-case';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MAX_DOCUMENT_UPLOAD_BYTES, uploadLimits } from '@shared/http';
+import { AppConfigService } from '@shared/config';
 import {
   ApiBody,
   ApiConsumes,
@@ -65,6 +66,7 @@ import {
   DuplicateVehicleError,
   ApplicationNotPayableError,
   BillingEmailNotVerifiedError,
+  CompleteApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
   GetApplicationOrderUseCase,
   GetIndemnityTemplateUseCase,
@@ -252,6 +254,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly applicationOrder: GetApplicationOrderUseCase,
     @Inject(CreateApplicationPaymentUseCase)
     private readonly startPayment: CreateApplicationPaymentUseCase,
+    @Inject(CompleteApplicationPaymentUseCase)
+    private readonly completePayment: CompleteApplicationPaymentUseCase,
+    @Inject(AppConfigService)
+    private readonly appConfig: AppConfigService,
     @Inject(SetBillingEmailUseCase)
     private readonly setBillingEmail: SetBillingEmailUseCase,
     @Inject(ScheduleInstallationUseCase)
@@ -790,13 +796,16 @@ export class OnboardingApplicationsController extends BaseAuthController {
     @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
   ) {
     const token = this.requireApplicationToken(applicationToken);
-    return this.run(() =>
-      this.startPayment.execute({
+    return this.run(() => {
+      const input = {
         applicationId,
         applicationToken: token,
         redirectUrl,
-      }),
-    );
+      };
+      return this.appConfig.payment.demoMode
+        ? this.completePayment.execute(input)
+        : this.startPayment.execute(input);
+    });
   }
 
   @Post(':applicationId/installation')

@@ -11,6 +11,7 @@ import {
   ConfirmApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
 } from "@auth/onboarding/application/use-cases/pay-for-application.use-cases";
+import { CompleteApplicationPaymentUseCase } from "@auth/onboarding/application/use-cases/complete-application-payment.use-case";
 import { PaymentGatewayError, type PaymentGateway } from "../../../apps/auth/src/contexts/payments";
 import { hashApplicationToken } from "@auth/onboarding/domain/onboarding-application.support";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
@@ -139,6 +140,19 @@ describe("Onboarding payment settlement", () => {
   async function startPayment() {
     return (await pay.execute(input)).data;
   }
+
+  it("demo checkout settles immediately without calling the provider", async () => {
+    const complete = new CompleteApplicationPaymentUseCase(pay, confirm, payments);
+
+    const completed = await complete.execute(input);
+
+    expect(completed.data.authorizationUrl).toBeNull();
+    expect(charges).toHaveLength(0);
+    const stored = await payments.findByReference(completed.data.reference);
+    expect(stored?.status).toBe("paid");
+    const application = await applications.findById("app-1");
+    expect(application?.stage).toBe("installation_scheduling");
+  });
 
   it("records the pending row before the gateway call and stores the url after", async () => {
     const started = await startPayment();

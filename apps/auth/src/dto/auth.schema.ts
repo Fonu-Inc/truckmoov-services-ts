@@ -2630,12 +2630,14 @@ export class DeviceMappingUploadResponse extends StandardApiResponse<DeviceMappi
 /* ── Onboarding Payment / Misc Schemas ──────────────────────────────────── */
 
 export class PaymentIntentDataSchema {
-  @ApiProperty({ enum: ['paystack', 'momo'] }) gateway!: 'paystack' | 'momo';
+  @ApiProperty({ enum: ['paystack', 'momo', 'demo'] }) gateway!: 'paystack' | 'momo' | 'demo';
   @ApiProperty() reference!: string;
   @ApiPropertyOptional({ nullable: true, type: String }) authorizationUrl?: string | null;
   @ApiPropertyOptional({ type: String }) accessCode?: string;
   @ApiPropertyOptional({ type: String }) ussdString?: string;
   @ApiPropertyOptional({ type: String }) message?: string;
+  @ApiPropertyOptional({ description: 'True when the server settled the payment without a hosted checkout.' })
+  paid?: boolean;
 }
 
 export class PaymentIntentResponse extends StandardApiResponse<PaymentIntentDataSchema> {

@@ -44,7 +44,10 @@ describe("Onboarding and installation error statuses", () => {
     [new ChargeRefusedError(), 402],
     [new PaymentProviderUnavailableError(), 503],
   ])("payment answers %s with %i", async (error, status) => {
-    const controller = withDeps(OnboardingApplicationsController, { startPayment: failing(error) });
+    const controller = withDeps(OnboardingApplicationsController, {
+      startPayment: failing(error),
+      appConfig: { payment: { demoMode: false } },
+    });
 
     expect(await statusOf(controller.pay("app-1", undefined, "token"))).toEqual({
       status,

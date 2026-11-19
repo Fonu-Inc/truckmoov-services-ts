@@ -76,6 +76,12 @@ export interface PaymentGateway {
   /** Identifies which adapter answered, for the audit trail and the response. */
   readonly name: string;
   /**
+   * True when the deployment wants checkout settled without contacting the
+   * provider. The call sites still own settlement, because each flow has its
+   * own post-payment work.
+   */
+  readonly demo?: boolean;
+  /**
    * The header this provider signs with. Used only to decide which adapter to
    * try first — never to decide whether a callback is genuine. A header is
    * attacker-controlled; the signature is not.

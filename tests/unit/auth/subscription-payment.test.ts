@@ -46,12 +46,14 @@ function onboarding(planCode = ""): StoredTenantOnboarding {
   } as StoredTenantOnboarding;
 }
 
-async function setup(opts: { plan?: StoredSubscriptionPlan; planCode?: string } = {}) {
+async function setup(opts: { plan?: StoredSubscriptionPlan; planCode?: string; demo?: boolean } = {}) {
   const plans = new InMemorySubscriptionPlanRepository();
   await plans.save(opts.plan ?? plan());
   const onboardings = new InMemoryTenantOnboardingRepository();
   await onboardings.save(onboarding(opts.planCode));
+  const activate = new ActivateSubscriptionUseCase(onboardings, { raise: async () => {} } as never);
   const gateway = {
+    demo: opts.demo ?? false,
     initiateCharge: vi.fn(async (input: { reference: string }) => ({
       provider: "paystack",
       reference: input.reference,
@@ -65,14 +67,29 @@ async function setup(opts: { plan?: StoredSubscriptionPlan; planCode?: string } 
     onboardings,
     {} as never,
     gateway as never,
+    activate,
   );
-  return { intent, onboardings, gateway, activate: new ActivateSubscriptionUseCase(onboardings, { raise: async () => {} } as never) };
+  return { intent, onboardings, gateway, activate };
 }
 
 const pay = (billingCycle: "monthly" | "yearly" = "monthly", planCode = "professional") =>
   ({ planCode, billingCycle, gateway: "paystack" }) as const;
 
 describe("subscription payment intent", () => {
+  it("demo checkout activates the subscription without calling the gateway", async () => {
+    const { intent, gateway, onboardings } = await setup({ demo: true });
+
+    const result = await intent.execute("t", pay("monthly"));
+
+    expect(gateway.initiateCharge).not.toHaveBeenCalled();
+    expect(result.data).toMatchObject({ paid: true, authorizationUrl: null });
+    const saved = await onboardings.findByTenantId(TENANT);
+    expect(saved).toMatchObject({
+      subscription: { planCode: "professional", billingCycle: "monthly" },
+    });
+    expect(saved?.subscriptionActivatedAt).toBeInstanceOf(Date);
+  });
+
   it("charges the monthly price for monthly", async () => {
     const { intent, gateway } = await setup();
     await intent.execute("t", pay("monthly"));

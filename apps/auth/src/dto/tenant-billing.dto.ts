@@ -104,6 +104,10 @@ export class PayRenewalCardSchema {
   @ApiProperty({ type: String, nullable: true }) authorizationUrl!: string | null;
   @ApiProperty() reference!: string;
   @ApiProperty() amountNgn!: number;
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'Set when the server settled the renewal without a hosted checkout.' })
+  newPeriodEnd?: string | null;
+  @ApiPropertyOptional({ description: 'True when the server settled the renewal without a hosted checkout.' })
+  paid?: boolean;
 }
 
 export class TenantInvoicesPageResponse extends StandardApiResponse<TenantInvoicesPageSchema> {

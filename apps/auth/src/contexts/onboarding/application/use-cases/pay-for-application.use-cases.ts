@@ -154,11 +154,15 @@ export class CreateApplicationPaymentUseCase {
     private readonly quotations: OrderQuotationService,
   ) {}
 
-  async execute(input: {
-    applicationId: string;
-    applicationToken: string;
-    redirectUrl?: string;
-  }) {
+  async execute(
+    input: {
+      applicationId: string;
+      applicationToken: string;
+      redirectUrl?: string;
+    },
+    options: { demo?: boolean } = {},
+  ) {
+    const demo = options.demo === true;
     const application = await this.getApplication.resolve(
       input.applicationId,
       input.applicationToken,
@@ -169,13 +173,15 @@ export class CreateApplicationPaymentUseCase {
         `An application at the ${application.stage} stage cannot be paid for`,
       );
     }
-    // The receipt has to reach somebody. Verified here rather than trusted
-    // from the form, because this is the last point before money moves.
-    if (!application.billingEmail || application.billingEmailVerifiedAt === null) {
-      throw new BillingEmailNotVerifiedError();
-    }
-    if (!this.gateway.isConfigured()) {
-      throw new PaymentProviderUnavailableError();
+    if (!demo) {
+      // The receipt has to reach somebody. Verified here rather than trusted
+      // from the form, because this is the last point before money moves.
+      if (!application.billingEmail || application.billingEmailVerifiedAt === null) {
+        throw new BillingEmailNotVerifiedError();
+      }
+      if (!this.gateway.isConfigured()) {
+        throw new PaymentProviderUnavailableError();
+      }
     }
 
     const summary = await priceApplication(
@@ -201,7 +207,17 @@ export class CreateApplicationPaymentUseCase {
       return this.respond(reusable.reference, reusable.authorizationUrl, reusable.provider, summary);
     }
 
-    const payment = await this.recordPending(application, summary, amountKobo, quotation.id);
+    const payment = await this.recordPending(
+      application,
+      summary,
+      amountKobo,
+      quotation.id,
+      demo ? 'demo' : this.gateway.name,
+    );
+    if (demo) {
+      // The caller settles this row immediately; there is no checkout page.
+      return this.respond(payment.reference, null, 'demo', summary);
+    }
     const charge = await this.chargeOrDiscard(payment, input.redirectUrl, application.id);
     await this.payments.setAuthorizationUrl(payment.id, charge.authorizationUrl);
 
@@ -227,6 +243,7 @@ export class CreateApplicationPaymentUseCase {
     summary: OnboardingOrderSummary,
     amountKobo: number,
     quotationId: string,
+    provider: string,
   ): Promise<StoredOnboardingPayment> {
     const now = new Date();
     const payment: StoredOnboardingPayment = {
@@ -236,12 +253,12 @@ export class CreateApplicationPaymentUseCase {
       // Prefixed by application rather than tenant: no tenant exists yet, and
       // the callback has to find its way back to an application.
       reference: `FPA-${application.reference}-${randomBytes(6).toString('hex')}`,
-      provider: this.gateway.name,
+      provider,
       // Recorded from the summary, never from the request: the client chooses
       // a plan, it does not get to name a price.
       amountKobo,
       authorizationUrl: null,
-      billingEmail: application.billingEmail ?? '',
+      billingEmail: application.billingEmail ?? application.businessEmail,
       planCode: summary.planCode,
       deviceCount: summary.deviceCount,
       orderSummary: summary,

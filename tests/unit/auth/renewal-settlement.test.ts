@@ -26,6 +26,21 @@ const gatewaySettle = (h: RenewalHarness, reference: string, amountKobo: number,
   h.settle.execute({ reference, gateway: { succeeded, paid: { amountKobo, currency: "NGN", channel: "card" } } }, h.clock.now);
 
 describe("settling a card payment", () => {
+  it("demo checkout settles the invoice without a redirect", async () => {
+    const h = await buildRenewals();
+    const { invoice } = await issued(h);
+    h.gateway.demo = true;
+
+    const result = await h.payCard.execute(TENANT, invoice.id);
+
+    expect(result.data).toMatchObject({ authorizationUrl: null });
+    expect(h.gateway.initiateCharge).not.toHaveBeenCalled();
+    expect(await h.invoices.findById(invoice.id)).toMatchObject({
+      status: "paid",
+      amountPaidKobo: invoice.totalKobo,
+    });
+  });
+
   it("extends from the current end date when paid early", async () => {
     const h = await buildRenewals();
     const { period, invoice } = await issued(h);

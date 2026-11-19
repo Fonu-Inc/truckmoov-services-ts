@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import { BillingNotFoundError } from '@auth/onboarding/domain/billing-errors';
 import { lagosDate } from '@auth/onboarding/domain/invoice-dates';
@@ -240,13 +240,18 @@ export class PayRenewalByCardUseCase {
     @Inject(ONBOARDING_PAYMENT_REPOSITORY) private readonly payments: OnboardingPaymentRepository,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     @Inject(ID_GENERATOR) private readonly ids: IdGenerator,
+    @Optional()
+    @Inject(SettleRenewalPaymentUseCase)
+    private readonly settle?: SettleRenewalPaymentUseCase,
   ) {}
 
   async execute(tenantId: string, invoiceId: string, now = new Date()) {
     const invoice = await loadPayable(this.invoices, tenantId, invoiceId);
     const amountKobo = outstandingKobo(invoice);
     if (amountKobo > MAX_CARD_KOBO) throw new RenewalAmountTooLargeError();
-    if (!this.gateway.isConfigured()) throw new PaymentProviderUnavailableError();
+    if (!this.gateway.demo && !this.gateway.isConfigured()) {
+      throw new PaymentProviderUnavailableError();
+    }
 
     const payment = pendingPayment(
       invoice,
@@ -260,6 +265,33 @@ export class PayRenewalByCardUseCase {
       now,
     );
     await this.payments.save(payment);
+    if (this.gateway.demo) {
+      if (!this.settle) {
+        throw new Error('Demo renewal settlement is not configured');
+      }
+      const settled = await this.settle.execute(
+        {
+          reference: payment.reference,
+          gateway: {
+            succeeded: true,
+            paid: {
+              amountKobo: payment.amountKobo,
+              currency: 'NGN',
+              channel: 'demo',
+            },
+          },
+        },
+        now,
+      );
+      this.logger.log(`renewal_payment_demo_confirmed:${payment.reference}`);
+      return success({
+        authorizationUrl: null,
+        reference: payment.reference,
+        amountNgn: koboToNgn(amountKobo),
+        newPeriodEnd: settled.newPeriodEnd,
+        paid: true,
+      });
+    }
     const authorizationUrl = await this.charge(payment, invoice);
     this.logger.log(`renewal_payment_started:${payment.reference}`);
     return success({ authorizationUrl, reference: payment.reference, amountNgn: koboToNgn(amountKobo) });

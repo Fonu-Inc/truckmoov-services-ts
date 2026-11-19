@@ -218,6 +218,7 @@ export {
   GetApplicationOrderUseCase,
   PaymentProviderUnavailableError,
 } from "./application/use-cases/pay-for-application.use-cases";
+export { CompleteApplicationPaymentUseCase } from "./application/use-cases/complete-application-payment.use-case";
 export {
   GetIndemnityTemplateUseCase,
   IndemnityTemplateNotFoundError,

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PAYMENT_GATEWAY, type PaymentGateway } from './contexts/payments';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { SettleWalletTopUpUseCase } from './settle-wallet-top-up.use-case';
 import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -35,6 +36,9 @@ export class TopupWalletUseCase {
     @Inject(WALLET_TOP_UP_REPOSITORY) private readonly walletTopUpRepository: WalletTopUpRepository,
     @Inject(SYSTEM_SETTINGS_REPOSITORY) private readonly systemSettingsRepository: SystemSettingsRepository,
     @Inject(PAYMENT_GATEWAY) private readonly paymentGateway: PaymentGateway,
+    @Optional()
+    @Inject(SettleWalletTopUpUseCase)
+    private readonly settleWalletTopUp?: SettleWalletTopUpUseCase,
   ) {}
 
   async execute(accessToken: string, payload: Payload) {
@@ -78,6 +82,31 @@ export class TopupWalletUseCase {
       settledAt: null,
       createdAt: now,
     });
+
+    if (this.paymentGateway.demo) {
+      if (!this.settleWalletTopUp) {
+        throw new Error('Demo wallet top-up settlement is not configured');
+      }
+      await this.settleWalletTopUp.execute(reference, {
+        amountKobo,
+        currency: 'NGN',
+        channel: 'demo',
+      });
+      return {
+        status: true,
+        message: 'success',
+        data: {
+          transactionId: id,
+          paymentReference: reference,
+          amount: payload.amount,
+          status: 'successful',
+          paymentProvider: 'demo',
+          mobileNumber: payload.mobileNumber,
+          authorizationUrl: null,
+          createdAt: now.toISOString(),
+        },
+      };
+    }
 
     // Until this existed, a top-up recorded a pending row and charged nobody:
     // the wallet could only ever be credited by a callback that never came.
