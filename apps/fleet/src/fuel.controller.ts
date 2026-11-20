@@ -366,7 +366,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("metrics")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel consumption chart — N04" })
   @ApiQuery({ name: "period", required: false, enum: ["daily", "weekly", "monthly"] })
   @ApiQuery({ name: "from", required: false, type: String })
@@ -381,7 +381,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("efficiency")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle fuel efficiency — N05" })
   @ApiOkResponse({ type: FuelEfficiencyResponse })
   async fuelEfficiency(@Req() req: FleetRequestContext): Promise<FuelEfficiencyResponse> {
@@ -390,7 +390,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("thresholds")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get fuel efficiency thresholds — N08" })
   @ApiOkResponse({ type: FuelThresholdListResponse })
   async listFuelThresholds(@Req() req: FleetRequestContext): Promise<FuelThresholdListResponse> {
@@ -429,7 +429,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List fuel transactions — N02" })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "driverId", required: false, type: String })

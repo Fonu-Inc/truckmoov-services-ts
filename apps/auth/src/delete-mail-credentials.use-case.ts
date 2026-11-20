@@ -12,6 +12,7 @@ import {
 const MAIL_CONFIG_ROLES = new Set<string>([
   Role.ENTERPRISE_ADMIN,
   Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.AGGREGATOR_ADMIN,
 ]);
 

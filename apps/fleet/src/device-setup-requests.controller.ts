@@ -58,7 +58,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   // Asking Fonu for devices changes none the tenant already has.
   @Requires("tenant.devices.read")
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Request device setup",
     description: "Submits a device request (quantity, optional SIM carrier/data bundle, vehicle, location, use case). Manufacturer and tracker type are optional; the platform picks the hardware. Returns a DVR-NNNNNN reference and starts under_review.",
@@ -86,7 +86,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "List device setup requests",
     description: "Lists submitted device setup requests with their provisioning status timeline (My Device Requests).",
@@ -108,7 +108,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Get("tracker-types")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Tracker types",
     description: "Options for the Tracker Type dropdown on Request Device Setup, with the wording to show.",
@@ -123,7 +123,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Get(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Get device setup request" })
   @ApiOkResponse({ type: DeviceSetupRequestResponse })
   async getDeviceSetupRequest(
@@ -136,7 +136,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   }
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Advance device setup request",
     description: "Moves a request along its lifecycle (under_review → awaiting_payment → ready_for_installation → installation_in_progress → completed, or cancelled). awaiting_payment, ready_for_installation and rejected are the platform's to set and are refused here.",

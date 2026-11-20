@@ -351,7 +351,7 @@ export class DriversController extends BaseFleetController {
   /** Register a new driver */
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -381,7 +381,7 @@ export class DriversController extends BaseFleetController {
   /** Bulk onboarding for driver records */
 
   @Post("import")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -448,7 +448,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post(":id/suspend")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Suspend a driver",
     description:
@@ -474,7 +474,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post(":id/reinstate")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Reinstate a suspended driver",
     description: "Returns the driver to available. They are not re-assigned to their previous vehicle.",
@@ -699,7 +699,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post("behavior/events")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Record a behaviour event",
     description:
@@ -713,7 +713,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Delete("behavior/events/:eventId")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Delete a behaviour event",
     description:
@@ -947,7 +947,7 @@ export class DriversController extends BaseFleetController {
   /** Partially update a driver's details */
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update driver" })
@@ -973,7 +973,7 @@ export class DriversController extends BaseFleetController {
   /** Activate/deactivate driver availability for dispatch */
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -1009,7 +1009,7 @@ export class DriversController extends BaseFleetController {
 
   @Requires("tenant.messaging.manage")
   @Patch(":id/contact-channels")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({

@@ -118,6 +118,7 @@ export class DevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
@@ -148,6 +149,7 @@ export class DevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
@@ -167,6 +169,7 @@ export class DevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
@@ -182,7 +185,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Get("catalog/manufacturers")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Supported manufacturers",
     description:
@@ -196,7 +199,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Get("catalog/models")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Supported models",
     description: "Models for one manufacturer, or the whole catalog when no manufacturer is given.",
@@ -212,6 +215,7 @@ export class DevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
@@ -247,7 +251,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Get("import/template")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Download the CSV template for bulk device import" })
   @ApiOkResponse({ description: "CSV template", content: { "text/csv": {} } })
   async downloadDeviceImportTemplate(@Res({ passthrough: false }) res: any) {
@@ -257,7 +261,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Get("import/columns")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Describe the bulk import columns" })
   @ApiOkResponse({ description: "Column definitions" })
   async describeDeviceImportColumns() {
@@ -265,7 +269,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -294,7 +298,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Post("import")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -358,6 +362,7 @@ export class DevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,
@@ -371,7 +376,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update device" })
@@ -395,7 +400,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Patch(":id/lifecycle")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -427,7 +432,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Post(":id/suspend")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Suspend a device",
     description:
@@ -448,7 +453,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Post(":id/reinstate")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Reinstate a device the tenant suspended",
     description:
@@ -468,7 +473,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Patch(":id/firmware")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update device firmware version" })
@@ -496,7 +501,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Get(":id/assignment/validate")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Validate device assignment",
     description: "Checks whether a device can be assigned to a specific vehicle before the UI submits the actual assignment.",
@@ -515,7 +520,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Patch(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -546,7 +551,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Delete(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign device from vehicle" })
@@ -565,7 +570,7 @@ export class DevicesController extends BaseFleetController {
   }
 
   @Delete(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Delete device" })

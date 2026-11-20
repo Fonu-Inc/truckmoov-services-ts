@@ -41,6 +41,7 @@ export class GpsDevicesController extends BaseFleetController {
   @Roles(
     Role.ENTERPRISE_ADMIN,
     Role.FLEET_ADMIN,
+    Role.OWNER_OPERATOR,
     Role.OPERATIONS_MANAGER,
     Role.DISPATCHER,
     Role.FINANCE_VIEWER,

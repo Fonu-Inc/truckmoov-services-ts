@@ -158,7 +158,7 @@ export class VehiclesController extends BaseFleetController {
   private readonly HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
 
   @Get(":vehicleId/health")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get last seen status" })
   @ApiOkResponse({ type: VehicleHealthResponse })
   async getVehicleHealth(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
@@ -171,7 +171,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("health")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List all last seen statuses" })
   @ApiOkResponse({ type: VehicleHealthListResponse })
   async listVehicleHealth(@Req() req: FleetRequestContext) {
@@ -183,7 +183,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("nearest")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Find nearest vehicles to a coordinate" })
   @ApiQuery({ name: "lat", required: true, type: Number })
   @ApiQuery({ name: "lng", required: true, type: Number })
@@ -675,7 +675,7 @@ export class VehiclesController extends BaseFleetController {
   /** Activate/deactivate vehicle availability for dispatch */
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -705,7 +705,7 @@ export class VehiclesController extends BaseFleetController {
 
   @Requires("tenant.dispatch.manage")
   @Patch(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -740,7 +740,7 @@ export class VehiclesController extends BaseFleetController {
 
   @Requires("tenant.dispatch.manage")
   @Delete(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign driver from vehicle" })
@@ -764,7 +764,7 @@ export class VehiclesController extends BaseFleetController {
   /** Register or replace GPS hardware mapped to a vehicle */
 
   @Patch(":id/gps-device")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({

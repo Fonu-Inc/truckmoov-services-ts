@@ -44,7 +44,7 @@ import { FleetComplianceAuditUseCase } from "./fleet-compliance-audit.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
 
-const AUDIT_READER_ROLES: Role[] = [Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER];
+const AUDIT_READER_ROLES: Role[] = [Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER];
 
 @ApiTags("Analytics")
 @Portals("tenant")
