@@ -110,13 +110,13 @@ describe("GetSystemTenantBillingUseCase", () => {
 
   it("404s an unknown tenant and refuses non-system actors", async () => {
     await expect(build({ tenants: [] }).execute("tok", "t1")).rejects.toThrow("Tenant not found");
-    await expect(build({ actorRole: "FLEET_ADMIN" }).execute("tok", "t1")).rejects.toThrow("not permitted");
+    await expect(build({ actorRole: "OWNER_OPERATOR" }).execute("tok", "t1")).rejects.toThrow("not permitted");
   });
 });
 
 describe("tenant list plan state", () => {
   const admin = { id: "s", role: "SYSTEM_ADMIN", tenantId: "system" };
-  const member = (id: string, tenantId: string) => ({ id, email: `${id}@x.test`, role: "FLEET_ADMIN", tenantId, accountStatus: "enabled" });
+  const member = (id: string, tenantId: string) => ({ id, email: `${id}@x.test`, role: "OWNER_OPERATOR", tenantId, accountStatus: "enabled" });
 
   async function list(filters: Record<string, unknown>) {
     const { ListSystemTenantsUseCase } = await import("../../../apps/auth/src/list-system-tenants.use-case");

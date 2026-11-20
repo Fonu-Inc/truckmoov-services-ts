@@ -37,9 +37,9 @@ describe("the routes an owner operator was refused on", () => {
 
   it("keeps the roles that already had access", () => {
     expect(rolesOf(VehiclesController, "createVehicle")).toEqual(
-      expect.arrayContaining([Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN]),
+      expect.arrayContaining([Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR]),
     );
-    expect(rolesOf(FuelController, "deleteFuel")).toEqual(expect.arrayContaining([Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN]));
+    expect(rolesOf(FuelController, "deleteFuel")).toEqual(expect.arrayContaining([Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR]));
   });
 });
 

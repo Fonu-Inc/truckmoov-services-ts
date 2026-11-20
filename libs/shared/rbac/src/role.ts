@@ -18,7 +18,6 @@ export enum Role {
   ENTERPRISE_ADMIN   = "ENTERPRISE_ADMIN",
   AGGREGATOR_ADMIN   = "AGGREGATOR_ADMIN",
   OWNER_OPERATOR     = "OWNER_OPERATOR",
-  FLEET_ADMIN        = "FLEET_ADMIN",
 
   // Sub-roles, assigned within a stakeholder organisation.
   OPERATIONS_MANAGER = "OPERATIONS_MANAGER",
@@ -33,7 +32,6 @@ export const ROLE_IDS: Record<Role, number> = {
   [Role.AGGREGATOR_ADMIN]: 2,
   [Role.OWNER_OPERATOR]: 3,
   [Role.PLATFORM_ADMIN]: 4,
-  [Role.FLEET_ADMIN]: 5,
   [Role.OPERATIONS_MANAGER]: 6,
   [Role.DISPATCHER]: 7,
   [Role.FINANCE_VIEWER]: 8,
@@ -47,7 +45,9 @@ export const ROLE_SEED_ROWS = Object.entries(ROLE_IDS).map(([name, id]) => ({
 }));
 
 export function roleToId(role: string): number {
-  const id = ROLE_IDS[role as Role];
+  // Legacy rows and old tokens can still name a role by an alias, including
+  // the retired fleet-admin name, which normalizes to OWNER_OPERATOR.
+  const id = ROLE_IDS[(normalizeRole(role) ?? role) as Role];
   if (!id) {
     throw new Error(`Unknown role: ${role}`);
   }
@@ -75,7 +75,6 @@ export const TENANT_ROLES: readonly Role[] = [
   Role.ENTERPRISE_ADMIN,
   Role.AGGREGATOR_ADMIN,
   Role.OWNER_OPERATOR,
-  Role.FLEET_ADMIN,
   Role.OPERATIONS_MANAGER,
   Role.DISPATCHER,
   Role.FINANCE_VIEWER,
@@ -103,7 +102,7 @@ export const MULTI_STAKEHOLDER_ROLES = [
 ] as const;
 
 export const FLEET_PROVIDER_ROLES = [
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.DISPATCHER,
   Role.FINANCE_VIEWER,
@@ -112,7 +111,6 @@ export const FLEET_PROVIDER_ROLES = [
 export const INVITABLE_ROLES = [
   Role.AGGREGATOR_ADMIN,
   Role.OWNER_OPERATOR,
-  Role.FLEET_ADMIN,
   Role.OPERATIONS_MANAGER,
   Role.DISPATCHER,
   Role.FINANCE_VIEWER,
@@ -126,8 +124,8 @@ const LEGACY_ROLE_ALIASES: Record<string, string> = {
   aggregator_admin: Role.AGGREGATOR_ADMIN,
   owner_operator: Role.OWNER_OPERATOR,
   platform_admin: Role.PLATFORM_ADMIN,
-  fleet_admin: Role.FLEET_ADMIN,
-  fleet_manager: Role.FLEET_ADMIN,
+  fleet_admin: Role.OWNER_OPERATOR,
+  fleet_manager: Role.OWNER_OPERATOR,
   operations_manager: Role.OPERATIONS_MANAGER,
   dispatcher: Role.DISPATCHER,
   finance_viewer: Role.FINANCE_VIEWER,

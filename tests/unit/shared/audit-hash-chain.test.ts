@@ -16,7 +16,7 @@ function entry(overrides: Partial<HashableAuditEntry> = {}): HashableAuditEntry 
     entityType: 'user',
     entityId: 'user-1',
     actorId: 'user-1',
-    actorRole: 'FLEET_ADMIN',
+    actorRole: 'OWNER_OPERATOR',
     summary: 'User signed in',
     metadata: { email: 'a@example.com' },
     occurredAt: '2026-08-24T10:00:00.000Z',

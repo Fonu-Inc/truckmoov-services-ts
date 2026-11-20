@@ -21,7 +21,7 @@ function controllerWith(deps: { listFuel?: Fake; listVehicles?: Fake; listDriver
   ]);
 }
 
-const req = { user: { tenantId: "tenant-a", userId: "u1", role: "FLEET_ADMIN" } } as never;
+const req = { user: { tenantId: "tenant-a", userId: "u1", role: "ENTERPRISE_ADMIN" } } as never;
 
 function fuelRow(overrides: Record<string, unknown>) {
   return {

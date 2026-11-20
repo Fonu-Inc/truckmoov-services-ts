@@ -41,7 +41,7 @@ describe('who may configure platform alerts', () => {
 
   // Platform-wide operational config, not a tenant's own settings.
   it('refuses every stakeholder role', async () => {
-    for (const role of ['ENTERPRISE_ADMIN', 'FLEET_ADMIN', 'AGGREGATOR_ADMIN', 'OWNER_OPERATOR']) {
+    for (const role of ['ENTERPRISE_ADMIN', 'OWNER_OPERATOR', 'AGGREGATOR_ADMIN', 'OWNER_OPERATOR']) {
       await expect(build(role).useCase.list('token')).rejects.toBeInstanceOf(ForbiddenError);
     }
   });

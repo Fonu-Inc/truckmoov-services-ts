@@ -125,7 +125,7 @@ describe("MailerAuthNotifier", () => {
     const notifier = new MailerAuthNotifier(mailer as unknown as MailerService, config);
 
     await notifier.sendPasswordResetEmail({ email: "i@x.com", resetToken: "t1", role: "INSTALLER" });
-    await notifier.sendPasswordResetEmail({ email: "f@x.com", resetToken: "t2", role: "FLEET_ADMIN" });
+    await notifier.sendPasswordResetEmail({ email: "f@x.com", resetToken: "t2", role: "OWNER_OPERATOR" });
 
     expect(mailer.sent[0]?.variables.resetLink).toBe(
       "https://installer.dev.truckmoov.com/auth/verify-email?token=t1&type=reset-password",

@@ -52,7 +52,7 @@ export class AlertsController extends BaseFleetController {
   }
 
   @Get("stats")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Alert statistics — H06" })
   @ApiOkResponse({ type: AlertStatsResponse })
   async getAlertStats(@Req() req: FleetRequestContext): Promise<AlertStatsResponse> {
@@ -61,7 +61,7 @@ export class AlertsController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "List alerts — H04" })
   @ApiQuery({ name: "status", required: false, enum: ["open", "acknowledged", "resolved", "escalated"] })
   @ApiQuery({ name: "type", required: false, type: String })
@@ -86,7 +86,7 @@ export class AlertsController extends BaseFleetController {
   }
 
   @Post(":id/acknowledge")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Acknowledge alert — H04" })
   @ApiOkResponse({ type: AlertResponse })
   async acknowledgeAlert(
@@ -118,7 +118,7 @@ export class AlertsController extends BaseFleetController {
   }
 
   @Post(":id/resolve")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Resolve alert — H04" })
   @ApiOkResponse({ type: AlertResponse })
   async resolveAlert(

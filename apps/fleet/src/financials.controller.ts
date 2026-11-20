@@ -71,7 +71,7 @@ export class FinancialsController extends BaseFleetController {
   // Computes a figure from existing records; changes nothing.
   @Requires("tenant.financials.read")
   @Post("profitability")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Compute per-vehicle profitability" })
   @ApiOkResponse({ description: "Profitability array", type: VehicleProfitabilityListResponse })
   async computeProfitability(@Body() body: ComputeProfitabilityDto, @Req() req: FleetRequestContext) {
@@ -99,7 +99,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Fleet financial summary" })
   @ApiQuery({ name: "from", required: false, type: String })
   @ApiQuery({ name: "to", required: false, type: String })
@@ -115,7 +115,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("profit-loss")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({
     summary: "Profit and loss for a window with a six-month trend",
     description:
@@ -135,7 +135,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("configs")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "List financial configs" })
   @ApiOkResponse({ description: "Financial configs array", type: FinancialConfigListResponse })
   async listFinancialConfigs(@Req() req: FleetRequestContext) {
@@ -145,7 +145,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("configs/:vehicleId")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Get financial config for a vehicle" })
   @ApiOkResponse({ description: "Financial config", type: FinancialConfigNullableResponse })
   @ApiNotFoundResponse({ description: "Vehicle not found" })
@@ -157,7 +157,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Put("configs/:vehicleId")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Upsert financial config for a vehicle" })
   @ApiOkResponse({ description: "Config upserted", type: FinancialConfigResponse })
   @ApiNotFoundResponse({ description: "Vehicle not found" })
@@ -175,7 +175,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("vehicle-pl/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Export vehicle P&L as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportVehiclePL(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
@@ -187,7 +187,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("cost-breakdown/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Export cost breakdown as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportCostBreakdown(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
@@ -199,7 +199,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("statement/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Export the financial statement as PDF, CSV, or Excel" })
   @ApiQuery({ name: "format", required: false, enum: ["pdf", "csv", "xlsx"] })
   @ApiQuery({ name: "periodMonths", required: false, type: Number })
@@ -219,7 +219,7 @@ export class FinancialsController extends BaseFleetController {
   }
 
   @Get("statement")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Financial statement with score + 5-category cost breakdown" })
   @ApiQuery({ name: "periodMonths", required: false, type: Number })
   @ApiOkResponse({ type: FinancialStatementResponse })

@@ -159,7 +159,7 @@ describe('Terminating a tenant', () => {
   });
 
   it('refuses a caller who is not a system admin', async () => {
-    const kit = build({ role: 'FLEET_ADMIN' });
+    const kit = build({ role: 'OWNER_OPERATOR' });
     await expect(
       kit.useCase.execute({
         accessToken: TOKEN,

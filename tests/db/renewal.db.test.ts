@@ -108,7 +108,7 @@ describe.skipIf(!dbEnabled)("renewal invoicing on real postgres", () => {
     await query(
       `insert into auth_users (id, email, password_hash, role_id, tenant_id, account_status)
        values (?, ?, 'x', ?, ?, 'enabled')`,
-      [id(`${name}-u`), `${tenantId}@acme.test`, roleToId("FLEET_ADMIN"), tenantId],
+      [id(`${name}-u`), `${tenantId}@acme.test`, roleToId("OWNER_OPERATOR"), tenantId],
     );
     if (opts.periodEnd) {
       await periods.insertSeeded({

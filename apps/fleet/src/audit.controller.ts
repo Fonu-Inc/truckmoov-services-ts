@@ -53,7 +53,7 @@ export class AuditController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Activity/audit log — M06" })
   @ApiQuery({ name: "entityType", required: false, enum: ["job", "vehicle", "driver", "device", "fuel", "alert", "document", "geofence"] })
   @ApiQuery({ name: "entityId", required: false, type: String })

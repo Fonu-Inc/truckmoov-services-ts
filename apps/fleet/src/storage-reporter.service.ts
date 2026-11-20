@@ -55,7 +55,7 @@ export class StorageReporterService {
    * knows about.
    */
   async reconcile(tenantId: string, bytesUsed: number): Promise<void> {
-    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "OWNER_OPERATOR" });
     if (!headers) return;
 
     const response = await axios.post(
@@ -74,7 +74,7 @@ export class StorageReporterService {
   }
 
   private async report(tenantId: string, deltaBytes: number, reference: string): Promise<void> {
-    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "OWNER_OPERATOR" });
     if (!headers) return;
 
     const response = await axios.post(

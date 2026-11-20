@@ -21,7 +21,7 @@ describe("PlatformActorGuard", () => {
   });
 
   it("refuses a tenant role and an anonymous caller", () => {
-    expect(() => guard.canActivate(contextFor({ role: "FLEET_ADMIN", tenantId: "tenant-a" }))).toThrow(
+    expect(() => guard.canActivate(contextFor({ role: "OWNER_OPERATOR", tenantId: "tenant-a" }))).toThrow(
       NotFoundException,
     );
     expect(() => guard.canActivate(contextFor())).toThrow(NotFoundException);

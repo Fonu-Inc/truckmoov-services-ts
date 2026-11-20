@@ -295,7 +295,6 @@ function inferOrgTypeFromRole(
   switch (role) {
     // PLATFORM_ADMIN is absent on purpose: it is the internal system role, not
     // a role any stakeholder organisation holds, so it identifies no org type.
-    case Role.FLEET_ADMIN:
     case Role.OPERATIONS_MANAGER:
     case Role.DISPATCHER:
     case Role.FINANCE_VIEWER:

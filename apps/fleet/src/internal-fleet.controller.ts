@@ -142,7 +142,7 @@ export class InternalFleetController extends BaseFleetController {
    */
   @Portals("tenant", "service")
   @Get("vehicle-count")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   async vehicleCount(@Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const active = await this.vehicles.findAll({ tenantId, status: "active" });
@@ -158,7 +158,7 @@ export class InternalFleetController extends BaseFleetController {
    */
   @Portals("tenant", "service")
   @Get("tenant-counts")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   async tenantCounts(@Req() req: FleetRequestContext) {
     const tenantId = this.tenantIdFromRequest(req);
     const [activeVehicles, allDrivers] = await Promise.all([

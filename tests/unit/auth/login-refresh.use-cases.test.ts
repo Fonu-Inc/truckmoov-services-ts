@@ -253,7 +253,7 @@ describe("each login admits only its own people", () => {
 
   it("admin login refuses a tenant role", async () => {
     await expect(
-      login("FLEET_ADMIN", "tenant-1").executeForAudience(credentials, "system"),
+      login("OWNER_OPERATOR", "tenant-1").executeForAudience(credentials, "system"),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 

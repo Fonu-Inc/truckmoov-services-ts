@@ -135,7 +135,7 @@ export async function buildEnforcement() {
       { source: "invoice", reference: `INV-${id}`, dueDate: setup.dueDate, owedKobo: setup.owedKobo ?? 100_000 },
     ]);
     for (let i = 0; i < (setup.users ?? 1); i += 1) {
-      await users.save({ id: `${id}-u${i}`, email: `${id}-u${i}@x.test`, passwordHash: "x", role: "FLEET_ADMIN", tenantId: id, accountStatus: "enabled" });
+      await users.save({ id: `${id}-u${i}`, email: `${id}-u${i}@x.test`, passwordHash: "x", role: "OWNER_OPERATOR", tenantId: id, accountStatus: "enabled" });
     }
     await sims.save(sim(`${id}-s`, id));
   }

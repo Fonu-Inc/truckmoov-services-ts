@@ -70,7 +70,7 @@ async function build() {
   );
 
   const addUser = (id: string, accountStatus: "enabled" | "disabled" = "enabled", tenantId = TENANT) =>
-    users.save({ id, email: `${id}@x.test`, passwordHash: "x", role: "FLEET_ADMIN", tenantId, accountStatus });
+    users.save({ id, email: `${id}@x.test`, passwordHash: "x", role: "OWNER_OPERATOR", tenantId, accountStatus });
   const statusOf = async (id: string) => (await users.findById(id))?.accountStatus;
   const simStatus = async (id: string) => (await sims.findById(id))?.status;
   const types = () => published.map((event) => event.type);

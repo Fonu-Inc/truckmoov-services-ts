@@ -49,7 +49,6 @@ export const PREDEFINED_ROLES: Readonly<Record<Role, PredefinedRole>> = {
 
   // Each organisation type's owner runs the whole organisation.
   [Role.ENTERPRISE_ADMIN]: { portal: "tenant", permissions: ALL_TENANT },
-  [Role.FLEET_ADMIN]: { portal: "tenant", permissions: ALL_TENANT },
   [Role.AGGREGATOR_ADMIN]: { portal: "tenant", permissions: ALL_TENANT },
   [Role.OWNER_OPERATOR]: { portal: "tenant", permissions: ALL_TENANT },
 

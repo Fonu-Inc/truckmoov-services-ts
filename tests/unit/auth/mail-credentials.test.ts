@@ -158,7 +158,7 @@ describe('who may configure the mailbox', () => {
   });
 
   it('allows a fleet admin', async () => {
-    await expect(build('FLEET_ADMIN').save.execute(command)).resolves.toBeTruthy();
+    await expect(build('OWNER_OPERATOR').save.execute(command)).resolves.toBeTruthy();
   });
 });
 

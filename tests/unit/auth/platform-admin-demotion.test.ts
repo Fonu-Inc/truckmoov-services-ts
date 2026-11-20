@@ -30,11 +30,11 @@ describe('fleet provider demotion migration', () => {
     }
   });
 
-  it('writes the fleet admin role, not some other id', () => {
+  it('writes the historical role id that the collapse migration later remaps', () => {
     const idWrites = queriesOf().filter((query) => query.includes('role_id'));
 
     for (const query of idWrites) {
-      expect(query).toContain(`set "role_id" = ${ROLE_IDS[Role.FLEET_ADMIN]}`);
+      expect(query).toContain('set "role_id" = 5');
     }
   });
 

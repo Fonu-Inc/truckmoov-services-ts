@@ -32,7 +32,7 @@ describe("RolesGuard", () => {
   });
 
   it("allows fleet admin when a route still requires legacy fleet_manager", () => {
-    expect(makeGuard(["fleet_manager"]).canActivate(makeCtx("FLEET_ADMIN"))).toBe(
+    expect(makeGuard(["fleet_manager"]).canActivate(makeCtx("OWNER_OPERATOR"))).toBe(
       true,
     );
   });

@@ -18,7 +18,7 @@ describe("tenant contact", () => {
     const picked = pickTenantContact([
       user("DISPATCHER", "off@a.com", { accountStatus: "disabled" }),
       user("FINANCE_VIEWER", "finance@a.com"),
-      user("FLEET_ADMIN", "fleet@a.com"),
+      user("OWNER_OPERATOR", "fleet@a.com"),
     ]);
 
     expect(picked?.email).toBe("fleet@a.com");

@@ -30,7 +30,7 @@ function command(overrides: Partial<RecordActivityCommand> = {}): RecordActivity
     entityId: 'veh-1',
     summary: 'Vehicle created',
     actorId: 'usr-1',
-    actorRole: 'FLEET_ADMIN',
+    actorRole: 'OWNER_OPERATOR',
     ...overrides,
   };
 }

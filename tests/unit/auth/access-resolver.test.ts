@@ -33,7 +33,7 @@ describe('resolving what a user may do', () => {
   });
 
   it('marks a disabled account inactive and knows nothing of a deleted one', async () => {
-    const repo = await users({ id: 'u1', role: 'FLEET_ADMIN', tenantId: 't1', accountStatus: 'disabled' });
+    const repo = await users({ id: 'u1', role: 'OWNER_OPERATOR', tenantId: 't1', accountStatus: 'disabled' });
     const resolver = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
 
     expect((await resolver.resolve(repo, 'u1'))?.active).toBe(false);
@@ -60,7 +60,7 @@ describe('a change reaching every cache', () => {
   });
 
   it('suspends at once', async () => {
-    const { resolver, repo } = wired(await users({ id: 'u1', role: 'FLEET_ADMIN', tenantId: 't1' }));
+    const { resolver, repo } = wired(await users({ id: 'u1', role: 'OWNER_OPERATOR', tenantId: 't1' }));
     await resolver.resolve(repo, 'u1');
 
     await repo.updateAccountStatus('u1', 'disabled');

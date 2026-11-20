@@ -14,7 +14,7 @@ function config(maxConnections = 2000, origins = [ORIGIN]) {
   } as never;
 }
 
-function makeToken(tenantId: string, secret = SECRET, expOffsetSeconds = 3600, role = 'FLEET_ADMIN') {
+function makeToken(tenantId: string, secret = SECRET, expOffsetSeconds = 3600, role = 'ENTERPRISE_ADMIN') {
   const payload = JSON.stringify({
     sub: 'user-1',
     email: 'a@b.com',

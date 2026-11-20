@@ -33,7 +33,7 @@ describe("Portal enforcement over HTTP", () => {
   });
 
   it("serves the tenant portal", async () => {
-    const res = await request(app.getHttpServer()).get("/fleet/vehicles").set("Authorization", bearer("FLEET_ADMIN", "tenant-a"));
+    const res = await request(app.getHttpServer()).get("/fleet/vehicles").set("Authorization", bearer("OWNER_OPERATOR", "tenant-a"));
     expect(res.status).toBe(200);
   });
 
@@ -50,7 +50,7 @@ describe("Portal enforcement over HTTP", () => {
   });
 
   it("tells an expired token to refresh", async () => {
-    const res = await request(app.getHttpServer()).get("/fleet/vehicles").set("Authorization", bearer("FLEET_ADMIN", "tenant-a", -60));
+    const res = await request(app.getHttpServer()).get("/fleet/vehicles").set("Authorization", bearer("OWNER_OPERATOR", "tenant-a", -60));
     expect(res.status).toBe(401);
   });
 

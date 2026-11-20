@@ -13,7 +13,7 @@ function storedUser() {
     id: 'user-1',
     email: 'festus@example.com',
     passwordHash: 'x',
-    role: 'FLEET_ADMIN',
+    role: 'OWNER_OPERATOR',
     tenantId: 'tenant-a',
     accountStatus: 'enabled',
     emailVerificationToken: USER_TOKEN,
@@ -108,7 +108,7 @@ describe('InviteUserUseCase duplicate-account guard', () => {
     );
   }
 
-  const command = { email: 'festus@example.com', role: 'FLEET_ADMIN', accessToken: 'admin-token' };
+  const command = { email: 'festus@example.com', role: 'OWNER_OPERATOR', accessToken: 'admin-token' };
 
   it('refuses to invite an email that already has an account', async () => {
     await expect(build(storedUser()).execute(command)).rejects.toBeInstanceOf(EmailTakenError);

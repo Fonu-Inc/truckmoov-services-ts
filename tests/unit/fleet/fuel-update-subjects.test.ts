@@ -5,7 +5,7 @@ import { InMemoryFuelRecordRepository } from "../../../apps/fleet/src/contexts/f
 import { UpdateFuelRecordUseCase } from "../../../apps/fleet/src/contexts/fleet/fuel/application/update-fuel-record.use-case";
 import { FuelController } from "../../../apps/fleet/src/fuel.controller";
 
-const req = { user: { tenantId: "t1", userId: "u1", role: "FLEET_ADMIN" } } as never;
+const req = { user: { tenantId: "t1", userId: "u1", role: "OWNER_OPERATOR" } } as never;
 
 function seedRecord() {
   return FuelRecord.create({

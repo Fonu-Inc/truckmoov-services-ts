@@ -38,7 +38,7 @@ describe("who an owner operator is limited to, by kind of organisation", () => {
   });
 
   it("never limited any other role, whatever the organisation", () => {
-    for (const role of [Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.DISPATCHER]) {
+    for (const role of [Role.ENTERPRISE_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER]) {
       const req = { user: { tenantId: "t1", userId: "u", role, organizationType: "enterprise" } } as never;
       expect(ownerIdFor(req)).toBeUndefined();
     }

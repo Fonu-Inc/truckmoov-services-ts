@@ -96,7 +96,7 @@ describe("enforcement settings", () => {
 
   it("refuses non-staff and customer-tenant users", async () => {
     const { update, get } = setup();
-    await expect(update.execute(actor("FLEET_ADMIN", "t1"), { graceDays: 4, reason })).rejects.toThrow();
+    await expect(update.execute(actor("OWNER_OPERATOR", "t1"), { graceDays: 4, reason })).rejects.toThrow();
     await expect(update.execute(actor("SUPER_ADMIN", "t1"), { graceDays: 4, reason })).rejects.toThrow();
     await expect(get.execute(actor("DISPATCHER"))).rejects.toThrow();
   });

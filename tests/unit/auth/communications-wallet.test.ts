@@ -15,7 +15,7 @@ function tokenService() {
 }
 
 function user(id: string, tenantId: string) {
-  return { id, email: `${id}@x`, passwordHash: 'x', role: 'FLEET_ADMIN', tenantId, accountStatus: 'enabled' };
+  return { id, email: `${id}@x`, passwordHash: 'x', role: 'OWNER_OPERATOR', tenantId, accountStatus: 'enabled' };
 }
 
 function userRepo(tenantId = 'tenant-a') {

@@ -53,7 +53,7 @@ const VIEWER_ROLES = new Set<string>([
   Role.AGGREGATOR_ADMIN,
   Role.OWNER_OPERATOR,
   Role.PLATFORM_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
 ]);
 const SYSTEM_VIEWER_ROLES = new Set<string>([

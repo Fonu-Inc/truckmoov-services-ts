@@ -878,7 +878,7 @@ describe('Onboarding applications HTTP contract', () => {
   });
 
   it('answers 401 on the installation routes for a bad token or a missing account', async () => {
-    const ghost = await ghostToken('tenant-ghost', 'FLEET_ADMIN');
+    const ghost = await ghostToken('tenant-ghost', 'OWNER_OPERATOR');
     for (const [method, path] of [
       ['get', '/auth/installation/status'],
       ['post', '/auth/installation/confirm'],

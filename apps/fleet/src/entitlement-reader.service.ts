@@ -81,7 +81,7 @@ export class EntitlementReaderService {
     // Minted here rather than threaded from the request: a quota check runs
     // deep inside a use case, and passing a bearer token down through domain
     // commands to reach it would put a credential in the domain layer.
-    const headers = this.caller.headers("auth", { tenantId, legacyRole: "FLEET_ADMIN" });
+    const headers = this.caller.headers("auth", { tenantId, legacyRole: "OWNER_OPERATOR" });
     if (!headers) return undefined;
 
     try {

@@ -13,7 +13,7 @@ function activityEntry(overrides: Partial<ActivityLogEntry> = {}): ActivityLogEn
     entityId: 'user-1',
     summary: 'User signed in',
     actorId: 'user-1',
-    actorRole: 'FLEET_ADMIN',
+    actorRole: 'OWNER_OPERATOR',
     metadata: {},
     occurredAt: '2026-08-24T10:00:00.000Z',
     recordedAt: '2026-08-24T10:00:00.000Z',

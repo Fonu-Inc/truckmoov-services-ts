@@ -25,7 +25,7 @@ describe.skipIf(!dbEnabled)("review: wrongful suspension paths", () => {
     await query(
       `insert into auth_users (id, email, password_hash, role_id, tenant_id, account_status)
        values (?, ?, 'x', ?, ?, 'enabled')`,
-      [`${tenantId}-u`, `${name}${tag}@acme.test`, roleToId("FLEET_ADMIN"), tenantId],
+      [`${tenantId}-u`, `${name}${tag}@acme.test`, roleToId("OWNER_OPERATOR"), tenantId],
     );
     await query(
       `insert into billing_invoices (id, number, prefix, year, sequence, tenant_id, customer_name, customer_type,

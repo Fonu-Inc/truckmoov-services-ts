@@ -68,7 +68,7 @@ export class DocumentsController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @UseInterceptors(FileInterceptor("file", uploadLimits(MAX_DOCUMENT_UPLOAD_BYTES)))
   @ApiConsumes("multipart/form-data")
   @ApiBody({ schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } })
@@ -134,7 +134,7 @@ export class DocumentsController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List documents for an entity — J01" })
   @ApiQuery({ name: "entityType", required: true, enum: ["job", "vehicle", "driver"] })
   @ApiQuery({ name: "entityId", required: true, type: String })
@@ -150,7 +150,7 @@ export class DocumentsController extends BaseFleetController {
   }
 
   @Get(":id/download-url")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, "driver")
   @ApiOperation({ summary: "Get secure download URL — J02" })
   @ApiOkResponse({ type: DownloadUrlResponse })
   async getDocumentDownloadUrl(

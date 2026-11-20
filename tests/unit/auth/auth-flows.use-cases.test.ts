@@ -416,7 +416,7 @@ describe("InviteUserUseCase", () => {
 
     const result = await uc.execute({
       email: "new@user.com",
-      role: Role.FLEET_ADMIN,
+      role: Role.OWNER_OPERATOR,
       accessToken,
     });
 
@@ -516,7 +516,7 @@ describe("RegisterInvitedUseCase", () => {
     );
 
     await inviteRepo.save({
-      id: "inv-1", email: "invited@co.com", role: Role.FLEET_ADMIN,
+      id: "inv-1", email: "invited@co.com", role: Role.OWNER_OPERATOR,
       tenantId: "t-1", token: "good-token", invitedBy: "admin-1",
       status: "pending", expiresAt: new Date(Date.now() + 86400000), createdAt: new Date(),
     });
@@ -530,7 +530,7 @@ describe("RegisterInvitedUseCase", () => {
     });
 
     expect(result.accessToken).toBeTruthy();
-    expect(result.user.role).toBe(Role.FLEET_ADMIN);
+    expect(result.user.role).toBe(Role.OWNER_OPERATOR);
     expect(result.user.tenantId).toBe("t-1");
     expect(result.user.email).toBe("invited@co.com");
 
@@ -627,7 +627,7 @@ describe("ForgotPasswordUseCase", () => {
 
     await userRepo.save({
       id: "u-1", email: "user@test.com", passwordHash: "hash",
-      role: Role.FLEET_ADMIN, tenantId: "t-1",
+      role: Role.OWNER_OPERATOR, tenantId: "t-1",
     });
   });
 
@@ -700,11 +700,11 @@ describe("ResetPasswordUseCase", () => {
 
     await userRepo.save({
       id: "u-1", email: "user@test.com", passwordHash: "old-hash",
-      role: Role.FLEET_ADMIN, tenantId: "t-1",
+      role: Role.OWNER_OPERATOR, tenantId: "t-1",
     });
 
     const user = AuthUser.create({
-      id: "u-1", email: "user@test.com", role: Role.FLEET_ADMIN, tenantId: "t-1",
+      id: "u-1", email: "user@test.com", role: Role.OWNER_OPERATOR, tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
     await sessionStore.save("rt-2", user);
@@ -787,7 +787,7 @@ describe("ChangeRoleUseCase", () => {
 
     await uc.execute({
       targetUserId: "target-1",
-      newRole: Role.FLEET_ADMIN,
+      newRole: Role.OWNER_OPERATOR,
       accessToken,
     });
 
@@ -798,7 +798,7 @@ describe("ChangeRoleUseCase", () => {
     const accessToken = makeNonAdmin(tokenService, "tenant-1");
 
     await expect(
-      uc.execute({ targetUserId: "target-1", newRole: Role.FLEET_ADMIN, accessToken }),
+      uc.execute({ targetUserId: "target-1", newRole: Role.OWNER_OPERATOR, accessToken }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -806,7 +806,7 @@ describe("ChangeRoleUseCase", () => {
     const accessToken = makeAdmin(tokenService, "other-tenant");
 
     await expect(
-      uc.execute({ targetUserId: "target-1", newRole: Role.FLEET_ADMIN, accessToken }),
+      uc.execute({ targetUserId: "target-1", newRole: Role.OWNER_OPERATOR, accessToken }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -814,7 +814,7 @@ describe("ChangeRoleUseCase", () => {
     const accessToken = makeAdmin(tokenService, "tenant-1");
 
     await expect(
-      uc.execute({ targetUserId: "ghost", newRole: Role.FLEET_ADMIN, accessToken }),
+      uc.execute({ targetUserId: "ghost", newRole: Role.OWNER_OPERATOR, accessToken }),
     ).rejects.toBeInstanceOf(UserNotFoundError);
   });
 
@@ -1031,7 +1031,7 @@ describe("LogoutUseCase", () => {
 
     const user = AuthUser.create({
       id: "u-1", email: "user@co.com",
-      role: Role.FLEET_ADMIN, tenantId: "t-1",
+      role: Role.OWNER_OPERATOR, tenantId: "t-1",
     });
     await sessionStore.save("rt-1", user);
     expect(sessionStore.size).toBe(1);
@@ -1050,7 +1050,7 @@ describe("LogoutUseCase", () => {
 
     const user = AuthUser.create({
       id: "u-1", email: "user@co.com",
-      role: Role.FLEET_ADMIN, tenantId: "t-1",
+      role: Role.OWNER_OPERATOR, tenantId: "t-1",
     });
     const at = tokenService.issueAccessToken(user);
     await sessionStore.save("rt-1", user);

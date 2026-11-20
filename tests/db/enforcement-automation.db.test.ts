@@ -96,10 +96,10 @@ describe.skipIf(!dbEnabled)("enforcement automation on real postgres", () => {
           `insert into auth_users (id, email, password_hash, role_id, tenant_id, account_status) values (?, ?, 'x', ?, ?, ?)`,
           [`${tenantId}-${++seq}`, email, roleToId(role), tenantId, status],
         );
-      await addUser(`${tag}-admin@x.test`, "FLEET_ADMIN");
+      await addUser(`${tag}-admin@x.test`, "OWNER_OPERATOR");
       await addUser(`${tag}-off@x.test`, "ENTERPRISE_ADMIN", "disabled");
       await addUser(`${tag}-driver@x.test`, "DISPATCHER");
-      await addUser("not-an-email", "FLEET_ADMIN");
+      await addUser("not-an-email", "OWNER_OPERATOR");
       await query(
         `insert into tenant_business_info (tenant_id, company_name, billing_email, email) values (?, ?, ?, ?)`,
         [tenantId, `${tag} Haulage`, `${tag}-Billing@X.test`, `${tag}-admin@x.test`],

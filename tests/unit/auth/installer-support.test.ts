@@ -265,7 +265,7 @@ describe("tenant queues with installer tickets present", () => {
     await h.tickets.save(tenantTicket());
     await h.support.create("user-ada", { ...TICKET, relatedJobId: "job-1" }, NOW);
     await h.report.execute("user-ada", "job-1", { issueType: "site_access_safety", description: "Gate locked" }, NOW);
-    const user = { id: "tenant-user", email: "ops@t.com", role: "FLEET_ADMIN", tenantId: TENANT, accountStatus: "active" };
+    const user = { id: "tenant-user", email: "ops@t.com", role: "OWNER_OPERATOR", tenantId: TENANT, accountStatus: "active" };
     const mine = new ListMySupportTicketsUseCase(
       { resolveAccessToken: () => ({ id: user.id }) } as never,
       { findById: async () => user } as never,

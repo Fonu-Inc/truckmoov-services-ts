@@ -14,7 +14,7 @@ describe("ListSystemAdminsUseCase", () => {
     for (const user of [
       account("root", Role.SUPER_ADMIN),
       account("ops", Role.SYSTEM_ADMIN),
-      account("fleet", Role.FLEET_ADMIN, "tenant-a"),
+      account("fleet", Role.OWNER_OPERATOR, "tenant-a"),
     ]) await users.save(user);
     const tokens = { resolveAccessToken: () => ({ id: "root" }) };
     const useCase = new ListSystemAdminsUseCase(tokens as never, users, new InMemorySessionStore());

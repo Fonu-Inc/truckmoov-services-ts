@@ -326,7 +326,7 @@ describe('installer sign-in', () => {
 
   it('refuses anyone who is not an installer in the system tenant', async () => {
     const installers = await installerWith('active');
-    for (const [role, tenant] of [['INSTALLER', 't1'], ['PLATFORM_ADMIN', 'system'], ['FLEET_ADMIN', 't1']]) {
+    for (const [role, tenant] of [['INSTALLER', 't1'], ['PLATFORM_ADMIN', 'system'], ['OWNER_OPERATOR', 't1']]) {
       await expect(signIn(role, tenant, installers).execute(credentials)).rejects.toBeInstanceOf(ForbiddenError);
     }
   });

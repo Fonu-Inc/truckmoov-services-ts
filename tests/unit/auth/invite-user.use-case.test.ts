@@ -35,9 +35,9 @@ describe("InviteUserUseCase", () => {
   it("re-inviting the same email refreshes one pending invite instead of duplicating", async () => {
     const { uc, inviteRepo } = build();
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
 
     const pending = await inviteRepo.listPendingByTenant("t1");
     expect(pending).toHaveLength(1);
@@ -46,10 +46,10 @@ describe("InviteUserUseCase", () => {
   it("keeps the invite id stable but rotates the token on re-invite", async () => {
     const { uc, inviteRepo } = build();
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
     const first = (await inviteRepo.listPendingByTenant("t1"))[0];
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
     const second = (await inviteRepo.listPendingByTenant("t1"))[0];
 
     expect(second.id).toBe(first.id);
@@ -59,8 +59,8 @@ describe("InviteUserUseCase", () => {
   it("trims the email and dedupes across surrounding whitespace", async () => {
     const { uc, inviteRepo } = build();
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
-    await uc.execute({ email: "  a@x.com  ", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
+    await uc.execute({ email: "  a@x.com  ", role: Role.OWNER_OPERATOR, accessToken: "tok" });
 
     const pending = await inviteRepo.listPendingByTenant("t1");
     expect(pending).toHaveLength(1);
@@ -70,8 +70,8 @@ describe("InviteUserUseCase", () => {
   it("keeps distinct pending invites for different emails", async () => {
     const { uc, inviteRepo } = build();
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
-    await uc.execute({ email: "b@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
+    await uc.execute({ email: "b@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
 
     const pending = await inviteRepo.listPendingByTenant("t1");
     expect(pending).toHaveLength(2);
@@ -80,7 +80,7 @@ describe("InviteUserUseCase", () => {
   it("adopts the latest role when re-inviting", async () => {
     const { uc, inviteRepo } = build();
 
-    await uc.execute({ email: "a@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: "a@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" });
     await uc.execute({ email: "a@x.com", role: Role.DISPATCHER, accessToken: "tok" });
 
     const pending = await inviteRepo.listPendingByTenant("t1");

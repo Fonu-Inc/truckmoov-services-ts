@@ -20,7 +20,7 @@ const sim = (overrides: Partial<StoredSim> = {}): StoredSim => ({
 const staffTokens = { resolveAccessToken: () => ({ id: "sys1" }) };
 const staff = { findById: async () => ({ id: "sys1", email: "a@x", role: "SYSTEM_ADMIN", tenantId: "system", passwordHash: "x" }) };
 const tenantTokens = { resolveAccessToken: () => ({ id: "u1" }) };
-const tenantUser = { findById: async () => ({ id: "u1", email: "u@x", role: "FLEET_ADMIN", tenantId: "t1", passwordHash: "x" }) };
+const tenantUser = { findById: async () => ({ id: "u1", email: "u@x", role: "OWNER_OPERATOR", tenantId: "t1", passwordHash: "x" }) };
 
 function events() {
   const sent: Array<{ sim_id: string; action: string; status: string }> = [];

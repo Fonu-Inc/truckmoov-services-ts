@@ -15,7 +15,7 @@ describe('tenant bootstrap role', () => {
   });
 
   it('gives a fleet provider its own admin role', () => {
-    expect(ORG_TYPE_TO_BOOTSTRAP_ROLE.fleet_provider).toBe(Role.FLEET_ADMIN);
+    expect(ORG_TYPE_TO_BOOTSTRAP_ROLE.fleet_provider).toBe(Role.OWNER_OPERATOR);
   });
 
   it('covers every organisation type', () => {
@@ -24,9 +24,8 @@ describe('tenant bootstrap role', () => {
     }
   });
 
-  it('gives each organisation type a distinct role', () => {
-    const roles = Object.values(ORG_TYPE_TO_BOOTSTRAP_ROLE);
-
-    expect(new Set(roles).size).toBe(roles.length);
+  it('gives fleet providers and owner operators the same owner role', () => {
+    expect(ORG_TYPE_TO_BOOTSTRAP_ROLE.fleet_provider).toBe(Role.OWNER_OPERATOR);
+    expect(ORG_TYPE_TO_BOOTSTRAP_ROLE.owner_operator).toBe(Role.OWNER_OPERATOR);
   });
 });

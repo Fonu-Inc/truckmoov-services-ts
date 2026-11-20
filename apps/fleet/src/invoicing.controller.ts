@@ -53,7 +53,7 @@ import { ListVehiclesUseCase } from "./contexts/fleet/vehicles";
 
 const READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.OWNER_OPERATOR,
   Role.FINANCE_VIEWER,
@@ -62,7 +62,6 @@ const READ_ROLES = [
 /** Issuing and settling a customer invoice is a finance action, not a dispatch one. */
 const WRITE_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
   Role.OWNER_OPERATOR,
 ] as const;
 

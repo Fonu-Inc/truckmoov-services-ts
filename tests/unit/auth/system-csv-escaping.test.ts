@@ -19,8 +19,8 @@ describe('SIM CSV import', () => {
   it('reads a quoted comma as part of the value and strips the export guard', async () => {
     const saved: StoredSim[] = [];
     const useCase = new ImportSimsCsvUseCase(
-      { resolveAccessToken: () => ({ id: 'u1', tenantId: 'tenant-a', role: 'FLEET_ADMIN', email: 'a@b.com' }) } as never,
-      { findById: async () => ({ id: 'u1', tenantId: 'tenant-a', role: 'FLEET_ADMIN', status: 'active' }) } as never,
+      { resolveAccessToken: () => ({ id: 'u1', tenantId: 'tenant-a', role: 'OWNER_OPERATOR', email: 'a@b.com' }) } as never,
+      { findById: async () => ({ id: 'u1', tenantId: 'tenant-a', role: 'OWNER_OPERATOR', status: 'active' }) } as never,
       { save: async (sim: StoredSim) => void saved.push(sim) } as never,
     );
     const csv = 'iccid,msisdn,carrier\n8923400000000000001,\'+2348000000000,"MTN, Nigeria"\n';

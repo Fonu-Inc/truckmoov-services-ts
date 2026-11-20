@@ -9,7 +9,6 @@ import { InternalCallerService, type IncomingHeaders } from './internal-caller.s
 const CONTACT_ROLE_ORDER = [
   'DISPATCHER',
   'OPERATIONS_MANAGER',
-  'FLEET_ADMIN',
   'OWNER_OPERATOR',
   'ENTERPRISE_ADMIN',
   'AGGREGATOR_ADMIN',

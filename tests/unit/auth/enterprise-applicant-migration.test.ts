@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { ROLE_IDS, Role } from '@shared/rbac';
 import { Migration20260930010000 } from '../../../apps/auth/src/migrations/Migration20260930010000';
 
 function queriesOf(): string[] {
@@ -20,7 +19,7 @@ describe('enterprise applicant migration', () => {
 
     expect(roleWrites).toHaveLength(2);
     for (const query of roleWrites) {
-      expect(query).toContain(`"role_id" = ${ROLE_IDS[Role.FLEET_ADMIN]}`);
+      expect(query).toContain('"role_id" = 5');
       expect(query).toContain('"business_email"');
     }
   });

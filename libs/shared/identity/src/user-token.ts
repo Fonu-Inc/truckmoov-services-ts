@@ -7,6 +7,7 @@ import {
   verify,
   type KeyObject,
 } from "node:crypto";
+import { normalizeRole } from "@shared/rbac";
 import { isPortal, portalFor, type Portal } from "./platform-actor";
 
 /** The iss claim auth puts on every signed user token. */
@@ -159,7 +160,9 @@ export class UserTokenVerifier {
     return {
       sub: claims.sub,
       email: claims.email,
-      role: claims.role,
+      // Tokens issued before the role collapse must keep working as the
+      // role it became, without forcing every caller to know the old name.
+      role: normalizeRole(claims.role) ?? claims.role,
       tenantId: claims.tenantId,
       portal: claims.portal,
       exp: claims.exp,

@@ -68,7 +68,7 @@ export class FleetFactsService {
    * on a count of zero would approve one that has no justification.
    */
   async activeVehicleCount(tenantId: string): Promise<number | null> {
-    const headers = this.caller.headers('fleet', { tenantId, legacyRole: 'FLEET_ADMIN' });
+    const headers = this.caller.headers('fleet', { tenantId, legacyRole: 'OWNER_OPERATOR' });
     if (!headers) return null;
 
     try {

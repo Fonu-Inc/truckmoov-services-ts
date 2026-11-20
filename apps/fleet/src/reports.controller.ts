@@ -57,7 +57,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("dashboard")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Operational dashboard — I01" })
   @ApiOkResponse({ type: DashboardResponse })
   async getDashboard(@Req() req: FleetRequestContext): Promise<DashboardResponse> {
@@ -66,7 +66,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("delivery-metrics")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delivery metrics — I05" })
   @ApiOkResponse({ type: DeliveryMetricsResponse })
   async getDeliveryMetrics(@Req() req: FleetRequestContext): Promise<DeliveryMetricsResponse> {
@@ -75,7 +75,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Daily or weekly summary for the Reports page (Lagos time)" })
   @ApiOkResponse({ type: ReportsSummaryResponse })
   async getSummary(@Query() query: ReportsSummaryQueryDto, @Req() req: FleetRequestContext): Promise<ReportsSummaryResponse> {
@@ -84,7 +84,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("activity-trend")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Jobs created vs completed per bucket of the range (Lagos time)" })
   @ApiOkResponse({ type: ActivityTrendResponse })
   async getActivityTrend(@Query() query: ActivityTrendQueryDto, @Req() req: FleetRequestContext): Promise<ActivityTrendResponse> {
@@ -93,7 +93,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("vehicle-activity")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Dispatch jobs as vehicle trips, searchable and paged" })
   @ApiOkResponse({ type: VehicleActivityResponse })
   async getVehicleActivity(@Query() query: VehicleActivityQueryDto, @Req() req: FleetRequestContext): Promise<VehicleActivityResponse> {
@@ -107,7 +107,7 @@ export class ReportsController extends BaseFleetController {
   }
 
   @Get("export/:entity")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({ summary: "CSV export — I07" })
   @ApiOkResponse({ description: "CSV file", schema: { type: "string", format: "binary" } })

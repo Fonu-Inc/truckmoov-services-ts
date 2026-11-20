@@ -9,7 +9,7 @@ async function build(actor: { role: string; tenantId: string }) {
     { id: 'actor', role: actor.role, tenantId: actor.tenantId },
     { id: 'staff', role: 'PLATFORM_ADMIN', tenantId: 'system' },
     { id: 'misplaced', role: 'PLATFORM_ADMIN', tenantId: 'tenant-a' },
-    { id: 'tenant-user', role: 'FLEET_ADMIN', tenantId: 'tenant-a' },
+    { id: 'tenant-user', role: 'OWNER_OPERATOR', tenantId: 'tenant-a' },
   ];
   for (const user of seed) {
     await users.save({ ...user, email: `${user.id}@co.com`, passwordHash: 'x' });

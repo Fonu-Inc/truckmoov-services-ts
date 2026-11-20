@@ -97,7 +97,7 @@ describe('First-response backlog', () => {
   // The reporter adding detail to their own ticket is not a first response.
   // Counting it would empty the card while nobody had actually replied.
   it('does not count the reporter replying to themselves', () => {
-    const own = message({ senderId: 'user-1', senderRole: 'FLEET_ADMIN' });
+    const own = message({ senderId: 'user-1', senderRole: 'OWNER_OPERATOR' });
     expect(awaitingFirstResponse(ticket({ createdAt: hoursAgo(3) }), [own], NOW)).toBe(true);
   });
 

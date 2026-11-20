@@ -28,7 +28,7 @@ function harness(trustedProxies: string[] = []) {
 
 function request(overrides: Partial<FleetRequestContext> = {}): FleetRequestContext {
   return {
-    user: { tenantId: "t1", userId: "user-1", role: "FLEET_ADMIN", email: "ops@acme.ng" },
+    user: { tenantId: "t1", userId: "user-1", role: "OWNER_OPERATOR", email: "ops@acme.ng" },
     headers: {},
     socket: { remoteAddress: "::ffff:41.58.1.2" },
     ...overrides,
@@ -56,7 +56,7 @@ describe("device setup request caller", () => {
 
   it("does not record a service principal as the requester", async () => {
     const { controller, repository } = harness();
-    const service = { tenantId: "t1", userId: "service:auth", role: "FLEET_ADMIN", email: "auth-service@truckmoov.local", service: "auth" };
+    const service = { tenantId: "t1", userId: "service:auth", role: "OWNER_OPERATOR", email: "auth-service@truckmoov.local", service: "auth" };
 
     await controller.createDeviceSetupRequest(payload, request({ user: service }));
 

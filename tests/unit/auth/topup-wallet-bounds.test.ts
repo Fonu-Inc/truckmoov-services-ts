@@ -20,7 +20,7 @@ function userRepo() {
       id: 'user-1',
       email: 'ops@carrier.ng',
       passwordHash: 'x',
-      role: 'FLEET_ADMIN',
+      role: 'OWNER_OPERATOR',
       tenantId: 'tenant-a',
       accountStatus: 'enabled',
     }),

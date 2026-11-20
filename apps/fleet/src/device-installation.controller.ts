@@ -23,7 +23,7 @@ import { Portals, OnResource } from "@shared/access";
 /** Reading the queue is an operations view; acting on it changes a device. */
 const INSTALLER_READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.OWNER_OPERATOR,
   Role.DISPATCHER,
@@ -31,7 +31,7 @@ const INSTALLER_READ_ROLES = [
 
 const INSTALLER_WRITE_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.OWNER_OPERATOR,
 ] as const;

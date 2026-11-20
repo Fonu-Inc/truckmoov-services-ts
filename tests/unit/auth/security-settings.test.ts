@@ -28,7 +28,7 @@ function userRepo() {
     findById: async () => ({
       id: 'user-1',
       email: 'user@co.com',
-      role: 'FLEET_ADMIN',
+      role: 'OWNER_OPERATOR',
       tenantId: 'tenant-1',
       accountStatus: 'enabled',
       emailVerificationToken: null,

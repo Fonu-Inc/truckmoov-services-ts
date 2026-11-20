@@ -47,7 +47,7 @@ export class DispatchController extends BaseFleetController {
   }
 
   @Get("search")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Dispatch search",
     description: "Epic C (US-C06): combined search/filter over vehicles and drivers.",
@@ -84,7 +84,7 @@ export class DispatchController extends BaseFleetController {
   }
 
   @Get("recommend-drivers")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Rank drivers for a job by availability, capacity, type, and proximity" })
   @ApiQuery({ name: "requiredCapacity", required: false, type: Number, description: "Cargo weight in tonnes. Prefer requiredWeightKg." })
   @ApiQuery({ name: "requiredWeightKg", required: false, type: Number, description: "Cargo weight in kg; wins over requiredCapacity." })
@@ -101,7 +101,7 @@ export class DispatchController extends BaseFleetController {
   }
 
   @Get("recommend-vehicles")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Rank vehicles for a job by availability, capacity, type, fuel, and proximity",
     description: "Same shape and scoring approach as recommend-drivers. A vehicle on an active dispatch job (assigned through loaded) or in maintenance still appears, ranked low, with the reason.",

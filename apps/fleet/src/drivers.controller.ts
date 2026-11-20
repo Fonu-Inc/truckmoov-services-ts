@@ -164,7 +164,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List drivers",
     description: "Epic C (US-C02, US-C04, US-C06): list/search/filter drivers.",
@@ -182,7 +182,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Driver roster summary",
     description:
@@ -211,7 +211,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("filters")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Roster filter options",
     description: "The score bands, trip bands and channels the filter panel offers.",
@@ -231,7 +231,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Export drivers as CSV",
     description: "Same columns as the bulk import template, so an export can be edited and imported back.",
@@ -264,7 +264,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("import/template")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Download the bulk upload CSV template" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async downloadDriverTemplate(@Res({ passthrough: false }) res: any): Promise<void> {
@@ -274,7 +274,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("import/columns")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Describe the bulk upload columns" })
   @ApiOkResponse({ description: "Column definitions" })
   async describeDriverImportColumns() {
@@ -351,7 +351,7 @@ export class DriversController extends BaseFleetController {
   /** Register a new driver */
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -381,7 +381,7 @@ export class DriversController extends BaseFleetController {
   /** Bulk onboarding for driver records */
 
   @Post("import")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -448,7 +448,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post(":id/suspend")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Suspend a driver",
     description:
@@ -474,7 +474,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post(":id/reinstate")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Reinstate a suspended driver",
     description: "Returns the driver to available. They are not re-assigned to their previous vehicle.",
@@ -494,7 +494,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get(":id/consent")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Messaging consent for a driver",
     description:
@@ -510,7 +510,7 @@ export class DriversController extends BaseFleetController {
 
   @Requires("tenant.messaging.manage")
   @Post(":id/consent/:channel/request")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Ask a driver to opt in",
     description:
@@ -541,7 +541,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Patch(":id/consent/:channel")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Record a consent answer",
     description:
@@ -575,7 +575,7 @@ export class DriversController extends BaseFleetController {
 
   @Requires("tenant.messaging.manage")
   @Post(":id/messages/:channel")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Message a driver",
     description:
@@ -627,7 +627,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("behavior/summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Behaviour tab summary",
     description: "Average score, 24-hour event counts, zone entries and exits, and unread geofence alerts.",
@@ -647,7 +647,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("behavior/ranking")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Driver performance ranking",
     description:
@@ -667,7 +667,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("behavior/events")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Recent behaviour events",
     description: "Telemetry-derived events with speed and severity, plus the critical counter on the tab.",
@@ -699,7 +699,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post("behavior/events")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Record a behaviour event",
     description:
@@ -713,7 +713,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Delete("behavior/events/:eventId")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Delete a behaviour event",
     description:
@@ -752,7 +752,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("behavior/geofence-alerts")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Geofence alert feed",
     description: "Zone entry, exit and dwell alerts with per-user read state.",
@@ -771,7 +771,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post("behavior/geofence-alerts/read")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Mark geofence alerts read",
     description: "Read state is per person: clearing the panel does not clear it for colleagues.",
@@ -789,7 +789,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get("fatigue/summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Fatigue AI summary",
     description:
@@ -807,7 +807,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get(":id/fatigue")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fatigue status and history for one driver" })
   @ApiOkResponse({ type: DriverFatigueResponse })
   @ApiServiceUnavailableResponse({ type: FeatureDisabledErrorResponse, description: "Fatigue detection is switched off" })
@@ -819,7 +819,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Post(":id/fatigue/run")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Run a fatigue analysis",
     description:
@@ -844,7 +844,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get(":id/detail")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "Driver detail",
     description:
@@ -859,7 +859,7 @@ export class DriversController extends BaseFleetController {
   }
 
   @Get(":id/behavior")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Behaviour scores and recent events for one driver" })
   @ApiQuery({ name: "period_days", required: false, type: Number })
   @ApiOkResponse({ type: DriverBehaviorResponse })
@@ -932,7 +932,7 @@ export class DriversController extends BaseFleetController {
 
   @Portals("tenant", "service")
   @Get(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get driver by ID" })
   @ApiOkResponse({ type: ScoredDriverResponse })
   async getDriver(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<ScoredDriverResponse> {
@@ -947,7 +947,7 @@ export class DriversController extends BaseFleetController {
   /** Partially update a driver's details */
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update driver" })
@@ -973,7 +973,7 @@ export class DriversController extends BaseFleetController {
   /** Activate/deactivate driver availability for dispatch */
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -1009,7 +1009,7 @@ export class DriversController extends BaseFleetController {
 
   @Requires("tenant.messaging.manage")
   @Patch(":id/contact-channels")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({

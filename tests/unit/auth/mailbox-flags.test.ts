@@ -15,7 +15,7 @@ function tokenService() {
 
 function userRepo(tenantId = 'tenant-a') {
   const table: Record<string, unknown> = {
-    'actor-1': { id: 'actor-1', email: 'a@x', passwordHash: 'x', role: 'FLEET_ADMIN', tenantId, accountStatus: 'enabled' },
+    'actor-1': { id: 'actor-1', email: 'a@x', passwordHash: 'x', role: 'OWNER_OPERATOR', tenantId, accountStatus: 'enabled' },
   };
   return { findById: async (id: string) => table[id] ?? null };
 }

@@ -2,7 +2,8 @@ import { Migration } from "@mikro-orm/migrations";
 import { ROLE_IDS, Role } from "@shared/rbac";
 
 const PLATFORM_ADMIN_ID = ROLE_IDS[Role.PLATFORM_ADMIN];
-const FLEET_ADMIN_ID = ROLE_IDS[Role.FLEET_ADMIN];
+// Frozen historical role id from before the fleet-admin role was retired.
+const RETIRED_FLEET_ROLE_ID = 5;
 
 /**
  * Moves fleet-provider organisations off the internal platform role.
@@ -23,7 +24,7 @@ export class Migration20260824020000 extends Migration {
   override async up(): Promise<void> {
     this.addSql(
       `update "auth_users" as u
-          set "role_id" = ${FLEET_ADMIN_ID}
+          set "role_id" = ${RETIRED_FLEET_ROLE_ID}
          from "system_tenant_onboardings" as o
         where o."tenant_id" = u."tenant_id"
           and o."organization_type" = 'fleet_provider'
@@ -34,7 +35,7 @@ export class Migration20260824020000 extends Migration {
     // which the statement above has corrected.
     this.addSql(
       `update "auth_invites" as i
-          set "role_id" = ${FLEET_ADMIN_ID}
+          set "role_id" = ${RETIRED_FLEET_ROLE_ID}
          from "system_tenant_onboardings" as o
         where o."tenant_id" = i."tenant_id"
           and o."organization_type" = 'fleet_provider'
@@ -44,7 +45,7 @@ export class Migration20260824020000 extends Migration {
 
     this.addSql(
       `update "system_tenant_onboardings"
-          set "bootstrap_role" = '${Role.FLEET_ADMIN}'
+          set "bootstrap_role" = 'FLEET_ADMIN'
         where "organization_type" = 'fleet_provider'
           and "bootstrap_role" = '${Role.PLATFORM_ADMIN}';`,
     );

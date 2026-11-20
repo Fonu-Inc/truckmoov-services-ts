@@ -28,9 +28,8 @@ describe("Overview scope", () => {
   });
 
   // The overview is deliberately narrower than the operational dashboard.
-  it("refuses every other role, including fleet and platform staff", () => {
+  it("refuses every other role, including operations and platform staff", () => {
     for (const role of [
-      Role.FLEET_ADMIN,
       Role.OPERATIONS_MANAGER,
       Role.DISPATCHER,
       Role.AGGREGATOR_ADMIN,

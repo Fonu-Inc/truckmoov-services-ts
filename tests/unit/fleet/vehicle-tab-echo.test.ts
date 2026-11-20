@@ -8,7 +8,7 @@ function controllerWith(listVehicles: { execute: (...args: unknown[]) => Promise
   return Reflect.construct(VehiclesController, [{}, {}, listVehicles, ...rest]);
 }
 
-const req = { user: { tenantId: "tenant-a", userId: "u1", role: "FLEET_ADMIN" } } as never;
+const req = { user: { tenantId: "tenant-a", userId: "u1", role: "OWNER_OPERATOR" } } as never;
 
 describe("vehicles list tab echo", () => {
   it("echoes tab on the default vehicles response", async () => {

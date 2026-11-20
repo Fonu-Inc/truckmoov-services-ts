@@ -52,7 +52,7 @@ export class HttpVehiclePositionsReader implements VehiclePositionsReader {
   }
 
   async listLatestPositions(tenantId: string): Promise<VehiclePosition[]> {
-    const headers = this.caller.headers("tracking", { tenantId, legacyRole: "FLEET_ADMIN" });
+    const headers = this.caller.headers("tracking", { tenantId, legacyRole: "OWNER_OPERATOR" });
     if (!headers) {
       this.logger.warn("tracking read skipped: missing JWT secret or tenant");
       return [];

@@ -126,8 +126,8 @@ describe("service calls outside the cluster", () => {
 
   it("sends the older token only while the compatibility window is open", () => {
     const dir = mkdtempSync(join(tmpdir(), "svc-"));
-    const open = new ServiceCaller({ ...config(dir), legacySecret: "shared" }).headers("fleet", { tenantId: "t", legacyRole: "FLEET_ADMIN" });
-    const closed = new ServiceCaller(config(dir)).headers("fleet", { tenantId: "t", legacyRole: "FLEET_ADMIN" });
+    const open = new ServiceCaller({ ...config(dir), legacySecret: "shared" }).headers("fleet", { tenantId: "t", legacyRole: "OWNER_OPERATOR" });
+    const closed = new ServiceCaller(config(dir)).headers("fleet", { tenantId: "t", legacyRole: "OWNER_OPERATOR" });
 
     expect(open?.authorization).toMatch(/^Bearer /);
     expect(closed?.authorization).toBeUndefined();

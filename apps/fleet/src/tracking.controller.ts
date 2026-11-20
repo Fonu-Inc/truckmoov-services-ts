@@ -37,7 +37,7 @@ export class TrackingController extends BaseFleetController {
   }
 
   @Get("live")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Live tracking snapshot",
     description:
@@ -54,7 +54,7 @@ export class TrackingController extends BaseFleetController {
   }
 
   @Get("vehicles")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Vehicle list panel",
     description: "The same rows as the snapshot, filtered by the search box.",
@@ -72,7 +72,7 @@ export class TrackingController extends BaseFleetController {
   }
 
   @Get("alerts")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Map alerts panel",
     description: "Recent alerts for the fleet, newest first.",
@@ -102,7 +102,7 @@ export class TrackingController extends BaseFleetController {
   }
 
   @Post("vehicles/:id/share")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.FLEET_ADMIN, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Share a vehicle's location",
     description:

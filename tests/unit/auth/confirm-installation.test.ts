@@ -83,7 +83,7 @@ describe("Confirming an installation", () => {
           id: "user-1",
           email: "jane@arne.com",
           passwordHash: "",
-          role: "FLEET_ADMIN",
+          role: "OWNER_OPERATOR",
           tenantId: TENANT_ID,
         }),
       } as never,

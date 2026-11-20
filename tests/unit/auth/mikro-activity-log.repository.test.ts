@@ -35,7 +35,7 @@ function entry(): ActivityLogEntry {
     entityId: 'usr-1',
     summary: 'User signed in',
     actorId: 'usr-1',
-    actorRole: 'FLEET_ADMIN',
+    actorRole: 'OWNER_OPERATOR',
     actorName: 'Adaeze Okafor',
     actorEmail: 'adaeze.okafor@mtn.ng',
     tenantName: 'Lagos Express Logistics',

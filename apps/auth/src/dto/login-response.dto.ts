@@ -5,7 +5,7 @@ import { StandardApiResponse } from '@shared/openapi';
 export class LoginSessionUserSchema {
   @ApiProperty() id!: string;
   @ApiProperty() email!: string;
-  @ApiProperty({ example: 'FLEET_ADMIN' }) role!: string;
+  @ApiProperty({ example: 'OWNER_OPERATOR' }) role!: string;
   @ApiProperty() tenantId!: string;
 }
 

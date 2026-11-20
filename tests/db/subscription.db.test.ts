@@ -46,7 +46,7 @@ describe.skipIf(!dbEnabled)("subscription payment on postgres", () => {
       tenantId,
       invitedEmail: `${tenantId}@test.co`,
       organizationType: "fleet_provider",
-      bootstrapRole: "FLEET_ADMIN",
+      bootstrapRole: "OWNER_OPERATOR",
       status: "pending_activation",
       company: {},
       subscription: { planCode: activePlanCode, billingCycle: "monthly" },

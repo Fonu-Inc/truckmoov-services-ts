@@ -76,7 +76,7 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
   }
 
   private async fetchAll(): Promise<DeviceCatalogModel[] | null> {
-    const headers = this.caller.headers("auth", { tenantId: this.config.fleet.defaultTenant, legacyRole: "FLEET_ADMIN" });
+    const headers = this.caller.headers("auth", { tenantId: this.config.fleet.defaultTenant, legacyRole: "OWNER_OPERATOR" });
     if (!headers) return null;
 
     try {

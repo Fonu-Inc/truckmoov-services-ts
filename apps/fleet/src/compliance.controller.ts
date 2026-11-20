@@ -89,7 +89,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Get("documents")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List compliance documents" })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "documentType", required: false, type: String })
@@ -108,7 +108,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Post("documents")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create compliance document" })
   @ApiCreatedResponse({ description: "Document created", type: ComplianceDocumentResponse })
   async createComplianceDocument(@Body() body: CreateComplianceDocumentDto, @Req() req: FleetRequestContext) {
@@ -123,7 +123,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Get("documents/history")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "List compliance documents including superseded ones",
     description: "Renewing a document supersedes the previous record rather than overwriting it. This returns the whole chain, which is what proves cover on a past date.",
@@ -146,7 +146,7 @@ export class ComplianceController extends BaseFleetController {
 
   @Portals("tenant", "service")
   @Get("documents/summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Compliance documents summary" })
   @ApiOkResponse({ description: "Summary counts", type: ComplianceSummaryResponse })
   async getComplianceDocumentsSummary(@Req() req: FleetRequestContext) {
@@ -157,7 +157,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Get("documents/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Export compliance documents as CSV",
     description: "Takes the same filters as the documents list and exports exactly the rows it shows.",
@@ -185,7 +185,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Patch("documents/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update compliance document" })
   @ApiOkResponse({ description: "Updated", type: ComplianceDocumentResponse })
   async updateComplianceDocument(@Param("id") id: string, @Body() body: UpdateComplianceDocumentDto, @Req() req: FleetRequestContext) {
@@ -200,7 +200,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Delete("documents/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delete compliance document" })
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteComplianceDocument(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -215,7 +215,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Post("documents/:id/upload")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set file URL for a compliance document" })
   @ApiOkResponse({ description: "File URL updated", type: ComplianceDocumentResponse })
   async uploadComplianceDocument(@Param("id") id: string, @Body() body: UploadComplianceDocumentDto, @Req() req: FleetRequestContext) {
@@ -230,7 +230,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Post("documents/:id/renew")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Renew a compliance document" })
   @ApiOkResponse({ description: "Document renewed", type: ComplianceDocumentResponse })
   async renewComplianceDocument(@Param("id") id: string, @Body() body: RenewComplianceDocumentDto, @Req() req: FleetRequestContext) {
@@ -245,7 +245,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Patch("documents/:id/reminder")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set reminder days for a compliance document" })
   @ApiOkResponse({ description: "Reminder updated", type: ComplianceDocumentResponse })
   async setComplianceDocumentReminder(@Param("id") id: string, @Body() body: SetComplianceReminderDto, @Req() req: FleetRequestContext) {
@@ -260,7 +260,7 @@ export class ComplianceController extends BaseFleetController {
   }
 
   @Post("reminders/send")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Send compliance reminder emails",
     description:

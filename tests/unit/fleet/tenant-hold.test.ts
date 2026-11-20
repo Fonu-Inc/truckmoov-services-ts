@@ -180,7 +180,7 @@ describe("who may use the hold routes", () => {
     const guard = new PlatformOrTrackingGuard();
     expect(guard.canActivate(ctx(tracking))).toBe(true);
     expect(guard.canActivate(ctx({ role: "PLATFORM_ADMIN", tenantId: "system" }))).toBe(true);
-    expect(() => guard.canActivate(ctx({ role: "FLEET_ADMIN", tenantId: "t1" }))).toThrow(NotFoundException);
+    expect(() => guard.canActivate(ctx({ role: "OWNER_OPERATOR", tenantId: "t1" }))).toThrow(NotFoundException);
     expect(() => guard.canActivate(ctx({ role: "PLATFORM_ADMIN", tenantId: "t1", service: "dispatch" }))).toThrow(NotFoundException);
   });
 });

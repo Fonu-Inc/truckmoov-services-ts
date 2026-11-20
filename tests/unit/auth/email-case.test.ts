@@ -32,9 +32,9 @@ describe("email case", () => {
       { mayGrantRole: async () => true } as never,
     );
 
-    await uc.execute({ email: " New@X.com ", role: Role.FLEET_ADMIN, accessToken: "tok" });
+    await uc.execute({ email: " New@X.com ", role: Role.OWNER_OPERATOR, accessToken: "tok" });
     expect((await inviteRepo.listPendingByTenant("t1"))[0].email).toBe("new@x.com");
-    await expect(uc.execute({ email: "TAKEN@x.com", role: Role.FLEET_ADMIN, accessToken: "tok" })).rejects.toBeInstanceOf(EmailTakenError);
+    await expect(uc.execute({ email: "TAKEN@x.com", role: Role.OWNER_OPERATOR, accessToken: "tok" })).rejects.toBeInstanceOf(EmailTakenError);
   });
 
   it("create system admin refuses an existing address in another case", async () => {

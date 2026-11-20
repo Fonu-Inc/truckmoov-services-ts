@@ -59,7 +59,6 @@ export const TENANT_ADMIN_ROLES: readonly Role[] = [
   Role.ENTERPRISE_ADMIN,
   Role.AGGREGATOR_ADMIN,
   Role.OWNER_OPERATOR,
-  Role.FLEET_ADMIN,
 ];
 
 type Row = Record<string, unknown>;

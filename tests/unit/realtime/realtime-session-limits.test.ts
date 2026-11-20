@@ -20,7 +20,7 @@ const config = {
 
 function token(expOffsetSeconds: number) {
   const payload = Buffer.from(
-    JSON.stringify({ sub: 'u', email: 'a@b.com', role: 'FLEET_ADMIN', tenantId: 'tenant-a', exp: Math.floor(Date.now() / 1000) + expOffsetSeconds }),
+    JSON.stringify({ sub: 'u', email: 'a@b.com', role: 'ENTERPRISE_ADMIN', tenantId: 'tenant-a', exp: Math.floor(Date.now() / 1000) + expOffsetSeconds }),
   ).toString('base64url');
   return `${payload}.${createHmac('sha256', SECRET).update(payload).digest('base64url')}`;
 }

@@ -13,7 +13,7 @@ describe("who counts as platform staff", () => {
   });
 
   it("refuses a tenant role in the system tenant", () => {
-    expect(isPlatformActor({ role: Role.FLEET_ADMIN, tenantId: SYSTEM_TENANT_ID })).toBe(false);
+    expect(isPlatformActor({ role: Role.OWNER_OPERATOR, tenantId: SYSTEM_TENANT_ID })).toBe(false);
   });
 });
 

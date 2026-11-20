@@ -25,7 +25,7 @@ const actor = {
 
 function build() {
   const users: Array<Record<string, unknown>> = [
-    { id: "u1", email: "a@t1.test", role: "FLEET_ADMIN", tenantId: "t1", accountStatus: "enabled" },
+    { id: "u1", email: "a@t1.test", role: "OWNER_OPERATOR", tenantId: "t1", accountStatus: "enabled" },
     { id: "u2", email: "b@t1.test", role: "DISPATCHER", tenantId: "t1", accountStatus: "enabled" },
   ];
   const userRepository = {

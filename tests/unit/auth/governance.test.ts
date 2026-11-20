@@ -21,7 +21,7 @@ async function harness() {
     { id: 'platform', role: 'PLATFORM_ADMIN', tenantId: 'system' },
     { id: 'super', role: 'SUPER_ADMIN', tenantId: 'system' },
     { id: 'sysadmin', role: 'SYSTEM_ADMIN', tenantId: 'system' },
-    { id: 'owner', role: 'FLEET_ADMIN', tenantId: 't1' },
+    { id: 'owner', role: 'OWNER_OPERATOR', tenantId: 't1' },
     { id: 'desk', role: 'DISPATCHER', tenantId: 't1' },
   ];
   for (const u of seed) await inner.save({ ...u, email: `${u.id}@co.com`, passwordHash: 'x' });

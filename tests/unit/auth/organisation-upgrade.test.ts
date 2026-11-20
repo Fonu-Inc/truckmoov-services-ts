@@ -121,7 +121,7 @@ describe('reviewing', () => {
   });
 
   it('refuses a caller who is not platform staff', async () => {
-    const tenant = harness({ role: 'FLEET_ADMIN' });
+    const tenant = harness({ role: 'OWNER_OPERATOR' });
 
     await expect(tenant.review.list('token')).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -180,7 +180,7 @@ describe('reviewing', () => {
     await h.review.approve('token', requestId, null, 'plan_pro');
 
     expect(h.onboardingSaves[0]).toMatchObject({ organizationType: 'fleet_provider' });
-    expect(h.saved[0]).toMatchObject({ id: 'u1', role: 'FLEET_ADMIN' });
+    expect(h.saved[0]).toMatchObject({ id: 'u1', role: 'OWNER_OPERATOR' });
   });
 
   it('leaves other roles in the organisation alone', async () => {

@@ -84,7 +84,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List geofence zones" })
   @ApiQuery({ name: "status", required: false, enum: ["ACTIVE", "ARCHIVED"] })
   @ApiOkResponse({ description: "Geofence zones array", type: GeofenceZoneListResponse })
@@ -104,7 +104,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create geofence zone" })
   @ApiCreatedResponse({ description: "Zone created", type: GeofenceZoneResponse })
   async createGeofenceZone(@Body() body: CreateGeofenceZoneDto, @Req() req: FleetRequestContext) {
@@ -114,7 +114,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Get(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get geofence zone" })
   @ApiOkResponse({ description: "Geofence zone", type: GeofenceZoneResponse })
   async getGeofenceZone(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -143,7 +143,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update geofence zone" })
   @ApiOkResponse({ description: "Zone updated", type: GeofenceZoneResponse })
   async updateGeofenceZone(@Param("id") id: string, @Body() body: UpdateGeofenceZoneDto, @Req() req: FleetRequestContext) {
@@ -158,7 +158,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Delete(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Archive geofence zone (soft delete)" })
   @ApiOkResponse({ description: "Zone archived", type: MessageResponse })
   async deleteGeofenceZone(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -173,7 +173,7 @@ export class GeofencesController extends BaseFleetController {
   }
 
   @Put(":id/vehicles")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Set vehicle assignments for a geofence zone" })
   @ApiOkResponse({ description: "Assignments updated", type: GeofenceZoneResponse })
   async setGeofenceVehicleAssignments(@Param("id") id: string, @Body() body: SetGeofenceVehiclesDto, @Req() req: FleetRequestContext) {

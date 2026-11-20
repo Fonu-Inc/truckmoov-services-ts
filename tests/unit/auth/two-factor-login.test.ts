@@ -18,7 +18,7 @@ import { TwoFactorCooldownError } from '../../../apps/auth/src/two-factor-attemp
 const SECRET = 'challenge-secret';
 const PEOPLE: Record<LoginAudience, { id: string; email: string; role: string; tenantId: string }> = {
   system: { id: 'staff-1', email: 'staff@truckmoov.com', role: 'SYSTEM_ADMIN', tenantId: 'system' },
-  tenant: { id: 'fleet-1', email: 'owner@fleet.example', role: 'FLEET_ADMIN', tenantId: 't1' },
+  tenant: { id: 'fleet-1', email: 'owner@fleet.example', role: 'OWNER_OPERATOR', tenantId: 't1' },
   installer: { id: 'inst-1', email: 'tunde@example.com', role: 'INSTALLER', tenantId: 'system' },
 };
 const AUDIENCES = Object.keys(PEOPLE) as LoginAudience[];

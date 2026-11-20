@@ -66,7 +66,7 @@ describe("UserTokenService", () => {
 
   it("signs with the private key when one is configured", () => {
     const service = new UserTokenService(makeConfig("test-secret", true));
-    const user = AuthUser.create({ id: "u1", email: "a@b.com", role: "FLEET_ADMIN", tenantId: "t1" });
+    const user = AuthUser.create({ id: "u1", email: "a@b.com", role: "OWNER_OPERATOR", tenantId: "t1" });
 
     const token = service.issueAccessToken(user);
 

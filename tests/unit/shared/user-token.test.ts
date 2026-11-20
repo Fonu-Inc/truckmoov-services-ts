@@ -36,7 +36,7 @@ describe("user tokens, shared fixtures", () => {
 
 describe("issuing user tokens", () => {
   const seed = Buffer.alloc(32, 7).toString("base64url");
-  const user = { id: "u1", email: "a@b.com", role: "FLEET_ADMIN", tenantId: "tenant-a" };
+  const user = { id: "u1", email: "a@b.com", role: "OWNER_OPERATOR", tenantId: "tenant-a" };
 
   it("stamps the portal the user belongs to", () => {
     const signer = new UserTokenSigner(`k:${seed}`, "");

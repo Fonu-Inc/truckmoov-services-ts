@@ -25,7 +25,7 @@ describe.skipIf(!dbEnabled)("non-payment enforcement on real postgres", () => {
   const id = (p: string) => `${tag}-${p}`;
   const mine = <T extends { tenantId: string }>(rows: T[]) => rows.filter((r) => r.tenantId.startsWith(tag));
 
-  const user = (tenantId: string, email = `${tenantId}@acme.test`, role = "FLEET_ADMIN") =>
+  const user = (tenantId: string, email = `${tenantId}@acme.test`, role = "OWNER_OPERATOR") =>
     query(
       `insert into auth_users (id, email, password_hash, role_id, tenant_id, account_status)
        values (?, ?, 'x', ?, ?, 'enabled')`,
@@ -94,7 +94,7 @@ describe.skipIf(!dbEnabled)("non-payment enforcement on real postgres", () => {
     await query(
       `insert into auth_users (id, email, password_hash, role_id, tenant_id, account_status)
        values (?, ?, 'x', ?, ?, 'enabled')`,
-      [`${t.noContact}-u`, "not-an-email", roleToId("FLEET_ADMIN"), t.noContact],
+      [`${t.noContact}-u`, "not-an-email", roleToId("OWNER_OPERATOR"), t.noContact],
     );
     await user(t.noContact, "@staff.test", "DISPATCHER");
     await query(

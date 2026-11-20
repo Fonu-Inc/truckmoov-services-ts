@@ -1,7 +1,8 @@
 import { Migration } from "@mikro-orm/migrations";
 import { ROLE_IDS, Role } from "@shared/rbac";
 
-const FLEET_ADMIN_ID = ROLE_IDS[Role.FLEET_ADMIN];
+// Frozen historical role id from before the fleet-admin role was retired.
+const RETIRED_FLEET_ROLE_ID = 5;
 const ENTERPRISE_ADMIN_ID = ROLE_IDS[Role.ENTERPRISE_ADMIN];
 
 const FROM_ENTERPRISE_APPLICATION = `select "tenant_id" from "onboarding_applications"
@@ -14,7 +15,7 @@ function bootstrapAdminOf(table: string): string {
     where a."applicant_type" = 'fleet_provider'
       and a."tenant_id" = t."tenant_id"
       and lower(a."business_email") = lower(t."email")
-      and t."role_id" = ${FLEET_ADMIN_ID}`;
+      and t."role_id" = ${RETIRED_FLEET_ROLE_ID}`;
 }
 
 /**

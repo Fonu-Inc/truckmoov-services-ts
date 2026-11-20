@@ -35,7 +35,7 @@ const TENANT = "tenant-a";
 const OTHER_TENANT = "tenant-b";
 const NO_INSTALLER_NOTICES = { notifyTicket: async () => undefined } as never;
 
-function fakeAuth(tenantId: string, role = "FLEET_ADMIN") {
+function fakeAuth(tenantId: string, role = "OWNER_OPERATOR") {
   const user = { id: "user-1", email: "ops@tenant-a.com", role, tenantId, accountStatus: "active" };
   return {
     tokenService: { resolveAccessToken: () => ({ id: "user-1" }) } as never,

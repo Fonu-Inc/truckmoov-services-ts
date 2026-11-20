@@ -219,7 +219,7 @@ export class ApprovedApplicationSchema {
   @ApiProperty({ enum: ['approved'] }) status!: string;
   @ApiProperty({ enum: ['provisioning'] }) stage!: string;
   @ApiProperty() tenantId!: string;
-  @ApiProperty({ example: 'FLEET_ADMIN' }) bootstrapRole!: string;
+  @ApiProperty({ example: 'OWNER_OPERATOR' }) bootstrapRole!: string;
 }
 
 export class ApprovedApplicationResponse extends StandardApiResponse<ApprovedApplicationSchema> {

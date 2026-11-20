@@ -20,7 +20,7 @@
       "expect": {
         "sub": "u-fleet",
         "email": "ops@arne.com",
-        "role": "FLEET_ADMIN",
+        "role": "OWNER_OPERATOR",
         "tenantId": "tenant-a",
         "portal": "tenant",
         "legacy": false
@@ -44,7 +44,7 @@
       "expect": {
         "sub": "u-fleet",
         "email": "ops@arne.com",
-        "role": "FLEET_ADMIN",
+        "role": "OWNER_OPERATOR",
         "tenantId": "tenant-a",
         "portal": "tenant",
         "legacy": true

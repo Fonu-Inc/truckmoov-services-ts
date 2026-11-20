@@ -56,7 +56,7 @@ import { isOnAllowedVehicle } from "./contexts/fleet/waybills/domain/vehicle-reg
 /** Reading revenue is a finance view; capturing a waybill is operations. */
 const WAYBILL_READ_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.OWNER_OPERATOR,
   Role.FINANCE_VIEWER,
@@ -64,7 +64,7 @@ const WAYBILL_READ_ROLES = [
 
 const WAYBILL_WRITE_ROLES = [
   Role.ENTERPRISE_ADMIN,
-  Role.FLEET_ADMIN,
+  Role.OWNER_OPERATOR,
   Role.OPERATIONS_MANAGER,
   Role.OWNER_OPERATOR,
   Role.DISPATCHER,

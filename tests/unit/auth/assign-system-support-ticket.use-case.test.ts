@@ -80,7 +80,7 @@ describe('AssignSystemSupportTicketUseCase', () => {
 
   it('refuses to assign a tenant user', async () => {
     const users = userRepo('SYSTEM_ADMIN', 'system', {
-      'tenant-user': user('tenant-user', 'FLEET_ADMIN', 'tenant-a'),
+      'tenant-user': user('tenant-user', 'OWNER_OPERATOR', 'tenant-a'),
     });
 
     await expect(build(users).execute(TOKEN, 'tkt-1', 'tenant-user')).rejects.toBeInstanceOf(
@@ -106,7 +106,7 @@ describe('AssignSystemSupportTicketUseCase', () => {
   });
 
   it('refuses a caller outside the system tenant', async () => {
-    const users = userRepo('FLEET_ADMIN', 'tenant-a');
+    const users = userRepo('OWNER_OPERATOR', 'tenant-a');
 
     await expect(build(users).execute(TOKEN, 'tkt-1', null)).rejects.toBeInstanceOf(ForbiddenError);
     expect(tickets.save).not.toHaveBeenCalled();

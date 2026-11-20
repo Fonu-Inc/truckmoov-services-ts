@@ -158,7 +158,7 @@ export class VehiclesController extends BaseFleetController {
   private readonly HEALTH_THRESHOLD_MS = Number(process.env["VEHICLE_HEALTH_THRESHOLD_MS"] ?? 300_000);
 
   @Get(":vehicleId/health")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get last seen status" })
   @ApiOkResponse({ type: VehicleHealthResponse })
   async getVehicleHealth(@Param("vehicleId") vehicleId: string, @Req() req: FleetRequestContext) {
@@ -171,7 +171,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("health")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List all last seen statuses" })
   @ApiOkResponse({ type: VehicleHealthListResponse })
   async listVehicleHealth(@Req() req: FleetRequestContext) {
@@ -183,7 +183,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("nearest")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({ summary: "Find nearest vehicles to a coordinate" })
   @ApiQuery({ name: "lat", required: true, type: Number })
   @ApiQuery({ name: "lng", required: true, type: Number })
@@ -223,7 +223,7 @@ export class VehiclesController extends BaseFleetController {
   /** Retrieve vehicles with optional dispatch-centric filters */
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List vehicles",
     description: "Epic C (US-C01, US-C04, US-C06): list/search/filter fleet vehicles.",
@@ -355,7 +355,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle summary stats", description: "Returns count of vehicles grouped by status for the calling tenant." })
   @ApiOkResponse({ type: VehicleSummaryResponse })
   async getVehicleSummary(@Req() req: FleetRequestContext): Promise<VehicleSummaryResponse> {
@@ -395,7 +395,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Export vehicles as CSV", description: "Returns a CSV of all vehicles for the calling tenant." })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportVehicles(@Query() query: VehicleListQueryDto, @Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
@@ -433,7 +433,7 @@ export class VehiclesController extends BaseFleetController {
   /** Retrieve standalone device inventory for the fleet admin Devices page */
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -498,7 +498,7 @@ export class VehiclesController extends BaseFleetController {
   /** Bulk onboarding for fleet inventory imports */
 
   @Get("import/template")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Download the bulk import CSV template",
     description:
@@ -512,7 +512,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("import/columns")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({
     summary: "Describe the bulk import columns",
     description: "The column list behind the template, so the UI can explain the format without parsing the CSV.",
@@ -523,7 +523,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Get("capacity-units")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({
     summary: "List load capacity units",
     description:
@@ -546,7 +546,7 @@ export class VehiclesController extends BaseFleetController {
   }
 
   @Post("import")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiConsumes("multipart/form-data")
@@ -629,7 +629,7 @@ export class VehiclesController extends BaseFleetController {
 
   @Portals("tenant", "service")
   @Get(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Get vehicle by ID" })
   @ApiOkResponse({ type: VehicleResponse })
   async getVehicle(@Param("id") id: string, @Req() req: FleetRequestContext): Promise<VehicleResponse> {
@@ -647,7 +647,7 @@ export class VehiclesController extends BaseFleetController {
   /** Partially update a vehicle's details */
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Update vehicle" })
@@ -675,7 +675,7 @@ export class VehiclesController extends BaseFleetController {
   /** Activate/deactivate vehicle availability for dispatch */
 
   @Patch(":id/status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -705,7 +705,7 @@ export class VehiclesController extends BaseFleetController {
 
   @Requires("tenant.dispatch.manage")
   @Patch(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({
@@ -740,7 +740,7 @@ export class VehiclesController extends BaseFleetController {
 
   @Requires("tenant.dispatch.manage")
   @Delete(":id/assignment")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({ summary: "Unassign driver from vehicle" })
@@ -764,7 +764,7 @@ export class VehiclesController extends BaseFleetController {
   /** Register or replace GPS hardware mapped to a vehicle */
 
   @Patch(":id/gps-device")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @RequireIdempotency()
   @UseGuards(IdempotencyGuard)
   @ApiOperation({

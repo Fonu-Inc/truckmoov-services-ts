@@ -16,7 +16,7 @@ import { AccessGrantCheck } from '../../../apps/auth/src/access-grant-check';
 async function harness() {
   const inner = new InMemoryUserRepository();
   const seed = [
-    { id: 'owner', role: 'FLEET_ADMIN', tenantId: 't1' },
+    { id: 'owner', role: 'OWNER_OPERATOR', tenantId: 't1' },
     { id: 'ops', role: 'OPERATIONS_MANAGER', tenantId: 't1' },
     { id: 'driver-desk', role: 'DISPATCHER', tenantId: 't1' },
     { id: 'outsider', role: 'DISPATCHER', tenantId: 't2' },
@@ -118,6 +118,6 @@ describe('giving predefined roles', () => {
     const { grants } = await harness();
 
     expect(await grants.mayGrantRole('owner', 'DISPATCHER')).toBe(true);
-    expect(await grants.mayGrantRole('ops', 'FLEET_ADMIN')).toBe(false);
+    expect(await grants.mayGrantRole('ops', 'OWNER_OPERATOR')).toBe(false);
   });
 });

@@ -84,7 +84,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("profiles")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List maintenance profiles" })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "lifecycleStatus", required: false, enum: ["overdue", "due", "upcoming", "completed"] })
@@ -115,7 +115,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("profiles")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create maintenance profile" })
   @ApiCreatedResponse({ description: "Maintenance profile created", type: MaintenanceProfileResponse })
   async createMaintenanceProfile(@Body() body: CreateMaintenanceProfileDto, @Req() req: FleetRequestContext) {
@@ -126,7 +126,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Delete("profiles/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delete maintenance profile" })
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -141,7 +141,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("profiles/:id/complete")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Mark maintenance profile as completed" })
   @ApiOkResponse({ description: "Completed", type: MaintenanceProfileResponse })
   async completeMaintenanceProfile(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -156,7 +156,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("profiles/summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Maintenance profiles summary" })
   @ApiOkResponse({ description: "Summary counts", type: MaintenanceProfilesSummaryResponse })
   async getMaintenanceProfilesSummary(@Req() req: FleetRequestContext) {
@@ -166,7 +166,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("service-categories")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List maintenance service categories" })
   @ApiOkResponse({ description: "Service categories list", type: ServiceCategoryListResponse })
   async getMaintenanceServiceCategories() {
@@ -174,7 +174,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("profiles/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Export maintenance profiles as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportMaintenanceProfiles(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
@@ -188,7 +188,7 @@ export class MaintenanceController extends BaseFleetController {
   /* ── Geofence Zones ────────────────────────────────────────────────────── */
 
   @Get("records")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List maintenance records" })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "status", required: false, enum: ["scheduled", "in_progress", "completed", "cancelled", "overdue"] })
@@ -212,7 +212,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("records")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Create maintenance record" })
   @ApiCreatedResponse({ description: "Record created", type: MaintenanceRecordResponse })
   async createMaintenanceRecord(@Body() body: CreateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
@@ -223,7 +223,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("records/summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Maintenance records summary" })
   @ApiOkResponse({ description: "Summary counts", type: MaintenanceRecordsSummaryResponse })
   async getMaintenanceRecordsSummary(@Req() req: FleetRequestContext) {
@@ -233,7 +233,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("records/export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Export maintenance records as CSV" })
   @ApiOkResponse({ description: "CSV file", content: { "text/csv": {} } })
   async exportMaintenanceRecords(@Req() req: FleetRequestContext, @Res({ passthrough: false }) res: any) {
@@ -245,7 +245,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("records/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get maintenance record" })
   @ApiOkResponse({ description: "Maintenance record", type: MaintenanceRecordResponse })
   async getMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -260,7 +260,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Patch("records/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Update maintenance record" })
   @ApiOkResponse({ description: "Updated", type: MaintenanceRecordResponse })
   async updateMaintenanceRecord(@Param("id") id: string, @Body() body: UpdateMaintenanceRecordDto, @Req() req: FleetRequestContext) {
@@ -276,7 +276,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Delete("records/:id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Delete maintenance record" })
   @ApiOkResponse({ description: "Deleted", type: MessageResponse })
   async deleteMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -291,7 +291,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("records/:id/start")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Start maintenance record" })
   @ApiOkResponse({ description: "Started", type: MaintenanceRecordResponse })
   async startMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -307,7 +307,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("records/:id/complete")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Complete maintenance record" })
   @ApiOkResponse({ description: "Completed", type: MaintenanceRecordResponse })
   async completeMaintenanceRecord(@Param("id") id: string, @Req() req: FleetRequestContext) {
@@ -323,7 +323,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Get("reminders/schedule")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Get the maintenance reminder schedule",
     description: "Returns the standing reminder for the calling tenant, or null when none is configured.",
@@ -340,7 +340,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("reminders/schedule")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Create or update the maintenance reminder schedule",
     description:
@@ -391,7 +391,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Delete("reminders/schedule")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Stop maintenance reminders" })
   @ApiOkResponse({ description: "Schedule removed" })
   async deleteReminderSchedule(@Req() req: FleetRequestContext) {
@@ -402,7 +402,7 @@ export class MaintenanceController extends BaseFleetController {
   }
 
   @Post("reminders/send")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Run the reminder now",
     description:

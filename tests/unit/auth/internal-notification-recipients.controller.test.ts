@@ -58,11 +58,11 @@ describe("notification recipients route", () => {
   });
 
   it("narrows by role and by user id, together or alone", async () => {
-    const { controller } = harness([user("d1", "DISPATCHER"), user("f1", "FLEET_ADMIN"), user("o1", "OWNER_OPERATOR")]);
+    const { controller } = harness([user("d1", "DISPATCHER"), user("f1", "OWNER_OPERATOR"), user("o1", "OWNER_OPERATOR")]);
 
-    expect((await controller.recipients({}, undefined, "DISPATCHER, OWNER_OPERATOR")).data.map((r) => r.id)).toEqual(["d1", "o1"]);
+    expect((await controller.recipients({}, undefined, "DISPATCHER, OWNER_OPERATOR")).data.map((r) => r.id)).toEqual(["d1", "f1", "o1"]);
     expect((await controller.recipients({}, "f1,o1")).data.map((r) => r.id)).toEqual(["f1", "o1"]);
-    expect((await controller.recipients({}, "f1,o1", "OWNER_OPERATOR")).data.map((r) => r.id)).toEqual(["o1"]);
+    expect((await controller.recipients({}, "f1,o1", "OWNER_OPERATOR")).data.map((r) => r.id)).toEqual(["f1", "o1"]);
     expect((await controller.recipients({}, "", "")).data).toHaveLength(3);
   });
 

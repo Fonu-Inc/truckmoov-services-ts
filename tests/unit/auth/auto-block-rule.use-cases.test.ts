@@ -59,7 +59,7 @@ describe('UpdateAutoBlockRuleUseCase', () => {
   it('refuses a caller outside the system tenant', async () => {
     const rules = new InMemoryAutoBlockRuleRepository();
     const useCase = new UpdateAutoBlockRuleUseCase(
-      tokenService() as never, userRepo('FLEET_ADMIN', 'tenant-a') as never, rules,
+      tokenService() as never, userRepo('OWNER_OPERATOR', 'tenant-a') as never, rules,
     );
     await expect(
       useCase.execute(TOKEN, 'standard_protection', { enabled: false }),

@@ -38,8 +38,8 @@ export type FleetAuthUser = {
  * platform routes.
  */
 const SERVICE_ROLES: Record<string, { inTenant?: Role; platform?: Role }> = {
-  auth: { inTenant: Role.FLEET_ADMIN, platform: Role.PLATFORM_ADMIN },
-  dispatch: { inTenant: Role.FLEET_ADMIN },
+  auth: { inTenant: Role.OWNER_OPERATOR, platform: Role.PLATFORM_ADMIN },
+  dispatch: { inTenant: Role.OWNER_OPERATOR },
   notification: { inTenant: Role.DISPATCHER },
   realtime: { inTenant: Role.DISPATCHER },
   tracking: { platform: Role.PLATFORM_ADMIN },

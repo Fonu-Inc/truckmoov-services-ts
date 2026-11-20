@@ -44,7 +44,7 @@ import { FleetComplianceAuditUseCase } from "./fleet-compliance-audit.use-case";
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
 
-const AUDIT_READER_ROLES: Role[] = [Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER];
+const AUDIT_READER_ROLES: Role[] = [Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER];
 
 @ApiTags("Analytics")
 @Portals("tenant")
@@ -71,7 +71,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Analytics summary", description: "High-level fleet summary across vehicles, drivers, jobs, and safety events for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Analytics summary object", type: AnalyticsSummaryResponse })
@@ -86,7 +86,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("fleet-status")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet status breakdown", description: "Vehicles grouped by status for the calling tenant." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Fleet status breakdown", type: FleetStatusResponse })
@@ -101,7 +101,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("job-pipeline")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Job pipeline", description: "Jobs grouped by status for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Job pipeline breakdown", type: JobPipelineResponse })
@@ -116,7 +116,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("fuel-levels")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel levels", description: "Per-vehicle fuel level (from telemetry where available)." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Fuel level array per vehicle", type: FuelLevelsResponse })
@@ -131,7 +131,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("driver-scores")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Driver safety scores", description: "Safety scores per driver based on behavior events in the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
@@ -148,7 +148,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("events")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Behavior events", description: "Alert/behavior event list with filters for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
@@ -172,7 +172,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("vehicle-safety-radar")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fleet safety radar", description: "Average driver behavior scores across the fleet: braking, acceleration, speed control, and cornering for the given period." })
   @ApiQuery({ name: "period_days", required: false, enum: [...ANALYTICS_PERIOD_DAYS], type: Number })
   @ApiOkResponse({ description: "Average behavior scores per dimension (0-100), null when no driver event was scored in the period", type: VehicleSafetyRadarResponse })
@@ -187,7 +187,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("utilization")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Fleet utilization report",
     description:
@@ -207,7 +207,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("fuel-consumption")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({
     summary: "Fuel consumption report",
     description:
@@ -227,7 +227,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("compliance-audit")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({
     summary: "Compliance audit report",
     description:
@@ -248,7 +248,7 @@ export class AnalyticsController extends BaseFleetController {
   }
 
   @Get("export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({
     summary: "Export the analytics tab as CSV",

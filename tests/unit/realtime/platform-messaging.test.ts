@@ -109,7 +109,7 @@ describe('platform messaging socket', () => {
     });
 
     it('refuses a tenant portal token', async () => {
-      const client = await connect(token('manager', 'tenant-a', 'FLEET_ADMIN'));
+      const client = await connect(token('manager', 'tenant-a', 'OWNER_OPERATOR'));
       expect(client.connectError).toBe('forbidden');
     });
 

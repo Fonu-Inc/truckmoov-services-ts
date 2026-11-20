@@ -100,7 +100,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("transactions")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({
     summary: "List fuel transactions (alias for /fuel/records)",
     description:
@@ -151,7 +151,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("summary")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Fuel summary stats" })
   @ApiOkResponse({ description: "Fuel summary", type: FuelSummaryResponse })
   async getFuelSummary(@Req() req: FleetRequestContext) {
@@ -172,7 +172,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("budgets")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "List fuel budgets (fleet-wide + per-vehicle) — N09" })
   @ApiOkResponse({ type: FuelBudgetListResponse })
   async listFuelBudgets(@Req() req: FleetRequestContext): Promise<FuelBudgetListResponse> {
@@ -185,7 +185,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("budget-vs-actual")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({ summary: "Fuel budget vs actual spend — N09" })
   @ApiQuery({ name: "from", required: false, type: String })
   @ApiQuery({ name: "to", required: false, type: String })
@@ -201,7 +201,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Put("budgets/:vehicleId")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Upsert a fuel budget — use 'all' for fleet-wide — N09" })
   @ApiOkResponse({ type: FuelBudgetResponse })
   async upsertFuelBudget(
@@ -218,7 +218,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Post()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER)
   @ApiOperation({ summary: "Record fuel transaction — N01" })
   @ApiCreatedResponse({ type: FuelRecordResponse })
   async recordFuel(
@@ -337,7 +337,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("analytics/weekly")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.FINANCE_VIEWER)
   @ApiOperation({
     summary: "Weekly fuel consumption by fuel type",
     description:
@@ -366,7 +366,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("metrics")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Fuel consumption chart — N04" })
   @ApiQuery({ name: "period", required: false, enum: ["daily", "weekly", "monthly"] })
   @ApiQuery({ name: "from", required: false, type: String })
@@ -381,7 +381,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("efficiency")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Vehicle fuel efficiency — N05" })
   @ApiOkResponse({ type: FuelEfficiencyResponse })
   async fuelEfficiency(@Req() req: FleetRequestContext): Promise<FuelEfficiencyResponse> {
@@ -390,7 +390,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("thresholds")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "Get fuel efficiency thresholds — N08" })
   @ApiOkResponse({ type: FuelThresholdListResponse })
   async listFuelThresholds(@Req() req: FleetRequestContext): Promise<FuelThresholdListResponse> {
@@ -398,7 +398,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get("export")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @Header("Content-Type", "text/csv")
   @ApiOperation({
     summary: "Export fuel transactions to CSV — N07",
@@ -429,7 +429,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Get()
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.DISPATCHER, Role.OPERATIONS_MANAGER)
   @ApiOperation({ summary: "List fuel transactions — N02" })
   @ApiQuery({ name: "vehicleId", required: false, type: String })
   @ApiQuery({ name: "driverId", required: false, type: String })
@@ -443,7 +443,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Patch(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Edit fuel transaction with audit trail — N03" })
   @ApiOkResponse({ type: FuelRecordResponse })
   async updateFuel(
@@ -486,7 +486,7 @@ export class FuelController extends BaseFleetController {
   }
 
   @Delete(":id")
-  @Roles(Role.ENTERPRISE_ADMIN, Role.FLEET_ADMIN, Role.OWNER_OPERATOR)
+  @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR)
   @ApiOperation({ summary: "Delete fuel transaction with audit trail — N03" })
   @ApiOkResponse({ description: "Deleted successfully", type: MessageResponse })
   async deleteFuel(
