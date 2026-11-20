@@ -11,6 +11,16 @@ import {
   TENANT_ONBOARDING_REPOSITORY,
   type TenantOnboardingRepository,
 } from './tenant-onboarding.repository';
+import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from './contexts/onboarding/domain/onboarding-application.repository';
+import { requestedDeviceCount } from './contexts/onboarding/domain/onboarding-application.support';
+import {
+  INSTALLATION_ORDER_REPOSITORY,
+  type InstallationOrderRepository,
+} from './contexts/installation/domain/installation-order.repository';
+import { INSTALLATION_SLOT_LABELS } from './contexts/installation/domain/installation-order';
 
 @Injectable()
 export class GetOnboardingStatusUseCase {
@@ -19,6 +29,10 @@ export class GetOnboardingStatusUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(TENANT_ONBOARDING_REPOSITORY)
     private readonly onboardingRepository: TenantOnboardingRepository,
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications: OnboardingApplicationRepository,
+    @Inject(INSTALLATION_ORDER_REPOSITORY)
+    private readonly installationOrders: InstallationOrderRepository,
   ) {}
 
   async execute(accessToken: string) {
@@ -44,6 +58,48 @@ export class GetOnboardingStatusUseCase {
       onboardingStatus = 'in_progress';
     }
 
+    // What the customer asked for during onboarding, so the tenant's device
+    // page can show the request while it is still being installed. The fleet
+    // tables only receive the vehicle and device at handover, which leaves
+    // the request invisible for the whole installation phase otherwise.
+    const application = await this.applications.findLatestByTenantId(
+      actor.tenantId,
+    );
+    let applicationSummary = null;
+    if (application) {
+      const [vehicles, deviceRequests, order] = await Promise.all([
+        this.applications.findVehiclesByApplicationId(application.id),
+        this.applications.findDeviceRequestsByApplicationId(application.id),
+        this.installationOrders.findByApplicationId(application.id),
+      ]);
+
+      applicationSummary = {
+        id: application.id,
+        reference: application.reference,
+        status: application.status,
+        stage: application.stage,
+        submittedAt: application.submittedAt?.toISOString() ?? null,
+        createdAt: application.createdAt.toISOString(),
+        vehicleCount: vehicles.length,
+        requestedDevices: requestedDeviceCount(deviceRequests),
+        deviceRequests: deviceRequests.map((request) => ({
+          id: request.id,
+          quantity: request.quantity,
+          useCase: request.useCase,
+          notes: request.notes,
+        })),
+        installation: order
+          ? {
+              orderNumber: order.orderNumber,
+              status: order.status,
+              scheduledDate: order.scheduledDate.toISOString().slice(0, 10),
+              timeSlot: order.timeSlot,
+              timeSlotLabel: INSTALLATION_SLOT_LABELS[order.timeSlot],
+            }
+          : null,
+      };
+    }
+
     return {
       status: true,
       message: 'success',
@@ -53,6 +109,7 @@ export class GetOnboardingStatusUseCase {
         onboardingStatus,
         planCode: onboarding?.subscription?.planCode ?? null,
         subscriptionStatus: onboarding?.status ?? null,
+        application: applicationSummary,
       },
     };
   }

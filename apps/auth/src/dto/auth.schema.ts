@@ -1977,12 +1977,56 @@ export class KycDocumentsResponse extends StandardApiResponse<KycDocumentsDataSc
 
 /* ── Onboarding: Status ─────────────────────────────────────────────────── */
 
+export class OnboardingDeviceRequestSummarySchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() quantity!: number;
+  @ApiProperty() useCase!: string;
+  @ApiPropertyOptional({ nullable: true }) notes!: string | null;
+}
+
+export class OnboardingInstallationSummarySchema {
+  @ApiProperty({ example: 'FL-1002' }) orderNumber!: string;
+  @ApiProperty({
+    enum: ['unassigned', 'assigned', 'scheduled', 'in_progress', 'overdue', 'issue_reported', 'completed', 'cancelled'],
+  })
+  status!: string;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  scheduledDate!: string | null;
+  @ApiPropertyOptional({ enum: ['morning', 'afternoon'], nullable: true })
+  timeSlot!: string | null;
+  @ApiPropertyOptional({ nullable: true }) timeSlotLabel!: string | null;
+}
+
+export class OnboardingApplicationSummarySchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ example: 'APP-2026-2A690577' }) reference!: string;
+  @ApiProperty({
+    enum: ['draft', 'submitted', 'under_review', 'changes_requested', 'approved', 'rejected'],
+  })
+  status!: string;
+  @ApiProperty({
+    enum: ['application', 'provisioning', 'payment', 'installation_scheduling', 'installation', 'connectivity_verification', 'fleet_ready'],
+  })
+  stage!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  submittedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+  @ApiProperty() vehicleCount!: number;
+  @ApiProperty() requestedDevices!: number;
+  @ApiProperty({ type: [OnboardingDeviceRequestSummarySchema] })
+  deviceRequests!: OnboardingDeviceRequestSummarySchema[];
+  @ApiProperty({ type: OnboardingInstallationSummarySchema, nullable: true })
+  installation!: OnboardingInstallationSummarySchema | null;
+}
+
 export class OnboardingStatusSchema {
   @ApiProperty() tenantId!: string;
   @ApiProperty() isOnboarded!: boolean;
   @ApiProperty({ enum: ['pending', 'in_progress', 'completed', 'rejected'] }) onboardingStatus!: string;
   @ApiPropertyOptional({ nullable: true }) planCode!: string | null;
   @ApiPropertyOptional({ nullable: true }) subscriptionStatus!: string | null;
+  @ApiPropertyOptional({ type: OnboardingApplicationSummarySchema, nullable: true })
+  application!: OnboardingApplicationSummarySchema | null;
 }
 
 export class OnboardingStatusResponse extends StandardApiResponse<OnboardingStatusSchema> {

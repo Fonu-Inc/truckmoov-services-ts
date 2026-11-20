@@ -249,6 +249,18 @@ export class MikroOnboardingApplicationRepository
     return record ? toStored(record) : null;
   }
 
+  async findLatestByTenantId(
+    tenantId: string,
+  ): Promise<StoredOnboardingApplication | null> {
+    const em = await this.em();
+    const record = await em.findOne(
+      OnboardingApplicationRecord,
+      { tenantId },
+      { orderBy: { createdAt: 'desc' } },
+    );
+    return record ? toStored(record) : null;
+  }
+
   async findByReference(
     reference: string,
   ): Promise<StoredOnboardingApplication | null> {

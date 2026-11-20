@@ -108,6 +108,16 @@ export class InMemoryOnboardingApplicationRepository
     return this.applications.get(id) ?? null;
   }
 
+  async findLatestByTenantId(
+    tenantId: string,
+  ): Promise<StoredOnboardingApplication | null> {
+    return (
+      [...this.applications.values()]
+        .filter((application) => application.tenantId === tenantId)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
+    );
+  }
+
   async findByReference(
     reference: string,
   ): Promise<StoredOnboardingApplication | null> {

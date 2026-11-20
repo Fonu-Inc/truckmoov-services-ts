@@ -259,6 +259,10 @@ export type OnboardingApplicationQueueFilters = {
 export interface OnboardingApplicationRepository {
   save(application: StoredOnboardingApplication): Promise<void>;
   findById(id: string): Promise<StoredOnboardingApplication | null>;
+  /** The tenant's most recent application, for the signed-in customer's own view. */
+  findLatestByTenantId(
+    tenantId: string,
+  ): Promise<StoredOnboardingApplication | null>;
   findByReference(
     reference: string,
   ): Promise<StoredOnboardingApplication | null>;
