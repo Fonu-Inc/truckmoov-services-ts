@@ -12,9 +12,11 @@ const get = vi.mocked(axios.get);
 function client(apiKey = 'test-key') {
   const config = {
     mtn: {
-      baseUrl: 'https://api.mtn.com',
+      baseUrl: 'https://preprod2-nigeria.api.mtn.com',
       apiKey,
       nodeId: 'MTNAPPNXG',
+      countryCode: 'NGA',
+      productMatch: 'm2m|machine',
       timeoutMs: 1000,
     },
   };
@@ -66,10 +68,14 @@ describe('MTN M2M client', () => {
       frequency: 'monthly',
     }]);
     expect(get).toHaveBeenCalledWith(
-      'https://api.mtn.com/v3/products',
+      'https://preprod2-nigeria.api.mtn.com/v3/products',
       expect.objectContaining({
         params: { nodeId: 'MTNAPPNXG' },
-        headers: expect.objectContaining({ 'X-API-Key': 'test-key' }),
+        headers: expect.objectContaining({
+          'x-api-Key': 'test-key',
+          'x-country-code': 'NGA',
+          transactionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        }),
       }),
     );
   });
@@ -78,7 +84,7 @@ describe('MTN M2M client', () => {
     get.mockResolvedValue({
       status: 200,
       data: {
-        eligible: true,
+        eligible: 'true',
         statusCode: '0000',
         statusMessage: 'Eligible',
         transactionId: 'tx-1',
@@ -97,9 +103,20 @@ describe('MTN M2M client', () => {
       transactionId: 'tx-1',
     });
     expect(get).toHaveBeenCalledWith(
-      'https://api.mtn.com/v3/products/2349162059567/eligibility/ECHK_NG_Data_2067',
+      'https://preprod2-nigeria.api.mtn.com/v3/products/2349162059567/eligibility/ECHK_NG_Data_2067',
       expect.objectContaining({
-        params: { transactionId: expect.stringMatching(/^[0-9a-f-]{36}$/) },
+        params: expect.objectContaining({
+          transactionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          clientTransactionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          nodeId: 'MTNAPPNXG',
+          viewType: 'checkOffer',
+          targetSystem: 'CIS',
+        }),
+        headers: expect.objectContaining({
+          'x-api-Key': 'test-key',
+          'x-country-code': 'NGA',
+          transactionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        }),
       }),
     );
   });
@@ -144,10 +161,11 @@ describe('MTN M2M client', () => {
       amountCharged: 500,
     }]);
     expect(get).toHaveBeenCalledWith(
-      'https://api.mtn.com/v2/customers/2349162059746/subscriptions',
+      'https://preprod2-nigeria.api.mtn.com/v2/customers/2349162059746/subscriptions',
       expect.objectContaining({
         headers: expect.objectContaining({
-          'X-API-Key': 'test-key',
+          'x-api-Key': 'test-key',
+          'x-country-code': 'NGA',
           transactionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
         }),
       }),

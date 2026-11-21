@@ -10,7 +10,7 @@ const NOW = new Date('2026-11-21T10:00:00.000Z');
 function product(id: string, amount: number): MtnProduct {
   return {
     id,
-    name: `${id}GB Monthly`,
+    name: `M2M ${id}GB Monthly`,
     currency: 'NGN',
     amount,
     bundleCategory: 'Data',
@@ -44,10 +44,12 @@ function harness(products: MtnProduct[]) {
   const mtn = { listProducts: vi.fn(async () => products) };
   const carriers = new InMemoryBundleCarrierRepository();
   const bundles = new InMemoryBundleCatalogRepository();
+  const config = { mtn: { productMatch: 'm2m|machine' } };
   const sync = new MtnBundleCatalogSyncService(
     mtn as never,
     carriers,
     bundles,
+    config as never,
   );
   return { mtn, carriers, bundles, sync };
 }
@@ -86,7 +88,7 @@ describe('MTN bundle catalogue sync', () => {
 
     const one = await h.bundles.findById('bundle-mtn-m2m-1');
     expect(one).toMatchObject({
-      name: '1GB Monthly',
+      name: 'M2M 1GB Monthly',
       priceKobo: 60000,
       active: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -115,16 +117,24 @@ describe('MTN bundle catalogue sync', () => {
     expect((await h.bundles.findById('bundle-mtn-m2m-1'))?.active).toBe(true);
   });
 
-  it('skips products that are not sellable data bundles', async () => {
+  it('skips voice and consumer products that are not M2M bundles', async () => {
     const h = harness([
       { ...product('1', 500), group: 'voice', bundleType: 'Voice' },
       product('2', 500),
+      {
+        ...product('3', 500),
+        name: '1GB Monthly',
+        bundleCategory: 'DataPlan',
+        subCategory: 'IDB1500',
+        description: 'Consumer data bundle',
+      },
     ]);
 
     const summary = await h.sync.sync(NOW);
 
-    expect(summary.skipped).toBe(1);
+    expect(summary.skipped).toBe(2);
     expect(summary.created).toBe(1);
     expect(await h.bundles.findById('bundle-mtn-m2m-1')).toBeNull();
+    expect(await h.bundles.findById('bundle-mtn-m2m-3')).toBeNull();
   });
 });

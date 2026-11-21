@@ -9,7 +9,7 @@ import {
 function product(overrides: Partial<MtnProduct> = {}): MtnProduct {
   return {
     id: '97',
-    name: '1GB Monthly',
+    name: 'M2M 1GB Monthly',
     currency: 'NGN',
     amount: 500,
     bundleCategory: 'Data',
@@ -27,7 +27,7 @@ describe('MTN bundle catalogue mapping', () => {
     expect(mapMtnProduct(product())).toEqual({
       id: 'bundle-mtn-m2m-97',
       code: 'MTN-M2M-97',
-      name: '1GB Monthly',
+      name: 'M2M 1GB Monthly',
       carrierId: 'carrier-mtn',
       dataAmountGb: 1,
       validityDays: 30,
@@ -60,14 +60,20 @@ describe('MTN bundle catalogue mapping', () => {
     }))).toBe(30);
   });
 
-  it('skips voice products and non-NAIRA prices', () => {
+  it('skips consumer products, voice products and non-NAIRA prices', () => {
+    expect(mapMtnProduct(product({
+      name: '1GB Monthly',
+      bundleCategory: 'DataPlan',
+      subCategory: 'IDB1500',
+      description: 'Consumer data',
+    }))).toBeNull();
     expect(mapMtnProduct(product({ group: 'voice', bundleType: 'Voice' }))).toBeNull();
     expect(mapMtnProduct(product({ currency: 'USD' }))).toBeNull();
   });
 
   it('skips a product with no usable data amount', () => {
     expect(mapMtnProduct(product({
-      name: 'Mystery bundle',
+      name: 'M2M Mystery bundle',
       bundleValue: undefined,
     }))).toBeNull();
   });

@@ -433,9 +433,17 @@ export class AppConfigService {
    */
   get mtn() {
     return {
-      baseUrl: this.config.get<string>("MTN_API_BASE_URL", "https://api.mtn.com"),
+      baseUrl: this.config.get<string>(
+        "MTN_API_BASE_URL",
+        "https://preprod2-nigeria.api.mtn.com",
+      ),
       apiKey: this.config.get<string>("MTN_X_API_KEY", ""),
       nodeId: this.config.get<string>("MTN_M2M_NODE_ID", "MTNAPPNXG"),
+      countryCode: this.config.get<string>("MTN_COUNTRY_CODE", "NGA"),
+      productMatch: this.config.get<string>(
+        "MTN_M2M_PRODUCT_MATCH",
+        "m2m|machine",
+      ),
       timeoutMs: this.config.get<number>("MTN_API_TIMEOUT_MS", 15_000),
       bundleSyncEnabled:
         this.config.get<string>("MTN_BUNDLE_SYNC_ENABLED", "true") === "true",

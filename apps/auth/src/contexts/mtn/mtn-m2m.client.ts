@@ -11,7 +11,13 @@ export type MtnProductGroup =
   | 'stream'
   | 'others';
 
-export type MtnProductFrequency = 'daily' | 'weekly' | 'monthly' | 'days';
+export type MtnProductFrequency =
+  | 'daily'
+  | 'weekend'
+  | 'weekly'
+  | 'monthly'
+  | 'days'
+  | 'otherProducts';
 
 export type MtnProduct = {
   id: string;
@@ -19,6 +25,8 @@ export type MtnProduct = {
   currency: string;
   amount: number;
   bundleCategory?: string;
+  subCategory?: string;
+  description?: string;
   bundleType?: string;
   bundleValidity?: string;
   bundleValue?: { value?: number; units?: string };
@@ -74,7 +82,7 @@ export class MtnM2mClient {
    */
   async listProducts(): Promise<MtnProduct[]> {
     const response = await this.get('/v3/products', {
-      nodeId: this.config.mtn.nodeId,
+      params: { nodeId: this.config.mtn.nodeId },
     });
     return flattenCatalogue(response);
   }
@@ -87,12 +95,27 @@ export class MtnM2mClient {
     const transactionId = randomUUID();
     const response = await this.get(
       `/v3/products/${encodeURIComponent(customerId)}/eligibility/${encodeURIComponent(productId)}`,
-      { transactionId },
+      {
+        params: {
+          transactionId,
+          clientTransactionId: transactionId,
+          nodeId: this.config.mtn.nodeId,
+          // The eligibility endpoint rejects the call without both of these.
+          viewType: 'checkOffer',
+          targetSystem: 'CIS',
+        },
+        transactionId,
+      },
     );
     const payload = (response as Record<string, any> | null) ?? {};
     const body = payload.data ?? payload;
     return {
-      eligible: payload.eligible === true || body.eligible === true,
+      // MTN returns the string "true" here, not a boolean.
+      eligible:
+        payload.eligible === true ||
+        payload.eligible === 'true' ||
+        body.eligible === true ||
+        body.eligible === 'true',
       statusCode: payload.statusCode ?? body.statusCode ?? null,
       statusMessage: payload.statusMessage ?? body.statusMessage ?? null,
       transactionId: payload.transactionId ?? body.transactionId ?? transactionId,
@@ -104,7 +127,6 @@ export class MtnM2mClient {
     const transactionId = randomUUID();
     const response = await this.get(
       `/v2/customers/${encodeURIComponent(customerId)}/subscriptions`,
-      undefined,
       { transactionId },
     );
     const payload = (response as Record<string, any> | null) ?? {};
@@ -134,22 +156,26 @@ export class MtnM2mClient {
 
   private async get(
     path: string,
-    params?: Record<string, string>,
-    headers: Record<string, string> = {},
+    options: {
+      params?: Record<string, string>;
+      transactionId?: string;
+    } = {},
   ): Promise<unknown> {
     const mtn = this.config.mtn;
     if (!mtn.apiKey.trim()) {
       throw new MtnApiError('MTN_X_API_KEY is not configured', 401);
     }
 
+    const transactionId = options.transactionId ?? randomUUID();
     const url = `${mtn.baseUrl.replace(/\/+$/, '')}${path}`;
     const response = await axios.get(url, {
       headers: {
-        'X-API-Key': mtn.apiKey,
+        'x-api-Key': mtn.apiKey,
+        'x-country-code': mtn.countryCode,
+        transactionId,
         Accept: 'application/json',
-        ...headers,
       },
-      params,
+      params: options.params,
       timeout: mtn.timeoutMs,
       validateStatus: () => true,
     });
@@ -177,9 +203,11 @@ const GROUPS: MtnProductGroup[] = [
 ];
 const FREQUENCIES: MtnProductFrequency[] = [
   'daily',
+  'weekend',
   'weekly',
   'monthly',
   'days',
+  'otherProducts',
 ];
 
 /**
@@ -252,6 +280,8 @@ function toProduct(
     currency: String(raw?.currency ?? 'NGN').trim().toUpperCase() || 'NGN',
     amount,
     bundleCategory: raw?.bundleCategory,
+    subCategory: raw?.subCategory,
+    description: raw?.description,
     bundleType: raw?.bundleType,
     bundleValidity: raw?.bundleValidity ?? raw?.bundleValidaty,
     bundleValue:

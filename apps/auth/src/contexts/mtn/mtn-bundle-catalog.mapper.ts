@@ -21,7 +21,13 @@ export type MappedMtnBundle = {
  * flow already understand. Returns null for non-data products, non-NAIRA
  * prices, and rows without a usable data amount.
  */
-export function mapMtnProduct(product: MtnProduct): MappedMtnBundle | null {
+export const DEFAULT_M2M_MATCH = /m2m|machine/i;
+
+export function mapMtnProduct(
+  product: MtnProduct,
+  match: RegExp = DEFAULT_M2M_MATCH,
+): MappedMtnBundle | null {
+  if (!isM2mProduct(product, match)) return null;
   if (!isDataProduct(product)) return null;
   if ((product.currency || 'NGN').toUpperCase() !== 'NGN') return null;
 
@@ -44,6 +50,20 @@ export function mapMtnProduct(product: MtnProduct): MappedMtnBundle | null {
     currency: 'NGN',
     active: true,
   };
+}
+
+export function isM2mProduct(
+  product: MtnProduct,
+  match: RegExp = DEFAULT_M2M_MATCH,
+): boolean {
+  const haystack = [
+    product.name,
+    product.bundleCategory,
+    product.subCategory,
+    product.description,
+  ].filter(Boolean).join(' ');
+  match.lastIndex = 0;
+  return match.test(haystack);
 }
 
 export function isDataProduct(product: MtnProduct): boolean {
@@ -78,6 +98,8 @@ export function validityInDays(product: MtnProduct): number {
   switch (product.frequency) {
     case 'daily':
       return 1;
+    case 'weekend':
+      return 2;
     case 'weekly':
       return 7;
     case 'monthly':

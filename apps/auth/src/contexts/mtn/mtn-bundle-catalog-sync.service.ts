@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AppConfigService } from '@shared/config';
 import {
   BUNDLE_CARRIER_REPOSITORY,
   type BundleCarrierRepository,
@@ -36,13 +37,25 @@ export type MtnBundleSyncSummary = {
 export class MtnBundleCatalogSyncService {
   private readonly logger = new Logger(MtnBundleCatalogSyncService.name);
 
+  private readonly productMatch: RegExp;
+
   constructor(
     @Inject(MtnM2mClient) private readonly mtn: MtnM2mClient,
     @Inject(BUNDLE_CARRIER_REPOSITORY)
     private readonly carriers: BundleCarrierRepository,
     @Inject(BUNDLE_CATALOG_REPOSITORY)
     private readonly bundles: BundleCatalogRepository,
-  ) {}
+    @Inject(AppConfigService) config: AppConfigService,
+  ) {
+    try {
+      this.productMatch = new RegExp(config.mtn.productMatch, 'i');
+    } catch {
+      this.logger.warn(
+        `mtn_bundle_sync:invalid_product_match:${config.mtn.productMatch}`,
+      );
+      this.productMatch = /m2m|machine/i;
+    }
+  }
 
   async sync(now: Date = new Date()): Promise<MtnBundleSyncSummary> {
     const products = await this.mtn.listProducts();
@@ -61,7 +74,7 @@ export class MtnBundleCatalogSyncService {
     const seen = new Set<string>();
 
     for (const product of products) {
-      const mapped = mapMtnProduct(product);
+      const mapped = mapMtnProduct(product, this.productMatch);
       if (!mapped) {
         summary.skipped += 1;
         continue;
