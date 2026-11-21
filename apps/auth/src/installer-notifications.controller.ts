@@ -58,7 +58,7 @@ export class InstallerNotificationsController {
   @Patch('preferences/notifications')
   @ApiOperation({
     summary: 'Change any of the notification toggles',
-    description: 'A notice goes out only if its type toggle is on; then to the inbox only with inPlatformAlerts, by email only with emailAlerts. No SMS.',
+    description: 'A notice goes out only if its type toggle is on; then to the inbox only with inPlatformAlerts, by email only with emailAlerts. A job assignment also goes by SMS when emailAlerts is on.',
   })
   @ApiOkResponse({ description: 'The notification preferences', type: InstallerNotificationPreferencesResponse })
   @InvalidInstallerBody('"<toggle> must be true or false", or "Nothing to change" for an empty body.')

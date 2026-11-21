@@ -352,11 +352,13 @@ tenant with no number of its own).
   the settings form only. The mail host must be reachable and public.
 
 **3. SMS needs the platform sender.**
-- *Exists now:* SMS campaigns and test sends go through the existing Dotgo
-  provider as the system tenant.
-- *Missing:* confirmation that the Dotgo account, sender mask and delivery
-  callback are set for the platform, and that the account may send to the
-  recipients' networks.
+- *Exists now:* SMS campaigns and test sends go through the TS auth service's
+  unified OTP/SMS endpoint, which owns the transactional Dotgo account. The
+  notification service keeps the outbox, delivery log and usage charge, and
+  only validates Dotgo delivery receipts.
+- *Missing:* confirmation that `DOTGO_TRANSACTIONAL_*`, the sender mask and the
+  receipt callback are set for auth in each environment, and that the account
+  may send to the recipients' networks.
 
 **4. Small known gaps in the inbox.**
 - *Quote-reply and reactions:* a staff reply cannot quote a message or react to
@@ -387,8 +389,10 @@ tenant with no number of its own).
 2. **Mailbox (item 2).** Create the mailbox and save its settings on the Email
    page. Acceptance: a message sent to it shows in the Inbox within the sync
    interval, and a reply sent from the page arrives and is filed to Sent.
-3. **SMS sender (item 3).** Set `DOTGO_*` for the notification service in each
-   environment. Acceptance: "Send a test" on an SMS template reaches a handset.
+3. **SMS sender (item 3).** Set `DOTGO_TRANSACTIONAL_*` and
+   `DOTGO_CALLBACK_URL`/`DOTGO_WEBHOOK_SECRET` for auth in each environment;
+   notification needs only `DOTGO_WEBHOOK_SECRET` to validate receipts.
+   Acceptance: "Send a test" on an SMS template reaches a handset.
 4. **Inbox gaps (item 4).** Quote-reply: add `context.message_id` to the text
    and media send payloads and a reply button on a bubble. Old media: copy
    media to object storage when it is first fetched and serve from there.

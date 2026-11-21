@@ -24,6 +24,7 @@ import {
   type StoredInstaller,
 } from '@auth/installation/domain/installer.repository';
 import { TenantNotificationPublisher, type TenantNotification } from '../../../../tenant-notification.publisher';
+import { UnifiedSmsService } from '../../../otp/unified-sms.service';
 import { ticketDisplayId, type StoredSupportTicket } from '../../../../support-ticket.repository';
 
 export type InstallerNotice = {
@@ -42,7 +43,7 @@ export function assignedNotice(order: StoredInstallationOrder, now: Date): Insta
 
 type Message = { type: InstallerNotificationType; copy: NotificationCopy; orderId: string | null; dedupeKey: string };
 
-/** Installers get email only; SMS is not sent to them. */
+/** The email copy. Job assignments also get a short SMS below. */
 function outbound(installer: StoredInstaller, copy: NotificationCopy): Pick<TenantNotification, 'channel' | 'recipient' | 'content'> {
   return { channel: 'email', recipient: installer.email, content: `${copy.title}\n\n${copy.body}` };
 }
@@ -50,7 +51,8 @@ function outbound(installer: StoredInstaller, copy: NotificationCopy): Pick<Tena
 /**
  * The inbox row and the email for one notice, as the installer's toggles allow:
  * nothing unless the type's toggle is on, the row shown only with inPlatformAlerts,
- * the email only with emailAlerts. Sent under the system tenant.
+ * the email only with emailAlerts. A job assignment additionally goes by SMS
+ * when emailAlerts is on. Sent under the system tenant.
  */
 @Injectable()
 export class InstallerNotifier {
@@ -60,6 +62,7 @@ export class InstallerNotifier {
     @Inject(INSTALLER_REPOSITORY) private readonly installers: InstallerRepository,
     @Inject(INSTALLER_NOTIFICATION_REPOSITORY) private readonly notifications: InstallerNotificationRepository,
     @Inject(TenantNotificationPublisher) private readonly publisher: TenantNotificationPublisher,
+    @Inject(UnifiedSmsService) private readonly sms: UnifiedSmsService,
   ) {}
 
   /** Best effort: a failure is logged and never reaches the action that raised it. */
@@ -103,7 +106,26 @@ export class InstallerNotifier {
     if (!preferences[typeToggle(message.type)]) return;
     if (!(await this.addRow(installer, message, !preferences.inPlatformAlerts, now))) return;
     if (!preferences.emailAlerts || !installer.email) return;
+
     await this.publisher.notify({ tenantId: SYSTEM_TENANT_ID, notificationType: message.type, ...outbound(installer, message.copy) });
+
+    // Auto-assignment is the one installer notice that also goes by SMS. It is
+    // sent alongside the email and is best-effort: an SMS failure must not
+    // undo the inbox row or the email.
+    if (message.type !== 'job_assigned' || !installer.phoneNumber) return;
+    try {
+      await this.sms.send({
+        channel: 'sms',
+        to: installer.phoneNumber,
+        message: `${message.copy.title}. ${message.copy.body}`,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `installer_sms_failed:${message.dedupeKey}:${
+          error instanceof Error ? error.message : 'unknown'
+        }`,
+      );
+    }
   }
 
   /** False when the same notice was already written. */

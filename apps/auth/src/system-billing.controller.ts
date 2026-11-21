@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  BadGatewayException,
   Body,
   Controller,
   Get,
@@ -39,6 +40,8 @@ import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use
 import { BundleNotFoundError, UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { CarrierNotFoundError, UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
+import { SyncMtnBundleCatalogUseCase } from './sync-mtn-bundle-catalog.use-case';
+import { MtnApiError } from './contexts/mtn/mtn-m2m.client';
 import { Portals, OnResource } from '@shared/access';
 
 @ApiTags('System Billing')
@@ -55,6 +58,7 @@ export class SystemBillingController extends BaseAuthController {
     @Inject(DeleteSystemBundleUseCase) private readonly deleteSystemBundleUseCase: DeleteSystemBundleUseCase,
     @Inject(ListSystemBundleCatalogUseCase) private readonly listSystemBundleCatalogUseCase: ListSystemBundleCatalogUseCase,
     @Inject(GetSystemBundleAdoptionUseCase) private readonly getSystemBundleAdoptionUseCase: GetSystemBundleAdoptionUseCase,
+    @Inject(SyncMtnBundleCatalogUseCase) private readonly syncMtnBundleCatalogUseCase: SyncMtnBundleCatalogUseCase,
   ) {
     super(activityLogService);
   }
@@ -163,6 +167,27 @@ export class SystemBillingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Post('bundle-catalog/sync-mtn')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Pull the MTN M2M catalogue and refresh bundle prices (system admin)',
+  })
+  @ApiOkResponse({ description: 'Sync summary: fetched, created, updated, deactivated, skipped.' })
+  async syncMtnBundleCatalog(@Headers('authorization') authorization?: string) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      return await this.syncMtnBundleCatalogUseCase.execute(accessToken);
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof MtnApiError) {
+        throw new BadGatewayException(error.message);
+      }
       throw error;
     }
   }

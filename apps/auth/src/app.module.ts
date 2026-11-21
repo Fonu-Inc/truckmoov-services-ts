@@ -16,7 +16,6 @@ import { ReadinessController } from './readiness.controller';
 import { LoggerModule } from '@shared/logger';
 import { MailerModule } from '@shared/mailer';
 import { ObjectStorageModule } from '@shared/object-storage';
-import { SmsModule } from '@shared/sms';
 import {
   ChangeRoleUseCase,
   ChangeSystemPasswordUseCase,
@@ -255,6 +254,9 @@ import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
 import { InternalNotificationRecipientsController } from './internal-notification-recipients.controller';
 import { InternalTenantContactController } from './internal-tenant-contact.controller';
+import { InternalOtpController } from './contexts/otp/internal-otp.controller';
+import { DotgoTransactionalSmsProvider } from './contexts/otp/dotgo-transactional-sms.provider';
+import { UnifiedSmsService } from './contexts/otp/unified-sms.service';
 import { SystemInstallationOrdersController } from './system-installation-orders.controller';
 import { INSTALLER_ACCOUNTS } from './contexts/auth/session';
 import { ActivityLogService } from './activity-log.service';
@@ -816,6 +818,10 @@ import { MikroBundleCarrierRepository } from './mikro-bundle-carrier.repository'
 import { BUNDLE_CATALOG_REPOSITORY } from './bundle-catalog.repository';
 import { InMemoryBundleCatalogRepository } from './in-memory-bundle-catalog.repository';
 import { MikroBundleCatalogRepository } from './mikro-bundle-catalog.repository';
+import { MtnM2mClient } from './contexts/mtn/mtn-m2m.client';
+import { MtnBundleCatalogSyncService } from './contexts/mtn/mtn-bundle-catalog-sync.service';
+import { MtnBundleCatalogSweepService } from './contexts/mtn/mtn-bundle-catalog-sweep.service';
+import { SyncMtnBundleCatalogUseCase } from './sync-mtn-bundle-catalog.use-case';
 // Tenant wallet
 import { TENANT_WALLET_REPOSITORY } from './tenant-wallet.repository';
 import { InMemoryTenantWalletRepository } from './in-memory-tenant-wallet.repository';
@@ -915,7 +921,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     LoggerModule,
     MailerModule,
     ObjectStorageModule,
-    SmsModule,
     EventBusModule,
     MetricsModule,
   ],
@@ -936,6 +941,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalInstallersController,
     InternalNotificationRecipientsController,
     InternalTenantContactController,
+    InternalOtpController,
     SystemInstallersController,
     SystemInstallationOrdersController,
     OnboardingApplicationsController,
@@ -987,6 +993,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       useFactory: (host: HttpAdapterHost) => new SentryExceptionFilter(host, 'auth'),
     },
     RequestContextMiddleware,
+    // Unified OTP/SMS. In-process for auth; other services call the internal route.
+    DotgoTransactionalSmsProvider,
+    UnifiedSmsService,
     GetMySupportSummaryUseCase,
     GetSupportOptionsUseCase,
     PreviewTicketContextUseCase,
@@ -2406,6 +2415,11 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       useFactory: (inMemory: InMemoryBundleCatalogRepository, mikro: MikroBundleCatalogRepository, config: AppConfigService) =>
         config.persistence.backend === 'in-memory' ? inMemory : mikro,
     },
+    // MTN M2M catalogue and price sync
+    MtnM2mClient,
+    MtnBundleCatalogSyncService,
+    MtnBundleCatalogSweepService,
+    SyncMtnBundleCatalogUseCase,
     // Tenant wallet repository
     InMemoryTenantWalletRepository,
     MikroTenantWalletRepository,

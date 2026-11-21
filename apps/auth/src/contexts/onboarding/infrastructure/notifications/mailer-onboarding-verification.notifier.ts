@@ -1,21 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AppConfigService } from '@shared/config';
-import { SYSTEM_TENANT_ID, type ServiceCaller, createServiceCaller } from '@shared/identity';
 import { MailerService } from '@shared/mailer';
 import {
   ONBOARDING_VERIFICATION_CODE_SUBJECT,
   ONBOARDING_VERIFICATION_CODE_TEMPLATE,
 } from '@auth/templates/onboarding-verification-code.template';
 import { VERIFICATION_CODE_TTL_MS } from '@auth/onboarding/domain/onboarding-application.support';
+import { UnifiedSmsService } from '../../../otp/unified-sms.service';
 import {
   VerificationDispatchError,
   type OnboardingVerificationNotifier,
   type VerificationCodeMessage,
 } from '@auth/onboarding/domain/ports/onboarding-verification-notifier.port';
-
-// The applicant has no tenant and no wallet, so onboarding messages are sent
-// as the platform and charged to it, never to the organisation applying.
-const PLATFORM_TENANT_ID = SYSTEM_TENANT_ID;
 
 @Injectable()
 export class MailerOnboardingVerificationNotifier
@@ -25,14 +20,10 @@ export class MailerOnboardingVerificationNotifier
     MailerOnboardingVerificationNotifier.name,
   );
 
-  private readonly caller: ServiceCaller;
-
   constructor(
     @Inject(MailerService) private readonly mailer: MailerService,
-    @Inject(AppConfigService) private readonly config: AppConfigService,
-  ) {
-    this.caller = createServiceCaller(config, 'auth');
-  }
+    @Inject(UnifiedSmsService) private readonly sms: UnifiedSmsService,
+  ) {}
 
   async sendEmailCode(input: VerificationCodeMessage): Promise<void> {
     try {
@@ -58,31 +49,19 @@ export class MailerOnboardingVerificationNotifier
   }
 
   async sendSmsCode(input: VerificationCodeMessage): Promise<void> {
-    const url = `${this.config.auth.notificationServiceUrl.replace(/\/+$/, '')}/notify/messages/send`;
     const expiryMinutes = VERIFICATION_CODE_TTL_MS / 60_000;
 
-    // Notification only sends for an identified caller; this used to go out
-    // with no credentials and was refused every time.
-    const identity = this.caller.headers('notification', {
-      tenantId: PLATFORM_TENANT_ID,
-      legacyRole: 'DISPATCHER',
-    });
-
+    // The applicant has no tenant and no wallet. The unified SMS service is
+    // platform-owned, so this send is not attributed to the organisation
+    // applying.
     try {
-      if (!identity) throw new Error('auth cannot identify itself to notification');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...identity },
-        body: JSON.stringify({
-          tenantId: PLATFORM_TENANT_ID,
-          channel: 'sms',
-          recipient: input.destination,
-          content: `${input.code} is your TruckMoov verification code. It expires in ${expiryMinutes} minutes.`,
-        }),
+      await this.sms.send({
+        channel: 'sms',
+        to: input.destination,
+        otp: input.code,
+        dedupKey: input.applicationId,
+        message: `{{otp}} is your TruckMoov verification code. It expires in ${expiryMinutes} minutes.`,
       });
-      if (!response.ok) {
-        throw new Error(`notification service returned ${response.status}`);
-      }
     } catch (error) {
       this.logger.error(
         `Onboarding SMS code dispatch failed: ${

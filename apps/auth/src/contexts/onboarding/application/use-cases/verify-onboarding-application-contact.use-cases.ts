@@ -108,12 +108,14 @@ export class SendOnboardingVerificationCodeUseCase {
 
     if (input.channel === 'email' || input.channel === 'billing_email') {
       await this.notifier.sendEmailCode({
+        applicationId: application.id,
         destination,
         code,
         organizationName: application.organizationName,
       });
     } else {
       await this.notifier.sendSmsCode({
+        applicationId: application.id,
         destination,
         code,
         organizationName: application.organizationName,

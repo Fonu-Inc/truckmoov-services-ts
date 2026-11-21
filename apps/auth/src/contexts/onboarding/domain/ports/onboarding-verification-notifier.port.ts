@@ -10,6 +10,7 @@ export class VerificationDispatchError extends Error {
 }
 
 export type VerificationCodeMessage = {
+  applicationId: string;
   destination: string;
   code: string;
   organizationName: string;

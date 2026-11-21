@@ -47,7 +47,10 @@ Auth-specific delivery vars:
 - `EMAIL_VERIFICATION_PATH`, `INVITE_ACCEPT_PATH`: frontend routes appended to `FRONTEND_URL`.
 - `MAIL_TRANSPORT`: `smtp`, `ses`, or `null`.
 - `MAIL_FROM`, `AWS_REGION`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`
-- `SMS_TRANSPORT`, `DOTGO_API_URL`, `DOTGO_API_KEY`, `DOTGO_SENDER_ID`
+- `DOTGO_BASE_URL`, `DOTGO_TRANSACTIONAL_ACCOUNT_ID`, `DOTGO_TRANSACTIONAL_API_TOKEN`, `DOTGO_TRANSACTIONAL_SENDER_MASK`, `DOTGO_CALLBACK_URL`, `DOTGO_WEBHOOK_SECRET`, `OTP_DEDUP_WINDOW_S`: the unified OTP/SMS endpoint in auth. The transactional account is the one that actually sends OTPs.
+- `MTN_API_BASE_URL`, `MTN_X_API_KEY`, `MTN_M2M_NODE_ID`: MTN's M2M product/customer API. `GET /v3/products?nodeId=MTNAPPNXG` supplies the real bundle prices, `eligibility` and `subscriptions` are exposed through the same client. The background sync writes them into `bundle_catalog`; set `MTN_BUNDLE_SYNC_ENABLED=false` to disable it.
+
+SMS goes through `POST /auth/internal/otp/send`. Onboarding calls the service in-process; notification, fleet and other services call the route with a service token. The controller/service/provider live in `apps/auth/src/contexts/otp/` and are the first candidate for extraction into their own microservice.
 - `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD`: when set, auth bootstraps a `SUPER_ADMIN` account on startup.
 - `SUPERADMIN_FULL_NAME`, `SUPERADMIN_TENANT_ID`: optional overrides for the seeded superadmin profile. Recommended tenant ID is `system`.
 
@@ -73,7 +76,7 @@ Shared integrations:
 Local recommendation:
 
 - use `PERSISTENCE_BACKEND=mikro-orm` when you want the full local stack against Postgres
-- use `MAIL_TRANSPORT=null` and `SMS_TRANSPORT=null` if you only need app behavior without live delivery providers
+- use `MAIL_TRANSPORT=null` and leave `DOTGO_TRANSACTIONAL_*` empty if you only need app behavior without live delivery providers
 
 Run quality checks:
 

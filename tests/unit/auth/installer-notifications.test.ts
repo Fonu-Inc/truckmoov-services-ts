@@ -61,7 +61,8 @@ async function harness() {
   const orders = new InMemoryInstallationOrderRepository();
   const inbox = new InMemoryInstallerNotificationRepository(orders);
   const publisher = { notify: vi.fn(async () => {}) };
-  const notifier = new InstallerNotifier(installers, inbox, publisher as never);
+  const sms = { send: vi.fn(async () => ({ success: true, channel: "sms", message: "SMS accepted for delivery", reference: "sms-1" })) };
+  const notifier = new InstallerNotifier(installers, inbox, publisher as never, sms as never);
   const tokens = { resolveAccessToken: (token: string) => ({ id: token, email: `${token}@co.com`, role: token === "platform" ? "PLATFORM_ADMIN" : "INSTALLER" }) };
   const notifications = new InstallerNotificationsUseCases(tokens as never, installers, inbox);
 
@@ -76,7 +77,7 @@ async function harness() {
 
   await installers.save(installer("ada"));
   await installers.save(installer("bola"));
-  return { installers, orders, inbox, publisher, notifier, notifications, changes, assignment, sweep, verification };
+  return { installers, orders, inbox, publisher, sms, notifier, notifications, changes, assignment, sweep, verification };
 }
 
 type Harness = Awaited<ReturnType<typeof harness>>;
@@ -120,7 +121,7 @@ describe("the notification preference matrix", () => {
     h = await harness();
   });
 
-  it("writes the inbox row and emails under the system tenant, never SMS, when every toggle is at its default", async () => {
+  it("writes the inbox row, emails and texts the installer when every toggle is at its default", async () => {
     await h.notifier.notify(notice("job_assigned"), NOW);
 
     expect(await rows(h)).toMatchObject([
@@ -130,6 +131,11 @@ describe("the notification preference matrix", () => {
       tenantId: "system", notificationType: "job_assigned", channel: "email", recipient: "ada@fieldops.ng",
       content: "New job assigned\n\nYou have been assigned a new installation job (FL-1024).",
     }]]);
+    expect(h.sms.send).toHaveBeenCalledWith({
+      channel: "sms",
+      to: "+2348031234567",
+      message: "New job assigned. You have been assigned a new installation job (FL-1024).",
+    });
   });
 
   const matrix = TYPE_TOGGLES.flatMap(([type, toggle]) =>
@@ -149,6 +155,7 @@ describe("the notification preference matrix", () => {
 
       expect((await rows(h)).map((row) => row.type)).toEqual(typeOn && inPlatformAlerts ? [type] : []);
       expect(channelsSent(h)).toEqual(typeOn && emailAlerts ? ["email"] : []);
+      expect(h.sms.send).toHaveBeenCalledTimes(type === "job_assigned" && typeOn && emailAlerts ? 1 : 0);
     },
   );
 
@@ -160,13 +167,31 @@ describe("the notification preference matrix", () => {
     expect((await rows(h)).map((row) => row.type).sort()).toEqual(["job_assigned", "job_reminder", "support_ticket_updated"]);
   });
 
-  it("ignores a stored smsAlerts and sends no SMS even with it on", async () => {
+  it("still has no smsAlerts preference; only job_assigned texts", async () => {
     await h.installers.save(installer("ada", { notificationPreferences: { smsAlerts: true } as never }));
 
     await h.notifier.notify(notice("job_updated"), NOW);
 
     expect(channelsSent(h)).toEqual(["email"]);
+    expect(h.sms.send).not.toHaveBeenCalled();
     expect(await h.notifications.preferences("user-ada")).not.toHaveProperty("smsAlerts");
+  });
+
+  it("texts a job assignment even when the installer has no smsAlerts preference", async () => {
+    await h.installers.save(installer("ada", { notificationPreferences: { emailAlerts: true } as never }));
+
+    await h.notifier.notify(notice("job_assigned"), NOW);
+
+    expect(h.sms.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the email and inbox when the assignment SMS fails", async () => {
+    h.sms.send.mockRejectedValueOnce(new Error("dotgo down"));
+
+    await expect(h.notifier.notify(notice("job_assigned"), NOW)).resolves.toBeUndefined();
+
+    expect(await rows(h)).toHaveLength(1);
+    expect(channelsSent(h)).toEqual(["email"]);
   });
 
   it("writes one row and emails once for the same notice twice", async () => {

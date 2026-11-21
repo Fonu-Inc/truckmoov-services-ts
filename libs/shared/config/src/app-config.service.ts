@@ -405,6 +405,47 @@ export class AppConfigService {
     };
   }
 
+  /**
+   * The transactional Dotgo account used by the unified OTP/SMS endpoint.
+   *
+   * Separate from `sms` above on purpose: that adapter is the old
+   * `SMS_TRANSPORT=dotgo` path, while this is the account the Go notification
+   * service used for real OTP traffic. When SMS moves out of auth into its own
+   * service, this getter and `contexts/otp/` go with it.
+   */
+  get otpSms() {
+    return {
+      baseUrl: this.config.get<string>("DOTGO_BASE_URL", ""),
+      accountId: this.config.get<string>("DOTGO_TRANSACTIONAL_ACCOUNT_ID", ""),
+      apiToken: this.config.get<string>("DOTGO_TRANSACTIONAL_API_TOKEN", ""),
+      senderMask: this.config.get<string>("DOTGO_TRANSACTIONAL_SENDER_MASK", "FONU"),
+      callbackUrl: this.config.get<string>("DOTGO_CALLBACK_URL", ""),
+      webhookSecret: this.config.get<string>("DOTGO_WEBHOOK_SECRET", ""),
+      dedupWindowSeconds: this.config.get<number>("OTP_DEDUP_WINDOW_S", 45),
+    };
+  }
+
+  /**
+   * MTN's M2M product and customer APIs.
+   *
+   * The app owns the catalogue in `bundle_catalog`; this client is the only
+   * place that talks to MTN. `MTN_X_API_KEY` is the API-key header value.
+   */
+  get mtn() {
+    return {
+      baseUrl: this.config.get<string>("MTN_API_BASE_URL", "https://api.mtn.com"),
+      apiKey: this.config.get<string>("MTN_X_API_KEY", ""),
+      nodeId: this.config.get<string>("MTN_M2M_NODE_ID", "MTNAPPNXG"),
+      timeoutMs: this.config.get<number>("MTN_API_TIMEOUT_MS", 15_000),
+      bundleSyncEnabled:
+        this.config.get<string>("MTN_BUNDLE_SYNC_ENABLED", "true") === "true",
+      bundleSyncIntervalMinutes: this.config.get<number>(
+        "MTN_BUNDLE_SYNC_INTERVAL_MINUTES",
+        360,
+      ),
+    };
+  }
+
   get objectStorage() {
     return {
       provider: this.config.get<string>("OBJECT_STORAGE_PROVIDER", "wasabi"),

@@ -60,10 +60,9 @@ describe('Onboarding applications HTTP contract', () => {
     variables?: Record<string, string>;
   }>;
   let sentSms: Array<{
-    tenantId: string;
-    channel: string;
-    recipient: string;
-    content: string;
+    to: string;
+    body: string;
+    senderId?: string;
   }>;
 
   const previousBackend = process.env.PERSISTENCE_BACKEND;
@@ -108,9 +107,12 @@ describe('Onboarding applications HTTP contract', () => {
     };
 
     const { MailerService } = await import('@shared/mailer');
+    const { DotgoTransactionalSmsProvider } = await import(
+      '../../../apps/auth/src/contexts/otp/dotgo-transactional-sms.provider'
+    );
 
-    // No SMTP and no notification service in tests. The notifier itself runs
-    // for real; only the two transports it reaches are recorded.
+    // No SMTP and no Dotgo in tests. The notifier itself runs for real; only
+    // the two transports it reaches are recorded.
     sentEmails = [];
     const mailerStub = {
       async send(input: {
@@ -123,13 +125,12 @@ describe('Onboarding applications HTTP contract', () => {
     };
 
     sentSms = [];
-    vi.stubGlobal(
-      'fetch',
-      async (_url: string, init: { body: string }) => {
-        sentSms.push(JSON.parse(init.body));
-        return { ok: true, status: 200 } as Response;
+    const smsProviderStub = {
+      async send(input: { to: string; body: string; senderId?: string }) {
+        sentSms.push(input);
+        return { reference: `test-sms-${sentSms.length}` };
       },
-    );
+    };
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -138,6 +139,8 @@ describe('Onboarding applications HTTP contract', () => {
       .useValue(objectStorageStub)
       .overrideProvider(MailerService)
       .useValue(mailerStub)
+      .overrideProvider(DotgoTransactionalSmsProvider)
+      .useValue(smsProviderStub)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -160,7 +163,7 @@ describe('Onboarding applications HTTP contract', () => {
         return code;
       }
       const sms = sentSms.at(-1);
-      const match = sms?.content?.match(/\b(\d{6})\b/);
+      const match = sms?.body?.match(/\b(\d{6})\b/);
       if (!match) throw new Error('no sms code was sent');
       return match[1];
     };
@@ -552,7 +555,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(right.body.data.verification.emailVerified).toBe(true);
   });
 
-  it('bills the onboarding SMS to the platform, never the applicant', async () => {
+  it('sends the onboarding SMS through the platform sender', async () => {
     const { id, token } = await startApplication('smsbill@arne.com');
 
     const res = await request(app.getHttpServer())
@@ -561,9 +564,8 @@ describe('Onboarding applications HTTP contract', () => {
 
     expect(res.status).toBe(201);
     const sent = sentSms.at(-1);
-    expect(sent?.tenantId).toBe('system');
-    expect(sent?.channel).toBe('sms');
-    expect(sent?.recipient).toBe('+2348000000000');
+    expect(sent?.to).toBe('+2348000000000');
+    expect(sent?.body).toContain('TruckMoov verification code');
   });
 
   it('masks the destination it sent a code to', async () => {

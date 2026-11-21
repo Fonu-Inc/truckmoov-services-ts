@@ -9,6 +9,8 @@ export const REDIS_CLIENT = Symbol("REDIS_CLIENT");
 export interface RedisLike {
   set(...args: any[]): Promise<unknown>;
   del(...args: any[]): Promise<unknown>;
+  /** Optional so light test doubles can keep implementing only set/del. */
+  exists?(...args: any[]): Promise<number>;
 }
 
 // Builds a lazily-connecting Redis client, or null when disabled. Commands
