@@ -77,6 +77,7 @@ describe('MTN bundle catalogue mapping', () => {
       bundleCategory: 'M2M',
       subCategory: 'Wholesale',
       description: 'Machine-to-machine connectivity',
+      group: 'others',
     }))).not.toBeNull();
   });
 
