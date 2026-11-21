@@ -81,8 +81,12 @@ export class MtnM2mClient {
    * this returns one flat list and remembers where each product came from.
    */
   async listProducts(): Promise<MtnProduct[]> {
+    const nodeId = this.config.mtn.nodeId.trim();
+    if (!nodeId) {
+      throw new MtnApiError('MTN_M2M_NODE_ID is not configured', 500);
+    }
     const response = await this.get('/v3/products', {
-      params: { nodeId: this.config.mtn.nodeId },
+      params: { nodeId },
     });
     return flattenCatalogue(response);
   }
@@ -93,13 +97,17 @@ export class MtnM2mClient {
     productId: string,
   ): Promise<MtnEligibility> {
     const transactionId = randomUUID();
+    const nodeId = this.config.mtn.nodeId.trim();
+    if (!nodeId) {
+      throw new MtnApiError('MTN_M2M_NODE_ID is not configured', 500);
+    }
     const response = await this.get(
       `/v3/products/${encodeURIComponent(customerId)}/eligibility/${encodeURIComponent(productId)}`,
       {
         params: {
           transactionId,
           clientTransactionId: transactionId,
-          nodeId: this.config.mtn.nodeId,
+          nodeId,
           // The eligibility endpoint rejects the call without both of these.
           viewType: 'checkOffer',
           targetSystem: 'CIS',
@@ -162,16 +170,19 @@ export class MtnM2mClient {
     } = {},
   ): Promise<unknown> {
     const mtn = this.config.mtn;
+    if (!mtn.baseUrl.trim()) {
+      throw new MtnApiError('MTN_API_BASE_URL is not configured', 500);
+    }
     if (!mtn.apiKey.trim()) {
       throw new MtnApiError('MTN_X_API_KEY is not configured', 401);
     }
 
     const transactionId = options.transactionId ?? randomUUID();
-    const url = `${mtn.baseUrl.replace(/\/+$/, '')}${path}`;
+    const url = `${mtn.baseUrl.trim().replace(/\/+$/, '')}${path}`;
     const response = await axios.get(url, {
       headers: {
-        'x-api-Key': mtn.apiKey,
-        'x-country-code': mtn.countryCode,
+        'x-api-Key': mtn.apiKey.trim(),
+        'x-country-code': mtn.countryCode.trim(),
         transactionId,
         Accept: 'application/json',
       },

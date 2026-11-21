@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { AppConfigService } from '@shared/config';
 import { REDIS_CLIENT, type RedisLike } from '@shared/rbac';
 import {
@@ -45,6 +45,12 @@ export type UnifiedSmsResult = {
  * DTO, dedup and provider have no auth-domain imports. When SMS traffic
  * justifies its own service, move `contexts/otp/` and the `DOTGO_TRANSACTIONAL_*`
  * config out as one piece.
+ *
+ * Sends made directly by auth (onboarding, installer notices) intentionally
+ * bypass the notification service's outbox and delivery log. Each successful
+ * dispatch logs `sms_sent:<reference>` so there is still an audit trail; full
+ * delivery receipts for these messages would require routing them through
+ * notification or adding a delivery table here.
  */
 @Injectable()
 export class UnifiedSmsService {
@@ -75,7 +81,11 @@ export class UnifiedSmsService {
 
     const body = otp ? otpMessage(otp, message) : message!;
 
-    if (otp && await this.wasRecentlySent(to, input.dedupKey)) {
+    // The fingerprint is part of the key: a different code must not be
+    // suppressed by the previous one's window. Two applicants sharing a phone
+    // are separated by dedupKey (the onboarding application id).
+    const fingerprint = otp ? otpFingerprint(otp) : null;
+    if (otp && fingerprint && !(await this.reserve(to, fingerprint, input.dedupKey))) {
       this.logger.log(`Suppressed duplicate OTP to ${to}`);
       return {
         success: true,
@@ -92,7 +102,7 @@ export class UnifiedSmsService {
         body,
         senderId: input.senderId,
       });
-      if (otp) await this.markSent(to, input.dedupKey);
+      this.logger.log(`sms_sent:${sent.reference}:${otp ? 'otp' : 'message'}`);
       return {
         success: true,
         channel: 'sms',
@@ -100,6 +110,8 @@ export class UnifiedSmsService {
         reference: sent.reference,
       };
     } catch (error) {
+      // Give the slot back so a retry is not blocked for the whole window.
+      if (fingerprint) await this.release(to, fingerprint, input.dedupKey);
       if (error instanceof SmsProviderError) {
         this.logger.error(`SMS dispatch failed: ${error.message}`);
       }
@@ -107,57 +119,97 @@ export class UnifiedSmsService {
     }
   }
 
-  private dedupKey(to: string, scope?: string): string {
+  private dedupRedisKey(
+    to: string,
+    scope: string | undefined,
+    fingerprint: string,
+  ): string {
     const suffix = scope?.trim()
-      ? `${scope.trim()}:${normalizeRecipient(to)}`
-      : normalizeRecipient(to);
+      ? `${scope.trim()}:${normalizeRecipient(to)}:${fingerprint}`
+      : `${normalizeRecipient(to)}:${fingerprint}`;
     return `otp:dedup:${suffix}`;
   }
 
+  /** A malformed or non-positive window falls back to the documented default. */
+  private dedupTtlSeconds(): number {
+    const configured = Number(this.config.otpSms.dedupWindowSeconds);
+    return Number.isFinite(configured) && configured > 0
+      ? Math.max(1, Math.floor(configured))
+      : 45;
+  }
+
   /**
-   * Fails open: a Redis hiccup must never block a legitimate OTP. The same
-   * behaviour as the Fonu implementation this was ported from.
+   * Claims the dedup slot atomically. Redis `SET NX` is the check and the mark
+   * in one command, so two concurrent sends cannot both pass. The local map is
+   * the fallback when Redis is disabled or unreachable; Node's single thread
+   * makes that check-and-set atomic within one process.
    */
-  private async wasRecentlySent(to: string, scope?: string): Promise<boolean> {
-    const key = this.dedupKey(to, scope);
-    if (this.redis?.exists) {
+  private async reserve(
+    to: string,
+    fingerprint: string,
+    scope?: string,
+  ): Promise<boolean> {
+    const key = this.dedupRedisKey(to, scope, fingerprint);
+    const ttl = this.dedupTtlSeconds();
+    const now = Date.now();
+    this.pruneLocal(now);
+
+    // A local entry can outlive a Redis outage. Check it even when Redis is
+    // reachable so recovering Redis does not reopen the window.
+    const until = this.localDedup.get(key);
+    if (until !== undefined) {
+      if (until > now) return false;
+      this.localDedup.delete(key);
+    }
+
+    if (this.redis?.set) {
       try {
-        return (await this.redis.exists(key)) === 1;
+        return (await this.redis.set(key, '1', 'EX', ttl, 'NX')) === 'OK';
       } catch (error) {
         this.logger.warn(
-          `OTP dedup check failed, using local cache: ${
+          `OTP dedup reserve failed, using local cache: ${
             error instanceof Error ? error.message : 'unknown error'
           }`,
         );
       }
     }
 
-    const until = this.localDedup.get(key);
-    if (!until) return false;
-    if (until <= Date.now()) {
-      this.localDedup.delete(key);
-      return false;
-    }
+    this.localDedup.set(key, now + ttl * 1000);
     return true;
   }
 
-  private async markSent(to: string, scope?: string): Promise<void> {
-    const key = this.dedupKey(to, scope);
-    const ttl = Math.max(1, this.config.otpSms.dedupWindowSeconds);
-    if (this.redis) {
-      try {
-        await this.redis.set(key, '1', 'EX', ttl);
-        return;
-      } catch (error) {
-        this.logger.warn(
-          `OTP dedup mark failed, using local cache: ${
-            error instanceof Error ? error.message : 'unknown error'
-          }`,
-        );
-      }
+  private async release(
+    to: string,
+    fingerprint: string,
+    scope?: string,
+  ): Promise<void> {
+    const key = this.dedupRedisKey(to, scope, fingerprint);
+    // Clear both stores: the reservation may have landed in either one.
+    this.localDedup.delete(key);
+    if (!this.redis?.del) return;
+    try {
+      await this.redis.del(key);
+    } catch (error) {
+      this.logger.warn(
+        `OTP dedup release failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
     }
-    this.localDedup.set(key, Date.now() + ttl * 1000);
   }
+
+  /** Keeps the Redis-down fallback bounded; expired entries are the first to go. */
+  private pruneLocal(now: number): void {
+    if (this.localDedup.size < 10_000) return;
+    for (const [key, until] of this.localDedup) {
+      if (!Number.isFinite(until) || until <= now) this.localDedup.delete(key);
+    }
+  }
+}
+
+/** The stored key must not contain the code itself, only a stable fingerprint. */
+function otpFingerprint(otp: string): string {
+  return createHash('sha256').update(otp).digest('hex').slice(0, 16);
 }
 
 function otpMessage(otp: string, custom?: string): string {

@@ -9,7 +9,14 @@ vi.mock('axios', () => ({ default: { get: vi.fn() } }));
 
 const get = vi.mocked(axios.get);
 
-function client(apiKey = 'test-key') {
+function client(
+  apiKey = 'test-key',
+  overrides: Partial<{
+    baseUrl: string;
+    nodeId: string;
+    countryCode: string;
+  }> = {},
+) {
   const config = {
     mtn: {
       baseUrl: 'https://preprod2-nigeria.api.mtn.com',
@@ -18,6 +25,7 @@ function client(apiKey = 'test-key') {
       countryCode: 'NGA',
       productMatch: 'm2m|machine',
       timeoutMs: 1000,
+      ...overrides,
     },
   };
   return new MtnM2mClient(config as never);
@@ -175,6 +183,29 @@ describe('MTN M2M client', () => {
   it('refuses to call MTN without an API key', async () => {
     await expect(client('').listProducts()).rejects.toBeInstanceOf(MtnApiError);
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it('refuses to call MTN without a base URL', async () => {
+    await expect(client('test-key', { baseUrl: '  ' }).listProducts())
+      .rejects.toBeInstanceOf(MtnApiError);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('refuses to call MTN without a node id', async () => {
+    await expect(client('test-key', { nodeId: '' }).listProducts())
+      .rejects.toBeInstanceOf(MtnApiError);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('trims padding from the API key before sending it', async () => {
+    await client('  test-key  ').listProducts();
+
+    expect(get).toHaveBeenCalledWith(
+      'https://preprod2-nigeria.api.mtn.com/v3/products',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-api-Key': 'test-key' }),
+      }),
+    );
   });
 
   it('surfaces an MTN error response', async () => {

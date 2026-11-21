@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   BadGatewayException,
+  ConflictException,
   Body,
   Controller,
   Get,
@@ -21,6 +22,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiCreatedResponse,
+  ApiConflictResponse,
 } from '@nestjs/swagger';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
@@ -40,7 +42,7 @@ import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use
 import { BundleNotFoundError, UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { CarrierNotFoundError, UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { GetSystemBundleAdoptionUseCase } from './get-system-bundle-adoption.use-case';
-import { SyncMtnBundleCatalogUseCase } from './sync-mtn-bundle-catalog.use-case';
+import { SyncMtnBundleCatalogUseCase, MtnBundleSyncBusyError } from './sync-mtn-bundle-catalog.use-case';
 import { MtnApiError } from './contexts/mtn/mtn-m2m.client';
 import { Portals, OnResource } from '@shared/access';
 
@@ -177,6 +179,7 @@ export class SystemBillingController extends BaseAuthController {
     summary: 'Pull the MTN M2M catalogue and refresh bundle prices (system admin)',
   })
   @ApiOkResponse({ description: 'Sync summary: fetched, created, updated, deactivated, skipped.' })
+  @ApiConflictResponse({ description: 'Another MTN catalogue sync is already running.' })
   async syncMtnBundleCatalog(@Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -185,6 +188,7 @@ export class SystemBillingController extends BaseAuthController {
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      if (error instanceof MtnBundleSyncBusyError) throw new ConflictException(error.message);
       if (error instanceof MtnApiError) {
         throw new BadGatewayException(error.message);
       }

@@ -28,7 +28,7 @@ export function mapMtnProduct(
   match: RegExp = DEFAULT_M2M_MATCH,
 ): MappedMtnBundle | null {
   if (!isM2mProduct(product, match)) return null;
-  if (!isDataProduct(product)) return null;
+  if (!isDataProduct(product, match)) return null;
   if ((product.currency || 'NGN').toUpperCase() !== 'NGN') return null;
 
   const dataAmountGb = dataAmountInGb(product);
@@ -66,10 +66,36 @@ export function isM2mProduct(
   return match.test(haystack);
 }
 
-export function isDataProduct(product: MtnProduct): boolean {
+/**
+ * True for data products, including M2M products whose MTN category does not
+ * contain the word "data" (for example "M2M" or "IoT"). Voice and combo
+ * bundles are still rejected.
+ */
+export function isDataProduct(
+  product: MtnProduct,
+  match: RegExp = DEFAULT_M2M_MATCH,
+): boolean {
   if (product.group === 'data') return true;
-  const marker = `${product.bundleType ?? ''} ${product.bundleCategory ?? ''}`.toLowerCase();
-  return marker.includes('data') && !marker.includes('voice');
+
+  // The live catalogue puts every product under `data.others`, so the group
+  // cannot tell data from voice. Use every descriptive field instead.
+  const marker = [
+    product.name,
+    product.bundleType,
+    product.bundleCategory,
+    product.subCategory,
+    product.description,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (marker.includes('voice')) return false;
+  if (marker.includes('data')) return true;
+
+  // The M2M matcher already identified the product. Keep it even when the
+  // category says "M2M", "IoT" or "machine" rather than "data".
+  return isM2mProduct(product, match);
 }
 
 export function dataAmountInGb(product: MtnProduct): number | null {

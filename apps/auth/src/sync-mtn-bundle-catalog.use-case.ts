@@ -5,6 +5,13 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor } from './system-authz';
 import { MtnBundleCatalogSyncService } from './contexts/mtn/mtn-bundle-catalog-sync.service';
 
+export class MtnBundleSyncBusyError extends Error {
+  constructor() {
+    super('Another MTN catalogue sync is already running');
+    this.name = 'MtnBundleSyncBusyError';
+  }
+}
+
 @Injectable()
 export class SyncMtnBundleCatalogUseCase {
   constructor(
@@ -16,10 +23,12 @@ export class SyncMtnBundleCatalogUseCase {
 
   async execute(accessToken: string) {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository);
+    const summary = await this.sync.syncExclusively();
+    if (!summary) throw new MtnBundleSyncBusyError();
     return {
       status: true,
       message: 'success',
-      data: await this.sync.sync(),
+      data: summary,
     };
   }
 }

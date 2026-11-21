@@ -94,6 +94,40 @@ describe('unified SMS service', () => {
     expect(sms.send).toHaveBeenCalledTimes(2);
   });
 
+  it('sends a new code for the same application instead of suppressing it', async () => {
+    const sms = provider();
+    const sut = service(sms);
+
+    await sut.send({
+      channel: 'sms', to: '+2347043863010', otp: '111111', dedupKey: 'app-1',
+    });
+    await sut.send({
+      channel: 'sms', to: '+2347043863010', otp: '222222', dedupKey: 'app-1',
+    });
+
+    expect(sms.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('releases the dedup slot when the provider fails so a retry can send', async () => {
+    const sms = {
+      send: vi.fn()
+        .mockRejectedValueOnce(new SmsProviderError('dotgo down'))
+        .mockResolvedValueOnce({ reference: 'ref-1' }),
+    };
+    const sut = service(sms);
+
+    await expect(sut.send({
+      channel: 'sms', to: '+2347043863010', otp: '123456',
+    })).rejects.toBeInstanceOf(SmsProviderError);
+
+    const result = await sut.send({
+      channel: 'sms', to: '+2347043863010', otp: '123456',
+    });
+
+    expect(sms.send).toHaveBeenCalledTimes(2);
+    expect(result.reference).toBe('ref-1');
+  });
+
   it('rejects a request with neither otp nor message', async () => {
     await expect(service(provider()).send({
       channel: 'sms',

@@ -42,7 +42,15 @@ export class MtnBundleCatalogSweepService
       this.logger.log('mtn_bundle_sync:disabled');
       return;
     }
-    if (!this.config.mtn.apiKey) {
+    if (!this.config.mtn.baseUrl.trim()) {
+      this.logger.log('mtn_bundle_sync:no_base_url');
+      return;
+    }
+    if (!this.config.mtn.nodeId.trim()) {
+      this.logger.log('mtn_bundle_sync:no_node_id');
+      return;
+    }
+    if (!this.config.mtn.apiKey.trim()) {
       this.logger.log('mtn_bundle_sync:no_api_key');
       return;
     }
@@ -68,7 +76,10 @@ export class MtnBundleCatalogSweepService
     if (this.running) return null;
     this.running = true;
     try {
-      return await this.sync.sync(now);
+      // The in-process flag only stops overlapping ticks in this pod; the sync
+      // service's advisory lock stops both auth replicas (and an admin
+      // request) from writing the catalogue at the same time.
+      return await this.sync.syncExclusively(now);
     } finally {
       this.running = false;
     }

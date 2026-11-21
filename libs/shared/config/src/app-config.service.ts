@@ -433,12 +433,12 @@ export class AppConfigService {
    */
   get mtn() {
     return {
-      baseUrl: this.config.get<string>(
-        "MTN_API_BASE_URL",
-        "https://preprod2-nigeria.api.mtn.com",
-      ),
+      // Required when the sync is enabled. There is deliberately no preprod
+      // fallback: a missing value must not point production at MTN's test
+      // catalogue.
+      baseUrl: this.config.get<string>("MTN_API_BASE_URL", ""),
       apiKey: this.config.get<string>("MTN_X_API_KEY", ""),
-      nodeId: this.config.get<string>("MTN_M2M_NODE_ID", "MTNAPPNXG"),
+      nodeId: this.config.get<string>("MTN_M2M_NODE_ID", ""),
       countryCode: this.config.get<string>("MTN_COUNTRY_CODE", "NGA"),
       productMatch: this.config.get<string>(
         "MTN_M2M_PRODUCT_MATCH",

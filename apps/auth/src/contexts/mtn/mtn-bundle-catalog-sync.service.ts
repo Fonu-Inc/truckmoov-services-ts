@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { runIfLockFree } from '@shared/db';
+import { getAuthOrm } from '../auth/session/infrastructure/persistence/auth-orm';
 import {
   BUNDLE_CARRIER_REPOSITORY,
   type BundleCarrierRepository,
@@ -16,6 +18,9 @@ import {
   MTN_BUNDLE_ID_PREFIX,
   MTN_CARRIER_ID,
 } from './mtn-bundle-catalog.mapper';
+
+/** One sync at a time across auth replicas and the admin endpoint. */
+export const MTN_BUNDLE_SYNC_LOCK_ID = 8_246_113_070_006;
 
 export type MtnBundleSyncSummary = {
   fetched: number;
@@ -45,16 +50,37 @@ export class MtnBundleCatalogSyncService {
     private readonly carriers: BundleCarrierRepository,
     @Inject(BUNDLE_CATALOG_REPOSITORY)
     private readonly bundles: BundleCatalogRepository,
-    @Inject(AppConfigService) config: AppConfigService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {
+    // An empty env var is not undefined, and `new RegExp('')` matches every
+    // product. Treat blank as unset so a missing config cannot import the
+    // consumer catalogue as M2M bundles.
+    const pattern = (config.mtn.productMatch ?? '').trim() || 'm2m|machine';
     try {
-      this.productMatch = new RegExp(config.mtn.productMatch, 'i');
+      this.productMatch = new RegExp(pattern, 'i');
     } catch {
       this.logger.warn(
         `mtn_bundle_sync:invalid_product_match:${config.mtn.productMatch}`,
       );
       this.productMatch = /m2m|machine/i;
     }
+  }
+
+  /**
+   * Serializes a refresh across auth replicas and the admin endpoint.
+   * Returns null when another sync already holds the lock.
+   */
+  async syncExclusively(
+    now: Date = new Date(),
+  ): Promise<MtnBundleSyncSummary | null> {
+    if (this.config.persistence.backend !== 'mikro-orm') {
+      return this.sync(now);
+    }
+    const orm = await getAuthOrm(this.config.db);
+    const result = await runIfLockFree(orm, MTN_BUNDLE_SYNC_LOCK_ID, () =>
+      this.sync(now),
+    );
+    return result.acquired ? result.value : null;
   }
 
   async sync(now: Date = new Date()): Promise<MtnBundleSyncSummary> {
@@ -93,9 +119,15 @@ export class MtnBundleCatalogSyncService {
       else summary.created += 1;
     }
 
-    // An empty catalogue is far more likely to be an MTN outage than a real
-    // deletion of every product. Only prune after a non-empty, successful read.
-    if (seen.size > 0) {
+    // An empty response is far more likely to be an MTN outage than a real
+    // deletion of every product, so only prune after a non-empty read. A
+    // non-empty read that maps nothing is different: it means the filter or
+    // node is wrong, and stale M2M rows must not stay sellable. Deactivation
+    // is reversible — a later sync reactivates a product that comes back.
+    if (products.length > 0) {
+      if (seen.size === 0) {
+        this.logger.warn(`mtn_bundle_sync:no_m2m_products:${products.length}`);
+      }
       for (const bundle of existing) {
         if (!bundle.id.startsWith(MTN_BUNDLE_ID_PREFIX)) continue;
         if (seen.has(bundle.id) || !bundle.active) continue;

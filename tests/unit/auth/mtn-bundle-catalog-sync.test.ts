@@ -40,11 +40,11 @@ function bundle(overrides: Partial<StoredBundleCatalog> = {}): StoredBundleCatal
   };
 }
 
-function harness(products: MtnProduct[]) {
+function harness(products: MtnProduct[], productMatch = 'm2m|machine') {
   const mtn = { listProducts: vi.fn(async () => products) };
   const carriers = new InMemoryBundleCarrierRepository();
   const bundles = new InMemoryBundleCatalogRepository();
-  const config = { mtn: { productMatch: 'm2m|machine' } };
+  const config = { mtn: { productMatch } };
   const sync = new MtnBundleCatalogSyncService(
     mtn as never,
     carriers,
@@ -115,6 +115,37 @@ describe('MTN bundle catalogue sync', () => {
 
     expect(summary.deactivated).toBe(0);
     expect((await h.bundles.findById('bundle-mtn-m2m-1'))?.active).toBe(true);
+  });
+
+  it('deactivates stale M2M rows when the catalogue has products but no M2M matches', async () => {
+    const h = harness([{
+      ...product('3', 500),
+      name: '1GB Monthly',
+      bundleCategory: 'DataPlan',
+      subCategory: 'IDB1500',
+      description: 'Consumer data bundle',
+    }]);
+    await h.bundles.save(bundle());
+
+    const summary = await h.sync.sync(NOW);
+
+    expect(summary.deactivated).toBe(1);
+    expect((await h.bundles.findById('bundle-mtn-m2m-1'))?.active).toBe(false);
+  });
+
+  it('uses the default matcher when the configured matcher is empty', async () => {
+    const h = harness([{
+      ...product('3', 500),
+      name: '1GB Monthly',
+      bundleCategory: 'DataPlan',
+      subCategory: 'IDB1500',
+      description: 'Consumer data bundle',
+    }], '');
+
+    const summary = await h.sync.sync(NOW);
+
+    expect(summary.skipped).toBe(1);
+    expect(summary.created).toBe(0);
   });
 
   it('skips voice and consumer products that are not M2M bundles', async () => {

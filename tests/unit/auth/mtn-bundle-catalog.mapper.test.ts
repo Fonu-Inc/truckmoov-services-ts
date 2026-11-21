@@ -71,6 +71,25 @@ describe('MTN bundle catalogue mapping', () => {
     expect(mapMtnProduct(product({ currency: 'USD' }))).toBeNull();
   });
 
+  it('keeps an M2M product whose category does not say data', () => {
+    expect(mapMtnProduct(product({
+      name: 'M2M 1GB Monthly',
+      bundleCategory: 'M2M',
+      subCategory: 'Wholesale',
+      description: 'Machine-to-machine connectivity',
+    }))).not.toBeNull();
+  });
+
+  it('still skips M2M voice and combo bundles', () => {
+    expect(mapMtnProduct(product({
+      name: 'M2M Voice 1GB',
+      bundleCategory: 'M2M',
+      subCategory: 'Voice',
+      description: 'Machine-to-machine voice bundle',
+      group: 'others',
+    }))).toBeNull();
+  });
+
   it('skips a product with no usable data amount', () => {
     expect(mapMtnProduct(product({
       name: 'M2M Mystery bundle',

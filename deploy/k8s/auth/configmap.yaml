@@ -17,6 +17,9 @@ data:
   DOTGO_BASE_URL: https://konnect.dotgo.com
   DOTGO_TRANSACTIONAL_SENDER_MASK: FONU
   OTP_DEDUP_WINDOW_S: "45"
+  # MTN's M2M catalogue. Staging uses preprod2; production MUST override both
+  # MTN_API_BASE_URL and MTN_M2M_NODE_ID with the production host and node.
+  # The auth service has no preprod fallback in code.
   MTN_API_BASE_URL: https://preprod2-nigeria.api.mtn.com
   MTN_M2M_NODE_ID: MTNAPPNXG
   MTN_COUNTRY_CODE: NGA
