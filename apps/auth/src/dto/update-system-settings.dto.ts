@@ -15,10 +15,44 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  DATE_FORMATS,
   MAX_COMPLIANCE_REMINDER_DAYS,
   PLATFORM_CURRENCIES,
+  SUPPORT_RESPONSE_HOURS,
   SYSTEM_BACKUP_FREQUENCIES,
+  TIME_FORMATS,
 } from '../system-settings.repository';
+
+class SystemSettingsProfileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  contactAddress?: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, description: 'Link from POST /auth/media/upload; null clears it' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  logoUrl?: string | null;
+}
+
+class SystemSettingsSupportDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @ApiPropertyOptional({ enum: SUPPORT_RESPONSE_HOURS })
+  @IsOptional()
+  @Type(() => Number)
+  @IsIn(SUPPORT_RESPONSE_HOURS as unknown as number[])
+  responseTimeHours?: number;
+}
 
 class SystemSettingsDefaultsDto {
   @IsOptional()
@@ -29,6 +63,16 @@ class SystemSettingsDefaultsDto {
   @IsString()
   @MaxLength(16)
   language?: string;
+
+  @ApiPropertyOptional({ enum: DATE_FORMATS })
+  @IsOptional()
+  @IsIn(DATE_FORMATS)
+  dateFormat?: string;
+
+  @ApiPropertyOptional({ enum: TIME_FORMATS })
+  @IsOptional()
+  @IsIn(TIME_FORMATS)
+  timeFormat?: string;
 
   @ApiPropertyOptional({ enum: DEFAULT_TIME_RANGES })
   @IsOptional()
@@ -120,6 +164,18 @@ export class UpdateSystemSettingsDto {
   @IsOptional()
   @IsEmail()
   supportEmail?: string;
+
+  @ApiPropertyOptional({ type: SystemSettingsProfileDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsProfileDto)
+  profile?: SystemSettingsProfileDto;
+
+  @ApiPropertyOptional({ type: SystemSettingsSupportDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SystemSettingsSupportDto)
+  support?: SystemSettingsSupportDto;
 
   @IsOptional()
   @ValidateNested()

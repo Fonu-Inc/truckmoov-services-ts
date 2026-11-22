@@ -22,6 +22,7 @@ export const DEFAULT_WALLET_TOP_UP_MAX_KOBO = 500_000_000;
  */
 export const DEFAULT_TIME_RANGES = [
   'today',
+  'yesterday',
   'last_7_days',
   'last_30_days',
   'last_90_days',
@@ -35,9 +36,20 @@ export function isDefaultTimeRange(value: unknown): value is DefaultTimeRange {
   return typeof value === 'string' && (DEFAULT_TIME_RANGES as readonly string[]).includes(value);
 }
 
+export const DATE_FORMATS = ['dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd', 'd MMM yyyy'] as const;
+export type DateFormat = (typeof DATE_FORMATS)[number];
+
+export const TIME_FORMATS = ['12h', '24h'] as const;
+export type TimeFormat = (typeof TIME_FORMATS)[number];
+
+export const SUPPORT_RESPONSE_HOURS = [4, 24, 48] as const;
+export type SupportResponseHours = (typeof SUPPORT_RESPONSE_HOURS)[number];
+
 export type SystemSettingsDefaults = {
   timezone: string;
   language: string;
+  dateFormat: DateFormat;
+  timeFormat: TimeFormat;
   /** The default filter charts, tables and reports open on. Overridable per view. */
   defaultTimeRange: DefaultTimeRange;
   /**
@@ -111,10 +123,25 @@ export type SystemSettingsRetention = {
   backupFrequency: SystemBackupFrequency;
 };
 
+export type SystemSettingsProfile = {
+  contactPhone: string;
+  contactAddress: string;
+  /** Link returned by the media upload, null until a logo is set. */
+  logoUrl: string | null;
+};
+
+export type SystemSettingsSupport = {
+  phone: string;
+  /** Hours within which support commits to a first response. */
+  responseTimeHours: SupportResponseHours;
+};
+
 export type SystemSettings = {
   id: typeof SYSTEM_SETTINGS_ID;
   platformName: string;
   supportEmail: string;
+  profile: SystemSettingsProfile;
+  support: SystemSettingsSupport;
   defaults: SystemSettingsDefaults;
   features: SystemSettingsFeatures;
   retention: SystemSettingsRetention;
@@ -128,9 +155,13 @@ export function buildDefaultSystemSettings(): SystemSettings {
     id: SYSTEM_SETTINGS_ID,
     platformName: 'Truckmoov',
     supportEmail: 'support@truckmoov.com',
+    profile: { contactPhone: '', contactAddress: '', logoUrl: null },
+    support: { phone: '', responseTimeHours: 24 },
     defaults: {
       timezone: 'Africa/Lagos',
       language: 'en',
+      dateFormat: 'dd/MM/yyyy',
+      timeFormat: '24h',
       defaultTimeRange: 'last_7_days',
       complianceReminderDays: DEFAULT_COMPLIANCE_REMINDER_DAYS,
       walletTopUpMinKobo: DEFAULT_WALLET_TOP_UP_MIN_KOBO,
@@ -171,8 +202,21 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
   const defaults = settings.defaults ?? ({} as SystemSettings['defaults']);
   const features = settings.features ?? ({} as SystemSettings['features']);
   const security = settings.security ?? ({} as SystemSettings['security']);
+  const profile = settings.profile ?? ({} as SystemSettings['profile']);
+  const support = settings.support ?? ({} as SystemSettings['support']);
   return {
     ...settings,
+    profile: {
+      contactPhone: stringOr(profile.contactPhone, ''),
+      contactAddress: stringOr(profile.contactAddress, ''),
+      logoUrl: typeof profile.logoUrl === 'string' && profile.logoUrl ? profile.logoUrl : null,
+    },
+    support: {
+      phone: stringOr(support.phone, ''),
+      responseTimeHours: SUPPORT_RESPONSE_HOURS.includes(support.responseTimeHours)
+        ? support.responseTimeHours
+        : 24,
+    },
     security: {
       ...security,
       // A row written before these existed must not read as two-factor
@@ -192,6 +236,8 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
     },
     defaults: {
       ...defaults,
+      dateFormat: DATE_FORMATS.includes(defaults.dateFormat) ? defaults.dateFormat : 'dd/MM/yyyy',
+      timeFormat: TIME_FORMATS.includes(defaults.timeFormat) ? defaults.timeFormat : '24h',
       complianceReminderDays: numberOr(
         defaults.complianceReminderDays,
         DEFAULT_COMPLIANCE_REMINDER_DAYS,
@@ -206,6 +252,10 @@ export function normalizeSystemSettings(settings: SystemSettings): SystemSetting
         : 'last_7_days',
     },
   };
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
 }
 
 function booleanOr(value: unknown, fallback: boolean): boolean {

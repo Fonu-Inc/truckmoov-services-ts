@@ -12,7 +12,12 @@ import {
   TENANT_BILLING_CYCLES,
   TENANT_ORGANIZATION_TYPES,
 } from '../tenant-onboarding.repository';
-import { SYSTEM_BACKUP_FREQUENCIES } from '../system-settings.repository';
+import {
+  DATE_FORMATS,
+  SUPPORT_RESPONSE_HOURS,
+  SYSTEM_BACKUP_FREQUENCIES,
+  TIME_FORMATS,
+} from '../system-settings.repository';
 import {
   SYSTEM_FEATURE_FLAG_CATEGORIES,
   SYSTEM_FEATURE_FLAG_PHASES,
@@ -1345,11 +1350,36 @@ export class SystemSettingsDefaultsSchema {
   @ApiProperty()
   language!: string;
 
+  @ApiProperty({ enum: DATE_FORMATS })
+  dateFormat!: string;
+
+  @ApiProperty({ enum: TIME_FORMATS })
+  timeFormat!: string;
+
   @ApiProperty({
     description:
       'Days before expiry that a compliance document counts as expiring and a reminder is sent',
   })
   complianceReminderDays!: number;
+}
+
+export class SystemSettingsProfileSchema {
+  @ApiProperty()
+  contactPhone!: string;
+
+  @ApiProperty()
+  contactAddress!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  logoUrl!: string | null;
+}
+
+export class SystemSettingsSupportSchema {
+  @ApiProperty()
+  phone!: string;
+
+  @ApiProperty({ enum: SUPPORT_RESPONSE_HOURS, description: 'Hours to first response' })
+  responseTimeHours!: number;
 }
 
 export class SystemSettingsFeaturesSchema {
@@ -1380,6 +1410,12 @@ export class SystemSettingsDataSchema {
 
   @ApiProperty()
   supportEmail!: string;
+
+  @ApiProperty({ type: SystemSettingsProfileSchema })
+  profile!: SystemSettingsProfileSchema;
+
+  @ApiProperty({ type: SystemSettingsSupportSchema })
+  support!: SystemSettingsSupportSchema;
 
   @ApiProperty({ type: SystemSettingsDefaultsSchema })
   defaults!: SystemSettingsDefaultsSchema;

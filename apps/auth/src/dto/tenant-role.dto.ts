@@ -27,3 +27,14 @@ export class AssignCustomRoleDto {
   @IsString()
   customRoleId!: string | null;
 }
+
+export class SetPersonalPermissionsDto {
+  @ApiProperty({
+    example: ['admin.billing.read', 'admin.support.manage'],
+    description: "The person's full permission set; empty returns them to their predefined role",
+  })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  permissions!: string[];
+}

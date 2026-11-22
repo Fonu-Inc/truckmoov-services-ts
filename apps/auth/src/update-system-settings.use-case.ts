@@ -10,8 +10,11 @@ import { assertValidTimezone } from './contexts/auth/session/application/use-cas
 import { ensureSystemActor } from './system-authz';
 import { SystemSettingsChangedPublisher } from './system-settings-changed.publisher';
 import {
+  DATE_FORMATS,
   DEFAULT_COMPLIANCE_REMINDER_DAYS,
   DEFAULT_TIME_RANGES,
+  SUPPORT_RESPONSE_HOURS,
+  TIME_FORMATS,
   isDefaultTimeRange,
   MAX_COMPLIANCE_REMINDER_DAYS,
   SESSION_TIMEOUT_OPTIONS,
@@ -28,9 +31,20 @@ export type UpdateSystemSettingsCommand = {
   accessToken: string;
   platformName?: string;
   supportEmail?: string;
+  profile?: {
+    contactPhone?: string;
+    contactAddress?: string;
+    logoUrl?: string | null;
+  };
+  support?: {
+    phone?: string;
+    responseTimeHours?: number;
+  };
   defaults?: {
     timezone?: string;
     language?: string;
+    dateFormat?: string;
+    timeFormat?: string;
     defaultTimeRange?: string;
     complianceReminderDays?: number;
     walletTopUpMin?: number;
@@ -82,9 +96,27 @@ export class UpdateSystemSettingsUseCase {
       ...current,
       platformName: command.platformName ?? current.platformName,
       supportEmail: command.supportEmail ?? current.supportEmail,
+      profile: {
+        contactPhone: command.profile?.contactPhone?.trim() ?? current.profile.contactPhone,
+        contactAddress: command.profile?.contactAddress?.trim() ?? current.profile.contactAddress,
+        logoUrl: command.profile?.logoUrl !== undefined
+          ? resolveLogoUrl(command.profile.logoUrl)
+          : current.profile.logoUrl,
+      },
+      support: {
+        phone: command.support?.phone?.trim() ?? current.support.phone,
+        responseTimeHours: resolveOneOf(
+          'responseTimeHours',
+          command.support?.responseTimeHours,
+          SUPPORT_RESPONSE_HOURS,
+          current.support.responseTimeHours,
+        ),
+      },
       defaults: {
         timezone: normalizeTimezoneInput(timezoneInput),
         language: command.defaults?.language ?? current.defaults.language,
+        dateFormat: resolveOneOf('dateFormat', command.defaults?.dateFormat, DATE_FORMATS, current.defaults.dateFormat),
+        timeFormat: resolveOneOf('timeFormat', command.defaults?.timeFormat, TIME_FORMATS, current.defaults.timeFormat),
         defaultTimeRange: resolveTimeRange(
           command.defaults?.defaultTimeRange,
           current.defaults.defaultTimeRange,
@@ -181,6 +213,8 @@ export class UpdateSystemSettingsUseCase {
       data: {
         platformName: merged.platformName,
         supportEmail: merged.supportEmail,
+        profile: merged.profile,
+        support: merged.support,
         defaults: merged.defaults,
         features: merged.features,
         retention: merged.retention,
@@ -229,6 +263,35 @@ function resolvePlatformCurrency(
     throw new UnsupportedPlatformCurrencyError(requested);
   }
   return normalized;
+}
+
+function resolveOneOf<T extends string | number>(
+  field: string,
+  wanted: unknown,
+  allowed: readonly T[],
+  current: T,
+): T {
+  if (wanted === undefined) return current;
+  if (!allowed.includes(wanted as T)) {
+    throw new InvalidSettingsError(`${field} must be one of: ${allowed.join(', ')}`);
+  }
+  return wanted as T;
+}
+
+/** Only an http(s) link is stored: the logo is rendered as an image source. */
+function resolveLogoUrl(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new InvalidSettingsError('logoUrl must be an http or https link');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new InvalidSettingsError('logoUrl must be an http or https link');
+  }
+  return url.toString();
 }
 
 function resolveTimeRange(

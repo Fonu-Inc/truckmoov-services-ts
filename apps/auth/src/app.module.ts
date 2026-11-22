@@ -386,6 +386,11 @@ import { MailCredentialsController } from './mail-credentials.controller';
 import { MailboxController } from './mailbox.controller';
 import { AdminMailboxController, AdminMailCredentialsController } from './admin-mailbox.controllers';
 import { PlatformAlertsController } from './platform-alerts.controller';
+import { AdminNotificationsController, InternalAdminNotificationsController } from './admin-notifications.controller';
+import { AdminNotificationsUseCases, SendTestAlertUseCase } from './admin-notifications.use-cases';
+import { ADMIN_NOTIFICATION_REPOSITORY, type AdminNotificationRepository } from './admin-notification.repository';
+import { InMemoryAdminNotificationRepository } from './in-memory-admin-notification.repository';
+import { MikroAdminNotificationRepository } from './mikro-admin-notification.repository';
 import { CommunicationRatesController } from './communication-rates.controller';
 import { InternalDeviceCatalogController } from './internal-device-catalog.controller';
 import { InternalBundleCatalogController } from './internal-bundle-catalog.controller';
@@ -549,8 +554,8 @@ import { CapabilitiesController, InternalAccessController } from './access.contr
 import { TENANT_ROLE_REPOSITORY } from './tenant-role.repository';
 import { InMemoryTenantRoleRepository } from './in-memory-tenant-role.repository';
 import { MikroTenantRoleRepository } from './mikro-tenant-role.repository';
-import { TenantRolesUseCases } from './tenant-roles.use-cases';
-import { TenantRolesController } from './tenant-roles.controller';
+import { SystemRolesUseCases, TenantRolesUseCases } from './tenant-roles.use-cases';
+import { SystemRolesController, TenantRolesController } from './tenant-roles.controller';
 import { AccessGrantCheck } from './access-grant-check';
 import { TwoFactorLogin } from './two-factor-login.use-case';
 import { LoginEvents } from './login-events';
@@ -944,6 +949,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalAccessController,
     CapabilitiesController,
     TenantRolesController,
+    SystemRolesController,
     GovernanceController,
     StaffRolesController,
     InstallerAuthController,
@@ -967,6 +973,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AdminMailCredentialsController,
     AdminMailboxController,
     PlatformAlertsController,
+    AdminNotificationsController,
+    InternalAdminNotificationsController,
     SystemAiController,
     SystemAuditController,
     TwoFactorController,
@@ -1141,6 +1149,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AccessResolver,
     AccessChangeNotifier,
     TenantRolesUseCases,
+    SystemRolesUseCases,
     GovernanceUseCases,
     TwoFactorLogin,
     LoginEvents,
@@ -1649,6 +1658,20 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ): PlatformAlertSettingsRepository =>
         config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
     },
+    InMemoryAdminNotificationRepository,
+    MikroAdminNotificationRepository,
+    {
+      provide: ADMIN_NOTIFICATION_REPOSITORY,
+      inject: [InMemoryAdminNotificationRepository, MikroAdminNotificationRepository, AppConfigService],
+      useFactory: (
+        inMemory: AdminNotificationRepository,
+        mikro: AdminNotificationRepository,
+        config: AppConfigService,
+      ): AdminNotificationRepository =>
+        config.persistence.backend === 'mikro-orm' ? mikro : inMemory,
+    },
+    AdminNotificationsUseCases,
+    SendTestAlertUseCase,
     UpdatePlatformIntegrationCredentialsUseCase,
     AiRouterService,
     InMemoryPlatformIntegrationCredentialsRepository,

@@ -128,6 +128,8 @@ export class GovernanceUseCases {
     const granted = PREDEFINED_ROLES[role as Role].permissions;
     if (granted.some((p) => !staff.permissions.includes(p))) throw new ForbiddenError();
     await this.users.updateRole(userId, role);
+    // A custom role overrides the predefined one, so it is dropped or the change does nothing.
+    if (target.customRoleId) await this.users.updateCustomRole(userId, null);
     await this.activity.record({
       tenantId: SYSTEM_TENANT_ID,
       service: 'auth',

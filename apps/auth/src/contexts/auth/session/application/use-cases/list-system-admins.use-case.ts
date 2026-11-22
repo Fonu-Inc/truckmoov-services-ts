@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Role } from "@shared/rbac";
+import { Role, SYSTEM_ROLES } from "@shared/rbac";
 import { SESSION_STORE, type SessionStore, type UserSessionActivity } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { USER_REPOSITORY, type StoredUser, type UserRepository } from "../../domain/ports/user-repository.port";
@@ -12,6 +12,8 @@ type SystemAdminView = {
   userId: string;
   email: string;
   role: string;
+  /** Set when a custom or personal role overrides the predefined one. */
+  customRoleId: string | null;
   tenantId: string;
   accountStatus: "enabled" | "disabled";
   status: "active" | "inactive";
@@ -37,7 +39,7 @@ export class ListSystemAdminsUseCase {
     }
 
     const users = (await this.userRepo.findAllByTenant(SYSTEM_TENANT_ID))
-      .filter((user) => user.role === Role.SYSTEM_ADMIN || user.role === Role.SUPER_ADMIN);
+      .filter((user) => (SYSTEM_ROLES as readonly string[]).includes(user.role));
     const userActivity = await this.sessionStore.listUserActivity(users.map((user) => user.id));
     const userActivityById = new Map(userActivity.map((activity) => [activity.userId, activity] as const));
 
@@ -52,6 +54,7 @@ export class ListSystemAdminsUseCase {
       userId: user.id,
       email: user.email,
       role: user.role,
+      customRoleId: user.customRoleId ?? null,
       tenantId: user.tenantId,
       accountStatus: user.accountStatus ?? "enabled",
       status: activity?.hasActiveSession ? "active" : "inactive",

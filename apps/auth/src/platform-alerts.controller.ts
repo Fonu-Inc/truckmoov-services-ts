@@ -8,8 +8,10 @@ import {
   Inject,
   Param,
   Patch,
+  Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { NoAlertSwitchedOnError, SendTestAlertUseCase } from './admin-notifications.use-cases';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -23,7 +25,7 @@ import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController } from './base.controller';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { ForbiddenError } from './contexts/auth/session';
-import { UpdateAlertSettingDto } from './dto/platform-alert-settings.dto';
+import { SendTestAlertDto, UpdateAlertSettingDto } from './dto/platform-alert-settings.dto';
 import { PLATFORM_ALERT_TYPES } from './platform-alert-settings.repository';
 import {
   AlertHasNoRecipientError,
@@ -49,6 +51,8 @@ export class PlatformAlertsController extends BaseAuthController {
     protected readonly activityLogService: ActivityLogService,
     @Inject(PlatformAlertSettingsUseCase)
     private readonly useCase: PlatformAlertSettingsUseCase,
+    @Inject(SendTestAlertUseCase)
+    private readonly testAlert: SendTestAlertUseCase,
   ) {
     super(activityLogService);
   }
@@ -108,6 +112,28 @@ export class PlatformAlertsController extends BaseAuthController {
     }
   }
 
+  @Post('test')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Raise a test alert',
+    description:
+      'Raises a real critical alert of the given type (or the first switched-on type) so it goes through the configured channels. Delivery is asynchronous.',
+  })
+  @ApiOkResponse({ description: 'The alert type raised and the channels it routes to' })
+  async test(
+    @Body(BodyOrDataPipe) payload: SendTestAlertDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireBearerToken(authorization);
+
+    try {
+      const data = await this.testAlert.execute(accessToken, payload?.alertType);
+      return { status: true, message: 'Test alert raised', data };
+    } catch (error) {
+      throw this.toHttpError(error);
+    }
+  }
+
   private requireBearerToken(authorization?: string): string {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -118,7 +144,8 @@ export class PlatformAlertsController extends BaseAuthController {
     if (
       error instanceof UnknownAlertTypeError ||
       error instanceof UnknownAlertChannelError ||
-      error instanceof AlertHasNoRecipientError
+      error instanceof AlertHasNoRecipientError ||
+      error instanceof NoAlertSwitchedOnError
     ) {
       return new BadRequestException(error.message);
     }

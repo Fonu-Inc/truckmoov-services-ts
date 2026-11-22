@@ -357,6 +357,8 @@ export class SystemSettingsRecord {
   id!: string;
   platformName!: string;
   supportEmail!: string;
+  profile?: Record<string, unknown> | null;
+  support?: Record<string, unknown> | null;
   defaults!: {
     timezone: string;
     language: string;
@@ -396,6 +398,8 @@ export const SystemSettingsRecordSchema =
         type: 'string',
         length: 255,
       },
+      profile: { type: 'json', nullable: true },
+      support: { type: 'json', nullable: true },
       defaults: { type: 'json' },
       features: { type: 'json' },
       retention: { type: 'json' },

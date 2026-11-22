@@ -70,7 +70,7 @@ export class PlatformAlertSettingsUseCase {
 
     // Refused rather than saved quietly. An enabled alert with no recipient
     // looks configured on the screen and tells nobody when it fires.
-    if (enabled && recipients.length === 0) throw new AlertHasNoRecipientError();
+    if (enabled && recipients.length === 0 && !channels.includes('in_app')) throw new AlertHasNoRecipientError();
 
     const setting: PlatformAlertSetting = {
       alertType: command.alertType,

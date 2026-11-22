@@ -41,6 +41,8 @@ export class GetSystemSettingsUseCase {
     return {
       platformName: settings.platformName,
       supportEmail: settings.supportEmail,
+      profile: settings.profile,
+      support: settings.support,
       defaults: settings.defaults,
       features: settings.features,
       retention: settings.retention,

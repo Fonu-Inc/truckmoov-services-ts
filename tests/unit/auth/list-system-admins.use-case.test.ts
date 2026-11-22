@@ -26,4 +26,25 @@ describe("ListSystemAdminsUseCase", () => {
       ["root", Role.SUPER_ADMIN],
     ]);
   });
+
+  it("lists every staff role with its custom role, and leaves installers out", async () => {
+    const users = new InMemoryUserRepository();
+    for (const user of [
+      account("root", Role.SUPER_ADMIN),
+      account("support", Role.PLATFORM_ADMIN),
+      account("gov", Role.GOVERNANCE_OFFICER),
+      account("fitter", Role.INSTALLER),
+    ]) await users.save(user);
+    await users.updateCustomRole("support", "role-1");
+    const tokens = { resolveAccessToken: () => ({ id: "root" }) };
+    const useCase = new ListSystemAdminsUseCase(tokens as never, users, new InMemorySessionStore());
+
+    const { users: listed } = await useCase.execute("token");
+
+    expect(listed.map((user) => [user.userId, user.customRoleId]).sort()).toEqual([
+      ["gov", null],
+      ["root", null],
+      ["support", "role-1"],
+    ]);
+  });
 });

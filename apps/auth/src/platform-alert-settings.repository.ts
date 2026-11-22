@@ -8,7 +8,8 @@ export const PLATFORM_ALERT_TYPES = [
 
 export type PlatformAlertType = (typeof PLATFORM_ALERT_TYPES)[number];
 
-export const ALERT_CHANNELS = ['email', 'sms', 'slack', 'webhook'] as const;
+/** `in_app` lands in the admin portal's notification centre and needs no recipient address. */
+export const ALERT_CHANNELS = ['email', 'sms', 'slack', 'webhook', 'in_app'] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 
 /**

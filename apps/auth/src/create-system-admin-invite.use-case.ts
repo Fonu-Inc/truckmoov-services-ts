@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Role } from '@shared/rbac';
+import { Role, SYSTEM_ROLES } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
   EmailTakenError,
@@ -17,11 +17,19 @@ import { ensureSystemActor } from './system-authz';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 
 const SUPER_ADMIN_ONLY = new Set<string>([Role.SUPER_ADMIN]);
+
+export class InvalidStaffInviteRoleError extends Error {
+  constructor() {
+    super('role must be a staff role');
+  }
+}
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 
 export type CreateSystemAdminInviteCommand = {
   accessToken: string;
   email: string;
+  /** A staff role; defaults to SYSTEM_ADMIN. Only a super admin invites, and they hold every role. */
+  role?: string;
 };
 
 @Injectable()
@@ -50,6 +58,9 @@ export class CreateSystemAdminInviteUseCase {
       },
     );
 
+    const role = (command.role ?? Role.SYSTEM_ADMIN) as Role;
+    if (!(SYSTEM_ROLES as readonly string[]).includes(role)) throw new InvalidStaffInviteRoleError();
+
     const email = command.email.trim().toLowerCase();
     const [existingUser, existingInvite] = await Promise.all([
       this.userRepository.findByEmail(email),
@@ -63,7 +74,7 @@ export class CreateSystemAdminInviteUseCase {
     const invite = {
       id: this.idGenerator.generate(),
       email,
-      role: Role.SYSTEM_ADMIN,
+      role,
       tenantId: SYSTEM_TENANT_ID,
       token: this.idGenerator.generate(),
       invitedBy: actor.id,

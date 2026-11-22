@@ -48,7 +48,7 @@ import {
   InviteNotFoundError,
   CreateSystemAdminUseCase,
 } from './contexts/auth/session';
-import { CreateSystemAdminInviteUseCase } from './create-system-admin-invite.use-case';
+import { CreateSystemAdminInviteUseCase, InvalidStaffInviteRoleError } from './create-system-admin-invite.use-case';
 import {
   SystemFeatureFlagResponse,
   OrganizationUserResponse,
@@ -329,6 +329,8 @@ export class SystemController extends BaseAuthController {
         accessToken,
         platformName: payload.platformName,
         supportEmail: payload.supportEmail,
+        profile: payload.profile,
+        support: payload.support,
         defaults: payload.defaults,
         features: payload.features,
         retention: payload.retention,
@@ -646,6 +648,7 @@ export class SystemController extends BaseAuthController {
       const result = await this.createSystemAdminInviteUseCase.execute({
         accessToken,
         email: payload.email,
+        role: payload.role,
       });
       await this.tryRecordActivityFromAccessToken(accessToken, {
         service: 'auth',
@@ -667,6 +670,8 @@ export class SystemController extends BaseAuthController {
         throw new ConflictException(error.message);
       if (error instanceof UserNotFoundError)
         throw new NotFoundException(error.message);
+      if (error instanceof InvalidStaffInviteRoleError)
+        throw new BadRequestException(error.message);
       throw error;
     }
   }
