@@ -18,6 +18,16 @@ function makeCtx(ip = "1.2.3.4", forwardedFor?: string) {
   } as any;
 }
 
+function makeEndpointCtx(ip: string, controller: string, handler: string) {
+  return {
+    switchToHttp: () => ({
+      getRequest: () => ({ ip, method: "POST" }),
+    }),
+    getClass: () => ({ name: controller }),
+    getHandler: () => ({ name: handler }),
+  } as any;
+}
+
 describe("LoginRateLimitGuard", () => {
   it("allows requests within burst", () => {
     const guard = makeGuard(1, 3);
@@ -48,5 +58,15 @@ describe("LoginRateLimitGuard", () => {
     const guard = makeGuard(0.1, 1);
     guard.canActivate(makeCtx("10.0.0.3"));
     expect(guard.canActivate(makeCtx("10.0.0.4"))).toBe(true);
+  });
+
+  it("separate buckets per sign-in endpoint", () => {
+    const guard = makeGuard(0.1, 1);
+    expect(guard.canActivate(makeEndpointCtx("10.0.0.5", "AuthController", "login"))).toBe(true);
+    expect(guard.canActivate(makeEndpointCtx("10.0.0.5", "SystemController", "systemLogin"))).toBe(true);
+    expect(guard.canActivate(makeEndpointCtx("10.0.0.5", "InstallerAuthController", "installerLogin"))).toBe(true);
+    expect(guard.canActivate(makeEndpointCtx("10.0.0.5", "AuthController", "loginTwoFactor"))).toBe(true);
+
+    expect(() => guard.canActivate(makeEndpointCtx("10.0.0.5", "AuthController", "login"))).toThrow(HttpException);
   });
 });
