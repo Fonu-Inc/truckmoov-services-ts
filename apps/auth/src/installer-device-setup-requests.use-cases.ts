@@ -36,6 +36,8 @@ export function installerDeviceSetupRequestView(r: StoredDeviceSetupRequest) {
     state: r.state,
     city: r.city,
     preferredInstallDate: r.preferredInstallDate?.toISOString() ?? null,
+    pickupLocationId: r.pickupLocationId,
+    pickupLocationName: r.pickupLocationName,
     useCase: r.useCase,
     notes: r.notes,
     status: r.status,

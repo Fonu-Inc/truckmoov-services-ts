@@ -1940,6 +1940,8 @@ export class SystemDeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) state!: string | null;
   @ApiProperty({ nullable: true }) city!: string | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) preferredInstallDate!: string | null;
+  @ApiProperty({ nullable: true, description: 'Pickup point the tenant collects from; null on older requests' }) pickupLocationId!: string | null;
+  @ApiProperty({ nullable: true }) pickupLocationName!: string | null;
   @ApiProperty() useCase!: string;
   @ApiProperty({ nullable: true }) notes!: string | null;
   @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
@@ -1977,7 +1979,7 @@ export class SystemDeviceSetupRequestDetailResponse extends StandardApiResponse<
 
 export class InstallerDeviceSetupRequestSchema extends PickType(SystemDeviceSetupRequestSchema, [
   'id', 'referenceNumber', 'organisationName', 'manufacturer', 'model', 'trackerType', 'quantity', 'simRequired',
-  'vehicleId', 'state', 'city', 'preferredInstallDate', 'useCase', 'notes', 'status', 'timeline', 'createdAt', 'updatedAt',
+  'vehicleId', 'state', 'city', 'preferredInstallDate', 'pickupLocationId', 'pickupLocationName', 'useCase', 'notes', 'status', 'timeline', 'createdAt', 'updatedAt',
 ] as const) {}
 
 export class InstallerDeviceSetupRequestResponse extends StandardApiResponse<InstallerDeviceSetupRequestSchema> {

@@ -61,7 +61,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Request device setup",
-    description: "Submits a device request (quantity, optional SIM carrier/data bundle, vehicle, location, use case). Manufacturer and tracker type are optional; the platform picks the hardware. Returns a DVR-NNNNNN reference and starts under_review.",
+    description: "Submits a device request (quantity, optional SIM carrier/data bundle, vehicle, location, use case, required pickupLocationId from GET onboarding/applications/pickup-locations; devices are collected, not delivered). Manufacturer and tracker type are optional; the platform picks the hardware. Returns a DVR-NNNNNN reference and starts under_review.",
   })
   @ApiCreatedResponse({ type: DeviceSetupRequestResponse })
   async createDeviceSetupRequest(

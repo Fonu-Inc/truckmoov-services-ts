@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { TenantOrganizationTypeReader } from '../../../../../tenant-organization-type.reader';
 import { AuthUser } from '../../domain/entities/auth-user.entity';
 import {
   IDENTITY_PROVIDER,
@@ -38,6 +39,9 @@ export class LoginUseCase {
     private readonly tokenService: TokenService,
     @Inject(SESSION_STORE)
     private readonly sessionStore: SessionStore,
+    @Optional()
+    @Inject(TenantOrganizationTypeReader)
+    private readonly organizationTypes?: TenantOrganizationTypeReader,
   ) {}
 
   async execute(command: LoginCommand) {
@@ -93,7 +97,7 @@ export class LoginUseCase {
       accessToken,
       refreshToken,
       expiresIn: 3600,
-      user: user.toPrimitives(),
+      user: { ...user.toPrimitives(), organizationType: (await this.organizationTypes?.of(user.tenantId)) ?? null },
     };
   }
 }

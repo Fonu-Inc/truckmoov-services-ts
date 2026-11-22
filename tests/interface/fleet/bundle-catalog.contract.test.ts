@@ -61,7 +61,7 @@ describe("Fleet carrier catalog read from auth", () => {
     request(app.getHttpServer())
       .post("/fleet/device-setup-requests")
       .set("Authorization", authToken())
-      .send({ useCase: "Telematics", simRequired: true, ...body });
+      .send({ useCase: "Telematics", simRequired: true, pickupLocationId: "demo-1", ...body });
 
   it("GET /fleet/carriers lists auth's carriers", async () => {
     const res = await get("/fleet/carriers");

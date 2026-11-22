@@ -20,7 +20,7 @@ export class FleetUtilizationUseCase {
       this.dispatchJobs.listJobs(tenantId),
     ]);
     const visible = allowed ? vehicles.filter((vehicle) => allowed.has(vehicle.id)) : vehicles;
-    const rows = buildUtilizationRows(
+    const { rows, daily } = buildUtilizationRows(
       visible.map((vehicle) => ({
         id: vehicle.id,
         plateNumber: vehicle.plateNumber,
@@ -38,6 +38,7 @@ export class FleetUtilizationUseCase {
       days: range.days,
       summary: summarizeUtilization(rows),
       vehicles: rows.sort((a, b) => b.utilizationPercent - a.utilizationPercent),
+      daily,
     };
   }
 }

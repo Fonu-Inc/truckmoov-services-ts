@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from "class-validator";
 import {
   DEVICE_SETUP_REQUEST_STATUSES,
   TRACKER_TYPES,
@@ -76,6 +76,12 @@ export class CreateDeviceSetupRequestDto {
   @IsString()
   @MaxLength(2000)
   useCase!: string;
+
+  /** Devices are collected from a pickup point; delivery is not offered. */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  pickupLocationId!: string;
 
   @IsOptional()
   @IsString()

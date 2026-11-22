@@ -16,7 +16,11 @@ export type VehicleUtilizationRow = {
   revenue: number;
   activeDays: number;
   utilizationPercent: number;
+  /** End of the latest job occupancy up to the end of the window; null when none. */
+  lastActiveAt: string | null;
 };
+
+export type UtilizationDay = { date: string; activeVehicles: number };
 
 const DAY_MS = 86_400_000;
 
@@ -56,23 +60,30 @@ export function buildUtilizationRows(
   jobs: DispatchJob[],
   range: AnalyticsRange,
   now: number = Date.now(),
-): VehicleUtilizationRow[] {
+): { rows: VehicleUtilizationRow[]; daily: UtilizationDay[] } {
   const jobsByVehicle = new Map<string, DispatchJob[]>();
   for (const job of jobs) {
     if (!job.assignedVehicleId) continue;
     jobsByVehicle.set(job.assignedVehicleId, [...(jobsByVehicle.get(job.assignedVehicleId) ?? []), job]);
   }
 
-  return vehicles.map((vehicle) => {
+  const rangeEnd = Date.parse(range.to);
+  const activeByDay = new Map<string, number>();
+  const rows = vehicles.map((vehicle) => {
     const vehicleJobs = jobsByVehicle.get(vehicle.id) ?? [];
     const days = new Set<string>();
     let touching = 0;
+    let lastActive: number | null = null;
     for (const job of vehicleJobs) {
+      const start = Date.parse(job.createdAt);
+      const end = ACTIVE_JOB_STATUSES.has(job.status) ? now : Date.parse(job.updatedAt);
+      if (start <= rangeEnd && !Number.isNaN(end)) lastActive = Math.max(lastActive ?? 0, Math.min(end, rangeEnd));
       const window = occupiedWindow(job, range, now);
       if (!window) continue;
       touching++;
       addDays(days, window);
     }
+    for (const day of days) activeByDay.set(day, (activeByDay.get(day) ?? 0) + 1);
     const delivered = vehicleJobs.filter((job) => job.status === "delivered" && inRange(job.updatedAt, range));
     const activeDays = Math.min(days.size, range.days);
     return {
@@ -87,8 +98,16 @@ export function buildUtilizationRows(
       revenue: delivered.reduce((sum, job) => sum + (job.amountNgn ?? 0), 0),
       activeDays,
       utilizationPercent: round1((activeDays / range.days) * 100),
+      lastActiveAt: lastActive === null ? null : new Date(lastActive).toISOString(),
     };
   });
+
+  const firstDay = Math.floor(Date.parse(range.from) / DAY_MS);
+  const daily = Array.from({ length: range.days }, (_, i) => ({
+    date: new Date((firstDay + i) * DAY_MS).toISOString().slice(0, 10),
+    activeVehicles: activeByDay.get(String(firstDay + i)) ?? 0,
+  }));
+  return { rows, daily };
 }
 
 export function summarizeUtilization(rows: VehicleUtilizationRow[]) {

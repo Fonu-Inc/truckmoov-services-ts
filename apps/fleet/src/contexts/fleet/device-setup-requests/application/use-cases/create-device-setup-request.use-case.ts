@@ -37,6 +37,7 @@ export type CreateDeviceSetupRequestCommand = {
   city?: string | null;
   preferredDate?: string | null;
   preferredTime?: string | null;
+  pickupLocationId?: string | null;
   useCase: string;
   notes?: string | null;
 };
@@ -79,6 +80,7 @@ export class CreateDeviceSetupRequestUseCase {
         city: command.city ?? null,
         preferredDate: command.preferredDate ?? null,
         preferredTime: command.preferredTime ?? null,
+        pickupLocationId: command.pickupLocationId ?? null,
         useCase: command.useCase,
         notes: command.notes ?? null,
       });

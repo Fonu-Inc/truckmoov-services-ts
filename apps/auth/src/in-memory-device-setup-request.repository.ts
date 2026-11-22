@@ -28,6 +28,8 @@ function seed(
     state: 'Lagos',
     city: 'Ikeja',
     preferredInstallDate: new Date('2026-03-01'),
+    pickupLocationId: 'demo-1',
+    pickupLocationName: 'MTN Connect Store Ikeja (demo)',
     useCase: 'Long-haul GPS tracking',
     notes: null,
     status: 'under_review',

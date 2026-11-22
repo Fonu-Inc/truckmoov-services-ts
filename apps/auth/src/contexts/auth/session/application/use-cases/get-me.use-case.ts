@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { TenantOrganizationTypeReader } from "../../../../../tenant-organization-type.reader";
 import { InvalidAccessTokenError } from "../../domain/errors/invalid-access-token.error";
 import {
   TOKEN_SERVICE,
@@ -17,6 +18,9 @@ export class GetMeUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepo: UserRepository,
+    @Optional()
+    @Inject(TenantOrganizationTypeReader)
+    private readonly organizationTypes?: TenantOrganizationTypeReader,
   ) {}
 
   async execute(authorizationHeader?: string) {
@@ -32,6 +36,7 @@ export class GetMeUseCase {
       fullName: actor.profile?.fullName ?? null,
       role: actor.role,
       tenantId: actor.tenantId,
+      organizationType: (await this.organizationTypes?.of(actor.tenantId)) ?? null,
       accountStatus: actor.accountStatus,
       tokenPreview: authorizationHeader?.slice(0, 18) ?? null,
     };

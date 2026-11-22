@@ -74,6 +74,13 @@ export class UtilizationVehicleSchema {
   @ApiProperty() revenue!: number;
   @ApiProperty({ description: "Days in the window with a job on the vehicle" }) activeDays!: number;
   @ApiProperty() utilizationPercent!: number;
+  @ApiProperty({ nullable: true, type: String, description: "End of the latest job on the vehicle up to the end of the window" })
+  lastActiveAt!: string | null;
+}
+
+export class UtilizationDaySchema {
+  @ApiProperty({ example: "2026-05-01" }) date!: string;
+  @ApiProperty({ description: "Vehicles with a job on them that day" }) activeVehicles!: number;
 }
 
 export class UtilizationSchema {
@@ -82,6 +89,7 @@ export class UtilizationSchema {
   @ApiProperty() days!: number;
   @ApiProperty({ type: UtilizationSummarySchema }) summary!: UtilizationSummarySchema;
   @ApiProperty({ type: UtilizationVehicleSchema, isArray: true }) vehicles!: UtilizationVehicleSchema[];
+  @ApiProperty({ type: UtilizationDaySchema, isArray: true, description: "One entry per day in the window" }) daily!: UtilizationDaySchema[];
 }
 
 export class UtilizationResponse extends StandardApiResponse<UtilizationSchema> {
@@ -91,7 +99,8 @@ export class UtilizationResponse extends StandardApiResponse<UtilizationSchema> 
 export class FuelReportSummarySchema {
   @ApiProperty() totalLitres!: number;
   @ApiProperty() totalCostNgn!: number;
-  @ApiProperty() totalDistanceKm!: number;
+  @ApiProperty({ nullable: true, type: Number, description: "Null when no vehicle has two odometer readings in the window" })
+  totalDistanceKm!: number | null;
   @ApiProperty({ nullable: true, type: Number, description: "Null when no vehicle has two odometer readings in the window" })
   avgEfficiencyKmPerLitre!: number | null;
   @ApiProperty() fillUps!: number;
@@ -107,7 +116,8 @@ export class FuelReportVehicleSchema {
   @ApiProperty() fillUps!: number;
   @ApiProperty() litres!: number;
   @ApiProperty() costNgn!: number;
-  @ApiProperty({ description: "Odometer movement between the first and last fill in the window" }) distanceKm!: number;
+  @ApiProperty({ nullable: true, type: Number, description: "Odometer movement between the first and last fill in the window; null with fewer than two readings" })
+  distanceKm!: number | null;
   @ApiProperty({ nullable: true, type: Number }) efficiencyKmPerLitre!: number | null;
   @ApiProperty({ description: "Delivered jobs in the window" }) trips!: number;
 }

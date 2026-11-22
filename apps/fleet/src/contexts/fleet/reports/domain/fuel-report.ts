@@ -13,7 +13,7 @@ export type FuelReportRow = {
   fillUps: number;
   litres: number;
   costNgn: number;
-  distanceKm: number;
+  distanceKm: number | null;
   efficiencyKmPerLitre: number | null;
   trips: number;
 };
@@ -33,11 +33,11 @@ function mostCommon(values: Array<string | null | undefined>): string | null {
  * window. The litres that bought that distance are every fill after the first,
  * since the first fill only topped up what was burned before it.
  */
-function odometerFigures(records: FuelRecordProps[]): { distanceKm: number; litresForDistance: number } {
+function odometerFigures(records: FuelRecordProps[]): { distanceKm: number | null; litresForDistance: number } {
   const readings = records
     .filter((record) => record.odometer !== null && record.odometer !== undefined)
     .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
-  if (readings.length < 2) return { distanceKm: 0, litresForDistance: 0 };
+  if (readings.length < 2) return { distanceKm: null, litresForDistance: 0 };
 
   const distanceKm = Math.max(0, readings[readings.length - 1].odometer! - readings[0].odometer!);
   const litresForDistance = readings.slice(1).reduce((sum, record) => sum + record.liters, 0);
@@ -76,9 +76,9 @@ export function buildFuelRows(
       fillUps: own.length,
       litres: round1(own.reduce((sum, record) => sum + record.liters, 0)),
       costNgn: Math.round(own.reduce((sum, record) => sum + record.totalCost, 0)),
-      distanceKm: Math.round(odometer.distanceKm),
+      distanceKm: odometer.distanceKm === null ? null : Math.round(odometer.distanceKm),
       efficiencyKmPerLitre:
-        odometer.litresForDistance > 0 && odometer.distanceKm > 0 ? round1(odometer.distanceKm / odometer.litresForDistance) : null,
+        odometer.litresForDistance > 0 && odometer.distanceKm ? round1(odometer.distanceKm / odometer.litresForDistance) : null,
       trips: deliveredByVehicle.get(vehicle.id) ?? 0,
     }];
   });
@@ -87,12 +87,13 @@ export function buildFuelRows(
 
 export function summarizeFuel(rows: FuelReportRow[], litresForDistance: Map<string, number>) {
   const measured = rows.filter((row) => row.efficiencyKmPerLitre !== null);
-  const measuredKm = measured.reduce((sum, row) => sum + row.distanceKm, 0);
+  const measuredKm = measured.reduce((sum, row) => sum + (row.distanceKm ?? 0), 0);
+  const withDistance = rows.filter((row) => row.distanceKm !== null);
   const measuredLitres = measured.reduce((sum, row) => sum + (litresForDistance.get(row.vehicleId) ?? 0), 0);
   return {
     totalLitres: round1(rows.reduce((sum, row) => sum + row.litres, 0)),
     totalCostNgn: rows.reduce((sum, row) => sum + row.costNgn, 0),
-    totalDistanceKm: rows.reduce((sum, row) => sum + row.distanceKm, 0),
+    totalDistanceKm: withDistance.length > 0 ? withDistance.reduce((sum, row) => sum + row.distanceKm!, 0) : null,
     avgEfficiencyKmPerLitre: measuredLitres > 0 ? round1(measuredKm / measuredLitres) : null,
     fillUps: rows.reduce((sum, row) => sum + row.fillUps, 0),
     vehiclesWithFuel: rows.length,

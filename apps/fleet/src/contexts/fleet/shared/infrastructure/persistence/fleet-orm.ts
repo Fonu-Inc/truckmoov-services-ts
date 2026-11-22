@@ -1215,6 +1215,7 @@ export class DeviceSetupRequestRecord {
   city?: string | null;
   preferredDate?: string | null;
   preferredTime?: string | null;
+  pickupLocationId?: string | null;
   useCase!: string;
   notes?: string | null;
   status!: string;
@@ -1251,6 +1252,7 @@ export const DeviceSetupRequestRecordSchema = new EntitySchema<DeviceSetupReques
     city: { type: "string", length: 64, nullable: true },
     preferredDate: { type: "string", length: 32, nullable: true },
     preferredTime: { type: "string", length: 32, nullable: true },
+    pickupLocationId: { type: "string", length: 64, nullable: true },
     useCase: { type: "text" },
     notes: { type: "text", nullable: true },
     status: { type: "string", length: 32, defaultRaw: "'under_review'" },

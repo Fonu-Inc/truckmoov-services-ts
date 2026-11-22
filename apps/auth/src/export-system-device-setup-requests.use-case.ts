@@ -16,14 +16,14 @@ export class ExportSystemDeviceSetupRequestsUseCase {
     const headers = [
       'id', 'referenceNumber', 'tenantId', 'organisationName', 'requestingEmail',
       'manufacturer', 'model', 'trackerType', 'quantity', 'simRequired',
-      'state', 'city', 'preferredInstallDate', 'useCase', 'notes',
+      'state', 'city', 'preferredInstallDate', 'pickupLocation', 'useCase', 'notes',
       'status', 'kycStatus', 'assignedTo', 'decidedBy', 'decidedAt',
       'decisionReason', 'createdAt', 'updatedAt',
     ];
     const rows = requests.map((r) => [
       r.id, r.referenceNumber, r.tenantId, r.organisationName, r.requestingEmail,
       r.manufacturer, r.model, r.trackerType, r.quantity, String(r.simRequired),
-      r.state, r.city, r.preferredInstallDate, r.useCase, r.notes,
+      r.state, r.city, r.preferredInstallDate, r.pickupLocationName ?? r.pickupLocationId, r.useCase, r.notes,
       r.status, r.kycStatus, r.assignedTo, r.decidedBy, r.decidedAt,
       r.decisionReason, r.createdAt, r.updatedAt,
     ]);

@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { TenantOrganizationTypeReader } from "../../../../../tenant-organization-type.reader";
 import { ID_GENERATOR, type IdGenerator } from "@auth/session/domain/ports/id-generator.port";
 import { PASSWORD_HASHER, type PasswordHasher } from "@auth/session/domain/ports/password-hasher.port";
 import { Role } from "@shared/rbac";
@@ -38,6 +39,9 @@ export class RegisterInvitedUseCase {
     private readonly idGenerator: IdGenerator,
     @Inject(INSTALLER_ACCOUNTS)
     private readonly installers: InstallerAccounts,
+    @Optional()
+    @Inject(TenantOrganizationTypeReader)
+    private readonly organizationTypes?: TenantOrganizationTypeReader,
   ) {}
 
   async execute(command: RegisterInvitedCommand) {
@@ -96,7 +100,8 @@ export class RegisterInvitedUseCase {
 
     await this.sessionStore.save(refreshToken, user);
 
-    return { accessToken, refreshToken, expiresIn: 3600, user: user.toPrimitives() };
+    const organizationType = (await this.organizationTypes?.of(user.tenantId)) ?? null;
+    return { accessToken, refreshToken, expiresIn: 3600, user: { ...user.toPrimitives(), organizationType } };
   }
 
   /** An installer's name is the one on their installer record, which customers see. */

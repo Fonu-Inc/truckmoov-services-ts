@@ -29,6 +29,9 @@ export type StoredDeviceSetupRequest = {
   state: string | null;
   city: string | null;
   preferredInstallDate: Date | null;
+  /** Where the tenant collects the devices; null on requests made before pickup was required. */
+  pickupLocationId: string | null;
+  pickupLocationName: string | null;
   useCase: string;
   notes: string | null;
   status: DeviceSetupRequestStatus;

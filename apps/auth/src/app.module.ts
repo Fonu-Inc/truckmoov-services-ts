@@ -563,6 +563,7 @@ import { ListSystemAdminInvitesUseCase } from './list-system-admin-invites.use-c
 import { ListMisplacedSystemAccountsUseCase } from './list-misplaced-system-accounts.use-case';
 import { InternalCallerService } from './internal-caller.service';
 import { AccessChangeNotifier, AccessResolver } from './access-resolver';
+import { TenantOrganizationTypeReader } from './tenant-organization-type.reader';
 import { AccessNotifyingUserRepository } from './access-notifying-user.repository';
 import { CapabilitiesController, InternalAccessController } from './access.controller';
 import { TENANT_ROLE_REPOSITORY } from './tenant-role.repository';
@@ -1162,6 +1163,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
     AccessResolver,
+    TenantOrganizationTypeReader,
     AccessChangeNotifier,
     TenantRolesUseCases,
     SystemRolesUseCases,

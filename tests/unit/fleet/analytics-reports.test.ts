@@ -38,7 +38,7 @@ describe("utilization", () => {
   ];
 
   it("counts days with a job on the vehicle and leaves idle vehicles at zero", () => {
-    const rows = buildUtilizationRows(
+    const { rows, daily } = buildUtilizationRows(
       vehicles,
       [{
         id: "j1", reference: "J1", status: "delivered", assignedVehicleId: "v1", assignedDriverId: null, amountNgn: 1000,
@@ -51,6 +51,11 @@ describe("utilization", () => {
     expect(rows[0]).toMatchObject({ activeDays: 3, utilizationPercent: 30, completedJobs: 1, revenue: 1000 });
     expect(rows[1]).toMatchObject({ activeDays: 0, totalJobs: 0 });
     expect(summarizeUtilization(rows).idleVehicles).toBe(1);
+    expect(rows[0].lastActiveAt).toBe("2026-05-04T08:00:00.000Z");
+    expect(rows[1].lastActiveAt).toBeNull();
+    expect(daily).toHaveLength(10);
+    expect(daily.map((d) => d.activeVehicles)).toEqual([0, 1, 1, 1, 0, 0, 0, 0, 0, 0]);
+    expect(daily[1].date).toBe("2026-05-02");
   });
 });
 

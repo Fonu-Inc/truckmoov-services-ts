@@ -29,7 +29,9 @@ describe("fleet safety radar", () => {
   it("reports null axes, not a perfect 100, when no driver event was scored", async () => {
     const useCase = analyticsWith([]);
 
-    expect(await useCase.driverScores("t1", 30)).toEqual([]);
+    const scores = await useCase.driverScores("t1", 30);
+    expect(scores.length).toBeGreaterThan(0);
+    expect(scores.every((s) => s.safetyScore === null && s.incidents === 0)).toBe(true);
     expect(await useCase.vehicleSafetyRadar("t1", 30)).toEqual({ ...NULL_AXES, periodDays: 30 });
   });
 

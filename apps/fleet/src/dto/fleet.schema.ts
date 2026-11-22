@@ -265,6 +265,7 @@ export class DeviceSetupRequestSchema {
   @ApiProperty({ nullable: true }) city!: string | null;
   @ApiProperty({ nullable: true }) preferredDate!: string | null;
   @ApiProperty({ nullable: true }) preferredTime!: string | null;
+  @ApiProperty({ nullable: true, description: "Pickup point from GET onboarding/applications/pickup-locations; null on requests made before pickup was required" }) pickupLocationId!: string | null;
   @ApiProperty() useCase!: string;
   @ApiProperty({ nullable: true }) notes!: string | null;
   @ApiProperty({ enum: DEVICE_SETUP_REQUEST_STATUSES }) status!: string;
@@ -358,6 +359,8 @@ export class VehicleSchema {
   assignedDriverName?: string | null;
   @ApiPropertyOptional({ nullable: true })
   fuelLevelPercent?: number | null;
+  @ApiPropertyOptional({ description: "When the vehicle was added (ISO 8601)" })
+  createdAt?: string;
   @ApiProperty({ type: VehicleGpsDeviceSchema, nullable: true })
   gpsDevice!: VehicleGpsDeviceSchema | null;
   @ApiPropertyOptional({ type: DeviceSchema, isArray: true, description: "Devices attached to this vehicle (Devices tab)" })
@@ -1400,6 +1403,9 @@ export class AnalyticsSummarySchema {
   @ApiProperty({ type: AnalyticsDriversSchema }) drivers!: AnalyticsDriversSchema;
   @ApiProperty({ type: AnalyticsJobsSchema }) jobs!: AnalyticsJobsSchema;
   @ApiProperty({ type: AnalyticsSafetySchema }) safety!: AnalyticsSafetySchema;
+  @ApiProperty({ nullable: true, type: Number, description: "Average of scored drivers (0-100); null when no driver was scored in the period" })
+  safetyScore!: number | null;
+  @ApiProperty({ description: "Amounts of delivered jobs in the period (NGN), as profit and loss counts revenue" }) revenue!: number;
   @ApiProperty() periodDays!: number;
 }
 
@@ -1462,7 +1468,8 @@ export class DriverScoreSchema {
   @ApiProperty() incidents!: number;
   @ApiProperty() harshBraking!: number;
   @ApiProperty() overspeeding!: number;
-  @ApiProperty() safetyScore!: number;
+  @ApiProperty({ nullable: true, type: Number, description: "Null when no event was recorded against the driver in the period" })
+  safetyScore!: number | null;
 }
 
 export class DriverScoreListResponse extends StandardApiResponse<DriverScoreSchema[]> {
@@ -1476,6 +1483,7 @@ export class AnalyticsEventSchema {
   @ApiProperty() severity!: string;
   @ApiProperty() status!: string;
   @ApiProperty({ nullable: true }) vehicleId!: string | null;
+  @ApiProperty({ nullable: true, type: String, description: "Driver currently assigned to the vehicle" }) driverName!: string | null;
   @ApiProperty({ nullable: true }) jobId!: string | null;
   @ApiProperty({ type: "object" }) details!: Record<string, unknown>;
   @ApiProperty() triggeredAt!: string;

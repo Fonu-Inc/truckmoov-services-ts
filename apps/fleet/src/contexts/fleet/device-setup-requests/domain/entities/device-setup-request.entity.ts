@@ -65,6 +65,7 @@ export type DeviceSetupRequestProps = {
   city?: string | null;
   preferredDate?: string | null;
   preferredTime?: string | null;
+  pickupLocationId?: string | null;
   useCase: string;
   notes?: string | null;
   status: DeviceSetupRequestStatus;
@@ -145,6 +146,7 @@ export class DeviceSetupRequest {
       city: input.city?.trim() || null,
       preferredDate: input.preferredDate ?? null,
       preferredTime: input.preferredTime ?? null,
+      pickupLocationId: input.pickupLocationId?.trim() || null,
       useCase,
       notes: input.notes?.trim() || null,
       status: "under_review",

@@ -4,6 +4,7 @@ import { DRIVER_REPOSITORY, type DriverRepository } from "./contexts/fleet/drive
 import { DISPATCH_JOBS_READER, type DispatchJobsReader } from "./contexts/fleet/dispatch/domain/ports/dispatch-jobs-reader.port";
 import { ALERT_REPOSITORY, type AlertFilters, type AlertRepository } from "./contexts/fleet/alerts/domain/alert.repository";
 import { ownedDriverIdsFrom } from "./contexts/fleet/drivers/domain/driver-roster";
+import { deliveredRevenue, fleetSafetyScore, scoreDrivers } from "./contexts/fleet/reports/domain/driver-safety";
 
 type AllowedVehicleIds = ReadonlySet<string> | null;
 
@@ -107,6 +108,8 @@ export class FleetAnalyticsUseCase {
         open: recentAlerts.filter((a) => a.status === "open").length,
         critical: recentAlerts.filter((a) => a.severity === "critical").length,
       },
+      safetyScore: fleetSafetyScore(scoreDrivers(vehicles, drivers, recentAlerts)),
+      revenue: deliveredRevenue(jobs, new Set(vehicles.map((v) => v.id)), since),
       periodDays,
     };
   }
@@ -162,32 +165,7 @@ export class FleetAnalyticsUseCase {
       this.driversIn(tenantId, allowed),
       this.alertsIn(tenantId, allowed),
     ]);
-    const recentAlerts = alerts.filter((a) => a.triggeredAt >= since);
-    const vehicleToDriver = new Map(
-      vehicles.filter((v) => v.assignedDriverId).map((v) => [v.id, v.assignedDriverId!]),
-    );
-    const driverMap = new Map(drivers.map((d) => [d.id, d.name]));
-    const scores = new Map<string, { driverId: string; driverName: string; incidents: number; harshBraking: number; overspeeding: number }>();
-    for (const alert of recentAlerts) {
-      if (!alert.vehicleId) continue;
-      const driverId = vehicleToDriver.get(alert.vehicleId);
-      if (!driverId) continue;
-      const entry = scores.get(driverId) ?? {
-        driverId,
-        driverName: driverMap.get(driverId) ?? "Unknown",
-        incidents: 0,
-        harshBraking: 0,
-        overspeeding: 0,
-      };
-      entry.incidents++;
-      if (alert.type.includes("harsh_braking")) entry.harshBraking++;
-      if (alert.type.includes("overspeeding") || alert.type.includes("speeding")) entry.overspeeding++;
-      scores.set(driverId, entry);
-    }
-    return [...scores.values()]
-      .sort((a, b) => b.incidents - a.incidents)
-      .slice(0, limit)
-      .map((s) => ({ ...s, safetyScore: Math.max(0, 100 - s.incidents * 2) }));
+    return scoreDrivers(vehicles, drivers, alerts.filter((a) => a.triggeredAt >= since)).slice(0, limit);
   }
 
   async vehicleSafetyRadar(tenantId: string, periodDays = 30, allowed?: AllowedVehicleIds) {
@@ -214,7 +192,13 @@ export class FleetAnalyticsUseCase {
 
   async events(tenantId: string, periodDays = 30, limit = 50, severity?: string, allowed?: AllowedVehicleIds) {
     const since = cutoff(periodDays);
-    const alerts = await this.alertsIn(tenantId, allowed, severity ? { type: severity } : undefined);
+    const [alerts, vehicles, drivers] = await Promise.all([
+      this.alertsIn(tenantId, allowed, severity ? { type: severity } : undefined),
+      this.vehiclesIn(tenantId, allowed),
+      this.driversIn(tenantId, allowed),
+    ]);
+    const driverNames = new Map(drivers.map((d) => [d.id, d.name]));
+    const vehicleDriver = new Map(vehicles.map((v) => [v.id, v.assignedDriverId ? driverNames.get(v.assignedDriverId) ?? null : null]));
     return alerts
       .filter((a) => a.triggeredAt >= since && (!severity || a.severity === severity))
       .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime())
@@ -225,6 +209,7 @@ export class FleetAnalyticsUseCase {
         severity: a.severity,
         status: a.status,
         vehicleId: a.vehicleId,
+        driverName: a.vehicleId ? vehicleDriver.get(a.vehicleId) ?? null : null,
         jobId: a.jobId,
         details: a.details,
         triggeredAt: a.triggeredAt.toISOString(),

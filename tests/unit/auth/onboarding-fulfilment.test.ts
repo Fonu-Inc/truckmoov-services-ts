@@ -90,22 +90,8 @@ describe("Device fulfilment on an application", () => {
     ).rejects.toBeInstanceOf(OnboardingValidationError);
   });
 
-  it("lets an enterprise choose delivery with a full address", async () => {
-    await applications.save(application("enterprise"));
-
-    const result = await setFulfilment.execute({
-      ...target,
-      method: "delivery",
-      deliveryStreet: "12 Marina Road",
-      deliveryCity: "Lagos Island",
-      deliveryState: "Lagos",
-    });
-
-    expect(result.data.fulfilment).toMatchObject({ method: "delivery", deliveryState: "Lagos" });
-  });
-
-  it("refuses delivery to an owner operator", async () => {
-    await applications.save(application("owner_operator"));
+  it.each(["enterprise", "owner_operator"] as const)("refuses delivery for an %s, even with a full address", async (type) => {
+    await applications.save(application(type));
 
     await expect(
       setFulfilment.execute({
@@ -115,6 +101,6 @@ describe("Device fulfilment on an application", () => {
         deliveryCity: "Lagos Island",
         deliveryState: "Lagos",
       }),
-    ).rejects.toThrow("Owner-Operators collect their devices from a pickup point");
+    ).rejects.toThrow("delivery is not offered");
   });
 });

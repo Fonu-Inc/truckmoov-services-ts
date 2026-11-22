@@ -5,12 +5,7 @@ import {
   type OnboardingFulfilment,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { assertApplicationEditable } from '@auth/onboarding/domain/onboarding-application.support';
-import {
-  OnboardingValidationError,
-  validateCity,
-  validateState,
-  validateStreetAddress,
-} from '@auth/onboarding/domain/onboarding-application.validation';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import {
   PICKUP_LOCATION_REPOSITORY,
   type PickupLocationRepository,
@@ -39,8 +34,8 @@ export type SetFulfilmentInput = {
 };
 
 /**
- * How the requested devices reach the applicant. Owner-Operators always collect
- * from a pickup point; Enterprise customers choose pickup or delivery.
+ * How the requested devices reach the applicant: every customer type collects
+ * them from an MTN pickup point. Delivery is not offered, so it is refused.
  */
 @Injectable()
 export class SetApplicationFulfilmentUseCase {
@@ -54,7 +49,7 @@ export class SetApplicationFulfilmentUseCase {
     const application = await this.getApplication.resolve(input.applicationId, input.applicationToken);
     assertApplicationEditable(application);
 
-    const fulfilment = await this.validated(input, application.applicantType);
+    const fulfilment = await this.validated(input);
     const updated = { ...application, fulfilment, updatedAt: new Date() };
     await this.applications.save(updated);
 
@@ -65,34 +60,13 @@ export class SetApplicationFulfilmentUseCase {
     };
   }
 
-  private async validated(input: SetFulfilmentInput, applicantType: string): Promise<OnboardingFulfilment> {
-    if (input.method !== 'pickup' && input.method !== 'delivery') {
-      throw new OnboardingValidationError('method', 'Method must be pickup or delivery');
-    }
-    if (input.method === 'delivery') {
-      if (applicantType === 'owner_operator') {
-        throw new OnboardingValidationError('method', 'Owner-Operators collect their devices from a pickup point');
-      }
-      return {
-        method: 'delivery',
-        deliveryStreet: validateStreetAddress(input.deliveryStreet, 'deliveryStreet'),
-        deliveryCity: asField('deliveryCity', () => validateCity(input.deliveryCity)),
-        deliveryState: asField('deliveryState', () => validateState(input.deliveryState)),
-      };
+  private async validated(input: SetFulfilmentInput): Promise<OnboardingFulfilment> {
+    if (input.method !== 'pickup') {
+      throw new OnboardingValidationError('method', 'Devices are collected from an MTN pickup point; delivery is not offered');
     }
     const id = typeof input.pickupLocationId === 'string' ? input.pickupLocationId.trim() : '';
     const location = id ? await this.locations.findActiveById(id) : null;
     if (!location) throw new OnboardingValidationError('pickupLocationId', 'Choose a pickup location from the list');
     return { method: 'pickup', pickupLocationId: location.id };
-  }
-}
-
-/** The shared address checks name the business-address field; here the error belongs to the delivery field. */
-function asField<T>(field: string, check: () => T): T {
-  try {
-    return check();
-  } catch (error) {
-    if (error instanceof OnboardingValidationError) throw new OnboardingValidationError(field, error.message);
-    throw error;
   }
 }

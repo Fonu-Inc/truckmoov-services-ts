@@ -27,6 +27,8 @@ type Row = {
   state: string | null;
   city: string | null;
   preferred_date: string | null;
+  pickup_location_id: string | null;
+  pickup_location_name: string | null;
   use_case: string;
   notes: string | null;
   status: string;
@@ -72,6 +74,8 @@ const SELECT_COLUMNS = `
   r.state,
   r.city,
   r.preferred_date,
+  r.pickup_location_id,
+  (select p.name from pickup_locations p where p.id = r.pickup_location_id) as pickup_location_name,
   r.use_case,
   r.notes,
   r.status,
@@ -297,6 +301,8 @@ function toStored(row: Row): StoredDeviceSetupRequest {
     state: row.state,
     city: row.city,
     preferredInstallDate: row.preferred_date ? new Date(row.preferred_date) : null,
+    pickupLocationId: row.pickup_location_id ?? null,
+    pickupLocationName: row.pickup_location_name ?? null,
     useCase: row.use_case,
     notes: row.notes,
     status: row.status as DeviceSetupRequestStatus,
