@@ -69,6 +69,8 @@ export function toJobListItem(row: JobRow, devices: DeviceIndex) {
     id: order.id,
     jobNumber: order.orderNumber,
     customer: row.customerName,
+    customerEmail: row.customerEmail,
+    tenantType: row.tenantType,
     siteContactName: order.siteContactName,
     siteContactPhone: order.siteContactPhone,
     firstVehicle: row.firstVehicle,
@@ -78,6 +80,8 @@ export function toJobListItem(row: JobRow, devices: DeviceIndex) {
     deviceCount: row.deviceCount,
     ...schedule(order),
     status: order.status,
+    createdAt: order.createdAt.toISOString(),
+    startedAt: order.startedAt?.toISOString() ?? null,
     completedAt: (order.completedAt ?? order.cancelledAt)?.toISOString() ?? null,
   };
 }

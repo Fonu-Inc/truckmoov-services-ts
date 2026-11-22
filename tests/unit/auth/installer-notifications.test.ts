@@ -70,7 +70,7 @@ async function harness() {
   await users.save({ id: "platform", email: "p@co.com", passwordHash: "x", role: "PLATFORM_ADMIN", tenantId: "system" });
   const access = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
   const activity = { record: vi.fn(async () => ({})) };
-  const changes = new AdminJobChangesUseCases(orders, tokens as never, users, access, activity as never, notifier);
+  const changes = new AdminJobChangesUseCases(orders, installers, tokens as never, users, access, activity as never, notifier);
   const assignment = new InstallerAssignmentService(installers, orders);
   const sweep = new SweepInstallationOrdersUseCase(orders, assignment, notifier);
   const verification = new NotifyDeviceVerificationUseCase(orders, notifier);

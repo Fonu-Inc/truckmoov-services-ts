@@ -43,6 +43,15 @@ import {
 } from './suspend-system-device.use-cases';
 import { BaseAuthController } from './base.controller';
 import { SuspendSystemDeviceDto } from './dto/device-setup.dto';
+import {
+  AssignSystemDevicesDto,
+  UpdateSystemDeviceDto,
+} from './dto/system-device.dto';
+import {
+  AssignSystemDevicesUseCase,
+  SystemDeviceWriteRefusedError,
+  UpdateSystemDeviceUseCase,
+} from './update-system-device.use-cases';
 import { BodyOrDataPipe } from './body-or-data.pipe';
 import { UserNotFoundError, ForbiddenError } from './contexts/auth/session';
 import { CreateSystemDeviceModelUseCase } from './create-system-device-model.use-case';
@@ -110,6 +119,10 @@ export class SystemDevicesController extends BaseAuthController {
     @Inject(ReinstateSystemDeviceUseCase) private readonly reinstateSystemDeviceUseCase: ReinstateSystemDeviceUseCase,
     @Inject(DecommissionSystemDeviceUseCase)
     private readonly decommissionSystemDeviceUseCase: DecommissionSystemDeviceUseCase,
+    @Inject(UpdateSystemDeviceUseCase)
+    private readonly updateSystemDeviceUseCase: UpdateSystemDeviceUseCase,
+    @Inject(AssignSystemDevicesUseCase)
+    private readonly assignSystemDevicesUseCase: AssignSystemDevicesUseCase,
   ) {
     super(activityLogService);
   }
@@ -722,6 +735,84 @@ export class SystemDevicesController extends BaseAuthController {
     }
   }
 
+  @Post('assign')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Record devices as assigned to a tenant',
+    description:
+      'Moves one or more platform-held devices to a tenant. The devices become assignable to vehicles in that tenant fleet.',
+  })
+  @ApiCreatedResponse({ description: 'Devices assigned' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to assign devices' })
+  @ApiBadRequestResponse({ description: 'No devices chosen, or a device is suspended or decommissioned' })
+  @ApiNotFoundResponse({ description: 'A chosen device was not found' })
+  async assignSystemDevices(
+    @Body(BodyOrDataPipe) payload: AssignSystemDevicesDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.assignSystemDevicesUseCase.execute(
+        accessToken,
+        payload.tenantId,
+        payload.deviceIds,
+        payload.notes,
+      );
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.assigned',
+        entityType: 'device',
+        entityId: payload.deviceIds.join(','),
+        summary: 'Devices assigned to tenant',
+        metadata: { tenantId: payload.tenantId, deviceIds: payload.deviceIds, notes: payload.notes ?? null },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  @Patch(':deviceId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Edit a device record',
+    description:
+      'Corrects the make, model, firmware, protocol or service state of a device, whatever tenant holds it.',
+  })
+  @ApiOkResponse({ description: 'The updated device' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to edit devices' })
+  @ApiBadRequestResponse({ description: 'Nothing to change, or a value is not valid' })
+  @ApiNotFoundResponse({ description: 'Device not found' })
+  async updateSystemDevice(
+    @Param('deviceId') deviceId: string,
+    @Body(BodyOrDataPipe) payload: UpdateSystemDeviceDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.updateSystemDeviceUseCase.execute(accessToken, deviceId, payload);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.updated',
+        entityType: 'device',
+        entityId: deviceId,
+        summary: 'Device details updated',
+        metadata: { ...payload },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
   @Post(':deviceId/suspend')
   @ApiBearerAuth()
   @ApiOperation({
@@ -838,7 +929,7 @@ export class SystemDevicesController extends BaseAuthController {
     this.rethrowInvalidAccessToken(error);
     if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
     if (error instanceof UserNotFoundError) throw new NotFoundException(error.message);
-    if (error instanceof DeviceSuspensionRefusedError) {
+    if (error instanceof DeviceSuspensionRefusedError || error instanceof SystemDeviceWriteRefusedError) {
       if (error.httpStatus === 404) throw new NotFoundException(error.message);
       if (error.httpStatus === 400) throw new BadRequestException(error.message);
       if (error.httpStatus === 409) throw new ConflictException(error.message);

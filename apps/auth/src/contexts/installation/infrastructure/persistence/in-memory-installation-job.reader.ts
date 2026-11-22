@@ -170,6 +170,7 @@ export class InMemoryInstallationJobReader implements InstallationJobReader {
       order,
       customerName: application?.organizationName ?? '',
       customerEmail: application?.businessEmail ?? null,
+      tenantType: application?.applicantType ?? null,
       firstVehicle: first ? { registrationNumber: first.registrationNumber, make: first.make, model: first.model } : null,
       firstFleetDeviceId: assignments[0]?.fleetDeviceId ?? null,
       vehicleCount: new Set(assignments.map((a) => a.vehicleId)).size,

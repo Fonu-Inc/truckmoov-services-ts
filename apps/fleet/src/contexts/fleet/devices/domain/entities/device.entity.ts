@@ -214,7 +214,9 @@ export class Device {
       signalStrength: props.signalStrength ?? null,
       batteryLevel: props.batteryLevel ?? null,
       lastSeen: props.lastSeen ?? null,
-      assignedAt: vehicleId ? (props.assignedAt ?? new Date().toISOString()) : null,
+      // A device can be held by a tenant without a vehicle, so an explicit
+      // assignment date stands on its own; only the vehicle path stamps one.
+      assignedAt: props.assignedAt ?? (vehicleId ? new Date().toISOString() : null),
       protocol: props.protocol ?? null,
       port: props.port ?? null,
       reportedProtocol: props.reportedProtocol ?? null,
@@ -394,6 +396,13 @@ export class Device {
     batteryLevel?: number | null;
     lastSeen?: string | null;
     reportedProtocol?: string | null;
+    protocol?: DeviceProtocol | null;
+    port?: number | null;
+    lifecycleStatus?: DeviceLifecycleStatus;
+    status?: DeviceStatus;
+    assignedAt?: string | null;
+    vehicleId?: string | null;
+    holdCause?: DeviceHoldCause | null;
   }): Device {
     return Device.create({
       ...this.toPrimitives(),
@@ -408,6 +417,13 @@ export class Device {
       lastSeen: values.lastSeen === undefined ? this.lastSeen : values.lastSeen,
       reportedProtocol:
         values.reportedProtocol === undefined ? this.reportedProtocol : values.reportedProtocol,
+      protocol: values.protocol === undefined ? this.protocol : values.protocol,
+      port: values.port === undefined ? this.port : values.port,
+      lifecycleStatus: values.lifecycleStatus ?? this.lifecycleStatus,
+      status: values.status ?? this.status,
+      assignedAt: values.assignedAt === undefined ? this.assignedAt : values.assignedAt,
+      vehicleId: values.vehicleId === undefined ? this.vehicleId : values.vehicleId,
+      holdCause: values.holdCause === undefined ? this.holdCause : values.holdCause,
       updatedAt: new Date().toISOString(),
     });
   }

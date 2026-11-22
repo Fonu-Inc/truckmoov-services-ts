@@ -19,6 +19,8 @@ type DeviceInventoryRow = {
   imei?: string;
   manufacturer?: string;
   model?: string;
+  firmware_version?: string | null;
+  protocol?: string | null;
   tenant_id?: string;
   status?: string;
   lifecycle_status?: string;
@@ -38,6 +40,8 @@ export type SystemDeviceInventoryListItem = {
   imei: string;
   manufacturer: string;
   model: string;
+  firmwareVersion: string | null;
+  protocol: string | null;
   tenantId: string;
   tenantName: string;
   lifecycleStatus: string;
@@ -135,6 +139,8 @@ export class ListSystemDeviceInventoryUseCase {
           imei,
           manufacturer,
           model,
+          firmware_version,
+          protocol,
           tenant_id,
           status,
           lifecycle_status,
@@ -162,6 +168,8 @@ export class ListSystemDeviceInventoryUseCase {
           imei: row.imei?.toString() ?? '',
           manufacturer: row.manufacturer?.toString() ?? '',
           model: row.model?.toString() ?? '',
+          firmwareVersion: row.firmware_version?.toString() ?? null,
+          protocol: row.protocol?.toString() ?? null,
           tenantId,
           tenantName: tenantNames.get(tenantId) ?? 'Unknown tenant',
           lifecycleStatus: row.lifecycle_status?.toString() ?? 'registered',

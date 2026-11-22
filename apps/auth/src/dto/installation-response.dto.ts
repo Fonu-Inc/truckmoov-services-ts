@@ -165,6 +165,13 @@ export class JobListItemSchema {
 
 export class InstallationJobListItemSchema extends JobListItemSchema {
   @ApiProperty() tenantId!: string;
+  @ApiProperty({ ...NULLABLE_STRING, description: 'The onboarding application business email.' })
+  customerEmail!: string | null;
+  @ApiProperty({ ...NULLABLE_STRING, description: 'enterprise or owner_operator.' })
+  tenantType!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ ...NULLABLE_DATE_TIME, description: 'When the installer started work.' })
+  startedAt!: string | null;
   @ApiProperty({ type: JobInstallerSummarySchema, nullable: true })
   installer!: JobInstallerSummarySchema | null;
   @ApiProperty({
@@ -212,6 +219,21 @@ export class InstallationJobChangeSchema {
 
 export class InstallationJobChangeResponse extends StandardApiResponse<InstallationJobChangeSchema> {
   @ApiProperty({ type: InstallationJobChangeSchema }) data!: InstallationJobChangeSchema;
+}
+
+export class InstallationJobAssignedInstallerSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ example: 'INS-0042' }) code!: string;
+  @ApiProperty() fullName!: string;
+}
+
+export class InstallationJobAssignmentSchema extends InstallationJobChangeSchema {
+  @ApiProperty({ type: InstallationJobAssignedInstallerSchema })
+  installer!: InstallationJobAssignedInstallerSchema;
+}
+
+export class InstallationJobAssignmentResponse extends StandardApiResponse<InstallationJobAssignmentSchema> {
+  @ApiProperty({ type: InstallationJobAssignmentSchema }) data!: InstallationJobAssignmentSchema;
 }
 
 export class FleetDeviceSchema {

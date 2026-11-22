@@ -649,6 +649,10 @@ import {
   SuspendSystemDeviceUseCase,
 } from './suspend-system-device.use-cases';
 import {
+  AssignSystemDevicesUseCase,
+  UpdateSystemDeviceUseCase,
+} from './update-system-device.use-cases';
+import {
   ApproveSystemDeviceSetupRequestUseCase,
   GetSystemDeviceSetupSummaryUseCase,
   RejectSystemDeviceSetupRequestUseCase,
@@ -1889,6 +1893,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SuspendSystemDeviceUseCase,
     ReinstateSystemDeviceUseCase,
     DecommissionSystemDeviceUseCase,
+    UpdateSystemDeviceUseCase,
+    AssignSystemDevicesUseCase,
     GetSystemDeviceSetupSummaryUseCase,
     SuperAdminBootstrapService,
     // Onboarding repositories

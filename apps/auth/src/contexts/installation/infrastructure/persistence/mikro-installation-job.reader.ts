@@ -123,6 +123,7 @@ function toJobRow(row: Row): JobRow {
     order: toOrder(row),
     customerName: (row.customer_name as string | null) ?? '',
     customerEmail: (row.customer_email as string | null) ?? null,
+    tenantType: (row.applicant_type as string | null) ?? null,
     firstVehicle: row.registration_number
       ? {
           registrationNumber: String(row.registration_number),
@@ -191,6 +192,7 @@ export class MikroInstallationJobReader implements InstallationJobReader {
     const where = whereOf(filters);
     const rows = await orm.em.getConnection().execute<Row[]>(
       `select o.*, app.organization_name as customer_name, app.business_email as customer_email,
+              app.applicant_type as applicant_type,
               fv.registration_number, fv.make, fv.model, fa.fleet_device_id,
               units.device_count, units.vehicle_count, count(*) over ()::int as total
          ${FROM}

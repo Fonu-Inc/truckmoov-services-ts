@@ -26,6 +26,8 @@ export type JobRow = {
   customerName: string;
   /** The application's business email. */
   customerEmail: string | null;
+  /** The onboarding application's applicant type, when it still exists. */
+  tenantType: string | null;
   firstVehicle: { registrationNumber: string; make: string; model: string } | null;
   firstFleetDeviceId: string | null;
   vehicleCount: number;

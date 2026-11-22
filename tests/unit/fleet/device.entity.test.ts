@@ -79,6 +79,30 @@ describe("Device entity", () => {
     expect(verified.reportedProtocol).toBeNull();
   });
 
+  it("keeps an explicit assignment date when the tenant holds the device without a vehicle", () => {
+    const held = makeDevice({
+      lifecycleStatus: "assignable",
+      status: "assigned",
+      assignedAt: "2026-11-22T10:00:00.000Z",
+    });
+    expect(held.assignedAt).toBe("2026-11-22T10:00:00.000Z");
+    expect(held.status).toBe("assigned");
+    expect(held.vehicleId).toBeNull();
+  });
+
+  it("update moves a device to a tenant and records the new protocol", () => {
+    const moved = makeDevice().update({
+      tenantId: "tenant-2",
+      protocol: "MQTT",
+      status: "assigned",
+      assignedAt: "2026-11-22T10:00:00.000Z",
+    });
+    expect(moved.tenantId).toBe("tenant-2");
+    expect(moved.protocol).toBe("MQTT");
+    expect(moved.status).toBe("assigned");
+    expect(moved.assignedAt).toBe("2026-11-22T10:00:00.000Z");
+  });
+
   it("update sets reportedProtocol only when explicitly given", () => {
     const withProtocol = makeDevice({ reportedProtocol: "teltonika" });
     expect(withProtocol.update({}).reportedProtocol).toBe("teltonika");

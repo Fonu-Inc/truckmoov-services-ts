@@ -18,11 +18,17 @@ import { Portals, Requires } from '@shared/access';
 import { INSTALLATION_ORDER_STATUSES } from './contexts/installation/domain/installation-order';
 import { ManageInstallationOrdersUseCases } from './contexts/installation/application/use-cases/manage-installation-orders.use-cases';
 import { AdminJobChangesUseCases } from './contexts/installation/application/use-cases/admin-job-changes.use-cases';
-import { BindUnitDeviceDto, ResolveInstallationIssueDto, UpdateInstallationOrderDto } from './dto/installer-portal.dto';
+import {
+  AssignInstallationOrderDto,
+  BindUnitDeviceDto,
+  ResolveInstallationIssueDto,
+  UpdateInstallationOrderDto,
+} from './dto/installer-portal.dto';
 import { bearer, jobStatusFilter, mapped, numeric, ok } from './installation-http';
 import { ApiErrorBody, ApiErrorResponse, ApiValidationErrorBody } from './dto/api-error.dto';
 import {
   BoundUnitResponse,
+  InstallationJobAssignmentResponse,
   InstallationJobChangeResponse,
   InstallationJobDetailResponse,
   InstallationJobPageResponse,
@@ -86,6 +92,28 @@ export class SystemInstallationOrdersController {
   ) {
     const query = { status: jobStatusFilter(status), installerId, search, page: numeric(page), limit: numeric(limit) };
     return ok(await mapped(() => this.orders.list(bearer(authorization), query)));
+  }
+
+  @Post(':id/assign')
+  @Requires('admin.installations.manage')
+  @ApiOperation({
+    summary: 'Assign an installer to an installation job',
+    description:
+      'Puts a named active installer on the booking and schedules it. Reassigning a scheduled or overdue job keeps that status; a job whose work has started cannot be reassigned.',
+  })
+  @ApiCreatedResponse({ description: 'Installer assigned', type: InstallationJobAssignmentResponse })
+  @InvalidBody('"installerId must be a string".')
+  @StaffErrors(`${JOB_NOT_FOUND}, or "Installer not found"`)
+  @ApiErrorResponse(409, `${JOB_CLOSED}, "A job that is <status> cannot be assigned", the installer is at capacity or already booked for the slot, or ${JOB_CHANGED}`)
+  async assignInstaller(
+    @Param('id') id: string,
+    @Body() body: AssignInstallationOrderDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return ok(
+      await mapped(() => this.changes.assignInstaller(bearer(authorization), id, body.installerId)),
+      'Installer assigned',
+    );
   }
 
   @Get(':id')

@@ -20,6 +20,7 @@ import {
   InstallationJobNotFoundError,
 } from './contexts/installation/domain/installation-job.errors';
 import { InvalidInstallerPhotoError } from './contexts/installation/domain/installer-photo';
+import { InstallerNotFoundError, InstallerStateError } from './contexts/installation/domain/installer';
 import { InvalidEvidenceError } from './contexts/installation/domain/installation-evidence';
 import { InstallerNotificationNotFoundError } from './contexts/installation/domain/installer-notification';
 import {
@@ -59,6 +60,8 @@ const REFUSALS: Array<[new (...args: never[]) => Error, new (message?: string) =
   [InvalidRejectionReasonError, BadRequestException],
   [FleetDeviceRefusedError, UnprocessableEntityException],
   [InstallationJobNotFoundError, NotFoundException],
+  [InstallerNotFoundError, NotFoundException],
+  [InstallerStateError, ConflictException],
   [InstallerNotificationNotFoundError, NotFoundException],
   [DeviceSetupRequestNotFoundError, NotFoundException],
   [InstallationJobClosedError, ConflictException],

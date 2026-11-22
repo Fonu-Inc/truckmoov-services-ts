@@ -15,6 +15,7 @@ import {
   DETAILS_LOCKED_STATUSES,
   TERMINAL_JOB_STATUSES,
   assertSchedulable,
+  assignOrder,
   bookingDay,
   transitionOrder,
 } from '@auth/installation/domain/installation-order';
@@ -25,6 +26,11 @@ import {
   type StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
 import {
+  INSTALLER_REPOSITORY,
+  type InstallerRepository,
+} from '@auth/installation/domain/installer.repository';
+import { InstallerNotFoundError, InstallerStateError } from '@auth/installation/domain/installer';
+import {
   InstallationJobClosedError,
   InstallationJobConflictError,
   InstallationJobNotFoundError,
@@ -34,7 +40,7 @@ import { ActivityLogService } from '../../../../activity-log.service';
 import { requireStaff, type Staff } from './support/platform-staff';
 import { JOB_CHANGED_MESSAGE, moveJob } from './support/job-transition';
 import { validateTimeSlot } from './schedule-installation.use-case';
-import { InstallerNotifier } from '../services/installer-notifier.service';
+import { assignedNotice, InstallerNotifier } from '../services/installer-notifier.service';
 
 export type IssueOutcome = 'resume' | 'cancel';
 export const ISSUE_OUTCOMES: readonly IssueOutcome[] = ['resume', 'cancel'];
@@ -85,6 +91,13 @@ function issueOutcome(value: unknown): IssueOutcome {
   return value as IssueOutcome;
 }
 
+function assignmentConflict(outcome: 'full' | 'conflict' | 'taken' | 'declined'): string {
+  if (outcome === 'full') return 'This installer already has the maximum number of active jobs';
+  if (outcome === 'conflict') return 'This installer is already booked for that date and time slot';
+  if (outcome === 'declined') return 'This installer already declined this job';
+  return JOB_CHANGED_MESSAGE;
+}
+
 function resolutionNote(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   const note = String(value).trim();
@@ -120,12 +133,77 @@ function afterDetailsChange(
 export class AdminJobChangesUseCases {
   constructor(
     @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
+    @Inject(INSTALLER_REPOSITORY) private readonly installers: InstallerRepository,
     @Inject(TOKEN_SERVICE) private readonly tokens: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(AccessResolver) private readonly access: AccessResolver,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
     @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
   ) {}
+
+  /**
+   * Puts a named installer on a booking. The customer has already picked a
+   * date, so a platform assignment is final rather than an offer: the job moves
+   * straight to scheduled. Reassigning a scheduled or overdue job keeps that
+   * status. Work that has started keeps its installer.
+   */
+  async assignInstaller(accessToken: string, orderId: string, installerId: string, now: Date = new Date()) {
+    const staff = await this.staff(accessToken);
+    const order = await this.order(orderId);
+    if (TERMINAL_JOB_STATUSES.includes(order.status)) throw new InstallationJobClosedError();
+    if (!['unassigned', 'assigned', 'scheduled', 'overdue'].includes(order.status)) {
+      throw new InstallationJobConflictError(`A job that is ${order.status} cannot be assigned`);
+    }
+
+    const installer = await this.installers.findById(installerId);
+    if (!installer) throw new InstallerNotFoundError();
+    if (installer.status !== 'active') {
+      throw new InstallerStateError(`Only an active installer can be assigned a job. This one is ${installer.status}`);
+    }
+
+    let saved: StoredInstallationOrder;
+    if (order.status === 'unassigned') {
+      const outcome = await this.orders.assignIfRoom(
+        assignOrder(order, installer.id, now),
+        installer.maxActiveJobs,
+      );
+      if (outcome !== 'assigned') throw new InstallationJobConflictError(assignmentConflict(outcome));
+      const assigned = await this.orders.findById(order.id);
+      if (!assigned) throw new InstallationJobNotFoundError();
+      saved = transitionOrder(assigned, 'scheduled', now);
+      if (!(await this.orders.transition(saved, 'assigned'))) {
+        throw new InstallationJobConflictError(JOB_CHANGED_MESSAGE);
+      }
+    } else if (order.status === 'assigned') {
+      const offered = { ...order, installerId: installer.id, updatedAt: now };
+      await this.orders.save(offered);
+      saved = transitionOrder(offered, 'scheduled', now);
+      if (!(await this.orders.transition(saved, 'assigned'))) {
+        throw new InstallationJobConflictError(JOB_CHANGED_MESSAGE);
+      }
+    } else {
+      saved = {
+        ...order,
+        installerId: installer.id,
+        assignedAt: order.assignedAt ?? now,
+        acceptedAt: order.acceptedAt ?? now,
+        updatedAt: now,
+      };
+      await this.orders.save(saved);
+    }
+
+    await this.audit(staff, saved, 'system.installation.assigned', `${order.orderNumber} assigned to ${installer.fullName}`, {
+      installerId: installer.id,
+      status: saved.status,
+    });
+    await this.notifier.notify(assignedNotice(saved, now), now);
+    return {
+      id: saved.id,
+      jobNumber: saved.orderNumber,
+      status: saved.status,
+      installer: { id: installer.id, code: installer.code, fullName: installer.fullName },
+    };
+  }
 
   async resolveIssue(accessToken: string, orderId: string, requested: unknown, note?: unknown, now: Date = new Date()) {
     const staff = await this.staff(accessToken);

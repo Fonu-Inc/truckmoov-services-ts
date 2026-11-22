@@ -206,6 +206,13 @@ export class ResolveInstallationIssueDto {
   note?: string;
 }
 
+export class AssignInstallationOrderDto {
+  @ApiProperty({ description: 'The active installer who will carry out the job.' })
+  @IsString()
+  @MaxLength(64)
+  installerId!: string;
+}
+
 export class UpdateInstallationOrderDto {
   @ApiPropertyOptional({ example: '2026-10-02', description: 'At least one day and at most 90 days ahead' })
   @IsOptional()

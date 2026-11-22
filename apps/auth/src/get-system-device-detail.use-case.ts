@@ -18,6 +18,7 @@ type DeviceDetailRow = {
   manufacturer?: string;
   model?: string;
   firmware_version?: string | null;
+  protocol?: string | null;
   tenant_id?: string;
   status?: string;
   lifecycle_status?: string;
@@ -95,7 +96,7 @@ export class GetSystemDeviceDetailUseCase {
     }
 
     const rows = await connection.execute<DeviceDetailRow[]>(
-      `select id, imei, manufacturer, model, firmware_version, tenant_id, status,
+      `select id, imei, manufacturer, model, firmware_version, protocol, tenant_id, status,
               lifecycle_status, signal_strength, battery_level, last_seen, vehicle_id,
               assigned_at, created_at, updated_at
        from fleet_devices
@@ -109,7 +110,7 @@ export class GetSystemDeviceDetailUseCase {
     }
 
     const tenantId = row.tenant_id?.toString() ?? '';
-    const [protocol, tenantName] = await Promise.all([
+    const [catalogProtocol, tenantName] = await Promise.all([
       this.loadProtocol(
         connection,
         row.manufacturer?.toString() ?? '',
@@ -117,6 +118,9 @@ export class GetSystemDeviceDetailUseCase {
       ),
       this.loadTenantName(connection, tenantId),
     ]);
+    // What the installer configured is the device's protocol; the catalogue is
+    // only a fallback for devices that predate the column being written.
+    const protocol = row.protocol?.toString() ?? catalogProtocol;
 
     return {
       id: row.id?.toString() ?? deviceId,

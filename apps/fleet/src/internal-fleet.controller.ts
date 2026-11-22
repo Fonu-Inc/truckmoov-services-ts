@@ -8,6 +8,7 @@ import {
   NotFoundException,
   Optional,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -39,7 +40,16 @@ import {
   heartbeatWindow,
 } from "./contexts/fleet/devices";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
-import type { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
+import { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
+import type {
+  DeviceLifecycleStatus,
+  DeviceProtocol,
+  DeviceStatus,
+} from "./contexts/fleet/devices/domain/entities/device.entity";
+import {
+  PlatformAssignDevicesDto,
+  PlatformUpdateDeviceDto,
+} from "./dto/platform-device.dto";
 import {
   DEVICE_CATALOG_PORT,
   type DeviceCatalogPort,
@@ -203,6 +213,88 @@ export class InternalFleetController extends BaseFleetController {
   async decommissionDevice(@Param("deviceId") deviceId: string) {
     const data = await this.runDeviceAction(() => this.decommissionDeviceUseCase.execute(deviceId));
     return { status: true, message: "Device decommissioned", data };
+  }
+
+  /**
+   * Corrects a device record from the platform inventory.
+   *
+   * Tenant-scoped editing cannot serve this screen: the administrator does not
+   * know which tenant holds the device. The fields are descriptive (make,
+   * model, firmware, protocol, service state); assignment has its own route
+   * below because it moves the device between tenants.
+   */
+  @Patch("devices/:deviceId")
+  @UseGuards(PlatformActorGuard)
+  async updateDevice(@Param("deviceId") deviceId: string, @Body() payload: PlatformUpdateDeviceDto) {
+    const device = await this.devices.findByIdAcrossTenants(deviceId);
+    if (!device) throw new NotFoundException(`Device ${deviceId} was not found`);
+
+    try {
+      const updated = device.update({
+        manufacturer: payload.manufacturer,
+        model: payload.model,
+        firmwareVersion: payload.firmwareVersion,
+        protocol: payload.protocol as DeviceProtocol | undefined,
+        port: payload.port,
+        lifecycleStatus: payload.lifecycleStatus as DeviceLifecycleStatus | undefined,
+        status: payload.status as DeviceStatus | undefined,
+      });
+      await this.devices.save(updated);
+      return { status: true, message: "Device updated", data: updated.toPrimitives() };
+    } catch (error) {
+      if (error instanceof FleetRuleError) throw new BadRequestException(error.message);
+      if (error instanceof Error) throw new BadRequestException(error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Records that one or more devices now belong to a tenant.
+   *
+   * Device assignment in fleet is vehicle assignment, which needs a tenant to
+   * scope the lookup. The platform is moving stock between tenants, so it sets
+   * the holder and the assigned date directly; the device is then assignable
+   * to a vehicle from the tenant's own screen.
+   */
+  @Post("devices/assign")
+  @UseGuards(PlatformActorGuard)
+  async assignDevicesToTenant(@Body() payload: PlatformAssignDevicesDto) {
+    const found = await Promise.all(
+      payload.deviceIds.map((id) => this.devices.findByIdAcrossTenants(id)),
+    );
+    const missing = payload.deviceIds.filter((_, index) => !found[index]);
+    if (missing.length > 0) {
+      throw new NotFoundException(`Device ${missing[0]} was not found`);
+    }
+
+    const now = new Date().toISOString();
+    const updated: Device[] = [];
+    for (const device of found as Device[]) {
+      if (device.lifecycleStatus === "suspended" || device.lifecycleStatus === "decommissioned") {
+        throw new BadRequestException(
+          `A ${device.lifecycleStatus} device cannot be assigned to a tenant`,
+        );
+      }
+      const moved = device.update({
+        tenantId: payload.tenantId,
+        // The tenant holds the device but no vehicle yet. `assigned` lifecycle
+        // requires a vehicle, so the holder is recorded as the operational
+        // status and the device stays ready for the tenant to fit.
+        lifecycleStatus: "assignable",
+        status: "assigned",
+        assignedAt: now,
+        vehicleId: null,
+        holdCause: null,
+      });
+      await this.devices.save(moved);
+      updated.push(moved);
+    }
+
+    return {
+      status: true,
+      message: "Devices assigned",
+      data: { tenantId: payload.tenantId, updated: updated.length },
+    };
   }
 
   private async runDeviceAction<T>(action: () => Promise<T>): Promise<T> {

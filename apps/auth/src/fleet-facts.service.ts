@@ -46,7 +46,7 @@ function isSafePathId(value: string): boolean {
 
 export type TenantExportTable = { columns: string[]; rows: Array<Array<string | number | boolean | null>> };
 
-export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission';
+export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission' | 'update' | 'assign';
 export type TenantHoldCounts = { devices: number; vehicles: number; shareLinks: number };
 export type TenantHoldResult = ({ ok: true } & TenantHoldCounts) | { ok: false; message: string };
 
@@ -132,6 +132,73 @@ export class FleetFactsService {
     } catch (error) {
       this.logger.warn(
         `fleet_device_${action}_failed:${deviceId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
+  /** Corrects the descriptive fields of a device, whatever tenant holds it. */
+  async updateDevice(
+    deviceId: string,
+    patch: Record<string, unknown>,
+  ): Promise<{ ok: true; device: Record<string, unknown> } | { ok: false; status: number; message: string }> {
+    if (!isSafePathId(deviceId)) {
+      return { ok: false, status: 404, message: 'Device not found' };
+    }
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.patch<{ data?: Record<string, unknown>; message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/${encodeURIComponent(deviceId)}`,
+        patch,
+        { headers, timeout: 5000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal(deviceId, 'update', response.status, response.data?.message);
+      }
+      return { ok: true, device: response.data?.data ?? {} };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_device_update_failed:${deviceId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
+  /** Moves stock devices to a tenant so they can be fitted from that tenant's fleet. */
+  async assignDevicesToTenant(
+    tenantId: string,
+    deviceIds: string[],
+    notes?: string,
+  ): Promise<{ ok: true; updated: number } | { ok: false; status: number; message: string }> {
+    if (!isSafePathId(tenantId) || deviceIds.some((id) => !isSafePathId(id))) {
+      return { ok: false, status: 400, message: 'The tenant or device id is not valid' };
+    }
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.post<{ data?: { updated?: number }; message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/assign`,
+        { tenantId, deviceIds, notes },
+        { headers, timeout: 10000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal(deviceIds[0] ?? tenantId, 'assign', response.status, response.data?.message);
+      }
+      return { ok: true, updated: response.data?.data?.updated ?? deviceIds.length };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_device_assign_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
       );
       return { ok: false, status: 503, message: 'The device service could not be reached' };
     }

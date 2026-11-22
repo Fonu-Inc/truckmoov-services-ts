@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AdminJobChangesUseCases,
   InMemoryInstallationJobReader,
+  InstallerStateError,
   InMemoryInstallationOrderRepository,
   InMemoryInstallerRepository,
   InMemoryJobIssueRecorder,
@@ -103,7 +104,7 @@ async function harness() {
   await users.save({ id: "platform", email: "p@co.com", passwordHash: "x", role: "PLATFORM_ADMIN", tenantId: "system" });
   const access = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
   const installerNotifier = { notify: vi.fn(async () => {}) };
-  const changes = new AdminJobChangesUseCases(orders, tokens as never, users, access, activity as never, installerNotifier as never);
+  const changes = new AdminJobChangesUseCases(orders, installers, tokens as never, users, access, activity as never, installerNotifier as never);
   const admin = new ManageInstallationOrdersUseCases(orders, reader, installers, lookup, tokens as never, users, access, activity as never, tickets);
 
   await installers.save(installer("ada"));
@@ -515,6 +516,43 @@ describe("admins rescheduling or editing a job", () => {
   it("refuses a change made from a stale read", async () => {
     vi.spyOn(h.orders, "saveDetails").mockResolvedValueOnce(false);
     await expect(h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(InstallationJobConflictError);
+  });
+});
+
+describe("admins assigning an installer", () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await harness();
+  });
+
+  it("assigns an unassigned job and schedules it", async () => {
+    await h.orders.save(order({ status: "unassigned", installerId: null, assignedAt: null, acceptedAt: null }));
+    const result = await h.changes.assignInstaller("platform", "job-1", "bola", NOW);
+
+    expect(result).toMatchObject({ status: "scheduled", installer: { id: "bola", code: "INS-bola" } });
+    expect(await h.orders.findById("job-1")).toMatchObject({
+      status: "scheduled", installerId: "bola", assignedAt: NOW, acceptedAt: NOW,
+    });
+    expect(h.installerNotifier.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "job_assigned" }),
+      NOW,
+    );
+  });
+
+  it("reassigns a scheduled job without changing its status", async () => {
+    const result = await h.changes.assignInstaller("platform", "job-1", "bola", NOW);
+    expect(result.status).toBe("scheduled");
+    expect(await h.orders.findById("job-1")).toMatchObject({
+      status: "scheduled", installerId: "bola", scheduledDate: new Date("2026-09-25T00:00:00Z"),
+    });
+  });
+
+  it("refuses an inactive installer and work that has started", async () => {
+    await h.installers.save({ ...installer("bola"), status: "suspended" });
+    await expect(h.changes.assignInstaller("platform", "job-1", "bola", NOW)).rejects.toBeInstanceOf(InstallerStateError);
+
+    await h.orders.save(order({ status: "in_progress", startedAt: NOW }));
+    await expect(h.changes.assignInstaller("platform", "job-1", "ada", NOW)).rejects.toBeInstanceOf(InstallationJobConflictError);
   });
 });
 
