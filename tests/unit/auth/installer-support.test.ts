@@ -98,14 +98,15 @@ async function harness() {
   );
   const reader = new InMemoryInstallationJobReader(orders, applications, installers);
   const lookup = { forTenant: vi.fn(async () => new Map()) };
-  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, new InMemorySimRepository(), tickets);
+  const sims = new InMemorySimRepository();
+  const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, sims, tickets);
 
   const users = new InMemoryUserRepository();
   await users.save({ id: "platform", email: "p@co.com", passwordHash: "x", role: "PLATFORM_ADMIN", tenantId: "system" });
   const access = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
   const installerNotifier = { notify: vi.fn(async () => {}) };
   const changes = new AdminJobChangesUseCases(orders, installers, tokens as never, users, access, activity as never, installerNotifier as never);
-  const admin = new ManageInstallationOrdersUseCases(orders, reader, installers, lookup, tokens as never, users, access, activity as never, tickets);
+  const admin = new ManageInstallationOrdersUseCases(orders, reader, installers, lookup, tokens as never, users, access, activity as never, tickets, applications, sims);
 
   await installers.save(installer("ada"));
   await installers.save(installer("bola"));

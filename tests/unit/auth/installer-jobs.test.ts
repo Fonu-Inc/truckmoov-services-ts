@@ -769,7 +769,7 @@ describe("admins binding a unit's device", () => {
     admin = new ManageInstallationOrdersUseCases(
       h.orders, h.reader, h.installers, h.lookup,
       { resolveAccessToken: (t: string) => (["platform", "gov"].includes(t) ? { id: t, email: `${t}@co.com`, role: t === "platform" ? "PLATFORM_ADMIN" : "GOVERNANCE_OFFICER" } : null) } as never,
-      users, access, activity as never, h.tickets,
+      users, access, activity as never, h.tickets, h.applications, h.sims,
     );
     await h.installers.save(installer("ada"));
     await h.job("1", "Lagos Express Logistics", { installerId: "ada", status: "assigned" });

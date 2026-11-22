@@ -145,7 +145,8 @@ export type JobDetailParts = {
   vehicles: StoredOnboardingApplicationVehicle[];
   devices: DeviceIndex;
   sims: StoredSim[];
-  installer: StoredInstaller;
+  /** Null for an unassigned admin view; the installer portal always has one. */
+  installer: StoredInstaller | null;
   ticks: StoredChecklistTick[];
   evidence: StoredInstallationEvidence[];
 };
@@ -164,7 +165,7 @@ function completionOf(parts: JobDetailParts, units: ReturnType<typeof toUnitView
   return toCompletionView({
     order: parts.order,
     customer: parts.application?.organizationName ?? '',
-    installer: parts.installer.fullName,
+    installer: parts.installer?.fullName ?? '',
     vehicles: units.flatMap((unit) => (unit.vehicle ? [unit.vehicle.registrationNumber] : [])),
     devices: units.flatMap((unit) => (unit.device ? [`${unit.device.manufacturer} ${unit.device.model}`.trim()] : [])),
     checklistCompleted,
@@ -188,6 +189,9 @@ export function toJobDetail(parts: JobDetailParts) {
       address: `${order.addressLine}, ${order.city}, ${order.state}`,
       ...schedule(order),
     },
+    installer: parts.installer
+      ? { id: parts.installer.id, code: parts.installer.code, fullName: parts.installer.fullName }
+      : null,
     units,
     checklist,
     evidence: parts.evidence.map(toEvidenceView),

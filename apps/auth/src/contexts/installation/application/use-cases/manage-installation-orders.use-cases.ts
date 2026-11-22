@@ -36,6 +36,11 @@ import {
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
 import { INSTALLATION_JOB_CONTEXT } from '@auth/installation/domain/installer-support';
+import {
+  ONBOARDING_APPLICATION_REPOSITORY,
+  type OnboardingApplicationRepository,
+} from '@auth/onboarding/domain/onboarding-application.repository';
+import { SIM_REPOSITORY, type SimRepository } from '../../../../sim.repository';
 import { AccessResolver } from '../../../../access-resolver';
 import {
   SUPPORT_TICKET_REPOSITORY,
@@ -45,7 +50,7 @@ import {
 } from '../../../../support-ticket.repository';
 import { ActivityLogService } from '../../../../activity-log.service';
 import { pageOf } from './support/paging';
-import { devicesForJobs, toJobListItem } from './support/installation-job.views';
+import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
 import { requireStaff, type Staff } from './support/platform-staff';
 
 export type ListInstallationOrdersQuery = {
@@ -77,6 +82,8 @@ export class ManageInstallationOrdersUseCases {
     @Inject(AccessResolver) private readonly access: AccessResolver,
     @Inject(ActivityLogService) private readonly activity: ActivityLogService,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY) private readonly applications: OnboardingApplicationRepository,
+    @Inject(SIM_REPOSITORY) private readonly sims: SimRepository,
   ) {}
 
   async list(accessToken: string, query: ListInstallationOrdersQuery) {
@@ -94,18 +101,45 @@ export class ManageInstallationOrdersUseCases {
     return { items: await this.items(found.items), page, limit, total: found.total };
   }
 
-  /** One job as the list shows it, with every installer who rejected the offer. */
+  /** One job with its units, checklist and evidence, plus every installer who rejected the offer. */
   async detail(accessToken: string, orderId: string) {
     await this.staff(accessToken, 'admin.installations.read');
     const [row] = (await this.jobs.list({ orderId }, { page: 1, limit: 1 })).items;
     if (!row) throw new InstallationJobNotFoundError();
-    const [[item], rejections] = await Promise.all([this.items([row]), this.orders.findOfferRejections([row.order.id])]);
-    const rejecters = await this.installersById(rejections.map((r) => r.installerId));
+    const order = row.order;
+
+    const [application, assignments, vehicles, ticks, evidence, rejections] = await Promise.all([
+      this.applications.findById(order.applicationId),
+      this.orders.findAssignments(order.id),
+      this.applications.findVehiclesByApplicationId(order.applicationId),
+      this.orders.findTicks(order.id),
+      this.orders.findEvidence(order.id),
+      this.orders.findOfferRejections([order.id]),
+    ]);
+    const deviceIds = assignments.flatMap((assignment) => (assignment.fleetDeviceId ? [assignment.fleetDeviceId] : []));
+    const [devices, sims, installers] = await Promise.all([
+      devicesForJobs(this.devices, deviceIds.map((deviceId) => ({ tenantId: order.tenantId, deviceId }))),
+      this.sims.findByDeviceIds(deviceIds),
+      this.installersById([...new Set([order.installerId, ...rejections.map((r) => r.installerId)])].filter((id): id is string => !!id)),
+    ]);
+
+    const detail = toJobDetail({
+      order,
+      application,
+      assignments,
+      vehicles,
+      devices,
+      sims: sims.filter((sim) => sim.tenantId === order.tenantId),
+      installer: installers.get(order.installerId ?? '') ?? null,
+      ticks,
+      evidence,
+    });
+
     return {
-      ...item,
+      ...detail,
       offerRejections: rejections.map((rejection) => ({
         installerId: rejection.installerId,
-        installerName: rejecters.get(rejection.installerId)?.fullName ?? null,
+        installerName: installers.get(rejection.installerId)?.fullName ?? null,
         reason: rejection.reason,
         rejectedAt: rejection.rejectedAt.toISOString(),
       })),

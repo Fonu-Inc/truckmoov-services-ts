@@ -226,6 +226,7 @@ describe("rejecting an offer", () => {
       { resolveAccessToken: (t: string) => (t === "platform" ? { id: t, email: "p@co.com", role: "PLATFORM_ADMIN" } : null) } as never,
       users, new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository()),
       { record: vi.fn() } as never, new InMemorySupportTicketRepository(),
+      h.applications, new InMemorySimRepository(),
     );
     await h.reject.execute("user-ada", "o1", "Too far from my route", NOW);
 
