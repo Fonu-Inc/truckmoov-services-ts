@@ -144,6 +144,21 @@ describe("settling a card payment", () => {
     expect(h.billingAudit.actions().filter((a) => a === "system.billing.renewal_duplicate_payment")).toHaveLength(1);
   });
 
+  it("refuses a payment that would take a partly paid invoice past its total", async () => {
+    const h = await buildRenewals();
+    const { invoice } = await issued(h);
+    const half = Math.floor(invoice.totalKobo / 2);
+    await h.gatewayPayment("RNW-1", invoice.id, half);
+    await h.gatewayPayment("RNW-2", invoice.id, invoice.totalKobo);
+
+    expect((await gatewaySettle(h, "RNW-1", half)).outcome).toBe("partial");
+    expect((await gatewaySettle(h, "RNW-2", invoice.totalKobo)).outcome).toBe("duplicate");
+
+    expect(await h.invoices.findById(invoice.id)).toMatchObject({ amountPaidKobo: half });
+    expect((await h.payments.findByReference("RNW-2"))?.status).toBe("refunded");
+    expect((await h.wallet.findByTenantId(TENANT))?.balanceKobo).toBe(invoice.totalKobo);
+  });
+
   it("lets exactly one of two simultaneously paid payments renew", async () => {
     const h = await buildRenewals();
     const { invoice } = await issued(h);
@@ -297,12 +312,23 @@ describe("paying by card", () => {
     });
   });
 
-  it("creates a fresh reference per click", async () => {
+  it("returns the checkout already started instead of charging again", async () => {
     const h = await buildRenewals();
     const { invoice } = await issued(h);
     const first = await h.payCard.execute(TENANT, invoice.id);
     const second = await h.payCard.execute(TENANT, invoice.id);
-    expect(first.data.reference).not.toBe(second.data.reference);
+    expect(second.data).toMatchObject({ reference: first.data.reference, authorizationUrl: first.data.authorizationUrl });
+    expect(h.gateway.initiateCharge).toHaveBeenCalledTimes(1);
+    expect(await h.payments.findByInvoiceId(invoice.id)).toHaveLength(1);
+  });
+
+  it("starts a new checkout once the earlier one failed", async () => {
+    const h = await buildRenewals();
+    const { invoice } = await issued(h);
+    const first = await h.payCard.execute(TENANT, invoice.id);
+    await gatewaySettle(h, first.data.reference, invoice.totalKobo, false);
+    const second = await h.payCard.execute(TENANT, invoice.id);
+    expect(second.data.reference).not.toBe(first.data.reference);
   });
 
   it("refuses a paid invoice, a foreign invoice, a huge amount and a missing provider", async () => {

@@ -54,6 +54,7 @@ export class TenantInvoicePaymentSchema {
 
 export class TenantInvoiceDetailSchema extends TenantInvoiceSchema {
   @ApiProperty() subtotalNgn!: number;
+  @ApiProperty({ description: 'Subtotal - discount + tax = total.' }) discountNgn!: number;
   @ApiProperty() taxNgn!: number;
   @ApiProperty({ description: 'Basis points, 750 is 7.5%.' }) taxRateBp!: number;
   @ApiProperty({ type: [QuotationLineSchema] }) lines!: QuotationLineSchema[];

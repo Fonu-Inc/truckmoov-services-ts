@@ -48,6 +48,7 @@ type PayableInvoice = InvoiceWithLines & { isRenewal: boolean };
 
 const RECOVERY_DELAY_MS = 10 * 60 * 1000;
 const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const CHECKOUT_REUSE_MS = 24 * 60 * 60 * 1000;
 
 async function loadPayable(
   invoices: InvoiceRepository,
@@ -253,6 +254,16 @@ export class PayRenewalByCardUseCase {
       throw new PaymentProviderUnavailableError();
     }
 
+    // A second click returns the checkout already started, so the customer cannot be charged twice for one invoice.
+    const started = await this.startedCheckout(invoice, amountKobo, now);
+    if (started) {
+      return success({
+        authorizationUrl: started.authorizationUrl,
+        reference: started.reference,
+        amountNgn: koboToNgn(amountKobo),
+      });
+    }
+
     const payment = pendingPayment(
       invoice,
       {
@@ -295,6 +306,21 @@ export class PayRenewalByCardUseCase {
     const authorizationUrl = await this.charge(payment, invoice);
     this.logger.log(`renewal_payment_started:${payment.reference}`);
     return success({ authorizationUrl, reference: payment.reference, amountNgn: koboToNgn(amountKobo) });
+  }
+
+  private async startedCheckout(invoice: PayableInvoice, amountKobo: number, now: Date) {
+    if (this.gateway.demo) return null;
+    const rows = await this.payments.findByInvoiceId(invoice.id);
+    return (
+      rows.find(
+        (row) =>
+          row.status === 'pending' &&
+          row.provider === this.gateway.name &&
+          row.amountKobo === amountKobo &&
+          row.authorizationUrl !== null &&
+          now.getTime() - row.createdAt.getTime() < CHECKOUT_REUSE_MS,
+      ) ?? null
+    );
   }
 
   private async charge(payment: StoredOnboardingPayment, invoice: PayableInvoice): Promise<string | null> {

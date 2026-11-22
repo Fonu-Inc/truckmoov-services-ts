@@ -193,7 +193,8 @@ export class MikroLicencePeriodRepository implements LicencePeriodRepository {
       [input.invoiceId, input.paymentId],
     );
     const closed = invoice.status === 'cancelled' || invoice.status === 'draft';
-    if (closed || Number(others?.paid ?? 0) >= total) {
+    // Refused whole when it would take the invoice past its total: the money goes back to the wallet.
+    if (closed || Number(others?.paid ?? 0) + amountKobo > total) {
       await query(
         `update onboarding_payments set status = 'refunded', note = ?, updated_at = now()
           where id = ? and status = 'paid' returning id`,

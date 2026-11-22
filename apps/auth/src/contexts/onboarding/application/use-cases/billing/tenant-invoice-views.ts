@@ -102,6 +102,7 @@ export function tenantInvoiceDetailView(
   return {
     ...tenantInvoiceView(invoice, { ...context, plan: planFactsOf(invoice.lines) }),
     subtotalNgn: koboToNgn(invoice.subtotalKobo),
+    discountNgn: koboToNgn(invoice.discountKobo),
     taxNgn: koboToNgn(invoice.taxKobo),
     taxRateBp: invoice.taxRateBp,
     lines: invoice.lines.map(lineView),

@@ -140,7 +140,7 @@ export class InMemoryLicencePeriodRepository implements LicencePeriodRepository 
       .filter((candidate) => candidate.id !== payment.id && candidate.status === 'paid')
       .reduce((sum, candidate) => sum + candidate.amountKobo, 0);
     const closed = invoice.status === 'cancelled' || invoice.status === 'draft';
-    if (closed || others >= invoice.totalKobo) {
+    if (closed || others + payment.amountKobo > invoice.totalKobo) {
       await this.payments.save({ ...payment, status: 'refunded', note: DUPLICATE_PAYMENT_NOTE });
       return { outcome: 'duplicate', amountKobo: payment.amountKobo, reason: closed ? 'invoice_closed' : 'duplicate' };
     }
