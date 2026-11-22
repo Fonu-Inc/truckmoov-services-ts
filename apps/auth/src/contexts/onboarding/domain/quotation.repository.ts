@@ -79,6 +79,8 @@ export type QuotationListRow = {
   quotation: StoredQuotation;
   paidKobo: number;
   lineCount: number;
+  /** Name of the first plan line, null when the quotation has none. */
+  productName: string | null;
 };
 
 export const TENANT_QUOTATION_STATUSES = [

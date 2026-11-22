@@ -403,6 +403,8 @@ describe("quotation history", () => {
       id: "03",
       number: "QT-2026-03",
       customerName: "Gamma Logistics",
+      productName: "Standard",
+      deviceCount: 2,
       customerType: "fleet_provider",
       billingEmail: "a@acme.com",
       status: "sent",

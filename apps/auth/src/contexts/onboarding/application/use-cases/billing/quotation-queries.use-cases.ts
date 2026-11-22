@@ -58,7 +58,7 @@ export class ListQuotationsUseCase {
     });
     return success({
       items: items.map((row) =>
-        toQuotationRowView(row.quotation, row.paidKobo, row.lineCount, now),
+        toQuotationRowView(row.quotation, row.paidKobo, row.lineCount, now, row.productName),
       ),
       total,
       ...paging,

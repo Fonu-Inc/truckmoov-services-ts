@@ -24,6 +24,8 @@ export class InvoiceRowSchema {
   @ApiProperty({ example: 'INV-2026-001' }) number!: string;
   @ApiProperty({ type: String, nullable: true }) quotationId!: string | null;
   @ApiProperty({ type: String, nullable: true }) quotationNumber!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'Plan line name, null when the invoice has none.' }) productName!: string | null;
+  @ApiProperty({ description: 'Devices on the plan line, 0 when the invoice has none.' }) deviceCount!: number;
   @ApiProperty({ type: String, nullable: true }) tenantId!: string | null;
   @ApiProperty({ description: 'True for a licence renewal invoice.' }) isRenewal!: boolean;
   @ApiProperty({ type: String, nullable: true, description: 'Licence end date a renewal invoice covers.' }) periodEnd!: string | null;

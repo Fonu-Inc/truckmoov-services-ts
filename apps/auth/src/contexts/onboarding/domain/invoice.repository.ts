@@ -59,6 +59,9 @@ export type InvoiceListRow = {
   invoice: StoredInvoice;
   quotationNumber: string | null;
   isRenewal: boolean;
+  /** Name of the first plan line, null when the invoice has none. */
+  productName: string | null;
+  deviceCount: number;
 };
 
 export const TENANT_INVOICE_STATES = ['pending', 'partially_paid', 'overdue'] as const;

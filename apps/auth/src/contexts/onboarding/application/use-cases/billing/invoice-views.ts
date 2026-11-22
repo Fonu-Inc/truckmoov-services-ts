@@ -7,8 +7,10 @@ import {
 import type { StoredOnboardingPayment } from '@auth/onboarding/domain/onboarding-payment.repository';
 import { toApiPaymentStatus } from '@auth/onboarding/domain/payment-status';
 import { koboToNgn } from '@auth/onboarding/domain/quotation-totals';
+import { firstPlanLine } from './quotation-views';
 
 export type InvoiceRenewalInfo = { isRenewal: boolean; periodEnd: string | null };
+export type InvoiceProductInfo = { productName: string | null; deviceCount: number };
 
 const FIRST_PURCHASE: InvoiceRenewalInfo = { isRenewal: false, periodEnd: null };
 
@@ -16,13 +18,16 @@ export function toInvoiceRowView(
   invoice: StoredInvoice,
   quotationNumber: string | null,
   today: string,
-  renewal: InvoiceRenewalInfo = FIRST_PURCHASE,
+  renewal: InvoiceRenewalInfo,
+  product: InvoiceProductInfo,
 ) {
   return {
     id: invoice.id,
     number: invoice.number,
     quotationId: invoice.quotationId,
     quotationNumber,
+    productName: product.productName,
+    deviceCount: product.deviceCount,
     tenantId: invoice.tenantId,
     isRenewal: renewal.isRenewal,
     periodEnd: renewal.periodEnd,
@@ -71,8 +76,12 @@ export function toInvoiceDetailView(
   today: string,
   renewal: InvoiceRenewalInfo = FIRST_PURCHASE,
 ) {
+  const plan = firstPlanLine(invoice.lines);
   return {
-    ...toInvoiceRowView(invoice, quotationNumber, today, renewal),
+    ...toInvoiceRowView(invoice, quotationNumber, today, renewal, {
+      productName: plan?.name ?? null,
+      deviceCount: plan?.quantity ?? 0,
+    }),
     billingEmail: invoice.billingEmail,
     taxRateBp: invoice.taxRateBp,
     lines: invoice.lines.map(toInvoiceLineView),

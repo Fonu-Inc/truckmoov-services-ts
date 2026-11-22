@@ -21,6 +21,8 @@ export class QuotationRowSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 'QT-2026-0001' }) number!: string;
   @ApiProperty() customerName!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Plan line name, null when the quotation has none.' }) productName!: string | null;
+  @ApiProperty() deviceCount!: number;
   @ApiProperty() customerType!: string;
   @ApiProperty() billingEmail!: string;
   @ApiProperty({ enum: QUOTATION_STATUSES }) status!: string;

@@ -99,11 +99,16 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   async list(filter: InvoiceListFilter) {
     const rows: InvoiceListRow[] = await Promise.all(
       [...this.invoices.values()].map(async (invoice) => {
-        const { lines: _lines, ...header } = copy(invoice);
+        const { lines, ...header } = copy(invoice);
+        const plan = lines
+          .filter((line) => line.kind === 'plan')
+          .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))[0];
         return {
           invoice: header,
           quotationNumber: await this.findQuotationNumber(invoice.id),
           isRenewal: isRenewalInvoice(invoice),
+          productName: plan?.name ?? null,
+          deviceCount: plan?.quantity ?? 0,
         };
       }),
     );

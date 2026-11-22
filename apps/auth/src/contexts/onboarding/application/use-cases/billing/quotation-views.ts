@@ -8,16 +8,25 @@ import {
 import { toApiPaymentStatus } from '@auth/onboarding/domain/payment-status';
 import { koboToNgn } from '@auth/onboarding/domain/quotation-totals';
 
+export function firstPlanLine<L extends { kind: string; position: number; id: string }>(lines: L[]): L | undefined {
+  return lines
+    .filter((line) => line.kind === 'plan')
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))[0];
+}
+
 export function toQuotationRowView(
   quotation: StoredQuotation,
   paidKobo: number,
   lineCount: number,
   now: Date,
+  productName: string | null,
 ) {
   return {
     id: quotation.id,
     number: quotation.number,
     customerName: quotation.customerName,
+    productName,
+    deviceCount: quotation.deviceCount,
     customerType: quotation.customerType,
     billingEmail: quotation.billingEmail,
     status: effectiveQuotationStatus(quotation, now),
@@ -66,7 +75,7 @@ export function toQuotationDetailView(
     .filter((payment) => payment.status === 'paid')
     .reduce((sum, payment) => sum + payment.amountKobo, 0);
   return {
-    ...toQuotationRowView(quotation, paidKobo, quotation.lines.length, now),
+    ...toQuotationRowView(quotation, paidKobo, quotation.lines.length, now, firstPlanLine(quotation.lines)?.name ?? null),
     lines: quotation.lines.map(toQuotationLineView),
     payments: payments.map(toQuotationPaymentView),
   };

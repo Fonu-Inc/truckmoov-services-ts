@@ -67,10 +67,13 @@ export class ListInvoicesUseCase {
     const ends = (await this.periods?.periodEndsForInvoices(items.map((row) => row.invoice.id))) ?? new Map();
     return success({
       items: items.map((row) =>
-        toInvoiceRowView(row.invoice, row.quotationNumber, today, {
-          isRenewal: row.isRenewal,
-          periodEnd: ends.get(row.invoice.id) ?? null,
-        }),
+        toInvoiceRowView(
+          row.invoice,
+          row.quotationNumber,
+          today,
+          { isRenewal: row.isRenewal, periodEnd: ends.get(row.invoice.id) ?? null },
+          { productName: row.productName, deviceCount: row.deviceCount },
+        ),
       ),
       total,
       ...paging,

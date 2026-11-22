@@ -102,7 +102,9 @@ const LIST_SOURCE = `from (
   select q.*,
     coalesce((select sum(p.amount_kobo) from onboarding_payments p
                where p.quotation_id = q.id and p.status = 'paid'), 0) as paid_kobo,
-    (select count(*) from billing_quotation_lines l where l.quotation_id = q.id) as line_count
+    (select count(*) from billing_quotation_lines l where l.quotation_id = q.id) as line_count,
+    (select l.name from billing_quotation_lines l where l.quotation_id = q.id and l.kind = 'plan'
+      order by l.position, l.id limit 1) as plan_name
   from billing_quotations q
 ) x`;
 
@@ -232,6 +234,7 @@ export class MikroQuotationRepository implements QuotationRepository {
       quotation: toQuotation(row),
       paidKobo: Number(row.paid_kobo),
       lineCount: Number(row.line_count),
+      productName: row.plan_name == null ? null : String(row.plan_name),
     }));
     return { items, total: Number(counted[0]?.total ?? 0) };
   }

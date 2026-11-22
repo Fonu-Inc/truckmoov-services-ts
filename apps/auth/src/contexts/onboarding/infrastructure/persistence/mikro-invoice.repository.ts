@@ -105,8 +105,12 @@ function listWhere(filter: InvoiceListFilter) {
   return { sql: clauses.length ? `where ${clauses.join(' and ')}` : '', params };
 }
 
+const PLAN_LINE = (column: string) => `(select l.${column} from billing_invoice_lines l
+  where l.invoice_id = i.id and l.kind = 'plan' order by l.position, l.id limit 1)`;
+
 const LIST_SOURCE = `from (
   select ${HEADER_COLUMNS}, q.number as quotation_number, ${RENEWAL_LINE} as is_renewal,
+    ${PLAN_LINE('name')} as plan_name, ${PLAN_LINE('quantity')} as plan_quantity,
     case when i.status in ('issued', 'partially_paid')
               and i.due_date < ?::date and i.total_kobo > i.amount_paid_kobo
          then 'overdue' else i.status end as effective_status
@@ -152,9 +156,6 @@ function tenantScopeClause(scope: TenantInvoiceFilter['scope']): string {
   if (scope === 'paid') return `${visible} and i.status = 'paid'`;
   return visible;
 }
-
-const PLAN_LINE = (column: string) => `(select l.${column} from billing_invoice_lines l
-  where l.invoice_id = i.id and l.kind = 'plan' order by l.position, l.id limit 1)`;
 
 const TENANT_ROW_COLUMNS = `${HEADER_COLUMNS}, ${RENEWAL_LINE} as is_renewal,
   ${PLAN_LINE('name')} as plan_name, ${PLAN_LINE('quantity')} as plan_quantity,
@@ -287,6 +288,8 @@ export class MikroInvoiceRepository implements InvoiceRepository {
       invoice: toInvoice(row),
       quotationNumber: asNullableString(row.quotation_number),
       isRenewal: Boolean(row.is_renewal),
+      productName: asNullableString(row.plan_name),
+      deviceCount: Number(row.plan_quantity ?? 0),
     }));
     return { items, total: Number(counted[0]?.total ?? 0) };
   }

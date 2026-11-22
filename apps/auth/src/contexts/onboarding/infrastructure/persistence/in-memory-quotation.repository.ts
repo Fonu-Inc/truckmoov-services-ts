@@ -115,7 +115,10 @@ export class InMemoryQuotationRepository implements QuotationRepository {
           .filter((payment) => payment.status === 'paid')
           .reduce((sum, payment) => sum + payment.amountKobo, 0);
         const { lines, ...header } = copy(quotation);
-        return { quotation: header, paidKobo, lineCount: lines.length };
+        const plan = lines
+          .filter((line) => line.kind === 'plan')
+          .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))[0];
+        return { quotation: header, paidKobo, lineCount: lines.length, productName: plan?.name ?? null };
       }),
     );
   }
