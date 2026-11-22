@@ -36,7 +36,7 @@ import {
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
 import { assertStageAdvance } from '@auth/onboarding/domain/onboarding-stage';
 import { GetOnboardingApplicationUseCase } from './get-onboarding-application.use-case';
-import { loadInstallationFees } from './support/installation-fees';
+import { installationFeesFrom, telecomMasterSimNgnFrom } from './support/installation-fees';
 import { loadTaxRateBp } from './support/billing-terms';
 import { methodFromChannel } from '@auth/onboarding/domain/payment-method';
 import { InvoiceIssuanceService } from '../services/invoice-issuance.service';
@@ -479,11 +479,12 @@ async function priceApplication(
     throw new ApplicationNotPayableError('No devices were requested');
   }
 
-  const fees = await loadInstallationFees(settings);
+  const stored = await settings.getAll();
   return buildOrderSummary(
     plan as StoredM2mLicensePlan,
     deviceCount,
-    installationFeeFor(application.applicantType, fees),
+    installationFeeFor(application.applicantType, installationFeesFrom(stored)),
     await loadTaxRateBp(settings),
+    application.telecomMasterNumberType === 'new' ? telecomMasterSimNgnFrom(stored) : 0,
   );
 }

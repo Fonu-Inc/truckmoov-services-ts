@@ -42,6 +42,7 @@ export class PaymentBreakdownSchema {
   @ApiProperty() devicesNgn!: number;
   @ApiProperty() installationPerDeviceNgn!: number;
   @ApiProperty() installationNgn!: number;
+  @ApiProperty() telecomMasterSimNgn!: number;
   @ApiProperty() subtotalNgn!: number;
   @ApiProperty() taxRateBp!: number;
   @ApiProperty() taxNgn!: number;

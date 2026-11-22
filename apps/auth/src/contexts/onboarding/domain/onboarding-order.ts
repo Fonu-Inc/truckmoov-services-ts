@@ -10,6 +10,9 @@ import { computeTotals, koboToNgn } from './quotation-totals';
  */
 export const DEFAULT_INSTALLATION_FEE_PER_DEVICE_NGN = 15_000;
 
+/** One SIM for a new Telecom Master number, collected at the MTN service centre. */
+export const DEFAULT_TELECOM_MASTER_SIM_NGN = 700;
+
 export type InstallationFees = {
   enterpriseNgn: number;
   ownerOperatorNgn: number;
@@ -32,6 +35,8 @@ export type OnboardingOrderSummary = {
   devicesNgn: number;
   installationNgn: number;
   installationPerDeviceNgn: number;
+  /** Zero unless a new Telecom Master number was requested; absent on older paid orders. */
+  telecomMasterSimNgn?: number;
   subtotalNgn: number;
   taxRateBp: number;
   taxNgn: number;
@@ -52,6 +57,7 @@ export function buildOrderSummary(
   deviceCount: number,
   installationFeePerDeviceNgn: number,
   taxRateBp = 0,
+  telecomMasterSimNgn = 0,
 ): OnboardingOrderSummary {
   const devicesNgn = plan.perDeviceYear1Ngn * deviceCount;
   const installationNgn = installationFeePerDeviceNgn * deviceCount;
@@ -59,6 +65,9 @@ export function buildOrderSummary(
     [
       { quantity: deviceCount, unitPriceKobo: toKobo(plan.perDeviceYear1Ngn) },
       { quantity: deviceCount, unitPriceKobo: toKobo(installationFeePerDeviceNgn) },
+      ...(telecomMasterSimNgn > 0
+        ? [{ quantity: 1, unitPriceKobo: toKobo(telecomMasterSimNgn) }]
+        : []),
     ],
     0,
     taxRateBp,
@@ -72,6 +81,7 @@ export function buildOrderSummary(
     devicesNgn,
     installationNgn,
     installationPerDeviceNgn: installationFeePerDeviceNgn,
+    telecomMasterSimNgn,
     subtotalNgn: koboToNgn(totals.subtotalKobo),
     taxRateBp,
     taxNgn: koboToNgn(totals.taxKobo),

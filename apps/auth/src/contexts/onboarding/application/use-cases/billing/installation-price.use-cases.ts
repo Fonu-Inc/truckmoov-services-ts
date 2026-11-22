@@ -25,14 +25,17 @@ import {
   type BillingAudit,
 } from '@auth/onboarding/domain/ports/billing-audit.port';
 import { success, toPriceChangeView } from './billing-views';
-import { installationFeesFrom, loadInstallationFees } from '../support/installation-fees';
+import { installationFeesFrom, telecomMasterSimNgnFrom } from '../support/installation-fees';
 
 const ITEM_REF = 'installation_fee';
+const SIM_ITEM_REF = 'telecom_master_sim';
 const RECENT_HISTORY_LIMIT = 10;
 
 export type UpdateInstallationPriceInput = {
   enterpriseNgn: unknown;
   ownerOperatorNgn: unknown;
+  /** Omitted keeps the current SIM price. */
+  telecomMasterSimNgn?: unknown;
   reason?: unknown;
   effectiveDate?: string;
 };
@@ -41,8 +44,7 @@ async function view(
   settings: BillingSettingsRepository,
   history: BillingPriceChangeRepository,
 ) {
-  const [fees, stored, recent] = await Promise.all([
-    loadInstallationFees(settings),
+  const [stored, recent, simRecent] = await Promise.all([
     settings.getAll(),
     history.list({
       itemType: 'installation_fee',
@@ -50,7 +52,14 @@ async function view(
       page: 1,
       limit: RECENT_HISTORY_LIMIT,
     }),
+    history.list({
+      itemType: 'telecom_master_sim',
+      itemRef: SIM_ITEM_REF,
+      page: 1,
+      limit: RECENT_HISTORY_LIMIT,
+    }),
   ]);
+  const fees = installationFeesFrom(stored);
   const touched = [
     stored[BILLING_SETTING_KEYS.installationFeeEnterprise],
     stored[BILLING_SETTING_KEYS.installationFeeOwnerOperator],
@@ -66,6 +75,10 @@ async function view(
     ownerOperatorNgn: fees.ownerOperatorNgn,
     lastChangedAt: lastChangedAt?.toISOString() ?? null,
     priceHistory: recent.items.map(toPriceChangeView),
+    telecomMasterSimNgn: telecomMasterSimNgnFrom(stored),
+    telecomMasterSimLastChangedAt:
+      stored[BILLING_SETTING_KEYS.telecomMasterSim]?.updatedAt.toISOString() ?? null,
+    telecomMasterSimPriceHistory: simRecent.items.map(toPriceChangeView),
   };
 }
 
@@ -99,25 +112,45 @@ export class UpdateInstallationPriceUseCase {
       enterpriseNgn: requirePositiveInt('enterpriseNgn', input.enterpriseNgn),
       ownerOperatorNgn: requirePositiveInt('ownerOperatorNgn', input.ownerOperatorNgn),
     };
+    const nextSim =
+      input.telecomMasterSimNgn === undefined
+        ? undefined
+        : requirePositiveInt('telecomMasterSimNgn', input.telecomMasterSimNgn);
     const now = new Date();
     const effectiveDate = resolveEffectiveDate(input.effectiveDate, now);
-    const applied: { changed: PriceDelta[]; reason?: string } = { changed: [] };
+    const applied: { changed: PriceDelta[]; simChanged: PriceDelta[]; sim: number; reason?: string } = {
+      changed: [],
+      simChanged: [],
+      sim: 0,
+    };
 
     await this.settings.editPriced(actor.userId, (stored) => {
-      const deltas = this.deltas(installationFeesFrom(stored), next);
-      applied.changed = realChanges(deltas);
-      if (applied.changed.length === 0) return null;
+      const currentSim = telecomMasterSimNgnFrom(stored);
+      applied.sim = nextSim ?? currentSim;
+      applied.changed = realChanges(this.deltas(installationFeesFrom(stored), next));
+      applied.simChanged = realChanges([
+        { field: 'unit_price', oldPriceNgn: currentSim, newPriceNgn: applied.sim },
+      ]);
+      if (applied.changed.length === 0 && applied.simChanged.length === 0) return null;
       applied.reason = requireReason(input.reason);
-      return this.edit(applied.changed, {
-        actor,
-        reason: applied.reason,
-        effectiveDate,
-        now,
-      });
+      const ctx = { actor, reason: applied.reason, effectiveDate, now };
+      const fees = this.edit(applied.changed, ctx);
+      const sim = this.simEdit(applied.simChanged, ctx);
+      return {
+        updates: [...fees.updates, ...sim.updates],
+        changes: [...fees.changes, ...sim.changes],
+      };
     });
 
     if (applied.reason !== undefined) {
-      await this.recordAudit(actor, next, applied.changed, applied.reason, effectiveDate);
+      await this.recordAudit(
+        actor,
+        next,
+        applied.sim,
+        [...applied.changed, ...applied.simChanged],
+        applied.reason,
+        effectiveDate,
+      );
     }
     return success(await view(this.settings, this.history));
   }
@@ -153,9 +186,31 @@ export class UpdateInstallationPriceUseCase {
     return { updates, changes };
   }
 
+  private simEdit(
+    changed: PriceDelta[],
+    ctx: { actor: BillingActor; reason: string; effectiveDate: string; now: Date },
+  ): PricedSettingsEdit {
+    const changes = toPriceChanges({
+      deltas: changed,
+      itemType: 'telecom_master_sim',
+      itemRef: SIM_ITEM_REF,
+      effectiveDate: ctx.effectiveDate,
+      reason: ctx.reason,
+      actor: ctx.actor,
+      now: ctx.now,
+      nextId: () => this.ids.generate(),
+    });
+    const updates = changed.map((delta) => ({
+      key: BILLING_SETTING_KEYS.telecomMasterSim,
+      value: delta.newPriceNgn,
+    }));
+    return { updates, changes };
+  }
+
   private async recordAudit(
     actor: BillingActor,
     next: InstallationFees,
+    telecomMasterSimNgn: number,
     changed: PriceDelta[],
     reason: string,
     effectiveDate: string,
@@ -168,6 +223,7 @@ export class UpdateInstallationPriceUseCase {
       metadata: {
         enterpriseNgn: next.enterpriseNgn,
         ownerOperatorNgn: next.ownerOperatorNgn,
+        telecomMasterSimNgn,
         changes: changed,
         reason,
         effectiveDate,

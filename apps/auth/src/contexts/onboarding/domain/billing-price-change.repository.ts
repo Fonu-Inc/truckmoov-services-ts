@@ -1,4 +1,4 @@
-export const PRICE_CHANGE_ITEM_TYPES = ['m2m_plan', 'installation_fee'] as const;
+export const PRICE_CHANGE_ITEM_TYPES = ['m2m_plan', 'installation_fee', 'telecom_master_sim'] as const;
 export type PriceChangeItemType = (typeof PRICE_CHANGE_ITEM_TYPES)[number];
 
 export const PRICE_CHANGE_FIELDS = [
@@ -6,6 +6,7 @@ export const PRICE_CHANGE_FIELDS = [
   'renewal',
   'enterprise',
   'owner_operator',
+  'unit_price',
 ] as const;
 export type PriceChangeField = (typeof PRICE_CHANGE_FIELDS)[number];
 

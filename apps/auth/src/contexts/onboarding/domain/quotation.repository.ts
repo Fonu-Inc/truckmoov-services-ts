@@ -10,7 +10,7 @@ export const QUOTATION_STATUSES = [
 ] as const;
 export type QuotationStatus = (typeof QUOTATION_STATUSES)[number];
 
-export type QuotationLineKind = 'plan' | 'installation';
+export type QuotationLineKind = 'plan' | 'installation' | 'telecom_master_sim';
 
 export type StoredQuotationLine = {
   id: string;

@@ -40,7 +40,7 @@ export class QuotationRowSchema {
 }
 
 export class QuotationLineSchema {
-  @ApiProperty({ enum: ['plan', 'installation'] }) kind!: string;
+  @ApiProperty({ enum: ['plan', 'installation', 'telecom_master_sim'] }) kind!: string;
   @ApiProperty() name!: string;
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty() quantity!: number;

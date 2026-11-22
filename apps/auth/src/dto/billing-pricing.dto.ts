@@ -16,7 +16,7 @@ import {
 } from 'class-validator';
 import { StandardApiResponse } from '@shared/openapi';
 
-const PRICE_ITEM_TYPES = ['m2m_plan', 'installation_fee'] as const;
+const PRICE_ITEM_TYPES = ['m2m_plan', 'installation_fee', 'telecom_master_sim'] as const;
 
 export class CreateLicensePlanDto {
   @ApiProperty({ description: 'Unique, lowercase letters, digits and underscores.' })
@@ -60,7 +60,7 @@ export class ListLicensePlansQueryDto {
 export class ListPriceHistoryQueryDto {
   @ApiPropertyOptional({ enum: PRICE_ITEM_TYPES })
   @IsOptional() @IsIn(PRICE_ITEM_TYPES) itemType?: (typeof PRICE_ITEM_TYPES)[number];
-  @ApiPropertyOptional({ description: 'Plan code, or installation_fee.' })
+  @ApiPropertyOptional({ description: 'Plan code, installation_fee or telecom_master_sim.' })
   @IsOptional() @IsString() itemRef?: string;
   @ApiPropertyOptional({ default: 1 }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @ApiPropertyOptional({ default: 20, maximum: 100 }) @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
@@ -71,6 +71,8 @@ export class UpdateInstallationPriceDto {
   @IsInt() @Min(1) enterpriseNgn!: number;
   @ApiProperty({ description: 'Whole naira per device for owner operators.' })
   @IsInt() @Min(1) ownerOperatorNgn!: number;
+  @ApiPropertyOptional({ description: 'Whole naira for the Telecom Master SIM on a new-number application. Omitted keeps the current price.' })
+  @IsOptional() @IsInt() @Min(1) telecomMasterSimNgn?: number;
   @ApiPropertyOptional({ description: 'Required when a price changes.' })
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
   @ApiPropertyOptional({ description: 'YYYY-MM-DD, Africa/Lagos, not in the future. Defaults to today.' })
@@ -96,7 +98,7 @@ export class PriceChangeViewSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ enum: PRICE_ITEM_TYPES }) itemType!: string;
   @ApiProperty() itemRef!: string;
-  @ApiProperty({ enum: ['year1', 'renewal', 'enterprise', 'owner_operator'] }) field!: string;
+  @ApiProperty({ enum: ['year1', 'renewal', 'enterprise', 'owner_operator', 'unit_price'] }) field!: string;
   @ApiProperty() oldPriceNgn!: number;
   @ApiProperty() newPriceNgn!: number;
   @ApiProperty({ description: 'YYYY-MM-DD' }) effectiveDate!: string;
@@ -159,6 +161,9 @@ export class InstallationPriceSchema {
   @ApiProperty() ownerOperatorNgn!: number;
   @ApiProperty({ type: String, nullable: true }) lastChangedAt!: string | null;
   @ApiProperty({ type: [PriceChangeViewSchema] }) priceHistory!: PriceChangeViewSchema[];
+  @ApiProperty() telecomMasterSimNgn!: number;
+  @ApiProperty({ type: String, nullable: true }) telecomMasterSimLastChangedAt!: string | null;
+  @ApiProperty({ type: [PriceChangeViewSchema] }) telecomMasterSimPriceHistory!: PriceChangeViewSchema[];
 }
 
 export class InstallationPriceResponse extends StandardApiResponse<InstallationPriceSchema> {

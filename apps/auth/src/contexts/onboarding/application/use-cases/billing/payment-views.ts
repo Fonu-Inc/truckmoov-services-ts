@@ -32,6 +32,7 @@ function toBreakdownView(row: PaymentHistoryRow) {
     devicesNgn: order.devicesNgn,
     installationPerDeviceNgn: order.installationPerDeviceNgn,
     installationNgn: order.installationNgn,
+    telecomMasterSimNgn: order.telecomMasterSimNgn ?? 0,
     subtotalNgn: order.subtotalNgn,
     taxRateBp: order.taxRateBp,
     taxNgn: order.taxNgn,

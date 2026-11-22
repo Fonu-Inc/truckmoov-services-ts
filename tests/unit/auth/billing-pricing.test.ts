@@ -368,6 +368,25 @@ describe("Installation price", () => {
     expect(audit.entries.map((e) => e.action)).toEqual(["system.billing.installation_price_changed"]);
   });
 
+  it("defaults the Telecom Master SIM to 700 and records a change to it", async () => {
+    expect((await get.execute()).data.telecomMasterSimNgn).toBe(700);
+
+    const result = await update.execute(ACTOR, {
+      enterpriseNgn: 15_000,
+      ownerOperatorNgn: 15_000,
+      telecomMasterSimNgn: 900,
+      reason: "MTN SIM price update",
+    });
+
+    expect(result.data).toMatchObject({ telecomMasterSimNgn: 900, priceHistory: [] });
+    expect(result.data.telecomMasterSimPriceHistory[0]).toMatchObject({
+      itemType: "telecom_master_sim",
+      field: "unit_price",
+      oldPriceNgn: 700,
+      newPriceNgn: 900,
+    });
+  });
+
   it("is a no-op when both prices match, with no reason needed", async () => {
     await update.execute(ACTOR, { enterpriseNgn: 15_000, ownerOperatorNgn: 15_000 });
 

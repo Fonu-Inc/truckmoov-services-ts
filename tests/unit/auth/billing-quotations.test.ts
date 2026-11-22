@@ -268,6 +268,35 @@ describe("order quotation on payment start", () => {
     ]);
   });
 
+  it("adds one 700 naira Telecom Master SIM line for a new number and charges it", async () => {
+    await applications.save(application({ telecomMasterNumberType: "new" }));
+    await setup(25_000, 2);
+
+    const started = await start();
+
+    const quotation = await linkedQuotation();
+    expect(quotation?.lines.map((l) => [l.kind, l.name, l.quantity, l.unitPriceKobo])).toEqual([
+      ["plan", "Standard", 2, 2_500_000],
+      ["installation", "Installation", 2, 1_500_000],
+      ["telecom_master_sim", "Telecom Master SIM", 1, 70_000],
+    ]);
+    expect(quotation).toMatchObject({ subtotalKobo: 8_070_000, totalKobo: 8_070_000 });
+    expect(started.data.order).toMatchObject({ telecomMasterSimNgn: 700, totalNgn: 80_700 });
+    expect(charged).toEqual([8_070_000]);
+  });
+
+  it.each([["existing" as const], [null]])("adds no SIM line when the number type is %s", async (type) => {
+    await applications.save(application({ telecomMasterNumberType: type, telecomMasterMsisdn: type ? "2348031234567" : null }));
+    await setup(25_000, 2);
+
+    const started = await start();
+
+    const quotation = await linkedQuotation();
+    expect(quotation?.lines.map((l) => l.kind)).toEqual(["plan", "installation"]);
+    expect(quotation?.totalKobo).toBe(8_000_000);
+    expect(started.data.order.telecomMasterSimNgn).toBe(0);
+  });
+
   it("reuses the quotation on a second click and links both payments to it", async () => {
     await setup(25_000, 2);
 

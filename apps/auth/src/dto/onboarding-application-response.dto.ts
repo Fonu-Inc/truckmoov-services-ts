@@ -193,6 +193,8 @@ export class M2mPlanSchema {
 
 export class M2mPlansDataSchema {
   @ApiProperty({ type: [M2mPlanSchema] }) plans!: M2mPlanSchema[];
+  @ApiProperty({ description: 'Naira added to the quotation when a new Telecom Master number is requested.' })
+  telecomMasterSimNgn!: number;
 }
 
 export class EmailAvailabilitySchema {
@@ -277,6 +279,8 @@ export class OnboardingOrderSchema {
   @ApiProperty() perDeviceNgn!: number;
   @ApiProperty() devicesNgn!: number;
   @ApiProperty() installationNgn!: number;
+  @ApiPropertyOptional({ description: 'Telecom Master SIM charge; 0 unless a new number was requested.' })
+  telecomMasterSimNgn?: number;
   @ApiProperty() totalNgn!: number;
   @ApiProperty() renewalPerDeviceNgn!: number;
 }

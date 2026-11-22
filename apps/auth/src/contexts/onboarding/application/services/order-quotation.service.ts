@@ -125,7 +125,7 @@ export class OrderQuotationService {
     summary: OnboardingOrderSummary,
   ): Promise<StoredQuotationLine[]> {
     const plan = await this.plans.findByCode(summary.planCode);
-    return [
+    const lines: StoredQuotationLine[] = [
       {
         id: this.idGenerator.generate(),
         quotationId,
@@ -155,5 +155,23 @@ export class OrderQuotationService {
         isRenewal: false,
       },
     ];
+    const simNgn = summary.telecomMasterSimNgn ?? 0;
+    if (simNgn > 0) {
+      lines.push({
+        id: this.idGenerator.generate(),
+        quotationId,
+        position: 2,
+        kind: 'telecom_master_sim',
+        planCode: null,
+        name: 'Telecom Master SIM',
+        description: 'New MTN SIM, collected at the service centre',
+        quantity: 1,
+        unitPriceKobo: toKobo(simNgn),
+        validityDays: null,
+        components: null,
+        isRenewal: false,
+      });
+    }
+    return lines;
   }
 }

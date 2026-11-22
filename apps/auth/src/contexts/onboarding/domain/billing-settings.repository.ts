@@ -3,6 +3,7 @@ import type { StoredBillingPriceChange } from './billing-price-change.repository
 export const BILLING_SETTING_KEYS = {
   installationFeeEnterprise: 'installation_fee_enterprise_ngn',
   installationFeeOwnerOperator: 'installation_fee_owner_operator_ngn',
+  telecomMasterSim: 'telecom_master_sim_ngn',
   defaultTaxRatePct: 'default_tax_rate_pct',
   quoteValidityDays: 'quote_validity_days',
   invoiceDueDays: 'invoice_due_days',
