@@ -105,6 +105,7 @@ import { InvoiceSeriesInvoiceNumbers } from './invoice-number.allocator';
 import { SystemBillingInvoicesController } from './system-billing-invoices.controller';
 import { SystemBillingEnforcementController } from './system-billing-enforcement.controller';
 import { TenantBillingController } from './tenant-billing.controller';
+import { StorageUsageController } from './storage-usage.controller';
 import {
   GetTenantPaymentUseCase,
   GetTenantQuotationUseCase,
@@ -848,7 +849,10 @@ import {
   GetTelecomMasterRequestUseCase,
   ListTelecomMasterRequestsUseCase,
   RetryTelecomMasterRequestUseCase,
+  ResolveTelecomMasterRequestUseCase,
+  TenantTelecomMasterUseCases,
 } from './telecom-master.use-cases';
+import { TenantTelecomMasterController } from './tenant-telecom-master.controller';
 // Bundle catalog
 import { BUNDLE_CATALOG_REPOSITORY } from './bundle-catalog.repository';
 import { InMemoryBundleCatalogRepository } from './in-memory-bundle-catalog.repository';
@@ -1007,6 +1011,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemReferenceDataController,
     SystemTenantsController,
     SystemTelecomMasterController,
+    TenantTelecomMasterController,
     SystemDevicesController,
     SystemSimsController,
     SystemSupportController,
@@ -1018,6 +1023,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemBillingInvoicesController,
     SystemBillingEnforcementController,
     TenantBillingController,
+    StorageUsageController,
     SuspensionsController,
     SystemKycController,
     OnboardingController,
@@ -2496,6 +2502,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListTelecomMasterRequestsUseCase,
     GetTelecomMasterRequestUseCase,
     RetryTelecomMasterRequestUseCase,
+    ResolveTelecomMasterRequestUseCase,
+    TenantTelecomMasterUseCases,
     {
       provide: BUNDLE_CARRIER_REPOSITORY,
       inject: [InMemoryBundleCarrierRepository, MikroBundleCarrierRepository, AppConfigService],

@@ -38,6 +38,9 @@ function toStoredEvent(e: TelecomMasterEventRecord): StoredTelecomMasterEvent {
     requestId: e.requestId,
     action: e.action,
     detail: e.detail,
+    fromStatus: e.fromStatus ?? null,
+    toStatus: e.toStatus ?? null,
+    actorId: e.actorId ?? null,
     createdAt: e.createdAt,
   };
 }
@@ -60,6 +63,38 @@ export class MikroTelecomMasterRepository implements TelecomMasterRepository {
     const orm = await getAuthOrm(this.config.db);
     const record = await orm.em.fork().findOne(TelecomMasterRequestRecord, { id });
     return record ? toStoredRequest(record) : null;
+  }
+
+  async findLatestForTenant(tenantId: string): Promise<StoredTelecomMasterRequest | null> {
+    const orm = await getAuthOrm(this.config.db);
+    const [record] = await orm.em.fork().find(
+      TelecomMasterRequestRecord,
+      { tenantId },
+      { orderBy: { createdAt: 'desc' }, limit: 1 },
+    );
+    return record ? toStoredRequest(record) : null;
+  }
+
+  async isMsisdnTaken(msisdn: string, exceptRequestId?: string): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    const count = await orm.em.fork().count(TelecomMasterRequestRecord, {
+      msisdn,
+      status: { $nin: ['verification_failed', 'allocation_failed'] },
+      ...(exceptRequestId ? { id: { $ne: exceptRequestId } } : {}),
+    });
+    return count > 0;
+  }
+
+  async isDeviceSimMsisdn(msisdn: string): Promise<boolean> {
+    const orm = await getAuthOrm(this.config.db);
+    // SIM MSISDNs are stored in mixed formats, so compare the national 10 digits.
+    const rows = await orm.em.fork().getConnection().execute<{ found: number }[]>(
+      `select 1 as found from iot_sims
+       where msisdn is not null and right(regexp_replace(msisdn, '[^0-9]', '', 'g'), 10) = ?
+       limit 1`,
+      [msisdn.slice(-10)],
+    );
+    return rows.length > 0;
   }
 
   async save(request: StoredTelecomMasterRequest): Promise<void> {

@@ -1889,3 +1889,29 @@ export class ServiceCategoryListResponse extends StandardApiResponse<string[]> {
   @ApiProperty({ type: String, isArray: true })
   data!: string[];
 }
+
+/* ── Maintenance settings ─────────────────────────────────────────────── */
+
+export class MaintenanceSettingsSchema {
+  @ApiProperty({ enum: ["allow", "warn", "block"] }) dispatchOverdueAction!: "allow" | "warn" | "block";
+  @ApiProperty({ enum: ["allow", "warn", "block"] }) dispatchDueAction!: "allow" | "warn" | "block";
+  @ApiProperty({ minimum: 1, maximum: 30 }) warnDaysBefore!: number;
+}
+
+export class MaintenanceSettingsResponse extends StandardApiResponse<MaintenanceSettingsSchema> {
+  @ApiProperty({ type: MaintenanceSettingsSchema })
+  data!: MaintenanceSettingsSchema;
+}
+
+export class DispatchEligibilitySchema {
+  @ApiProperty() eligible!: boolean;
+  @ApiProperty({ nullable: true, type: String }) blockReason!: string | null;
+  @ApiProperty({ type: String, isArray: true }) warnings!: string[];
+  @ApiProperty() overdueCount!: number;
+  @ApiProperty() dueCount!: number;
+}
+
+export class DispatchEligibilityResponse extends StandardApiResponse<DispatchEligibilitySchema> {
+  @ApiProperty({ type: DispatchEligibilitySchema })
+  data!: DispatchEligibilitySchema;
+}

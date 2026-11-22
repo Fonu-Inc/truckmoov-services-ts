@@ -55,9 +55,9 @@ export const MAINTENANCE_SERVICE_CATEGORIES = [
   "general_inspection",
 ] as const;
 
-export function computeLifecycleStatus(profile: StoredMaintenanceProfile): MaintenanceLifecycleStatus {
+export function computeLifecycleStatus(profile: StoredMaintenanceProfile, dueWithinDays = 14): MaintenanceLifecycleStatus {
   const today = lagosToday();
-  const soonStr = lagosDayOffset(14);
+  const soonStr = lagosDayOffset(dueWithinDays);
 
   if (profile.nextDueDate) {
     if (profile.nextDueDate < today) return "overdue";

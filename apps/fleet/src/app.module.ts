@@ -203,6 +203,8 @@ import { OverviewController } from "./overview.controller";
 import { DriverPerformanceListener } from "./driver-performance.listener";
 import { AnalyticsController } from "./analytics.controller";
 import { MaintenanceController } from "./maintenance.controller";
+import { MaintenanceSettingsController } from "./maintenance-settings.controller";
+import { MAINTENANCE_SETTINGS_REPOSITORY, MikroMaintenanceSettingsRepository } from "./maintenance-settings.repository";
 import { GeofencesController } from "./geofences.controller";
 import { ComplianceController } from "./compliance.controller";
 import { FinancialsController } from "./financials.controller";
@@ -346,6 +348,8 @@ import { InMemoryTenantHoldRepository } from "./contexts/fleet/tenant-hold/infra
 import { MikroTenantHoldRepository } from "./contexts/fleet/tenant-hold/infrastructure/mikro-tenant-hold.repository";
 import { StorageReconciliationService } from "./storage-reconciliation.service";
 import { StorageReporterService } from "./storage-reporter.service";
+import { StorageUsageController } from "./storage-usage.controller";
+import { StorageUsageService } from "./storage-usage.service";
 import { TenantActiveGuard } from "./tenant-active.guard";
 import { TenantStatusService } from "./tenant-status.service";
 import { TenantGuard } from "./tenant.guard";
@@ -381,6 +385,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     OverviewController,
     AnalyticsController,
     MaintenanceController,
+    MaintenanceSettingsController,
     GeofencesController,
     FleetGroupsController,
     DriverGroupsController,
@@ -391,6 +396,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     FinancialsController,
     FuelController,
     DocumentsController,
+    StorageUsageController,
     AuditController,
     WebhookController,
     TrackingController,
@@ -568,6 +574,8 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     FleetComplianceAuditUseCase,
     MikroMaintenanceProfileRepository,
     { provide: MAINTENANCE_PROFILE_REPOSITORY, useExisting: MikroMaintenanceProfileRepository },
+    MikroMaintenanceSettingsRepository,
+    { provide: MAINTENANCE_SETTINGS_REPOSITORY, useExisting: MikroMaintenanceSettingsRepository },
     MaintenanceProfilesUseCase,
     MikroGeofenceZoneRepository,
     { provide: GEOFENCE_ZONE_REPOSITORY, useExisting: MikroGeofenceZoneRepository },
@@ -655,6 +663,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     QuotaService,
     StorageReporterService,
     StorageReconciliationService,
+    StorageUsageService,
     // Global, unlike TenantGuard. A suspended tenant must be refused on every
     // route, so this cannot depend on a new controller remembering a decorator.
     // It is a no-op when the request carries no authenticated tenant, which
@@ -1008,6 +1017,7 @@ export class AppModule implements NestModule {
         ReportsController,
         AnalyticsController,
         MaintenanceController,
+        MaintenanceSettingsController,
         GeofencesController,
         FleetGroupsController,
         DriverGroupsController,
@@ -1018,6 +1028,7 @@ export class AppModule implements NestModule {
         FinancialsController,
         FuelController,
         DocumentsController,
+        StorageUsageController,
         AuditController,
         TrackingController,
         OverviewController,

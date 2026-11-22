@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  Body,
   ConflictException,
   Controller,
   Get,
@@ -19,15 +21,21 @@ import {
 import { Portals, OnResource } from '@shared/access';
 import { ActivityLogService } from './activity-log.service';
 import { BaseAuthController, rethrowActorError } from './base.controller';
+import { BodyOrDataPipe } from './body-or-data.pipe';
 import {
+  ResolveTelecomMasterDto,
   TelecomMasterDetailResponse,
   TelecomMasterListResponse,
 } from './dto/telecom-master.dto';
 import {
   GetTelecomMasterRequestUseCase,
   ListTelecomMasterRequestsUseCase,
+  ResolveTelecomMasterRequestUseCase,
   RetryTelecomMasterRequestUseCase,
+  TelecomMasterInvalidInputError,
+  TelecomMasterNumberUnavailableError,
   TelecomMasterRequestNotFoundError,
+  TelecomMasterResolveNotAllowedError,
   TelecomMasterRetryNotAllowedError,
 } from './telecom-master.use-cases';
 
@@ -44,6 +52,8 @@ export class SystemTelecomMasterController extends BaseAuthController {
     private readonly get: GetTelecomMasterRequestUseCase,
     @Inject(RetryTelecomMasterRequestUseCase)
     private readonly retry: RetryTelecomMasterRequestUseCase,
+    @Inject(ResolveTelecomMasterRequestUseCase)
+    private readonly resolve: ResolveTelecomMasterRequestUseCase,
   ) {
     super(activityLogService);
   }
@@ -93,6 +103,24 @@ export class SystemTelecomMasterController extends BaseAuthController {
     return this.run(() => this.retry.execute(accessToken, id));
   }
 
+  @Post(':id/resolve')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Record the MTN outcome of a pending Telecom Master request',
+    description:
+      'pending_verification becomes verified or verification_failed; allocation_pending becomes allocated (with the MTN number and SIM serial) or allocation_failed. A number that is a device SIM MSISDN or held by another account is refused. Every change writes an audit event.',
+  })
+  @ApiOkResponse({ type: TelecomMasterDetailResponse })
+  @ApiConflictResponse({ description: 'The request is not pending, or the number is unavailable.' })
+  async resolveRequest(
+    @Param('id') id: string,
+    @Body(BodyOrDataPipe) payload: ResolveTelecomMasterDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireToken(authorization);
+    return this.run(() => this.resolve.execute(accessToken, id, payload));
+  }
+
   private requireToken(authorization?: string): string {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -107,8 +135,15 @@ export class SystemTelecomMasterController extends BaseAuthController {
       if (error instanceof TelecomMasterRequestNotFoundError) {
         throw new NotFoundException(error.message);
       }
-      if (error instanceof TelecomMasterRetryNotAllowedError) {
+      if (
+        error instanceof TelecomMasterRetryNotAllowedError
+        || error instanceof TelecomMasterResolveNotAllowedError
+        || error instanceof TelecomMasterNumberUnavailableError
+      ) {
         throw new ConflictException(error.message);
+      }
+      if (error instanceof TelecomMasterInvalidInputError) {
+        throw new BadRequestException(error.message);
       }
       throw error;
     }

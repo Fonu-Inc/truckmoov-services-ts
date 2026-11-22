@@ -33,6 +33,9 @@ export type StoredTelecomMasterEvent = {
   requestId: string;
   action: string;
   detail: string | null;
+  fromStatus: string | null;
+  toStatus: string | null;
+  actorId: string | null;
   createdAt: Date;
 };
 
@@ -40,6 +43,12 @@ export interface TelecomMasterRepository {
   /** Newest first. */
   findAll(): Promise<StoredTelecomMasterRequest[]>;
   findById(id: string): Promise<StoredTelecomMasterRequest | null>;
+  /** The tenant's newest request, whatever its status. */
+  findLatestForTenant(tenantId: string): Promise<StoredTelecomMasterRequest | null>;
+  /** Another live request already holds this number. */
+  isMsisdnTaken(msisdn: string, exceptRequestId?: string): Promise<boolean>;
+  /** The number is a device SIM's MSISDN, which a Telecom Master must never be. */
+  isDeviceSimMsisdn(msisdn: string): Promise<boolean>;
   save(request: StoredTelecomMasterRequest): Promise<void>;
   /** Oldest first, the order shown in the audit history. */
   findEvents(requestId: string): Promise<StoredTelecomMasterEvent[]>;

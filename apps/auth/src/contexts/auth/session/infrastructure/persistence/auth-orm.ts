@@ -2043,6 +2043,9 @@ export class TelecomMasterEventRecord {
   requestId!: string;
   action!: string;
   detail!: string | null;
+  fromStatus!: string | null;
+  toStatus!: string | null;
+  actorId!: string | null;
   createdAt!: Date;
 }
 
@@ -2054,6 +2057,9 @@ export const TelecomMasterEventRecordSchema = new EntitySchema<TelecomMasterEven
     requestId: { fieldName: 'request_id', type: 'string', length: 255, index: true },
     action: { type: 'string', length: 64 },
     detail: { type: 'text', nullable: true },
+    fromStatus: { fieldName: 'from_status', type: 'string', length: 32, nullable: true },
+    toStatus: { fieldName: 'to_status', type: 'string', length: 32, nullable: true },
+    actorId: { fieldName: 'actor_id', type: 'string', length: 255, nullable: true },
     createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
   },
 });
