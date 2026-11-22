@@ -43,7 +43,7 @@ import {
 } from '../../../apps/auth/src/installer-device-setup-requests.use-cases';
 import { InstallerNotFoundError, InstallerStateError } from '../../../apps/auth/src/contexts/installation/domain/installer';
 import type { StoredSim } from '../../../apps/auth/src/sim.repository';
-import type { StoredSimActivationBatch } from '../../../apps/auth/src/sim-activation-batch.repository';
+import { normalizeBatchStatus, type StoredSimActivationBatch } from '../../../apps/auth/src/sim-activation-batch.repository';
 import type { StoredSimProvisioningRequest } from '../../../apps/auth/src/sim-provisioning-request.repository';
 
 const TOKEN = 'sys-token';
@@ -97,6 +97,8 @@ function buildSim(overrides: Partial<StoredSim> = {}): StoredSim {
   };
 }
 
+const tenantNames = { organizationNameFor: async (id: string) => (id === 't1' ? 'Acme Haulage' : null) } as never;
+
 describe('SIM per-row action use-cases', () => {
   let repo: InMemorySimRepository;
   beforeEach(async () => {
@@ -105,18 +107,25 @@ describe('SIM per-row action use-cases', () => {
   });
 
   it('returns SIM detail', async () => {
-    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo() as never, repo);
+    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo() as never, repo, tenantNames);
     const result = await useCase.execute(TOKEN, 'sim-1');
     expect(result.data.id).toBe('sim-1');
   });
 
+  it('names the tenant a SIM is assigned to', async () => {
+    await repo.save(buildSim({ id: 'sim-2', iccid: '89234110123456789022', tenantId: 't1' }));
+    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo() as never, repo, tenantNames);
+    expect((await useCase.execute(TOKEN, 'sim-2')).data.tenantName).toBe('Acme Haulage');
+    expect((await useCase.execute(TOKEN, 'sim-1')).data.tenantName).toBeNull();
+  });
+
   it('throws SimNotFoundError for unknown id', async () => {
-    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo() as never, repo);
+    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo() as never, repo, tenantNames);
     await expect(useCase.execute(TOKEN, 'nope')).rejects.toBeInstanceOf(SimNotFoundError);
   });
 
   it('forbids non-system actors', async () => {
-    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo('ENTERPRISE_ADMIN', 't1') as never, repo);
+    const useCase = new GetSystemSimDetailUseCase(systemActor() as never, systemUserRepo('ENTERPRISE_ADMIN', 't1') as never, repo, tenantNames);
     await expect(useCase.execute(TOKEN, 'sim-1')).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -210,8 +219,15 @@ describe('SIM batch use-cases', () => {
     const useCase = new GetSystemSimBatchesSummaryUseCase(systemActor() as never, systemUserRepo() as never, repo);
     const result = await useCase.execute(TOKEN);
     expect(result.data.pendingActivation).toBe(1);
+    expect(result.data.completed).toBe(1);
     expect(result.data.needsAttention).toBe(1);
     expect(result.data.totalSimsQueued).toBe(8); // excludes completed
+  });
+
+  it('reads the screen label "partial" as partially_completed', () => {
+    expect(normalizeBatchStatus('partial')).toBe('partially_completed');
+    expect(normalizeBatchStatus('failed')).toBe('failed');
+    expect(normalizeBatchStatus('')).toBeUndefined();
   });
 
   it('retries a failed batch and rejects a pending one', async () => {

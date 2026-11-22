@@ -39,6 +39,8 @@ export class GetSystemSimSummaryUseCase {
       data: {
         total,
         active: byStatus['active'] ?? 0,
+        assigned: byStatus['assigned'] ?? 0,
+        suspended: byStatus['suspended'] ?? 0,
         unassigned,
         pendingRequests: pendingRequests.length,
         carriers: Object.keys(byCarrier).length,

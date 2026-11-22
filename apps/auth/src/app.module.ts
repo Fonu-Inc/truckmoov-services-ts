@@ -629,6 +629,7 @@ import { CreateSystemSimUseCase } from './create-system-sim.use-case';
 import { ImportSystemSimsUseCase } from './import-system-sims.use-case';
 import { DeleteSystemSimUseCase } from './delete-system-sim.use-case';
 import { BulkSystemSimStatusUseCase } from './bulk-system-sim-status.use-case';
+import { GetSystemSimImportTemplateUseCase } from './get-system-sim-import-template.use-case';
 import { GetSystemSimRequestsSummaryUseCase } from './get-system-sim-requests-summary.use-case';
 import { ExportSystemSimRequestsUseCase } from './export-system-sim-requests.use-case';
 import { ApproveSystemSimRequestUseCase } from './approve-system-sim-request.use-case';
@@ -1869,6 +1870,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ImportSystemSimsUseCase,
     DeleteSystemSimUseCase,
     BulkSystemSimStatusUseCase,
+    GetSystemSimImportTemplateUseCase,
     GetSystemSimRequestsSummaryUseCase,
     ExportSystemSimRequestsUseCase,
     ApproveSystemSimRequestUseCase,

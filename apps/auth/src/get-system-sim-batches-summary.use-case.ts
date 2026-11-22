@@ -32,6 +32,7 @@ export class GetSystemSimBatchesSummaryUseCase {
       data: {
         pendingActivation: batches.filter((b) => b.status === 'pending').length,
         inProgress: batches.filter((b) => b.status === 'in_progress').length,
+        completed: batches.filter((b) => b.status === 'completed').length,
         totalSimsQueued: batches
           .filter((b) => b.status !== 'completed')
           .reduce((sum, b) => sum + b.quantity, 0),

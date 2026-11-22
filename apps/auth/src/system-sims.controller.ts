@@ -67,6 +67,8 @@ import { DeleteSystemSimUseCase } from './delete-system-sim.use-case';
 import { ImportSystemSimsUseCase } from './import-system-sims.use-case';
 import { simStatusVerb } from './sim-status-action';
 import { DuplicateSimIccidError, SimInUseError } from './system-sim-input';
+import { GetSystemSimImportTemplateUseCase } from './get-system-sim-import-template.use-case';
+import { normalizeBatchStatus } from './sim-activation-batch.repository';
 import { ExportSystemSimBatchesUseCase } from './export-system-sim-batches.use-case';
 import { ExportSystemSimRequestsUseCase } from './export-system-sim-requests.use-case';
 import { ExportSystemSimsUseCase } from './export-system-sims.use-case';
@@ -119,6 +121,7 @@ export class SystemSimsController extends BaseAuthController {
     @Inject(ImportSystemSimsUseCase) private readonly importSystemSimsUseCase: ImportSystemSimsUseCase,
     @Inject(DeleteSystemSimUseCase) private readonly deleteSystemSimUseCase: DeleteSystemSimUseCase,
     @Inject(BulkSystemSimStatusUseCase) private readonly bulkSystemSimStatusUseCase: BulkSystemSimStatusUseCase,
+    @Inject(GetSystemSimImportTemplateUseCase) private readonly getSystemSimImportTemplateUseCase: GetSystemSimImportTemplateUseCase,
   ) {
     super(activityLogService);
   }
@@ -460,7 +463,7 @@ export class SystemSimsController extends BaseAuthController {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      return await this.listSystemSimBatchesUseCase.execute(accessToken, { status, search, operator, mode });
+      return await this.listSystemSimBatchesUseCase.execute(accessToken, { status: normalizeBatchStatus(status), search, operator, mode });
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
@@ -508,7 +511,7 @@ export class SystemSimsController extends BaseAuthController {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
-      const exported = await this.exportSystemSimBatchesUseCase.execute(accessToken, { status, search, operator, mode });
+      const exported = await this.exportSystemSimBatchesUseCase.execute(accessToken, { status: normalizeBatchStatus(status), search, operator, mode });
       response.setHeader('Content-Type', 'text/csv; charset=utf-8');
       response.setHeader('Content-Disposition', `attachment; filename="${exported.filename}"`);
       return new StreamableFile(Buffer.from(exported.csv, 'utf8'));
@@ -602,6 +605,29 @@ export class SystemSimsController extends BaseAuthController {
       return result;
     } catch (error) {
       this.rethrowSimError(error);
+    }
+  }
+
+  @Get('import/template')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download the SIM import CSV template', description: 'Header row plus one sample row, in the columns POST /system/sims/import takes.' })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({ description: 'CSV template', schema: { type: 'string', format: 'binary' } })
+  async getSystemSimImportTemplate(
+    @Headers('authorization') authorization: string | undefined,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const { csv, filename } = await this.getSystemSimImportTemplateUseCase.execute(accessToken);
+      response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return new StreamableFile(Buffer.from(csv, 'utf8'));
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
     }
   }
 

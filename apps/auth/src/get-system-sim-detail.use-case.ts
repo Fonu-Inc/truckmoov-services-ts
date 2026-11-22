@@ -4,6 +4,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
 import { SIM_REPOSITORY, type SimRepository, type StoredSim } from './sim.repository';
+import { TENANT_NAME_READER, type TenantNameReader } from './tenant-name-reader.port';
 
 export class SimNotFoundError extends Error {
   constructor(id: string) {
@@ -28,6 +29,7 @@ export class GetSystemSimDetailUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SIM_REPOSITORY) private readonly simRepo: SimRepository,
+    @Inject(TENANT_NAME_READER) private readonly tenantNames: TenantNameReader,
   ) {}
 
   async execute(accessToken: string, simId: string) {
@@ -41,7 +43,7 @@ export class GetSystemSimDetailUseCase {
     return {
       status: true,
       message: 'SIM detail retrieved',
-      data: serializeSim(sim),
+      data: { ...serializeSim(sim), tenantName: sim.tenantId ? await this.tenantNames.organizationNameFor(sim.tenantId) : null },
     };
   }
 }

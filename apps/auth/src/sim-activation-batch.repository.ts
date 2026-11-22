@@ -22,6 +22,11 @@ export type StoredSimActivationBatch = {
   updatedAt: Date;
 };
 
+/** The activation screen calls a half-finished batch "Partial"; it is stored as partially_completed. */
+export function normalizeBatchStatus(status?: string): string | undefined {
+  return status === 'partial' ? 'partially_completed' : status || undefined;
+}
+
 export type SimActivationBatchFilters = {
   status?: string;
   search?: string;

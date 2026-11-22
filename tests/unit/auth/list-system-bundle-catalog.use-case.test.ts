@@ -60,6 +60,7 @@ describe('ListSystemBundleCatalogUseCase', () => {
       tokenService() as never,
       userRepo(role, tenantId) as never,
       repo,
+      { findAll: async () => [{ id: 'MTN', displayName: 'MTN Nigeria' }] } as never,
     );
   }
 
@@ -82,6 +83,21 @@ describe('ListSystemBundleCatalogUseCase', () => {
 
     expect(result.data.items).toHaveLength(1);
     expect(result.data.items[0]?.id).toBe('b-2');
+  });
+
+  it('names the carrier for display, and null for one it does not know', async () => {
+    const result = await build().execute(TOKEN);
+    const byId = Object.fromEntries(result.data.items.map((b) => [b.id, b.carrierName]));
+    expect(byId).toEqual({ 'b-1': 'MTN Nigeria', 'b-2': null });
+  });
+
+  it('exports every bundle the filters match as a csv', async () => {
+    const file = await build().export(TOKEN, { active: true });
+    const lines = file.buffer.toString('utf8').trim().split('\n');
+    expect(file.contentType).toContain('csv');
+    expect(lines[0]).toContain('Code');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('MTN Nigeria');
   });
 
   it('converts the stored kobo price to naira', async () => {

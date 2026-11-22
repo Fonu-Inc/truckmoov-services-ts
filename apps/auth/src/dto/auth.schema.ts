@@ -1548,6 +1548,8 @@ export class SystemFeatureFlagResponse extends StandardApiResponse<SystemFeature
 export class SystemSimSummaryDataSchema {
   @ApiProperty() total!: number;
   @ApiProperty() active!: number;
+  @ApiProperty() assigned!: number;
+  @ApiProperty() suspended!: number;
   @ApiProperty() unassigned!: number;
   @ApiProperty() pendingRequests!: number;
   @ApiProperty() carriers!: number;
@@ -1753,6 +1755,7 @@ export class SystemSimBatchDetailResponse extends StandardApiResponse<SystemSimB
 export class SystemSimBatchesSummaryDataSchema {
   @ApiProperty() pendingActivation!: number;
   @ApiProperty() inProgress!: number;
+  @ApiProperty() completed!: number;
   @ApiProperty() totalSimsQueued!: number;
   @ApiProperty() needsAttention!: number;
 }

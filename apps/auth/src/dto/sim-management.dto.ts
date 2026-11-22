@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -76,15 +76,16 @@ export class UpdateCarrierDto {
 }
 
 export class CreateBundleDto {
-  @ApiProperty() @IsString() @MinLength(1) id!: string;
-  @ApiProperty() @IsString() @MinLength(1) code!: string;
+  @ApiPropertyOptional({ description: 'Defaults to the bundle code' }) @IsOptional() @IsString() @MinLength(1) id?: string;
+  @ApiProperty({ description: 'Unique, sent to the carrier, and cannot be changed afterwards' }) @IsString() @MinLength(1) code!: string;
   @ApiProperty() @IsString() @MinLength(1) name!: string;
-  @ApiProperty() @IsString() carrierId!: string;
+  @ApiPropertyOptional({ description: 'Defaults to MTN' }) @IsOptional() @IsString() carrierId?: string;
   @ApiProperty() @IsNumber() @Min(0) dataAmountGb!: number;
   @ApiProperty() @IsInt() @Min(1) validityDays!: number;
   @ApiProperty() @IsString() billingCycle!: string;
   @ApiProperty() @IsNumber() @Min(0) priceNaira!: number;
   @ApiPropertyOptional() @IsOptional() @IsString() currency?: string;
+  @ApiPropertyOptional({ description: 'Inactive bundles are hidden from tenants. Defaults to true' }) @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class UpdateBundleDto {
