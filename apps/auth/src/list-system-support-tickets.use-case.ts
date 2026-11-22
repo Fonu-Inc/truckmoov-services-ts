@@ -10,6 +10,11 @@ import {
   type SupportTicketRepository,
 } from './support-ticket.repository';
 import { InstallerTicketContextService } from './contexts/installation/application/services/installer-ticket-context.service';
+import type { StoredUser } from './contexts/auth/session/domain/ports/user-repository.port';
+
+function displayName(user: StoredUser | undefined): string | null {
+  return user?.profile?.fullName?.trim() || user?.email || null;
+}
 
 @Injectable()
 export class ListSystemSupportTicketsUseCase {
@@ -27,6 +32,12 @@ export class ListSystemSupportTicketsUseCase {
 
     const tickets = await this.ticketRepo.findAll(filters);
     const facts = await this.installerTickets.describe(tickets);
+    const creatorIds = tickets.flatMap((ticket) => {
+      const known = facts.get(ticket.id)?.reporterName;
+      return !known && ticket.createdBy ? [ticket.createdBy] : [];
+    });
+    const users = await Promise.all([...new Set(creatorIds)].map((id) => this.userRepository.findById(id)));
+    const byId = new Map(users.flatMap((user) => (user ? [[user.id, user] as const] : [])));
     return {
       status: true,
       message: 'Support tickets retrieved',
@@ -34,7 +45,7 @@ export class ListSystemSupportTicketsUseCase {
         total: tickets.length,
         tickets: tickets.map((t) => ({
           ...withDisplayId(t),
-          reporterName: facts.get(t.id)?.reporterName ?? null,
+          reporterName: facts.get(t.id)?.reporterName ?? displayName(byId.get(t.createdBy)),
           relatedJob: facts.get(t.id)?.relatedJob ?? null,
           escalatedAt: t.escalatedAt?.toISOString() ?? null,
           resolvedAt: t.resolvedAt?.toISOString() ?? null,

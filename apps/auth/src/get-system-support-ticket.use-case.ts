@@ -5,6 +5,11 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { ensureSystemActor } from './system-authz';
 import { SUPPORT_TICKET_REPOSITORY, withDisplayId, type SupportTicketRepository } from './support-ticket.repository';
 import { InstallerTicketContextService } from './contexts/installation/application/services/installer-ticket-context.service';
+import type { StoredUser } from './contexts/auth/session/domain/ports/user-repository.port';
+
+function displayName(user: StoredUser | null | undefined): string | null {
+  return user?.profile?.fullName?.trim() || user?.email || null;
+}
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
 import {
   SUPPORT_TICKET_ATTACHMENT_REPOSITORY,
@@ -36,13 +41,17 @@ export class GetSystemSupportTicketUseCase {
       this.installerTickets.describe([ticket]),
       this.attachmentRepo.findByTicketId(ticketId),
     ]);
+    const installerReporter = facts.get(ticket.id)?.reporterName;
+    const creator = !installerReporter && ticket.createdBy
+      ? await this.userRepository.findById(ticket.createdBy)
+      : null;
 
     return {
       status: true,
       message: 'Support ticket retrieved',
       data: {
         ...withDisplayId(ticket),
-        reporterName: facts.get(ticket.id)?.reporterName ?? null,
+        reporterName: installerReporter ?? displayName(creator),
         relatedJob: facts.get(ticket.id)?.relatedJob ?? null,
         escalatedAt: ticket.escalatedAt?.toISOString() ?? null,
         resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
