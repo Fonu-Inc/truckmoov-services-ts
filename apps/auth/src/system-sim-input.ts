@@ -13,11 +13,11 @@ export type NewSystemSimInput = {
   smsLimit?: number;
 };
 
-/** Columns match the rows POST /system/sims/import takes. */
+/** The columns the admin CSV reader takes, with two sample rows; the file is read there and posted as import rows. */
 export function systemSimImportTemplate(): { csv: string; filename: string } {
   return {
-    csv: 'iccid,msisdn,imsi,carrier\n8923411012345678901,+2348031234567,621301234567890,MTN\n',
-    filename: 'system-sim-import-template.csv',
+    csv: 'ICCID,Phone Number,IMSI,Carrier\n8927100012345678901,+2348031234567,621301234567890,MTN Nigeria\n8927100012345678902,+2348052345678,621302345678901,Glo\n',
+    filename: 'sim_import_template.csv',
   };
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { InMemorySimRepository } from '../../../apps/auth/src/in-memory-sim.repository';
 import { InMemorySimActivationBatchRepository } from '../../../apps/auth/src/in-memory-sim-activation-batch.repository';
 import { ApproveSystemSimRequestUseCase } from '../../../apps/auth/src/approve-system-sim-request.use-case';
+import { systemSimImportTemplate } from '../../../apps/auth/src/system-sim-input';
 import { InMemorySimProvisioningRequestRepository } from '../../../apps/auth/src/in-memory-sim-provisioning-request.repository';
 import { InMemorySimProvisioningRequestRepository } from '../../../apps/auth/src/in-memory-sim-provisioning-request.repository';
 import { InMemoryDeviceSetupRequestRepository } from '../../../apps/auth/src/in-memory-device-setup-request.repository';
@@ -236,6 +237,12 @@ describe('SIM batch use-cases', () => {
     expect(batch.startedAt).not.toBeNull();
     expect(batch.completedAt).not.toBeNull();
     expect((await new GetSystemSimBatchesSummaryUseCase(systemActor() as never, systemUserRepo() as never, batches).execute(TOKEN)).data.totalSimsQueued).toBe(0);
+  });
+
+  it('serves the import template in the header the admin CSV reader expects', () => {
+    const { csv, filename } = systemSimImportTemplate();
+    expect(csv.split('\n')[0]).toBe('ICCID,Phone Number,IMSI,Carrier');
+    expect(filename).toBe('sim_import_template.csv');
   });
 
   it('reads the screen label "partial" as partially_completed', () => {
