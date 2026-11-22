@@ -101,11 +101,52 @@ describe("HttpDispatchJobsReader paging", () => {
   });
 
   it("stops at the page cap", async () => {
-    vi.mocked(axios.get).mockImplementation(async () => page(["x"], 1, 999));
+    let n = 0;
+    vi.mocked(axios.get).mockImplementation(async () => page([`x${n++}`], 1, 999));
 
     const jobs = await buildReader().listJobs("t1");
 
     expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(50);
     expect(jobs).toHaveLength(50);
+  });
+
+  it("counts a job once when a new job shifts it onto the next page", async () => {
+    vi.mocked(axios.get)
+      .mockResolvedValueOnce(page(["a", "b"], 1, 2))
+      .mockResolvedValueOnce(page(["b", "c"], 2, 2));
+
+    const jobs = await buildReader().listJobs("t1");
+
+    expect(jobs.map((job) => job.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns nothing rather than a partial list when a later page fails", async () => {
+    vi.mocked(axios.get)
+      .mockResolvedValueOnce(page(["a", "b"], 1, 3))
+      .mockResolvedValueOnce({ status: 504, data: {} })
+      .mockResolvedValueOnce(page(["c"], 3, 3));
+
+    expect(await buildReader().listJobs("t1")).toEqual([]);
+  });
+
+  it("passes the status list, driver and vehicle filters to dispatch", async () => {
+    vi.mocked(axios.get).mockResolvedValueOnce(page([], 1, 1));
+
+    await buildReader().listJobs("t1", { status: "assigned,en-route", driverId: "d1", vehicleId: "v1" });
+
+    expect((vi.mocked(axios.get).mock.calls[0][1] as any).params).toEqual({
+      status: "assigned,en-route", driver_id: "d1", vehicle_id: "v1", page: 1, limit: 100,
+    });
+  });
+
+  it("reads a single job, and null when dispatch has none", async () => {
+    vi.mocked(axios.get)
+      .mockResolvedValueOnce({ status: 200, data: { status: true, data: { id: "j1" } } })
+      .mockResolvedValueOnce({ status: 404, data: {} });
+    const reader = buildReader();
+
+    expect((await reader.getJob("t1", "j1"))?.id).toBe("j1");
+    expect(vi.mocked(axios.get).mock.calls[0][0]).toBe("http://dispatch:3005/dispatch/jobs/j1");
+    expect(await reader.getJob("t1", "missing")).toBeNull();
   });
 });

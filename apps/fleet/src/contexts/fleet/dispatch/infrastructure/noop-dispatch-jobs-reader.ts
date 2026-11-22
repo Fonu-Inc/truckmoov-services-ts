@@ -12,6 +12,10 @@ export class NoopDispatchJobsReader implements DispatchJobsReader {
     return [];
   }
 
+  async getJob(): Promise<DispatchJob | null> {
+    return null;
+  }
+
   async listActiveJobsMap(): Promise<DispatchActiveJobsMap> {
     return EMPTY_ACTIVE_JOBS_MAP;
   }

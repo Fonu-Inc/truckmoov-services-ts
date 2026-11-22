@@ -18,7 +18,10 @@ export type DispatchJob = {
 };
 
 export type DispatchJobFilters = {
+  /** One status, a dispatch keyword, or a comma list matching any of them, e.g. "assigned,en-route". */
   status?: string;
+  driverId?: string;
+  vehicleId?: string;
 };
 
 export type DispatchJobWaypoint = {
@@ -52,6 +55,8 @@ export type DispatchActiveJobsMap = {
 
 export interface DispatchJobsReader {
   listJobs(tenantId: string, filters?: DispatchJobFilters): Promise<DispatchJob[]>;
+  /** One job, or null when it doesn't exist or dispatch can't be reached. */
+  getJob(tenantId: string, jobId: string): Promise<DispatchJob | null>;
   listActiveJobsMap(tenantId: string): Promise<DispatchActiveJobsMap>;
 }
 

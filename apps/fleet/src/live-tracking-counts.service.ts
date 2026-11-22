@@ -20,7 +20,7 @@ import {
   VEHICLE_POSITIONS_READER,
   type VehiclePositionsReader,
 } from "./contexts/fleet/reports/domain/ports/vehicle-positions-reader.port";
-import { activeJobByVehicle } from "./contexts/fleet/tracking/domain/active-jobs";
+import { ACTIVE_JOBS_FILTER, activeJobByVehicle } from "./contexts/fleet/tracking/domain/active-jobs";
 import {
   countLiveStatuses,
   liveCountsEqual,
@@ -118,7 +118,7 @@ export class LiveTrackingCountsService implements OnApplicationBootstrap, OnAppl
     this.jobsRefreshing.add(tenantId);
     await this.seedVehicles(tenantId);
     try {
-      const jobs = await this.dispatchJobs.listJobs(tenantId);
+      const jobs = await this.dispatchJobs.listJobs(tenantId, ACTIVE_JOBS_FILTER);
       this.jobsRefreshedAt.set(tenantId, Date.now());
       this.setActiveJobs(tenantId, new Set(activeJobByVehicle(jobs).keys()));
     } catch (error) {

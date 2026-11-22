@@ -17,7 +17,7 @@ import {
   liveStatusFor,
   type LiveVehicleStatus,
 } from "../domain/live-status";
-import { ACTIVE_JOB_STATUSES, activeJobByVehicle } from "../domain/active-jobs";
+import { ACTIVE_JOB_STATUSES, ACTIVE_JOBS_FILTER, activeJobByVehicle } from "../domain/active-jobs";
 import { applyVehicleSearch } from "../domain/vehicle-search";
 
 export type LiveTrackingScope = {
@@ -51,7 +51,7 @@ export class LiveTrackingUseCase {
       this.vehicles.findAll({ tenantId: scope.tenantId }),
       this.drivers.findAll({ tenantId: scope.tenantId }),
       this.positions.listLatestPositions(scope.tenantId).catch(() => [] as VehiclePosition[]),
-      this.dispatchJobs.listJobs(scope.tenantId).catch(() => [] as DispatchJob[]),
+      this.dispatchJobs.listJobs(scope.tenantId, ACTIVE_JOBS_FILTER).catch(() => [] as DispatchJob[]),
     ]);
 
     const visible = (vehicles as unknown as Array<Record<string, unknown>>).filter(

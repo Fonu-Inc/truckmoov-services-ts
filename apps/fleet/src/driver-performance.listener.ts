@@ -50,7 +50,8 @@ export class DriverPerformanceListener implements OnModuleInit {
       const driver = await this.driverRepo.findById(driverId, tenantId);
       if (!driver) return;
 
-      const jobs = await this.dispatchJobs.listJobs(tenantId);
+      // Punctuality is only recorded on delivered jobs, so read just this driver's.
+      const jobs = await this.dispatchJobs.listJobs(tenantId, { status: "delivered", driverId });
       const punctualities = jobs
         .filter((job) => job.assignedDriverId === driverId && job.punctuality !== null)
         .map((job) => job.punctuality!);

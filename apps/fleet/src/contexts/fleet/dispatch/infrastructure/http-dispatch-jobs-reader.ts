@@ -100,31 +100,55 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
       return [];
     }
 
-    const jobs: DispatchJob[] = [];
+    // Pages are read newest first, so a job created mid-read shifts the rest down and repeats; keep each id once.
+    const jobs = new Map<string, DispatchJob>();
     try {
       for (let page = 1; page <= MAX_JOBS_PAGES; page++) {
         const res = await axios.get<DispatchJobEnvelope>(`${this.baseUrl()}/dispatch/jobs`, {
-          params: { ...(filters?.status ? { status: filters.status } : {}), page, limit: JOBS_PAGE_SIZE },
+          params: {
+            ...(filters?.status ? { status: filters.status } : {}),
+            ...(filters?.driverId ? { driver_id: filters.driverId } : {}),
+            ...(filters?.vehicleId ? { vehicle_id: filters.vehicleId } : {}),
+            page,
+            limit: JOBS_PAGE_SIZE,
+          },
           headers,
           timeout: REQUEST_TIMEOUT_MS,
           validateStatus: () => true,
         });
 
+        // A list missing later pages would look complete to reports and money figures, so any failed page empties it.
         if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.data)) {
-          this.logger.warn(`dispatch read returned ${res.status} on page ${page}; degrading to ${jobs.length} jobs`);
-          return jobs;
+          this.logger.warn(`dispatch read returned ${res.status} on page ${page}; degrading to empty jobs`);
+          return [];
         }
 
-        jobs.push(...res.data.data.map((j) => this.toDomain(j)));
+        for (const job of res.data.data.map((j) => this.toDomain(j))) jobs.set(job.id, job);
         const totalPages = res.data.meta?.totalPages;
         const done = totalPages !== undefined ? page >= totalPages : res.data.data.length < JOBS_PAGE_SIZE;
-        if (done) return jobs;
+        if (done) return [...jobs.values()];
       }
-      this.logger.warn(`dispatch read stopped at ${MAX_JOBS_PAGES} pages (${jobs.length} jobs)`);
-      return jobs;
+      this.logger.warn(`dispatch read stopped at ${MAX_JOBS_PAGES} pages (${jobs.size} jobs)`);
+      return [...jobs.values()];
     } catch (err) {
-      this.logger.warn(`dispatch read failed: ${(err as Error).message}; degrading to ${jobs.length} jobs`);
-      return jobs;
+      this.logger.warn(`dispatch read failed: ${(err as Error).message}; degrading to empty jobs`);
+      return [];
+    }
+  }
+
+  async getJob(tenantId: string, jobId: string): Promise<DispatchJob | null> {
+    const headers = this.caller.headers("dispatch", { tenantId, legacyRole: "DISPATCHER" });
+    if (!headers || !jobId) return null;
+    try {
+      const res = await axios.get<{ data?: DispatchJobApi | null }>(
+        `${this.baseUrl()}/dispatch/jobs/${encodeURIComponent(jobId)}`,
+        { headers, timeout: REQUEST_TIMEOUT_MS, validateStatus: () => true },
+      );
+      if (res.status < 200 || res.status >= 300 || !res.data?.data) return null;
+      return this.toDomain(res.data.data);
+    } catch (err) {
+      this.logger.warn(`dispatch job read failed: ${(err as Error).message}`);
+      return null;
     }
   }
 

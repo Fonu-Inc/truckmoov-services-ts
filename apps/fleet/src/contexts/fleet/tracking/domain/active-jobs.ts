@@ -14,6 +14,9 @@ export const ACTIVE_JOB_STATUSES: readonly string[] = [
   "loaded",
 ];
 
+/** The dispatch status filter for jobs on the road, so callers needing only those don't page through history. */
+export const ACTIVE_JOBS_FILTER = { status: ACTIVE_JOB_STATUSES.join(",") };
+
 export function isActiveJob(job: Pick<DispatchJob, "status">): boolean {
   return ACTIVE_JOB_STATUSES.includes(job.status);
 }

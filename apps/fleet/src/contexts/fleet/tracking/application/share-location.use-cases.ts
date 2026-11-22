@@ -16,7 +16,7 @@ import {
   type ShareLinkRepository,
 } from "../domain/share-link.repository";
 import { hashShareToken, mintShareToken, shareLinkIsLive } from "../domain/share-token";
-import { activeJobByVehicle } from "../domain/active-jobs";
+import { ACTIVE_JOBS_FILTER, activeJobByVehicle } from "../domain/active-jobs";
 
 /**
  * A job with no deadline still has to expire. Long enough to outlast a
@@ -43,7 +43,9 @@ export class ShareVehicleLocationUseCase {
     const vehicle = await this.vehicles.findById(input.vehicleId, input.tenantId);
     if (!vehicle) throw new NotFoundException("Vehicle not found");
 
-    const jobs = await this.dispatchJobs.listJobs(input.tenantId).catch(() => [] as DispatchJob[]);
+    const jobs = await this.dispatchJobs
+      .listJobs(input.tenantId, { ...ACTIVE_JOBS_FILTER, vehicleId: input.vehicleId })
+      .catch(() => [] as DispatchJob[]);
     const job = activeJobByVehicle(jobs).get(input.vehicleId) ?? null;
 
     // One live link per vehicle. Minting a second would leave the first
@@ -121,13 +123,13 @@ export class ViewSharedLocationUseCase {
     // existed, so a probe cannot tell a real token from a wrong one.
     if (!link || !shareLinkIsLive(link)) throw new ShareLinkExpiredError();
 
-    const [positions, jobs] = await Promise.all([
+    const [positions, linkedJob] = await Promise.all([
       this.positions.listLatestPositions(link.tenantId).catch(() => []),
-      this.dispatchJobs.listJobs(link.tenantId).catch(() => [] as DispatchJob[]),
+      link.jobId ? this.dispatchJobs.getJob(link.tenantId, link.jobId).catch(() => null) : Promise.resolve(null),
     ]);
 
     const position = positions.find((entry) => entry.vehicleId === link.vehicleId) ?? null;
-    const job = link.jobId ? jobs.find((entry) => entry.id === link.jobId) ?? null : null;
+    const job = linkedJob;
 
     await this.links.recordView(link.id, new Date());
 
