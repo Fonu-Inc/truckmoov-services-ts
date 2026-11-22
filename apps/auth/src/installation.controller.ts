@@ -23,14 +23,19 @@ import {
   CancelInstallationDto,
   InstallationCancellationResponse,
   InstallationConfirmationResponse,
+  InstallationFeedbackResponse,
   InstallationStatusResponse,
+  SubmitInstallationFeedbackDto,
 } from './dto/installation-response.dto';
 import {
   CancelInstallationUseCase,
   InstallationJobConflictError,
   InstallationNotCancellableError,
   ConfirmInstallationUseCase,
+  FeedbackAlreadySubmittedError,
   GetInstallationStatusUseCase,
+  InstallationNotCompletedError,
+  SubmitInstallationFeedbackUseCase,
   InstallationNotConfirmableError,
   InvalidInstallationDateError,
   NoInstallationOrderError,
@@ -71,6 +76,8 @@ export class InstallationController {
     private readonly confirm: ConfirmInstallationUseCase,
     @Inject(CancelInstallationUseCase)
     private readonly cancel: CancelInstallationUseCase,
+    @Inject(SubmitInstallationFeedbackUseCase)
+    private readonly feedback: SubmitInstallationFeedbackUseCase,
   ) {}
 
   @Get('status')
@@ -134,6 +141,26 @@ export class InstallationController {
     return this.run(() => this.cancel.execute(this.token(authorization), body?.reason));
   }
 
+  @Post('feedback')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Rate the installation',
+    description:
+      'The customer rates a completed installation, once. This closes the request and tells the installer.',
+  })
+  @ApiCreatedResponse({ description: 'Saved.', type: InstallationFeedbackResponse })
+  @ApiErrorResponse(400, '"rating must be a whole number from 1 to 5", or "comment must be 1000 characters or fewer"')
+  @MissingToken()
+  @ApiErrorResponse(403, '"You are not permitted to rate this installation" for a role other than OWNER_OPERATOR or ENTERPRISE_ADMIN, or "This account has been disabled"')
+  @ApiErrorResponse(404, `"No installation is scheduled for this account". Under access enforcement: ${OTHER_PORTAL}`)
+  @ApiErrorResponse(409, '"Feedback can be given once the installation is completed", or "Feedback has already been given for this installation"')
+  async submitFeedback(
+    @Body() body: SubmitInstallationFeedbackDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.run(() => this.feedback.execute(this.token(authorization), { rating: body?.rating, comment: body?.comment }));
+  }
+
   private token(authorization?: string): string {
     const [scheme, token] = (authorization ?? '').split(' ');
     if (scheme?.toLowerCase() !== 'bearer' || !token) {
@@ -156,6 +183,8 @@ export class InstallationController {
       if (
         error instanceof InstallationNotConfirmableError ||
         error instanceof InstallationNotCancellableError ||
+        error instanceof InstallationNotCompletedError ||
+        error instanceof FeedbackAlreadySubmittedError ||
         error instanceof InstallationJobConflictError
       ) {
         throw new ConflictException(error.message);

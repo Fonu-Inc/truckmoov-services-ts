@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { StandardApiResponse } from '@shared/openapi';
-import { INSTALLATION_ORDER_STATUSES, INSTALLATION_TIME_SLOTS, MAX_CANCEL_REASON_LENGTH } from '@auth/installation';
+import {
+  INSTALLATION_ORDER_STATUSES,
+  INSTALLATION_TIME_SLOTS,
+  MAX_CANCEL_REASON_LENGTH,
+  MAX_FEEDBACK_COMMENT_LENGTH,
+} from '@auth/installation';
 import { StageProgressSchema } from './onboarding-review-response.dto';
 
 const NULLABLE_STRING = { type: String, nullable: true } as const;
@@ -71,6 +76,21 @@ export class DeviceAssignmentViewSchema {
   @ApiProperty() vehicleId!: string;
 }
 
+export class PickupPointSchema {
+  @ApiProperty({ example: 'MTN Connect Store Ikeja' }) name!: string;
+  @ApiProperty({ enum: ['Connect Store', 'Service Centre'] }) type!: string;
+  @ApiProperty(NULLABLE_STRING) address!: string | null;
+  @ApiProperty({ example: 'Ikeja' }) area!: string;
+  @ApiProperty({ example: 'Lagos' }) state!: string;
+  @ApiProperty({ enum: ['enterprise', 'owner_operator'] }) customerType!: string;
+}
+
+export class InstallationFeedbackSchema {
+  @ApiProperty({ minimum: 1, maximum: 5 }) rating!: number;
+  @ApiProperty(NULLABLE_STRING) comment!: string | null;
+  @ApiProperty({ format: 'date-time' }) submittedAt!: string;
+}
+
 export class InstallationStatusSchema {
   @ApiProperty({
     type: InstallationOrderStatusSchema,
@@ -83,6 +103,10 @@ export class InstallationStatusSchema {
   @ApiProperty({ type: [DeviceAssignmentViewSchema] })
   assignments!: DeviceAssignmentViewSchema[];
   @ApiProperty({ type: [StageProgressSchema] }) progress!: StageProgressSchema[];
+  @ApiProperty({ type: PickupPointSchema, nullable: true, description: 'Where the devices are collected; null when none was chosen.' })
+  pickup!: PickupPointSchema | null;
+  @ApiProperty({ type: InstallationFeedbackSchema, nullable: true })
+  feedback!: InstallationFeedbackSchema | null;
 }
 
 export class InstallationStatusResponse extends StandardApiResponse<InstallationStatusSchema> {
@@ -121,6 +145,24 @@ export class CancelInstallationDto {
   @IsString()
   @MaxLength(MAX_CANCEL_REASON_LENGTH)
   reason?: string;
+}
+
+export class SubmitInstallationFeedbackDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @ApiPropertyOptional({ maxLength: MAX_FEEDBACK_COMMENT_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_FEEDBACK_COMMENT_LENGTH)
+  comment?: string;
+}
+
+export class InstallationFeedbackResponse extends StandardApiResponse<InstallationFeedbackSchema> {
+  @ApiProperty({ type: InstallationFeedbackSchema }) data!: InstallationFeedbackSchema;
 }
 
 export class InstallationCancellationSchema {
@@ -212,6 +254,8 @@ export class OfferRejectionSchema {
 export class InstallationJobDetailSchema extends InstallationJobListItemSchema {
   @ApiProperty({ type: [OfferRejectionSchema], description: 'Every installer who rejected the offer, oldest first.' })
   offerRejections!: OfferRejectionSchema[];
+  @ApiProperty({ type: InstallationFeedbackSchema, nullable: true, description: "The customer's rating once the job is completed." })
+  feedback!: InstallationFeedbackSchema | null;
 }
 
 export class InstallationJobDetailResponse extends StandardApiResponse<InstallationJobDetailSchema> {

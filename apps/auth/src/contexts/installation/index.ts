@@ -41,6 +41,7 @@ export {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
   type StoredDeviceAssignment,
+  type StoredInstallationFeedback,
   type StoredInstallationOrder,
   type StoredOfferRejection,
 } from "./domain/installation-order.repository";
@@ -135,6 +136,12 @@ export {
   InstallationNotCancellableError,
   MAX_CANCEL_REASON_LENGTH,
 } from "./application/use-cases/cancel-installation.use-case";
+export {
+  FeedbackAlreadySubmittedError,
+  InstallationNotCompletedError,
+  MAX_FEEDBACK_COMMENT_LENGTH,
+  SubmitInstallationFeedbackUseCase,
+} from "./application/use-cases/submit-installation-feedback.use-case";
 export { GetInstallationStatusUseCase } from "./application/use-cases/get-installation-status.use-case";
 export { FleetConnectivityVerification } from "./infrastructure/connectivity/fleet-connectivity.verification";
 export {
@@ -194,6 +201,7 @@ export {
   InstallationChecklistTickRecordSchema,
   InstallationDeviceAssignmentRecordSchema,
   InstallationEvidenceRecordSchema,
+  InstallationFeedbackRecordSchema,
   InstallationOfferRejectionRecordSchema,
   InstallationOrderRecordSchema,
   InstallerNotificationRecordSchema,

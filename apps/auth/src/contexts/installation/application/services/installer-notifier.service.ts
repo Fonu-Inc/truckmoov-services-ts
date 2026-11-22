@@ -34,6 +34,8 @@ export type InstallerNotice = {
   stamp: string;
   device?: NotifiedDevice;
   reason?: string;
+  customer?: string;
+  rating?: number;
 };
 
 /** Keyed by installer too: a rejected offer handed on in the same instant still reaches the next one. */
@@ -82,6 +84,8 @@ export class InstallerNotifier {
       timeSlot: order.timeSlot,
       device: notice.device,
       reason: notice.reason,
+      customer: notice.customer,
+      rating: notice.rating,
     });
     const dedupeKey = `${notice.type}:${order.id}:${notice.stamp}`;
     await this.send(installer, { type: notice.type, copy, orderId: order.id, dedupeKey }, now);

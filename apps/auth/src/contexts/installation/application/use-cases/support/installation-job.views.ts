@@ -9,6 +9,7 @@ import type {
   StoredChecklistTick,
   StoredDeviceAssignment,
   StoredInstallationEvidence,
+  StoredInstallationFeedback,
   StoredInstallationOrder,
 } from '@auth/installation/domain/installation-order.repository';
 import type { StoredInstaller } from '@auth/installation/domain/installer.repository';
@@ -199,4 +200,8 @@ export function toJobDetail(parts: JobDetailParts) {
     completion: completionOf(parts, units, checklist.completed),
     actions: toActionsView(order, parts.assignments, checklist.completed),
   };
+}
+
+export function toFeedbackView(feedback: StoredInstallationFeedback | null) {
+  return feedback ? { rating: feedback.rating, comment: feedback.comment, submittedAt: feedback.submittedAt.toISOString() } : null;
 }

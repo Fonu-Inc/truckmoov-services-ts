@@ -86,6 +86,15 @@ export type StoredOfferRejection = {
   rejectedAt: Date;
 };
 
+/** The customer's rating of a completed installation; one per order. */
+export type StoredInstallationFeedback = {
+  orderId: string;
+  rating: number;
+  comment: string | null;
+  submittedAt: Date;
+  submittedBy: string;
+};
+
 export type InstallerJobCount = {
   installerId: string;
   status: InstallationOrderStatus;
@@ -165,6 +174,9 @@ export interface InstallationOrderRepository {
   saveAssignment(assignment: StoredDeviceAssignment): Promise<void>;
   /** The order, its units, ticks, evidence and offer rejections. Evidence files are the caller's to remove first. */
   deleteForApplication(applicationId: string): Promise<void>;
+  /** False when the order already has feedback. */
+  saveFeedback(feedback: StoredInstallationFeedback): Promise<boolean>;
+  findFeedback(orderId: string): Promise<StoredInstallationFeedback | null>;
   /** Orders per installer and status, in one query. */
   countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]>;
 }

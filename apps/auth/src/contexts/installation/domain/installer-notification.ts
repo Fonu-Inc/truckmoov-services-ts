@@ -11,6 +11,7 @@ export const INSTALLER_NOTIFICATION_TYPES = [
   'device_verified',
   'device_verification_failed',
   'support_ticket_updated',
+  'job_closed',
 ] as const;
 export type InstallerNotificationType = (typeof INSTALLER_NOTIFICATION_TYPES)[number];
 export type JobNotificationType = Exclude<InstallerNotificationType, 'support_ticket_updated'>;
@@ -45,6 +46,7 @@ const TYPE_TOGGLES: Record<InstallerNotificationType, TypeToggle> = {
   device_verified: 'jobAndIssueUpdates',
   device_verification_failed: 'jobAndIssueUpdates',
   support_ticket_updated: 'supportTicketUpdates',
+  job_closed: 'jobAndIssueUpdates',
 };
 
 /** Known toggles only, each defaulting to on. */
@@ -65,6 +67,8 @@ export type NotificationFacts = {
   timeSlot: InstallationTimeSlot;
   device?: NotifiedDevice;
   reason?: string;
+  customer?: string;
+  rating?: number;
 };
 
 export type NotificationCopy = { title: string; body: string };
@@ -102,6 +106,10 @@ const COPY: Record<JobNotificationType, (facts: NotificationFacts) => Notificati
   device_verification_failed: (f) => ({
     title: 'Device verification failed',
     body: `${deviceName(f.device)} on Job #${f.jobNumber} failed verification: ${sentence(f.reason)}.`,
+  }),
+  job_closed: (f) => ({
+    title: `Job #${f.jobNumber} closed`,
+    body: `${f.customer || 'The customer'} rated the installation ${f.rating}/5.`,
   }),
 };
 

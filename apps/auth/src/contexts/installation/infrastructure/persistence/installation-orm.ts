@@ -211,6 +211,27 @@ export const InstallationOfferRejectionRecordSchema =
     },
   });
 
+export class InstallationFeedbackRecord {
+  orderId!: string;
+  rating!: number;
+  comment!: string | null;
+  submittedAt!: Date;
+  submittedBy!: string;
+}
+
+export const InstallationFeedbackRecordSchema =
+  new EntitySchema<InstallationFeedbackRecord>({
+    class: InstallationFeedbackRecord,
+    tableName: 'installation_feedback',
+    properties: {
+      orderId: { fieldName: 'order_id', type: 'string', length: 64, primary: true },
+      rating: { type: 'number' },
+      comment: { type: 'string', length: 1000, nullable: true },
+      submittedAt: { fieldName: 'submitted_at', type: 'datetime' },
+      submittedBy: { fieldName: 'submitted_by', type: 'string', length: 64 },
+    },
+  });
+
 export class InstallerNotificationRecord {
   id!: string;
   installerId!: string;

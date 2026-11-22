@@ -25,6 +25,7 @@ import {
   type StoredChecklistTick,
   type StoredDeviceAssignment,
   type StoredInstallationEvidence,
+  type StoredInstallationFeedback,
   type StoredInstallationOrder,
   type StoredOfferRejection,
   type UnassignedCursor,
@@ -113,6 +114,7 @@ export class InMemoryInstallationOrderRepository
   private readonly ticks = new Map<string, StoredChecklistTick>();
   private readonly evidence = new Map<string, StoredInstallationEvidence>();
   private readonly rejections = new Map<string, StoredOfferRejection>();
+  private readonly feedback = new Map<string, StoredInstallationFeedback>();
   private sequence = 999;
 
   async save(order: StoredInstallationOrder): Promise<void> {
@@ -330,8 +332,20 @@ export class InMemoryInstallationOrderRepository
     for (const [key, tick] of this.ticks) if (tick.orderId === order.id) this.ticks.delete(key);
     for (const [id, item] of this.evidence) if (item.orderId === order.id) this.evidence.delete(id);
     for (const [key, item] of this.rejections) if (item.orderId === order.id) this.rejections.delete(key);
+    this.feedback.delete(order.id);
     this.assignments.delete(order.id);
     this.orders.delete(order.id);
+  }
+
+  async saveFeedback(feedback: StoredInstallationFeedback): Promise<boolean> {
+    if (this.feedback.has(feedback.orderId)) return false;
+    this.feedback.set(feedback.orderId, { ...feedback });
+    return true;
+  }
+
+  async findFeedback(orderId: string): Promise<StoredInstallationFeedback | null> {
+    const found = this.feedback.get(orderId);
+    return found ? { ...found } : null;
   }
 
   async countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]> {

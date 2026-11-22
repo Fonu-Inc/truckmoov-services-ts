@@ -55,7 +55,7 @@ import { ActivityLogService } from '../../../../activity-log.service';
 import { lagosDayBounds, nextCalendarDay } from '@shared/devices';
 import { pageOf } from './support/paging';
 import { calendarDay } from './installer-jobs.use-cases';
-import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
+import { devicesForJobs, toFeedbackView, toJobDetail, toJobListItem } from './support/installation-job.views';
 import { requireStaff, type Staff } from './support/platform-staff';
 
 export type ListInstallationOrdersQuery = {
@@ -146,13 +146,14 @@ export class ManageInstallationOrdersUseCases {
     if (!row) throw new InstallationJobNotFoundError();
     const order = row.order;
 
-    const [application, assignments, vehicles, ticks, evidence, rejections] = await Promise.all([
+    const [application, assignments, vehicles, ticks, evidence, rejections, feedback] = await Promise.all([
       this.applications.findById(order.applicationId),
       this.orders.findAssignments(order.id),
       this.applications.findVehiclesByApplicationId(order.applicationId),
       this.orders.findTicks(order.id),
       this.orders.findEvidence(order.id),
       this.orders.findOfferRejections([order.id]),
+      this.orders.findFeedback(order.id),
     ]);
     const deviceIds = assignments.flatMap((assignment) => (assignment.fleetDeviceId ? [assignment.fleetDeviceId] : []));
     const [devices, sims, installers] = await Promise.all([
@@ -181,6 +182,7 @@ export class ManageInstallationOrdersUseCases {
         reason: rejection.reason,
         rejectedAt: rejection.rejectedAt.toISOString(),
       })),
+      feedback: toFeedbackView(feedback),
     };
   }
 

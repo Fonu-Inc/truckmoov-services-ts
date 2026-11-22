@@ -6,7 +6,12 @@ import { resolveActorUser } from '@auth/session/application/use-cases/support/re
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
+  type StoredOnboardingApplication,
 } from '@auth/onboarding/domain/onboarding-application.repository';
+import {
+  PICKUP_LOCATION_REPOSITORY,
+  type PickupLocationRepository,
+} from '@auth/onboarding/domain/pickup-location.repository';
 import { stageProgress } from '@auth/onboarding/domain/onboarding-stage';
 import {
   INSTALLATION_ORDER_REPOSITORY,
@@ -21,7 +26,7 @@ import {
   INSTALLER_PHOTO_STORAGE,
   type InstallerPhotoStorage,
 } from '@auth/installation/domain/ports/installer-photo-storage.port';
-import { scheduledInstants } from './support/installation-job.views';
+import { scheduledInstants, toFeedbackView } from './support/installation-job.views';
 
 @Injectable()
 export class GetInstallationStatusUseCase {
@@ -35,6 +40,7 @@ export class GetInstallationStatusUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(INSTALLER_PHOTO_STORAGE) private readonly photos: InstallerPhotoStorage,
+    @Inject(PICKUP_LOCATION_REPOSITORY) private readonly pickupLocations: PickupLocationRepository,
   ) {}
 
   /** What the customer sees on the Get Started screen after logging in. */
@@ -50,19 +56,30 @@ export class GetInstallationStatusUseCase {
       return {
         status: true,
         message: 'success',
-        data: { order: null, installer: null, assignments: [], progress: [] },
+        data: {
+          order: null,
+          installer: null,
+          assignments: [],
+          progress: [],
+          pickup: await this.pickup(await this.applications.findLatestByTenantId(actor.tenantId)),
+          feedback: null,
+        },
       };
     }
 
-    const [installer, assignments, application] = await Promise.all([
+    const [installer, assignments, application, feedback] = await Promise.all([
       order.installerId
         ? this.installers.findById(order.installerId)
         : Promise.resolve(null),
       this.orders.findAssignments(order.id),
       this.applications.findById(order.applicationId),
+      this.orders.findFeedback(order.id),
     ]);
 
-    const photoUrl = await this.photos.url(installer?.photoKey ?? null);
+    const [photoUrl, pickup] = await Promise.all([
+      this.photos.url(installer?.photoKey ?? null),
+      this.pickup(application),
+    ]);
 
     return {
       status: true,
@@ -96,7 +113,25 @@ export class GetInstallationStatusUseCase {
           vehicleId: assignment.vehicleId,
         })),
         progress: application ? stageProgress(application.stage) : [],
+        pickup,
+        feedback: toFeedbackView(feedback),
       },
+    };
+  }
+
+  /** The store the customer collects devices from. Only active stores are found; a retired one reads as none. */
+  private async pickup(application: StoredOnboardingApplication | null) {
+    const fulfilment = application?.fulfilment;
+    if (fulfilment?.method !== 'pickup') return null;
+    const location = await this.pickupLocations.findActiveById(fulfilment.pickupLocationId);
+    if (!location) return null;
+    return {
+      name: location.name,
+      type: /service cent(re|er)/i.test(location.name) ? 'Service Centre' : 'Connect Store',
+      address: location.address,
+      area: location.area,
+      state: location.state,
+      customerType: application!.applicantType,
     };
   }
 }

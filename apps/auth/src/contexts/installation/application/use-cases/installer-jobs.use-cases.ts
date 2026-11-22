@@ -37,7 +37,7 @@ import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../.
 import { currentInstaller, installerJob } from './support/current-installer';
 import { installerOptions } from './support/job-execution.views';
 import { pageOf } from './support/paging';
-import { devicesForJobs, toDashboardJob, toInstallerJobItem, toJobDetail } from './support/installation-job.views';
+import { devicesForJobs, toDashboardJob, toFeedbackView, toInstallerJobItem, toJobDetail } from './support/installation-job.views';
 import { HISTORY_EXPORT_CAP, exportTimeZone, historyCsv } from './support/installation-history-export';
 import {
   activitySeries,
@@ -177,13 +177,14 @@ export class InstallerJobsUseCases {
       accessToken,
       jobId,
     );
-    const [application, assignments, vehicles, ticks, evidence, issues] = await Promise.all([
+    const [application, assignments, vehicles, ticks, evidence, issues, feedback] = await Promise.all([
       this.applications.findById(order.applicationId),
       this.orders.findAssignments(order.id),
       this.applications.findVehiclesByApplicationId(order.applicationId),
       this.orders.findTicks(order.id),
       this.orders.findEvidence(order.id),
       this.tickets.findByRelatedOrders([order.id], INSTALLATION_JOB_CONTEXT),
+      this.orders.findFeedback(order.id),
     ]);
     const deviceIds = assignments.flatMap((a) => (a.fleetDeviceId ? [a.fleetDeviceId] : []));
     const [devices, sims] = await Promise.all([
@@ -202,7 +203,7 @@ export class InstallerJobsUseCases {
       ticks,
       evidence,
     });
-    return { ...detail, issues: issues.map(toJobIssueView) };
+    return { ...detail, issues: issues.map(toJobIssueView), feedback: toFeedbackView(feedback) };
   }
 
   async options(accessToken: string) {

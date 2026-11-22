@@ -3,6 +3,7 @@ import { StandardApiResponse } from '@shared/openapi';
 import { INSTALLATION_ORDER_STATUSES, JOB_EVENT_STAMPS } from '@auth/installation';
 import {
   FleetDeviceSchema,
+  InstallationFeedbackSchema,
   JobListItemSchema,
   SLOT_END,
   SLOT_START,
@@ -229,6 +230,8 @@ export class InstallerJobDetailSchema {
   @ApiProperty({ type: CompletionViewSchema }) completion!: CompletionViewSchema;
   @ApiProperty({ type: JobActionsSchema }) actions!: JobActionsSchema;
   @ApiProperty({ type: [JobIssueViewSchema] }) issues!: JobIssueViewSchema[];
+  @ApiProperty({ type: InstallationFeedbackSchema, nullable: true, description: "The customer's rating once the job is completed." })
+  feedback!: InstallationFeedbackSchema | null;
 }
 
 export class InstallerJobDetailResponse extends StandardApiResponse<InstallerJobDetailSchema> {

@@ -33,6 +33,7 @@ import type {
   StoredChecklistTick,
   StoredDeviceAssignment,
   StoredInstallationEvidence,
+  StoredInstallationFeedback,
   StoredInstallationOrder,
   StoredOfferRejection,
   UnassignedCursor,
@@ -44,6 +45,7 @@ import {
   InstallationChecklistTickRecord,
   InstallationDeviceAssignmentRecord,
   InstallationEvidenceRecord,
+  InstallationFeedbackRecord,
   InstallationOfferRejectionRecord,
   InstallationOrderRecord,
   InstallerRecord,
@@ -531,10 +533,27 @@ export class MikroInstallationOrderRepository
     await em.nativeDelete(InstallationChecklistTickRecord, { orderId: order.id });
     await em.nativeDelete(InstallationEvidenceRecord, { orderId: order.id });
     await em.nativeDelete(InstallationOfferRejectionRecord, { orderId: order.id });
+    await em.nativeDelete(InstallationFeedbackRecord, { orderId: order.id });
     await em.nativeDelete(InstallationDeviceAssignmentRecord, {
       orderId: order.id,
     });
     await em.nativeDelete(InstallationOrderRecord, { id: order.id });
+  }
+
+  async saveFeedback(feedback: StoredInstallationFeedback): Promise<boolean> {
+    const em = await this.em();
+    const inserted = await em.getConnection().execute<Array<{ order_id: string }>>(
+      `insert into installation_feedback (order_id, rating, comment, submitted_at, submitted_by) values (?, ?, ?, ?, ?)
+       on conflict (order_id) do nothing returning order_id`,
+      [feedback.orderId, feedback.rating, feedback.comment, feedback.submittedAt, feedback.submittedBy],
+    );
+    return inserted.length > 0;
+  }
+
+  async findFeedback(orderId: string): Promise<StoredInstallationFeedback | null> {
+    const em = await this.em();
+    const r = await em.findOne(InstallationFeedbackRecord, { orderId });
+    return r ? { orderId: r.orderId, rating: r.rating, comment: r.comment ?? null, submittedAt: r.submittedAt, submittedBy: r.submittedBy } : null;
   }
 
   async countByInstaller(installerIds: string[]): Promise<InstallerJobCount[]> {
