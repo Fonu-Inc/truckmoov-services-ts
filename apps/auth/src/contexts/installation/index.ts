@@ -130,6 +130,11 @@ export {
   InstallationNotConfirmableError,
   NoInstallationOrderError,
 } from "./application/use-cases/confirm-installation.use-case";
+export {
+  CancelInstallationUseCase,
+  InstallationNotCancellableError,
+  MAX_CANCEL_REASON_LENGTH,
+} from "./application/use-cases/cancel-installation.use-case";
 export { GetInstallationStatusUseCase } from "./application/use-cases/get-installation-status.use-case";
 export { FleetConnectivityVerification } from "./infrastructure/connectivity/fleet-connectivity.verification";
 export {

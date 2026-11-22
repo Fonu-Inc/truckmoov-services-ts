@@ -230,6 +230,7 @@ import {
   MikroInstallationOrderRepository,
   MikroInstallerRepository,
   ConfirmInstallationUseCase,
+  CancelInstallationUseCase,
   CONNECTIVITY_VERIFICATION,
   FleetConnectivityVerification,
   GetInstallationStatusUseCase,
@@ -2294,6 +2295,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     GetInstallationStatusUseCase,
     ConfirmInstallationUseCase,
+    CancelInstallationUseCase,
     InMemoryOnboardingPaymentRepository,
     MikroOnboardingPaymentRepository,
     {

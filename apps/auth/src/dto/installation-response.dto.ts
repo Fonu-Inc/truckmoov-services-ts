@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { StandardApiResponse } from '@shared/openapi';
-import { INSTALLATION_ORDER_STATUSES, INSTALLATION_TIME_SLOTS } from '@auth/installation';
+import { INSTALLATION_ORDER_STATUSES, INSTALLATION_TIME_SLOTS, MAX_CANCEL_REASON_LENGTH } from '@auth/installation';
 import { StageProgressSchema } from './onboarding-review-response.dto';
 
 const NULLABLE_STRING = { type: String, nullable: true } as const;
@@ -112,6 +113,24 @@ export class InstallationConfirmationSchema {
 
 export class InstallationConfirmationResponse extends StandardApiResponse<InstallationConfirmationSchema> {
   @ApiProperty({ type: InstallationConfirmationSchema }) data!: InstallationConfirmationSchema;
+}
+
+export class CancelInstallationDto {
+  @ApiPropertyOptional({ maxLength: MAX_CANCEL_REASON_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CANCEL_REASON_LENGTH)
+  reason?: string;
+}
+
+export class InstallationCancellationSchema {
+  @ApiProperty({ example: 'FL-0042' }) orderNumber!: string;
+  @ApiProperty({ enum: ['cancelled'] }) status!: string;
+  @ApiProperty(NULLABLE_DATE_TIME) cancelledAt!: string | null;
+}
+
+export class InstallationCancellationResponse extends StandardApiResponse<InstallationCancellationSchema> {
+  @ApiProperty({ type: InstallationCancellationSchema }) data!: InstallationCancellationSchema;
 }
 
 export class JobVehicleSummarySchema {

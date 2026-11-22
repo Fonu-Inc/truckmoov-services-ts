@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   ConflictException,
   Controller,
   Get,
@@ -19,16 +20,22 @@ import {
 import { rethrowActorError } from './base.controller';
 import { ApiErrorResponse } from './dto/api-error.dto';
 import {
+  CancelInstallationDto,
+  InstallationCancellationResponse,
   InstallationConfirmationResponse,
   InstallationStatusResponse,
 } from './dto/installation-response.dto';
 import {
+  CancelInstallationUseCase,
+  InstallationJobConflictError,
+  InstallationNotCancellableError,
   ConfirmInstallationUseCase,
   GetInstallationStatusUseCase,
   InstallationNotConfirmableError,
   InvalidInstallationDateError,
   NoInstallationOrderError,
 } from '@auth/installation';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import { Portals, OnResource } from '@shared/access';
 
 const MissingToken = () =>
@@ -62,6 +69,8 @@ export class InstallationController {
     private readonly getStatus: GetInstallationStatusUseCase,
     @Inject(ConfirmInstallationUseCase)
     private readonly confirm: ConfirmInstallationUseCase,
+    @Inject(CancelInstallationUseCase)
+    private readonly cancel: CancelInstallationUseCase,
   ) {}
 
   @Get('status')
@@ -105,6 +114,26 @@ export class InstallationController {
     return this.run(() => this.confirm.execute(this.token(authorization)));
   }
 
+  @Post('cancel')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cancel the installation',
+    description:
+      'The customer calls off their booking before the installer starts. Only the order is cancelled; the onboarding and any payment are settled by the platform. Repeating it on a cancelled order returns the same answer.',
+  })
+  @ApiCreatedResponse({ description: 'Cancelled, or already was.', type: InstallationCancellationResponse })
+  @ApiErrorResponse(400, '"reason must be 1000 characters or fewer"')
+  @MissingToken()
+  @ApiErrorResponse(403, '"You are not permitted to cancel this installation" for a role other than OWNER_OPERATOR or ENTERPRISE_ADMIN, or "This account has been disabled"')
+  @ApiErrorResponse(404, `"No installation is scheduled for this account". Under access enforcement: ${OTHER_PORTAL}`)
+  @ApiErrorResponse(409, '"An installation that is in_progress cannot be cancelled" (or completed), or the job changed while the request was in flight')
+  async cancelInstallation(
+    @Body() body: CancelInstallationDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.run(() => this.cancel.execute(this.token(authorization), body?.reason));
+  }
+
   private token(authorization?: string): string {
     const [scheme, token] = (authorization ?? '').split(' ');
     if (scheme?.toLowerCase() !== 'bearer' || !token) {
@@ -121,7 +150,14 @@ export class InstallationController {
       if (error instanceof NoInstallationOrderError) {
         throw new NotFoundException(error.message);
       }
-      if (error instanceof InstallationNotConfirmableError) {
+      if (error instanceof OnboardingValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      if (
+        error instanceof InstallationNotConfirmableError ||
+        error instanceof InstallationNotCancellableError ||
+        error instanceof InstallationJobConflictError
+      ) {
         throw new ConflictException(error.message);
       }
       if (error instanceof InvalidInstallationDateError) {
