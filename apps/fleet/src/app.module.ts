@@ -277,6 +277,9 @@ import { MikroMaintenanceProfileRepository } from "./mikro-maintenance-profile.r
 import { MAINTENANCE_PROFILE_REPOSITORY } from "./maintenance-profile.repository";
 import { GeofenceZonesUseCase } from "./geofence-zones.use-case";
 import { MikroGeofenceZoneRepository } from "./mikro-geofence-zone.repository";
+import { FleetGroupsController } from "./fleet-groups.controller";
+import { FleetGroupsUseCase } from "./fleet-groups.use-case";
+import { FLEET_GROUP_REPOSITORY, MikroFleetGroupRepository } from "./fleet-groups.repository";
 import { GEOFENCE_ZONE_REPOSITORY } from "./geofence-zone.repository";
 import { MaintenanceRecordsUseCase } from "./maintenance-records.use-case";
 import { MikroMaintenanceRecordRepository } from "./mikro-maintenance-record.repository";
@@ -370,6 +373,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     AnalyticsController,
     MaintenanceController,
     GeofencesController,
+    FleetGroupsController,
     ComplianceController,
     FinancialsController,
     FuelController,
@@ -555,6 +559,9 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     MikroGeofenceZoneRepository,
     { provide: GEOFENCE_ZONE_REPOSITORY, useExisting: MikroGeofenceZoneRepository },
     GeofenceZonesUseCase,
+    MikroFleetGroupRepository,
+    { provide: FLEET_GROUP_REPOSITORY, useExisting: MikroFleetGroupRepository },
+    FleetGroupsUseCase,
     MikroMaintenanceRecordRepository,
     { provide: MAINTENANCE_RECORD_REPOSITORY, useExisting: MikroMaintenanceRecordRepository },
     MaintenanceRecordsUseCase,
@@ -974,6 +981,7 @@ export class AppModule implements NestModule {
         AnalyticsController,
         MaintenanceController,
         GeofencesController,
+        FleetGroupsController,
         ComplianceController,
         FinancialsController,
         FuelController,

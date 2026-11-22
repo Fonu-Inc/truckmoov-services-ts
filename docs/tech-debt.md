@@ -4,6 +4,28 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-23 — Violation rules have no backend
+
+**Status:** open, recorded 22 November 2026. The Violation Rules sub-tab on the
+vehicles page (`/fleet/violations`) is hidden; `ViolationRulesTab` stays in
+truckmoov-web for when this lands.
+
+### The problem
+
+The design shows a list of violation rules (speeding, harsh braking, idling and
+so on) with a threshold, severity, scope and on/off state per rule. Nothing in
+the platform stores rules: driver behaviour events are recorded as they arrive
+from devices, with no tenant-configurable thresholds deciding what counts as a
+violation. The "Repeat Violations" figure on the same page depends on per-rule
+counts too, so it still shows "-".
+
+### What is needed
+
+A rules table and CRUD in the fleet service (type, threshold and unit, severity,
+enabled, optional vehicle or fleet scope), then applying the rules where
+behaviour events are classified, so a rule change alters what is recorded.
+Unhide the sub-tab and fill Repeat Violations once both exist.
+
 ## TD-22 — MTN pickup points are demo rows
 
 The apply wizard's Device Fulfilment card lists MTN Connect Stores and Service
