@@ -32,7 +32,7 @@ export class OverviewController extends BaseFleetController {
   @ApiOperation({
     summary: "Account overview",
     description:
-      "Cards, live delivery map, five most recent jobs, vehicles, drivers and alerts, ten most recent activity entries, recent chats, and fleet utilization by region. Enterprise admins see the whole tenant; an owner operator sees only its own vehicles, drivers and jobs.",
+      "Cards, live delivery map, five most recent jobs, vehicles, drivers and alerts, active vehicles with their driver and route, ten most recent activity entries, recent chats, and fleet utilization by region. Enterprise admins see the whole tenant; an owner operator sees only its own vehicles, drivers and jobs.",
   })
   @ApiOkResponse({ description: "Overview returned" })
   @ApiForbiddenResponse({ description: "Caller is not an enterprise admin or owner operator" })

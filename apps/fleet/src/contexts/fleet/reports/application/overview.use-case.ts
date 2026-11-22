@@ -24,9 +24,49 @@ import { AuditLogService } from "../../../../audit-log.service";
 // listing endpoint wearing a dashboard's name.
 const LIST_LIMIT = 5;
 const ACTIVITY_LIMIT = 10;
+// Owner operators are filtered after the audit read, so the scan has to be
+// wider than the feed or a neighbouring operator's events could fill it.
+const ACTIVITY_SCAN_LIMIT = ACTIVITY_LIMIT * 5;
 
 const COMPLETED_JOB_STATUSES = new Set(["delivered", "completed"]);
 const ACTIVE_VEHICLE_STATUSES = new Set(["active"]);
+// Dispatch's map only carries its own busy statuses; an in-progress job may
+// arrive from the jobs list instead, so both sources are checked.
+const OPERATIONAL_JOB_STATUSES = new Set([
+  "assigned",
+  "accepted",
+  "en_route",
+  "en-route",
+  "arrived",
+  "arrived_pickup",
+  "loaded",
+  "in_progress",
+  "arrived_dropoff",
+]);
+
+type OverviewVehicle = Awaited<ReturnType<VehicleRepository["findAll"]>>[number];
+type OverviewDriver = Awaited<ReturnType<DriverRepository["findAll"]>>[number];
+type OverviewAuditEntry = Awaited<ReturnType<AuditLogService["query"]>>[number];
+
+type OperationalJob = {
+  jobId: string;
+  reference: string;
+  status: string;
+  driverId: string | null;
+  pickupAddress: string | null;
+  dropoffAddress: string | null;
+};
+
+type ActivityItem = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  summary: string;
+  occurredAt: string;
+  title: string;
+  description: string | null;
+};
 
 export type OverviewResponse = ReturnType<OverviewUseCase["build"]> extends Promise<infer T> ? T : never;
 
@@ -68,7 +108,7 @@ export class OverviewUseCase {
       this.alertRepo.findAll(scope.tenantId),
       this.positions.listLatestPositions(scope.tenantId),
       this.chats.listRecentChats(scope.tenantId, LIST_LIMIT),
-      this.auditLog.query(scope.tenantId, { limit: ACTIVITY_LIMIT }),
+      this.auditLog.query(scope.tenantId, { limit: ACTIVITY_SCAN_LIMIT }),
       this.dispatchJobs.listActiveJobsMap(scope.tenantId),
     ]);
 
@@ -116,6 +156,12 @@ export class OverviewUseCase {
           status: vehicle.status,
         })),
       },
+      vehiclesInOperation: this.vehiclesInOperation(
+        ownedVehicles,
+        ownedDrivers,
+        ownedJobs,
+        ownedMap,
+      ),
       drivers: {
         total: ownedDrivers.length,
         items: ownedDrivers.slice(0, LIST_LIMIT).map((driver) => ({
@@ -129,14 +175,13 @@ export class OverviewUseCase {
       },
       fleetUtilization: this.fleetUtilization(ownedVehicles, ownedPositions),
       alerts: this.recentAlerts(ownedAlerts),
-      recentActivity: activity.slice(0, ACTIVITY_LIMIT).map((entry) => ({
-        id: entry.id,
-        action: entry.action,
-        entityType: entry.entityType,
-        entityId: entry.entityId,
-        summary: typeof entry.metadata?.summary === "string" ? entry.metadata.summary : entry.action,
-        occurredAt: entry.occurredAt,
-      })),
+      recentActivity: this.recentActivity(activity, {
+        scope,
+        jobs: ownedJobs,
+        vehicles: ownedVehicles,
+        drivers: ownedDrivers,
+        ownedVehicleIds,
+      }),
       recentChats: chats,
       generatedAt: new Date().toISOString(),
     };
@@ -206,6 +251,243 @@ export class OverviewUseCase {
         amountNgn: job.amountNgn,
         createdAt: job.createdAt,
       }));
+  }
+
+  /**
+   * Active vehicles with the driver and route they are currently running.
+   * Dispatch's map is the freshest source for a job's waypoints; the jobs list
+   * covers the in-progress statuses the map does not carry.
+   */
+  private vehiclesInOperation(
+    vehicles: OverviewVehicle[],
+    drivers: OverviewDriver[],
+    jobs: DispatchJob[],
+    activeJobsMap: DispatchActiveJobsMap,
+  ) {
+    const jobByVehicle = new Map<string, OperationalJob>();
+
+    for (const job of activeJobsMap.jobs) {
+      if (!job.assignedVehicleId || jobByVehicle.has(job.assignedVehicleId)) continue;
+      const pickup = job.waypoints.find((waypoint) => waypoint.type === "pickup")?.address
+        ?? job.waypoints[0]?.address
+        ?? null;
+      const dropoff = [...job.waypoints].reverse().find((waypoint) => waypoint.type === "dropoff")?.address
+        ?? job.waypoints[job.waypoints.length - 1]?.address
+        ?? null;
+      jobByVehicle.set(job.assignedVehicleId, {
+        jobId: job.jobId,
+        reference: job.reference,
+        status: job.status,
+        driverId: job.assignedDriverId,
+        pickupAddress: pickup,
+        dropoffAddress: dropoff,
+      });
+    }
+
+    for (const job of [...jobs].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))) {
+      if (!job.assignedVehicleId || jobByVehicle.has(job.assignedVehicleId)) continue;
+      if (!OPERATIONAL_JOB_STATUSES.has(job.status)) continue;
+      jobByVehicle.set(job.assignedVehicleId, {
+        jobId: job.id,
+        reference: job.reference,
+        status: job.status,
+        driverId: job.assignedDriverId,
+        pickupAddress: job.pickupAddress,
+        dropoffAddress: job.dropoffAddress,
+      });
+    }
+
+    const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+    const items = vehicles
+      .filter((vehicle) => vehicle.status === "active")
+      .map((vehicle) => {
+        const job = jobByVehicle.get(vehicle.id);
+        const driverId = job?.driverId ?? vehicle.assignedDriverId;
+        return {
+          vehicleId: vehicle.id,
+          plateNumber: vehicle.plateNumber,
+          driverId,
+          driverName: driverId ? driverById.get(driverId)?.name ?? null : null,
+          jobId: job?.jobId ?? null,
+          jobReference: job?.reference ?? null,
+          pickupAddress: job?.pickupAddress ?? null,
+          dropoffAddress: job?.dropoffAddress ?? null,
+          status: vehicle.status,
+        };
+      });
+
+    return { total: items.length, items };
+  }
+
+  /**
+   * The activity card mixes the audit trail with the current records: real
+   * events when they exist, and the latest job/vehicle/driver state when the
+   * audit log is empty (seeded tenants, older records). Audit rows are scoped
+   * before they are mapped so an owner operator never sees a neighbour's feed.
+   */
+  private recentActivity(
+    entries: OverviewAuditEntry[],
+    context: {
+      scope: OverviewScope;
+      jobs: DispatchJob[];
+      vehicles: OverviewVehicle[];
+      drivers: OverviewDriver[];
+      ownedVehicleIds: Set<string>;
+    },
+  ): ActivityItem[] {
+    const jobById = new Map(context.jobs.map((job) => [job.id, job]));
+    const vehicleById = new Map(context.vehicles.map((vehicle) => [vehicle.id, vehicle]));
+    const driverById = new Map(context.drivers.map((driver) => [driver.id, driver]));
+
+    const visible = entries.filter((entry) => {
+      if (entry.entityType === "job") return jobById.has(entry.entityId);
+      if (entry.entityType === "vehicle") return vehicleById.has(entry.entityId);
+      if (entry.entityType === "driver") return driverById.has(entry.entityId);
+      if (context.scope.ownerOperatorId === null) return true;
+
+      if (entry.entityType === "alert") {
+        const vehicleId = typeof entry.metadata?.vehicleId === "string" ? entry.metadata.vehicleId : null;
+        return vehicleId !== null && context.ownedVehicleIds.has(vehicleId);
+      }
+
+      // Anything else cannot be proven to belong to this operator, so it is
+      // left out rather than guessed at.
+      return false;
+    });
+
+    const mapped = visible.map((entry) => this.describeActivity(entry, jobById, vehicleById, driverById));
+    const seen = new Set(mapped.map((item) => `${item.entityType}:${item.entityId}`));
+    const snapshot = this.snapshotActivity(context.jobs, context.vehicles, context.drivers)
+      .filter((item) => !seen.has(`${item.entityType}:${item.entityId}`));
+
+    return [...mapped, ...snapshot].slice(0, ACTIVITY_LIMIT);
+  }
+
+  private describeActivity(
+    entry: OverviewAuditEntry,
+    jobById: Map<string, DispatchJob>,
+    vehicleById: Map<string, OverviewVehicle>,
+    driverById: Map<string, OverviewDriver>,
+  ): ActivityItem {
+    const job = jobById.get(entry.entityId);
+    if (job) {
+      const status = this.entryStatus(entry) ?? job.status;
+      return this.activityItem(entry, `Job ${this.statusLabel(status)}`, this.route(job.pickupAddress, job.dropoffAddress));
+    }
+
+    const vehicle = vehicleById.get(entry.entityId);
+    if (vehicle) {
+      return this.activityItem(
+        entry,
+        `${vehicle.plateNumber} is ${this.statusLabel(vehicle.status)}`,
+        [vehicle.make, vehicle.model].filter(Boolean).join(" ") || null,
+      );
+    }
+
+    const driver = driverById.get(entry.entityId);
+    if (driver) {
+      return this.activityItem(
+        entry,
+        `${driver.name} is ${this.statusLabel(driver.status)}`,
+        driver.phone ?? "Driver account",
+      );
+    }
+
+    if (entry.entityType === "alert") {
+      return this.activityItem(entry, "Fleet alert triggered", "Review the alert for details");
+    }
+
+    return this.activityItem(entry, this.actionLabel(entry.action), null);
+  }
+
+  private snapshotActivity(
+    jobs: DispatchJob[],
+    vehicles: OverviewVehicle[],
+    drivers: OverviewDriver[],
+  ): ActivityItem[] {
+    const now = new Date().toISOString();
+    const jobItems = [...jobs]
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+      .map((job) => ({
+        id: `job-${job.id}`,
+        action: `status.${job.status}`,
+        entityType: "job",
+        entityId: job.id,
+        summary: `Job ${this.statusLabel(job.status)}`,
+        occurredAt: job.updatedAt || job.createdAt,
+        title: `Job ${this.statusLabel(job.status)}`,
+        description: this.route(job.pickupAddress, job.dropoffAddress),
+      }));
+    const vehicleItems = [...vehicles]
+      .sort((a, b) => Date.parse(b.createdAt ?? now) - Date.parse(a.createdAt ?? now))
+      .map((vehicle) => ({
+        id: `vehicle-${vehicle.id}`,
+        action: `vehicle.status.${vehicle.status}`,
+        entityType: "vehicle",
+        entityId: vehicle.id,
+        summary: `${vehicle.plateNumber} is ${this.statusLabel(vehicle.status)}`,
+        occurredAt: vehicle.createdAt ?? now,
+        title: `${vehicle.plateNumber} is ${this.statusLabel(vehicle.status)}`,
+        description: [vehicle.make, vehicle.model].filter(Boolean).join(" ") || null,
+      }));
+    const driverItems = [...drivers]
+      .sort((a, b) => Date.parse(b.updatedAt ?? now) - Date.parse(a.updatedAt ?? now))
+      .map((driver) => ({
+        id: `driver-${driver.id}`,
+        action: `driver.status.${driver.status}`,
+        entityType: "driver",
+        entityId: driver.id,
+        summary: `${driver.name} is ${this.statusLabel(driver.status)}`,
+        occurredAt: driver.updatedAt ?? driver.createdAt ?? now,
+        title: `${driver.name} is ${this.statusLabel(driver.status)}`,
+        description: driver.phone ?? "Driver account",
+      }));
+
+    return [...jobItems, ...vehicleItems, ...driverItems];
+  }
+
+  private activityItem(entry: OverviewAuditEntry, title: string, description: string | null): ActivityItem {
+    return {
+      id: entry.id,
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      summary: title,
+      occurredAt: entry.occurredAt,
+      title,
+      description,
+    };
+  }
+
+  private entryStatus(entry: OverviewAuditEntry): string | null {
+    for (const key of ["newStatus", "status"]) {
+      const value = entry.metadata?.[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    if (entry.action.startsWith("status.changed.")) {
+      return entry.action.slice("status.changed.".length) || null;
+    }
+    return null;
+  }
+
+  private statusLabel(status: string): string {
+    return status.replace(/[_-]+/g, " ").trim().toLowerCase() || "updated";
+  }
+
+  private actionLabel(action: string): string {
+    const last = action.split(".").filter(Boolean).pop() ?? action;
+    return this.statusLabel(last).replace(/^\w/, (letter) => letter.toUpperCase());
+  }
+
+  private route(pickup: string | null, dropoff: string | null): string | null {
+    const from = this.place(pickup);
+    const to = this.place(dropoff);
+    if (from && to) return `${from} → ${to}`;
+    return from ?? to ?? null;
+  }
+
+  private place(address: string | null): string | null {
+    return address?.split(",")[0]?.trim() || null;
   }
 
   private recentAlerts(alerts: Awaited<ReturnType<AlertRepository["findAll"]>>) {

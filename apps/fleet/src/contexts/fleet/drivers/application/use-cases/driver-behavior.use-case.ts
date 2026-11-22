@@ -18,6 +18,7 @@ import {
 } from "../../domain/geofence-alert-read.repository";
 import { DRIVER_REPOSITORY, type DriverRepository } from "../../domain/repositories/driver.repository";
 import { ALERT_REPOSITORY, type AlertRepository } from "../../../alerts/domain/alert.repository";
+import { regionForPosition, UNKNOWN_REGION } from "../../../reports/domain/region-from-position";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GEOFENCE_ALERT_TYPES = ["geofence_entry", "geofence_exit", "geofence_dwell", "geofence_speeding"];
@@ -122,17 +123,21 @@ export class DriverBehaviorUseCase {
     return {
       total: events.length,
       criticalCount: events.filter((event) => event.severity === "critical").length,
-      items: events.map((event) => ({
-        id: event.id,
-        driverId: event.driverId,
-        vehicleId: event.vehicleId,
-        type: event.type,
-        severity: event.severity,
-        speedKph: event.speedKph,
-        latitude: event.latitude,
-        longitude: event.longitude,
-        occurredAt: event.occurredAt.toISOString(),
-      })),
+      items: events.map((event) => {
+        const region = regionForPosition(event.latitude, event.longitude);
+        return {
+          id: event.id,
+          driverId: event.driverId,
+          vehicleId: event.vehicleId,
+          type: event.type,
+          severity: event.severity,
+          speedKph: event.speedKph,
+          latitude: event.latitude,
+          longitude: event.longitude,
+          location: region === UNKNOWN_REGION ? null : region,
+          occurredAt: event.occurredAt.toISOString(),
+        };
+      }),
     };
   }
 
