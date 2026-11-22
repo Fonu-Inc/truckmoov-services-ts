@@ -228,9 +228,11 @@ export {
 export { GetOnboardingApplicationUseCase } from "./application/use-cases/get-onboarding-application.use-case";
 export { ResumeOnboardingApplicationUseCase } from "./application/use-cases/resume-onboarding-application.use-case";
 export {
+  ApplicationDocumentLinkUnavailableError,
   ApplicationDocumentNotFoundError,
   ApplicationNotUnderReviewError,
   DecisionReasonRequiredError,
+  GetOnboardingApplicationDocumentLinkUseCase,
   GetOnboardingApplicationForReviewUseCase,
   GetOnboardingReviewSummaryUseCase,
   ListOnboardingApplicationsUseCase,

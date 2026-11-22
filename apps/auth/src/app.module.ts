@@ -84,6 +84,7 @@ import { OrganizationController } from './organization.controller';
 import { SystemController } from './system.controller';
 import { SystemReferenceDataController } from './system-reference-data.controller';
 import { SystemTenantsController } from './system-tenants.controller';
+import { SystemTelecomMasterController } from './system-telecom-master.controller';
 import { SystemDevicesController } from './system-devices.controller';
 import { SystemSimsController } from './system-sims.controller';
 import { SystemSupportController } from './system-support.controller';
@@ -763,6 +764,7 @@ import {
   OnboardingDeviceInventoryService,
   UpdateApplicationVehicleUseCase,
   DeleteOnboardingApplicationDocumentUseCase,
+  GetOnboardingApplicationDocumentLinkUseCase,
   GetOnboardingApplicationForReviewUseCase,
   GetOnboardingApplicationStatusUseCase,
   GetOnboardingApplicationUseCase,
@@ -814,6 +816,14 @@ import { EventBusSimChangedEventPublisher } from './eventbus-sim-changed-event.p
 import { BUNDLE_CARRIER_REPOSITORY } from './bundle-carrier.repository';
 import { InMemoryBundleCarrierRepository } from './in-memory-bundle-carrier.repository';
 import { MikroBundleCarrierRepository } from './mikro-bundle-carrier.repository';
+import { TELECOM_MASTER_REPOSITORY } from './telecom-master.repository';
+import { InMemoryTelecomMasterRepository } from './in-memory-telecom-master.repository';
+import { MikroTelecomMasterRepository } from './mikro-telecom-master.repository';
+import {
+  GetTelecomMasterRequestUseCase,
+  ListTelecomMasterRequestsUseCase,
+  RetryTelecomMasterRequestUseCase,
+} from './telecom-master.use-cases';
 // Bundle catalog
 import { BUNDLE_CATALOG_REPOSITORY } from './bundle-catalog.repository';
 import { InMemoryBundleCatalogRepository } from './in-memory-bundle-catalog.repository';
@@ -967,6 +977,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemController,
     SystemReferenceDataController,
     SystemTenantsController,
+    SystemTelecomMasterController,
     SystemDevicesController,
     SystemSimsController,
     SystemSupportController,
@@ -2337,6 +2348,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListOnboardingApplicationsUseCase,
     GetOnboardingReviewSummaryUseCase,
     GetOnboardingApplicationForReviewUseCase,
+    GetOnboardingApplicationDocumentLinkUseCase,
     ReviewOnboardingApplicationDocumentUseCase,
     ApproveOnboardingApplicationUseCase,
     RejectOnboardingApplicationUseCase,
@@ -2400,6 +2412,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // Bundle carrier repository
     InMemoryBundleCarrierRepository,
     MikroBundleCarrierRepository,
+    InMemoryTelecomMasterRepository,
+    MikroTelecomMasterRepository,
+    {
+      provide: TELECOM_MASTER_REPOSITORY,
+      inject: [InMemoryTelecomMasterRepository, MikroTelecomMasterRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryTelecomMasterRepository, mikro: MikroTelecomMasterRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    ListTelecomMasterRequestsUseCase,
+    GetTelecomMasterRequestUseCase,
+    RetryTelecomMasterRequestUseCase,
     {
       provide: BUNDLE_CARRIER_REPOSITORY,
       inject: [InMemoryBundleCarrierRepository, MikroBundleCarrierRepository, AppConfigService],

@@ -21,6 +21,10 @@ export type PutObjectInput = {
 export type GetObjectUrlInput = {
   key: string;
   expiresIn?: number;
+  /** Force the response type, e.g. application/pdf so a browser previews it. */
+  responseContentType?: string;
+  /** `inline` to preview, `attachment` to download. */
+  responseContentDisposition?: string;
 };
 
 export type PutObjectUrlInput = {

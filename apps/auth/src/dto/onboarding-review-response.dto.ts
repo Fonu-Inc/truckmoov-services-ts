@@ -140,6 +140,20 @@ export class ReviewDocumentSchema {
   downloadUrl!: string | null;
 }
 
+export class ReviewDocumentLinkSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() documentName!: string;
+  @ApiProperty() mimeType!: string;
+  @ApiProperty() fileSize!: number;
+  @ApiProperty({ description: 'Short-lived presigned download URL.' }) url!: string;
+  @ApiProperty({ description: 'Short-lived URL that forces a download.' }) downloadUrl!: string;
+  @ApiProperty({ example: 300 }) expiresInSeconds!: number;
+}
+
+export class ReviewDocumentLinkResponse extends StandardApiResponse<ReviewDocumentLinkSchema> {
+  @ApiProperty({ type: ReviewDocumentLinkSchema }) data!: ReviewDocumentLinkSchema;
+}
+
 export class ReviewPaymentSchema {
   @ApiProperty() paymentId!: string;
   @ApiProperty() reference!: string;

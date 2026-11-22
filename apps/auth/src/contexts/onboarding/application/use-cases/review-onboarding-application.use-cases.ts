@@ -262,6 +262,83 @@ export class GetOnboardingApplicationForReviewUseCase {
   }
 }
 
+export class ApplicationDocumentLinkUnavailableError extends Error {
+  constructor() {
+    super('Could not create a download link for this document');
+    this.name = 'ApplicationDocumentLinkUnavailableError';
+  }
+}
+
+/**
+ * One fresh, short-lived link for a single review document. The detail response
+ * presigns every document; the viewer only needs the one the reviewer opened.
+ */
+@Injectable()
+export class GetOnboardingApplicationDocumentLinkUseCase {
+  constructor(
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications: OnboardingApplicationRepository,
+    @Inject(ObjectStorageService)
+    private readonly objectStorage: ObjectStorageService,
+    @Inject(TOKEN_SERVICE)
+    private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY)
+    private readonly users: UserRepository,
+  ) {}
+
+  async execute(
+    accessToken: string,
+    applicationId: string,
+    documentId: string,
+  ) {
+    await ensureSystemActor(accessToken, this.tokenService, this.users);
+
+    const application = await this.applications.findById(applicationId);
+    if (!application) throw new ApplicationNotFoundError();
+
+    const document = await this.applications.findDocumentById(documentId);
+    if (!document || document.applicationId !== application.id) {
+      throw new ApplicationDocumentNotFoundError();
+    }
+
+    let url: string;
+    let downloadUrl: string;
+    const filename = document.documentName.replace(/["\\]/g, '');
+    try {
+      [url, downloadUrl] = await Promise.all([
+        this.objectStorage.createPresignedDownloadUrl({
+          key: document.fileKey,
+          expiresIn: DOWNLOAD_URL_TTL_SECONDS,
+          responseContentType: document.mimeType || undefined,
+          responseContentDisposition: `inline; filename="${filename}"`,
+        }),
+        this.objectStorage.createPresignedDownloadUrl({
+          key: document.fileKey,
+          expiresIn: DOWNLOAD_URL_TTL_SECONDS,
+          responseContentType: document.mimeType || undefined,
+          responseContentDisposition: `attachment; filename="${filename}"`,
+        }),
+      ]);
+    } catch {
+      throw new ApplicationDocumentLinkUnavailableError();
+    }
+
+    return {
+      status: true,
+      message: 'success',
+      data: {
+        id: document.id,
+        documentName: document.documentName,
+        mimeType: document.mimeType,
+        fileSize: document.fileSize,
+        url,
+        downloadUrl,
+        expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
+      },
+    };
+  }
+}
+
 @Injectable()
 export class ReviewOnboardingApplicationDocumentUseCase {
   constructor(

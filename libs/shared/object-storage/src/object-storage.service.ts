@@ -144,6 +144,8 @@ export class ObjectStorageService {
     const command = new GetObjectCommand({
       Bucket: this.config.bucket,
       Key: this.buildKey(input.key),
+      ResponseContentType: input.responseContentType,
+      ResponseContentDisposition: input.responseContentDisposition,
     });
 
     return getSignedUrl(this.client, command, {

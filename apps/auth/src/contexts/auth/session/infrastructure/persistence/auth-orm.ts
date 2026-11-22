@@ -1968,6 +1968,66 @@ export const BundleCatalogRecordSchema = new EntitySchema<BundleCatalogRecord>({
   },
 });
 
+/* ── Telecom Master ─────────────────────────────────── */
+
+export class TelecomMasterRequestRecord {
+  id!: string;
+  tenantId!: string | null;
+  organizationName!: string;
+  contactEmail!: string;
+  applicationId!: string | null;
+  applicationReference!: string;
+  msisdn!: string | null;
+  simSerial!: string | null;
+  numberType!: string;
+  status!: string;
+  mtnReference!: string | null;
+  failureReason!: string | null;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export const TelecomMasterRequestRecordSchema = new EntitySchema<TelecomMasterRequestRecord>({
+  class: TelecomMasterRequestRecord,
+  tableName: 'telecom_master_requests',
+  properties: {
+    id: { type: 'string', length: 255, primary: true },
+    tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, nullable: true, index: true },
+    organizationName: { fieldName: 'organization_name', type: 'string', length: 255 },
+    contactEmail: { fieldName: 'contact_email', type: 'string', length: 255 },
+    applicationId: { fieldName: 'application_id', type: 'string', length: 255, nullable: true, index: true },
+    applicationReference: { fieldName: 'application_reference', type: 'string', length: 64 },
+    msisdn: { type: 'string', length: 32, nullable: true },
+    simSerial: { fieldName: 'sim_serial', type: 'string', length: 64, nullable: true },
+    numberType: { fieldName: 'number_type', type: 'string', length: 16, default: 'new' },
+    status: { type: 'string', length: 32, default: 'not_selected' },
+    mtnReference: { fieldName: 'mtn_reference', type: 'string', length: 128, nullable: true },
+    failureReason: { fieldName: 'failure_reason', type: 'text', nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+    updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
+  },
+});
+
+export class TelecomMasterEventRecord {
+  id!: string;
+  requestId!: string;
+  action!: string;
+  detail!: string | null;
+  createdAt!: Date;
+}
+
+export const TelecomMasterEventRecordSchema = new EntitySchema<TelecomMasterEventRecord>({
+  class: TelecomMasterEventRecord,
+  tableName: 'telecom_master_events',
+  properties: {
+    id: { type: 'string', length: 255, primary: true },
+    requestId: { fieldName: 'request_id', type: 'string', length: 255, index: true },
+    action: { type: 'string', length: 64 },
+    detail: { type: 'text', nullable: true },
+    createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
+  },
+});
+
 /* ── Tenant Wallets ─────────────────────────────────── */
 
 export class TenantWalletRecord {
@@ -2299,6 +2359,8 @@ async function initAuthOrm(cfg: DbConfig) {
       OnboardingVerificationCodeRecordSchema,
       BundleCarrierRecordSchema,
       BundleCatalogRecordSchema,
+      TelecomMasterRequestRecordSchema,
+      TelecomMasterEventRecordSchema,
       TenantWalletRecordSchema,
       WalletTopUpRecordSchema,
       WalletLedgerEntryRecordSchema,

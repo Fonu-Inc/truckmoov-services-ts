@@ -40,6 +40,7 @@ import {
   RejectedApplicationResponse,
   ReviewApplicationResponse,
   ReviewCountersResponse,
+  ReviewDocumentLinkResponse,
   ReviewQueueResponse,
   SetupLinkResentResponse,
 } from './dto/onboarding-review-response.dto';
@@ -49,6 +50,7 @@ import { BodyOrDataPipe } from './body-or-data.pipe';
 import {
   ApplicationDocumentNotFoundError,
   ApplicationDocumentsIncompleteError,
+  ApplicationDocumentLinkUnavailableError,
   ApplicationNotFoundError,
   ApplicationNotProvisionableError,
   ApplicationNotUnderReviewError,
@@ -56,6 +58,7 @@ import {
   BusinessEmailInUseError,
   CompleteProvisioningUseCase,
   DecisionReasonRequiredError,
+  GetOnboardingApplicationDocumentLinkUseCase,
   GetOnboardingApplicationForReviewUseCase,
   GetOnboardingApplicationTimelineUseCase,
   GetOnboardingReviewSummaryUseCase,
@@ -136,6 +139,8 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     private readonly listApplications: ListOnboardingApplicationsUseCase,
     @Inject(GetOnboardingApplicationForReviewUseCase)
     private readonly getApplication: GetOnboardingApplicationForReviewUseCase,
+    @Inject(GetOnboardingApplicationDocumentLinkUseCase)
+    private readonly getDocumentLink: GetOnboardingApplicationDocumentLinkUseCase,
     @Inject(GetOnboardingApplicationTimelineUseCase)
     private readonly getTimeline: GetOnboardingApplicationTimelineUseCase,
     @Inject(ReviewOnboardingApplicationDocumentUseCase)
@@ -237,6 +242,37 @@ export class SystemOnboardingApplicationsController extends BaseAuthController {
     return this.run(() =>
       this.getApplication.execute(accessToken, applicationId),
     );
+  }
+
+  @Get(':applicationId/documents/:documentId/link')
+  @ApiOperation({
+    summary: 'Get a fresh link for one application document',
+    description:
+      'Returns a short-lived presigned URL for a single document, so the reviewer only fetches the file they opened.',
+  })
+  @ApiOkResponse({ description: 'Document link returned', type: ReviewDocumentLinkResponse })
+  @AdminErrors(`${NOT_FOUND}, or "Application document not found"`)
+  @ApiErrorResponse(502, 'The object store could not create a download link.')
+  async documentLink(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.requireAccessToken(authorization);
+    return this.run(async () => {
+      try {
+        return await this.getDocumentLink.execute(
+          accessToken,
+          applicationId,
+          documentId,
+        );
+      } catch (error) {
+        if (error instanceof ApplicationDocumentLinkUnavailableError) {
+          throw new BadGatewayException(error.message);
+        }
+        throw error;
+      }
+    });
   }
 
   @Get(':applicationId/timeline')
