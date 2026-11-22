@@ -7,6 +7,7 @@ import {
 import { InMemoryTenantWalletRepository } from '../../../apps/auth/src/in-memory-tenant-wallet.repository';
 import { InMemoryWalletLedgerRepository } from '../../../apps/auth/src/in-memory-wallet-ledger.repository';
 import type { WalletLedgerDraft } from '../../../apps/auth/src/wallet-ledger.repository';
+import { ListWalletLedgerUseCase } from '../../../apps/auth/src/list-wallet-ledger.use-case';
 
 const TOKEN = 'tenant-token';
 
@@ -67,7 +68,7 @@ describe('GetCommunicationsSpendBreakdownUseCase', () => {
     await wallet.save({ tenantId: 'tenant-a', balanceKobo: 1_000_000, currency: 'NGN', updatedAt: new Date() });
   });
 
-  it('splits spend by channel, excluding data-bundle debits', async () => {
+  it('splits spend by channel, data bundles included, with the wallet total', async () => {
     await wallet.debit('tenant-a', 5_000, draft({ category: 'sms' }));
     await wallet.debit('tenant-a', 15_000, draft({ category: 'whatsapp' }));
     await wallet.debit('tenant-a', 200_000, draft({ category: 'data_bundle' }));
@@ -80,6 +81,8 @@ describe('GetCommunicationsSpendBreakdownUseCase', () => {
     expect(byChannel.whatsapp).toBe(150);
     expect(byChannel.voice).toBe(0);
     expect(byChannel.ai).toBe(0);
+    expect(byChannel.data_bundle).toBe(2_000);
+    expect(result.data.total).toBe(2_200);
   });
 
   it('computes percentage share across channels', async () => {
@@ -92,6 +95,36 @@ describe('GetCommunicationsSpendBreakdownUseCase', () => {
     const byChannel = Object.fromEntries(result.data.breakdown.map((b: { channel: string; percentage: number }) => [b.channel, b.percentage]));
     expect(byChannel.sms).toBe(25);
     expect(byChannel.voice).toBe(75);
+  });
+});
+
+describe('ListWalletLedgerUseCase', () => {
+  let wallet: InMemoryTenantWalletRepository;
+  let ledger: InMemoryWalletLedgerRepository;
+
+  beforeEach(async () => {
+    wallet = new InMemoryTenantWalletRepository();
+    ledger = new InMemoryWalletLedgerRepository(wallet);
+    await wallet.save({ tenantId: 'tenant-a', balanceKobo: 1_000_000, currency: 'NGN', updatedAt: new Date() });
+    await wallet.debit('tenant-a', 5_000, draft({ category: 'sms' }));
+  });
+
+  it('keeps only lines inside from/to', async () => {
+    const useCase = new ListWalletLedgerUseCase(tokenService() as never, userRepo() as never, ledger);
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    const inHour = new Date(Date.now() + 3_600_000);
+
+    expect((await useCase.execute(TOKEN, { from: hourAgo, to: inHour })).data.total).toBe(1);
+    expect((await useCase.execute(TOKEN, { from: inHour })).data.total).toBe(0);
+    expect((await useCase.execute(TOKEN, { to: hourAgo })).data.total).toBe(0);
+  });
+
+  it("exports the caller's lines in range as CSV", async () => {
+    const useCase = new ListWalletLedgerUseCase(tokenService() as never, userRepo() as never, ledger);
+    const csv = (await useCase.export(TOKEN, { from: new Date(Date.now() - 3_600_000) })).buffer.toString();
+
+    expect(csv).toContain('SMS usage');
+    expect((await useCase.export(TOKEN, { from: new Date(Date.now() + 3_600_000) })).buffer.toString()).not.toContain('SMS usage');
   });
 });
 

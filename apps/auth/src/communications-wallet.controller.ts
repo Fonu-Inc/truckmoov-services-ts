@@ -82,7 +82,7 @@ export class CommunicationsWalletController extends BaseAuthController {
 
   @Get('spend-breakdown')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Comms spend by channel across the selected window' })
+  @ApiOperation({ summary: 'Wallet spend by channel (sms, whatsapp, voice, ai, data_bundle) and its total across the selected window' })
   @ApiOkResponse()
   async spendBreakdown(@Query() query: AnalyticsRangeDto, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);

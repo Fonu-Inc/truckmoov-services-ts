@@ -9,9 +9,10 @@ import {
   type WalletLedgerRepository,
 } from './wallet-ledger.repository';
 
-// The four usage categories this screen is about — data_bundle, top_up,
-// refund and adjustment are the other wallet's or aren't spend at all.
+// The four comms usage categories; top_up, refund and adjustment aren't spend at all.
 const COMMS_CATEGORIES: WalletLedgerCategory[] = ['sms', 'whatsapp', 'voice', 'ai'];
+// One wallet funds bundles and comms, so the breakdown adds bundle spend to give the wallet's total.
+const SPEND_CATEGORIES: WalletLedgerCategory[] = [...COMMS_CATEGORIES, 'data_bundle'];
 
 type Range = '7d' | '30d' | '90d' | 'custom';
 
@@ -26,7 +27,7 @@ function computeDateRange(range: Range, startDate?: string, endDate?: string): {
   return { start, end };
 }
 
-/** Total comms spend per channel over a window — the wallet screen's per-channel breakdown. */
+/** Wallet spend per channel (comms plus data_bundle) over a window — the wallet screen's per-channel breakdown and total. */
 @Injectable()
 export class GetCommunicationsSpendBreakdownUseCase {
   constructor(
@@ -43,19 +44,19 @@ export class GetCommunicationsSpendBreakdownUseCase {
     const tenantId = actor.tenantId!;
 
     const sums = await Promise.all(
-      COMMS_CATEGORIES.map((category) =>
+      SPEND_CATEGORIES.map((category) =>
         this.ledger.sum(tenantId, { category, direction: 'debit', from: start, to: end }),
       ),
     );
     const totalKobo = sums.reduce((sum, v) => sum + v, 0);
 
-    const breakdown = COMMS_CATEGORIES.map((category, i) => ({
+    const breakdown = SPEND_CATEGORIES.map((category, i) => ({
       channel: category,
       amount: sums[i] / 100,
       percentage: totalKobo > 0 ? Math.round((sums[i] / totalKobo) * 1000) / 10 : 0,
     }));
 
-    return { status: true, message: 'success', data: { breakdown } };
+    return { status: true, message: 'success', data: { breakdown, total: totalKobo / 100 } };
   }
 }
 

@@ -90,6 +90,10 @@ function matches(candidate: Candidate, filters: JobFilters): boolean {
     (!filters.statuses || filters.statuses.includes(order.status)) &&
     scheduledIn(order, filters) &&
     inRange(finishedAt(order), filters.completedFrom, filters.completedBefore) &&
+    inRange(order.startedAt, filters.startedFrom, filters.startedBefore) &&
+    inRange(order.createdAt, filters.createdFrom, filters.createdBefore) &&
+    (!filters.tenantType || candidate.tenantType === filters.tenantType) &&
+    (filters.assigned === undefined || (order.installerId !== null) === filters.assigned) &&
     searched(candidate, filters.search);
 }
 

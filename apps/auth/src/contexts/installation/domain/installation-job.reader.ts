@@ -15,6 +15,15 @@ export type JobFilters = {
   /** Instants on completed_at, falling back to cancelled_at: [from, to). */
   completedFrom?: Date;
   completedBefore?: Date;
+  /** Instants on started_at / created_at: [from, to). */
+  startedFrom?: Date;
+  startedBefore?: Date;
+  createdFrom?: Date;
+  createdBefore?: Date;
+  /** The onboarding application's applicant type. */
+  tenantType?: string;
+  /** true: an installer is on the job; false: none is. */
+  assigned?: boolean;
   sort?: JobSort;
 };
 

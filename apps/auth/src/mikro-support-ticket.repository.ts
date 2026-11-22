@@ -8,6 +8,7 @@ import {
 import {
   matchesTenantSearch,
   searchedTicketNumber,
+  statusList,
   type StoredSupportTicket,
   type SupportTicketFilters,
   type SupportTicketRepository,
@@ -50,16 +51,26 @@ function toStored(r: SupportTicketRecord): StoredSupportTicket {
   };
 }
 
+function escapeLike(value: string): string {
+  return value.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 function likePattern(search: string): string {
-  return `%${search.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return `%${escapeLike(search)}%`;
 }
 
 function fieldFilters(filters: SupportTicketFilters): ObjectQuery<SupportTicketRecord> {
   const where: Record<string, unknown> = {};
-  if (filters.status) where.status = filters.status;
+  const statuses = statusList(filters.status);
+  if (statuses.length) where.status = { $in: statuses };
   if (filters.category) where.category = filters.category;
   if (filters.priority) where.priority = filters.priority;
   if (filters.reporterType) where.reporterType = filters.reporterType;
+  if (filters.createdBy) where.createdBy = filters.createdBy;
+  // $and so it never collides with a search $or spread alongside.
+  if (filters.channel) {
+    where.$and = [{ $or: [{ channel: filters.channel }, { otherChannel: { $ilike: escapeLike(filters.channel) } }] }];
+  }
   return where;
 }
 
@@ -68,6 +79,14 @@ function adminSearch(search: string): ObjectQuery<SupportTicketRecord> {
   return {
     $or: [{ subject: { $ilike: q } }, { description: { $ilike: q } }, { id: { $ilike: q } }, { tenantId: { $ilike: q } }],
   };
+}
+
+/** SQL form of matchesTenantSearch. */
+function tenantSearch(search: string): ObjectQuery<SupportTicketRecord> {
+  const q = likePattern(search);
+  const number = searchedTicketNumber(search);
+  const byText: ObjectQuery<SupportTicketRecord>[] = [{ subject: { $ilike: q } }, { description: { $ilike: q } }, { id: { $ilike: q } }];
+  return { $or: number === null ? byText : [...byText, { ticketNumber: number }] };
 }
 
 function reporterSearch(search: string): ObjectQuery<SupportTicketRecord> {
@@ -92,14 +111,30 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
     const orm = await getAuthOrm(this.config.db);
     const em = orm.em.fork();
 
-    const where: Record<string, unknown> = { tenantId };
-    if (filters?.status) where.status = filters.status;
-    if (filters?.category) where.category = filters.category;
-    if (filters?.priority) where.priority = filters.priority;
+    const where = { ...fieldFilters({ ...filters, reporterType: undefined }), tenantId };
     const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc' } });
 
     if (!filters?.search) return records.map(toStored);
     return records.map(toStored).filter((t) => matchesTenantSearch(t, filters.search!));
+  }
+
+  async findPageForTenant(
+    tenantId: string,
+    filters: SupportTicketFilters,
+    page: TicketPageRequest,
+  ): Promise<{ items: StoredSupportTicket[]; total: number }> {
+    const em = await this.em();
+    const where: ObjectQuery<SupportTicketRecord> = {
+      ...fieldFilters({ ...filters, reporterType: undefined }),
+      tenantId,
+      ...(filters.search?.trim() ? tenantSearch(filters.search) : {}),
+    };
+    const [records, total] = await em.findAndCount(SupportTicketRecord, where, {
+      orderBy: { createdAt: 'desc', id: 'asc' },
+      limit: page.limit,
+      offset: (page.page - 1) * page.limit,
+    });
+    return { items: records.map(toStored), total };
   }
 
   async findById(id: string): Promise<StoredSupportTicket | null> {

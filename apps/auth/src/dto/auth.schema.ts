@@ -2786,26 +2786,6 @@ export class PaymentIntentResponse extends StandardApiResponse<PaymentIntentData
   data!: PaymentIntentDataSchema;
 }
 
-export class ExchangeRateDataSchema {
-  @ApiProperty({ example: 'NGN', description: 'Currency every platform figure is in' })
-  currency!: string;
-
-  @ApiProperty({ description: 'Whether conversion is switched on', example: false })
-  internationalCurrency!: boolean;
-
-  @ApiProperty({
-    type: Number,
-    nullable: true,
-    description: 'Null while international currency is off. Never applied to a stored amount.',
-  })
-  ngnPerUsd!: number | null;
-}
-
-export class ExchangeRateResponse extends StandardApiResponse<ExchangeRateDataSchema> {
-  @ApiProperty({ type: ExchangeRateDataSchema })
-  data!: ExchangeRateDataSchema;
-}
-
 export class EnterpriseEnquiryDataSchema {
   @ApiProperty() ticketId!: string;
 }

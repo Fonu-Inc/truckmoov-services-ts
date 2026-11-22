@@ -31,13 +31,14 @@ export abstract class BaseAuthController {
       return await fn();
     } catch (error) {
       this.rethrowCodeCooldown(error);
+      // A timed-out session is a 401 like any other dead credential. The code
+      // says why so the client can show "signed out for inactivity" rather
+      // than implying the password was wrong.
+      if (error instanceof InvalidRefreshTokenError || error instanceof SessionExpiredError) {
+        throw new UnauthorizedException({ message: error.message, code: error.code });
+      }
       if (
         error instanceof InvalidCredentialsError ||
-        error instanceof InvalidRefreshTokenError ||
-        // A timed-out session is a 401 like any other dead credential. The
-        // message says why so the client can show "signed out for inactivity"
-        // rather than implying the password was wrong.
-        error instanceof SessionExpiredError ||
         error instanceof InvalidChallengeError ||
         error instanceof InvalidTwoFactorCodeError
       ) {

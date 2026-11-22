@@ -102,6 +102,7 @@ import {
   VerificationDispatchError,
   ChannelAlreadyVerifiedError,
   VerificationResendTooSoonError,
+  VerifyApplicationPaymentUseCase,
   VerificationSendLimitError,
 } from '@auth/onboarding';
 import {
@@ -262,6 +263,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly startPayment: CreateApplicationPaymentUseCase,
     @Inject(CompleteApplicationPaymentUseCase)
     private readonly completePayment: CompleteApplicationPaymentUseCase,
+    @Inject(VerifyApplicationPaymentUseCase)
+    private readonly verifyApplicationPayment: VerifyApplicationPaymentUseCase,
     @Inject(AppConfigService)
     private readonly appConfig: AppConfigService,
     @Inject(SetBillingEmailUseCase)
@@ -888,6 +891,23 @@ export class OnboardingApplicationsController extends BaseAuthController {
         ? this.completePayment.execute(input)
         : this.startPayment.execute(input);
     });
+  }
+
+  @Post(':applicationId/payment/verify')
+  @ApiOperation({
+    summary: 'Check the payment with the provider',
+    description:
+      'For when the provider callback is late: asks the provider about the latest pending charge and, if it was paid, confirms it the same way the callback would. Safe to repeat; an already-confirmed payment just returns the order. Answers like GET order.',
+  })
+  @ApiCreatedResponse({ description: 'Order returned', type: ApplicationOrderResponse })
+  @TokenErrors()
+  @ApplicationTokenHeader()
+  async verifyPayment(
+    @Param('applicationId') applicationId: string,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() => this.verifyApplicationPayment.execute(applicationId, token));
   }
 
   @Post(':applicationId/installation')

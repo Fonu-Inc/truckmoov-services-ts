@@ -121,12 +121,34 @@ export type StoredSupportTicket = {
 };
 
 export type SupportTicketFilters = {
+  /** One status or a comma-separated list. */
   status?: string;
   category?: string;
   priority?: string;
   search?: string;
   reporterType?: SupportTicketReporterType;
+  createdBy?: string;
+  /** Matches the channel, or otherChannel case-insensitively (the chat widget uses otherChannel "live chat"). */
+  channel?: string;
 };
+
+export function statusList(status?: string): string[] {
+  return (status ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/** The in-memory equivalent of the SQL field filters, shared by the in-memory repository. */
+export function matchesFieldFilters(ticket: StoredSupportTicket, filters: SupportTicketFilters): boolean {
+  const statuses = statusList(filters.status);
+  const channel = filters.channel?.toLowerCase();
+  return (
+    (statuses.length === 0 || statuses.includes(ticket.status)) &&
+    (!filters.category || ticket.category === filters.category) &&
+    (!filters.priority || ticket.priority === filters.priority) &&
+    (!filters.reporterType || ticket.reporterType === filters.reporterType) &&
+    (!filters.createdBy || ticket.createdBy === filters.createdBy) &&
+    (!channel || ticket.channel === filters.channel || ticket.otherChannel?.toLowerCase() === channel)
+  );
+}
 
 export type TicketReporter = { type: SupportTicketReporterType; id: string };
 export type TicketPageRequest = { page: number; limit: number };
@@ -170,6 +192,12 @@ export interface SupportTicketRepository {
   findAll(filters?: SupportTicketFilters): Promise<StoredSupportTicket[]>;
   /** Scoped to one tenant. The tenant screen must never see another tenant's ticket. */
   findAllForTenant(tenantId: string, filters?: SupportTicketFilters): Promise<StoredSupportTicket[]>;
+  /** findAllForTenant with the search, ordering and paging done in the query. */
+  findPageForTenant(
+    tenantId: string,
+    filters: SupportTicketFilters,
+    page: TicketPageRequest,
+  ): Promise<{ items: StoredSupportTicket[]; total: number }>;
   findById(id: string): Promise<StoredSupportTicket | null>;
   save(ticket: StoredSupportTicket): Promise<void>;
   countByStatus(): Promise<Record<string, number>>;

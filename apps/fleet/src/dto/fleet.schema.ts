@@ -824,6 +824,14 @@ export class VehicleDriverAssignmentResponse extends StandardApiResponse<Vehicle
   data!: VehicleDriverAssignmentSchema;
 }
 
+export class BulkImportSkippedSchema {
+  @ApiProperty({ description: "1-based CSV line number" })
+  line!: number;
+
+  @ApiProperty()
+  message!: string;
+}
+
 export class BulkVehicleImportSchema {
   @ApiProperty()
   created!: number;
@@ -836,6 +844,8 @@ export class BulkVehicleImportSchema {
 
   @ApiProperty({ type: VehicleSchema, isArray: true })
   records!: VehicleSchema[];
+  @ApiProperty({ type: BulkImportSkippedSchema, isArray: true, description: "Rows that were not imported" })
+  skipped!: BulkImportSkippedSchema[];
 }
 
 export class BulkVehicleImportResponse extends StandardApiResponse<BulkVehicleImportSchema> {
@@ -855,6 +865,8 @@ export class BulkDriverImportSchema {
 
   @ApiProperty({ type: DriverSchema, isArray: true })
   records!: DriverSchema[];
+  @ApiProperty({ type: BulkImportSkippedSchema, isArray: true, description: "Rows that were not imported" })
+  skipped!: BulkImportSkippedSchema[];
 }
 
 export class BulkDriverImportResponse extends StandardApiResponse<BulkDriverImportSchema> {

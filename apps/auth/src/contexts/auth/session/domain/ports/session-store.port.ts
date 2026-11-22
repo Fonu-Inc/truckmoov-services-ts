@@ -17,8 +17,10 @@ export interface SessionStore {
    * oldToken was already spent, e.g. by a concurrent refresh.
    */
   rotate(oldToken: string, newToken: string, user: AuthUser): Promise<boolean>;
-  /** Whether this token was valid once and has since been rotated away. */
-  isSpent(refreshToken: string): Promise<boolean>;
+  /** When and for whom this token was rotated away; null if it never was. */
+  findSpent(refreshToken: string): Promise<{ spentAt: Date; user: AuthUser } | null>;
+  /** Adds newToken to the session spentToken belonged to. False once that session is gone. */
+  branch(spentToken: string, newToken: string, user: AuthUser): Promise<boolean>;
   /** Ends the whole session the token belongs to, every token of it. */
   revokeFamily(refreshToken: string): Promise<void>;
   /**

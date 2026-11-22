@@ -62,8 +62,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     if (this.connections >= this.config.realtime.maxConnections) {
       // Refused rather than accepted and starved. A pod at its cap should shed
-      // load visibly instead of degrading every existing connection.
-      this.refuse(client, 'capacity_reached');
+      // load visibly instead of degrading every existing connection. A random
+      // delay spreads the retries so refused clients do not return as one wave.
+      this.refuse(client, 'capacity_reached', { retryAfterSeconds: 5 + Math.floor(Math.random() * 26) });
       return;
     }
 
@@ -200,9 +201,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     return typeof origin === 'string' && allowed.includes(origin);
   }
 
-  private refuse(client: Socket, reason: string): void {
+  private refuse(client: Socket, reason: string, details?: { retryAfterSeconds: number }): void {
     this.logger.warn(`socket_refused:${reason}`);
-    client.emit('refused', { reason });
+    client.emit('refused', { reason, ...details });
     client.disconnect(true);
   }
 }

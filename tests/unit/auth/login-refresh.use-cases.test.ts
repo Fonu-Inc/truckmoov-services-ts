@@ -1,9 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthUser } from "../../../apps/auth/src/contexts/auth/session/domain/entities/auth-user.entity";
 import { InvalidRefreshTokenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/invalid-refresh-token.error";
 import { LoginUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/login.use-case";
-import { RefreshUseCase } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/refresh.use-case";
+import { RefreshUseCase, REUSE_GRACE_MS } from "../../../apps/auth/src/contexts/auth/session/application/use-cases/refresh.use-case";
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session/domain/errors/forbidden.error";
+
+/** A replay only counts as reuse once the grace window for racing tabs has passed. */
+function afterReuseGrace() {
+  vi.spyOn(Date, "now").mockReturnValue(Date.now() + REUSE_GRACE_MS + 1);
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /** These tests are about refresh, not about the idle timeout. */
 function noSessionTimeout() {
@@ -64,12 +73,12 @@ class FakeUserRepository {
 }
 
 class FakeSessionStore {
-  private readonly spent = new Set<string>();
+  private readonly spent = new Map<string, { spentAt: Date; user: AuthUser }>();
   private readonly families = new Map<string, string>();
 
   async rotate(oldToken: string, newToken: string, user: AuthUser) {
     const family = this.families.get(oldToken) ?? oldToken;
-    this.spent.add(oldToken);
+    this.spent.set(oldToken, { spentAt: new Date(), user });
     await this.deleteByRefreshToken(oldToken);
     await this.save(newToken, user);
     this.families.set(newToken, family);
@@ -77,13 +86,24 @@ class FakeSessionStore {
     return true;
   }
 
-  async isSpent(token: string) {
-    return this.spent.has(token);
+  async findSpent(token: string) {
+    return this.spent.get(token) ?? null;
+  }
+
+  async branch(spentToken: string, newToken: string, user: AuthUser) {
+    if (!this.spent.has(spentToken)) return false;
+    await this.save(newToken, user);
+    this.families.set(newToken, this.families.get(spentToken) ?? spentToken);
+    return true;
   }
 
   async revokeFamily(token: string) {
     const family = this.families.get(token);
-    for (const [t, f] of this.families) if (f === family) await this.deleteByRefreshToken(t);
+    for (const [t, f] of this.families) {
+      if (f !== family) continue;
+      this.spent.delete(t);
+      await this.deleteByRefreshToken(t);
+    }
   }
 
   private readonly data = new Map<string, {
@@ -181,6 +201,7 @@ describe("Auth use-cases", () => {
     expect(secondRefresh.refreshToken).not.toBe(refreshResult.refreshToken);
 
     // Old token is now invalid — a replay attempt fails.
+    afterReuseGrace();
     await expect(() => refreshUseCase.execute(oldRefreshToken)).rejects.toBeInstanceOf(
       InvalidRefreshTokenError,
     );
@@ -304,6 +325,7 @@ describe("each login admits only its own people", () => {
     const second = (await refresh.execute(first)).refreshToken;
 
     // Someone replays the first token after the holder moved on.
+    afterReuseGrace();
     await expect(refresh.execute(first)).rejects.toBeInstanceOf(InvalidRefreshTokenError);
 
     // The token the holder is using now is dead too.

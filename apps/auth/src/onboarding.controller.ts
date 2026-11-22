@@ -68,7 +68,6 @@ import {
   PaystackWebhookAckSchema,
   PaymentIntentResponse,
   KycDocumentsResponse,
-  ExchangeRateResponse,
   SubscriptionCapsResponse,
   BusinessInfoResponse,
   RegisterSimsResultResponse,
@@ -95,7 +94,6 @@ import { QuotaExceededError } from './entitlement.service';
 import { TOKEN_SERVICE } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import { GetBusinessInfoUseCase } from './get-business-info.use-case';
-import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
 import { GetOnboardingStatusUseCase } from './get-onboarding-status.use-case';
 import { GetSubscriptionCapsUseCase } from './get-subscription-caps.use-case';
@@ -120,7 +118,6 @@ export class OnboardingController extends BaseAuthController {
     @Inject(ObjectStorageService) private readonly objectStorageService: ObjectStorageService,
     @Inject(AppConfigService) private readonly appConfig: AppConfigService,
     @Inject(GetOnboardingPlansUseCase) private readonly getOnboardingPlansUseCase: GetOnboardingPlansUseCase,
-    @Inject(GetExchangeRateUseCase) private readonly getExchangeRateUseCase: GetExchangeRateUseCase,
     @Inject(CreatePaymentIntentUseCase) private readonly createPaymentIntentUseCase: CreatePaymentIntentUseCase,
     @Inject(ActivateSubscriptionUseCase) private readonly activateSubscriptionUseCase: ActivateSubscriptionUseCase,
     @Inject(SettleWalletTopUpUseCase) private readonly settleWalletTopUpUseCase: SettleWalletTopUpUseCase,
@@ -158,18 +155,6 @@ export class OnboardingController extends BaseAuthController {
   @ApiOkResponse({ type: SystemSubscriptionPlansResponse })
   async getOnboardingPlans() {
     return this.getOnboardingPlansUseCase.execute();
-  }
-
-  @Portals('public')
-  @Get('exchange-rate')
-  @ApiOperation({
-    summary: 'Platform currency',
-    description:
-      'The currency every figure on the platform is expressed in. No conversion is performed while international currency is off, so ngnPerUsd is null.',
-  })
-  @ApiOkResponse({ description: 'Exchange rate data', type: ExchangeRateResponse })
-  async getExchangeRate() {
-    return this.getExchangeRateUseCase.execute();
   }
 
   @Post('payment/intent')

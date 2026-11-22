@@ -819,6 +819,24 @@ describe("admins binding a unit's device", () => {
     expect(list.items[0]).toMatchObject({ jobNumber: "FL-2", tenantId: "tenant-2", installer: { id: "ada", code: "INS-ada" } });
     await expect(admin.list("gov", {})).rejects.toThrow();
   });
+
+  it("counts every status under the same filters, status aside, and filters by scheduled day", async () => {
+    await h.job("3", "Adebayo Freight", { status: "unassigned", scheduledDate: day("2026-10-02") });
+
+    const list = await admin.list("platform", { search: "adebayo", statuses: ["assigned"] });
+    expect(list.total).toBe(1);
+    expect(list.countsByStatus).toEqual({
+      ...Object.fromEntries(INSTALLATION_ORDER_STATUSES.map((s) => [s, 0])),
+      assigned: 1,
+      unassigned: 1,
+    });
+
+    const october = await admin.list("platform", { scheduledFrom: "2026-10-01", scheduledTo: "2026-10-02" });
+    expect(october.items.map((i) => i.jobNumber)).toEqual(["FL-3"]);
+    expect(october.countsByStatus.assigned).toBe(0);
+    expect((await admin.list("platform", { assigned: false })).items.map((i) => i.jobNumber)).toEqual(["FL-3"]);
+    await expect(admin.list("platform", { scheduledFrom: "2026-13-01" })).rejects.toBeInstanceOf(OnboardingValidationError);
+  });
 });
 
 it("reads Lagos days from UTC instants", () => {

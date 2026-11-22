@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
+  matchesFieldFilters,
+  matchesTenantSearch,
   searchedTicketNumber,
   type StoredSupportTicket,
   type SupportTicketFilters,
@@ -25,11 +27,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
   private sequence = 999;
 
   async findAll(filters?: SupportTicketFilters): Promise<StoredSupportTicket[]> {
-    let results = [...this.store.values()];
-    if (filters?.status) results = results.filter((t) => t.status === filters.status);
-    if (filters?.category) results = results.filter((t) => t.category === filters.category);
-    if (filters?.priority) results = results.filter((t) => t.priority === filters.priority);
-    if (filters?.reporterType) results = results.filter((t) => t.reporterType === filters.reporterType);
+    let results = [...this.store.values()].filter((t) => matchesFieldFilters(t, filters ?? {}));
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       results = results.filter(
@@ -46,6 +44,19 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
   async findAllForTenant(tenantId: string, filters?: SupportTicketFilters): Promise<StoredSupportTicket[]> {
     const all = await this.findAll(filters);
     return all.filter((t) => t.tenantId === tenantId);
+  }
+
+  async findPageForTenant(
+    tenantId: string,
+    filters: SupportTicketFilters,
+    page: TicketPageRequest,
+  ): Promise<{ items: StoredSupportTicket[]; total: number }> {
+    const found = [...this.store.values()]
+      .filter((t) => t.tenantId === tenantId && matchesFieldFilters(t, { ...filters, reporterType: undefined }))
+      .filter((t) => !filters.search || matchesTenantSearch(t, filters.search))
+      .sort(newestFirst);
+    const offset = (page.page - 1) * page.limit;
+    return { items: found.slice(offset, offset + page.limit), total: found.length };
   }
 
   async findById(id: string): Promise<StoredSupportTicket | null> {
@@ -115,9 +126,7 @@ export class InMemorySupportTicketRepository implements SupportTicketRepository 
     page: TicketPageRequest,
   ): Promise<{ items: StoredSupportTicket[]; total: number }> {
     const found = this.reportedBy(reporter)
-      .filter((t) => !filters.status || t.status === filters.status)
-      .filter((t) => !filters.category || t.category === filters.category)
-      .filter((t) => !filters.priority || t.priority === filters.priority)
+      .filter((t) => matchesFieldFilters(t, { ...filters, reporterType: undefined }))
       .filter((t) => reporterMatches(t, filters.search))
       .sort(newestFirst);
     const offset = (page.page - 1) * page.limit;

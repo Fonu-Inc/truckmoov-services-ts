@@ -398,6 +398,8 @@ import {
   PaystackGateway,
 } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
+import { TelephonyController } from './telephony.controller';
+import { GetClickToCallCredentialsUseCase } from './get-click-to-call-credentials.use-case';
 import { MailboxController } from './mailbox.controller';
 import { AdminMailboxController, AdminMailCredentialsController } from './admin-mailbox.controllers';
 import { PlatformAlertsController } from './platform-alerts.controller';
@@ -734,6 +736,7 @@ import {
   SetLicensePlanActiveUseCase,
   UpdateInstallationPriceUseCase,
   UpdateLicensePlanUseCase,
+  VerifyApplicationPaymentUseCase,
   CompleteApplicationPaymentUseCase,
   ConfirmApplicationPaymentUseCase,
   CreateApplicationPaymentUseCase,
@@ -818,7 +821,6 @@ import { OnboardingApplicationsController } from './onboarding-applications.cont
 import { SystemOnboardingApplicationsController } from './system-onboarding-applications.controller';
 import { PaymentEventService } from './payment-event.service';
 import { GetOnboardingPlansUseCase } from './get-onboarding-plans.use-case';
-import { GetExchangeRateUseCase } from './get-exchange-rate.use-case';
 import { CreatePaymentIntentUseCase } from './create-payment-intent.use-case';
 import { ActivateSubscriptionUseCase } from './activate-subscription.use-case';
 import { SubscribePaymentEventsUseCase } from './subscribe-payment-events.use-case';
@@ -989,6 +991,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallationController,
     SystemOnboardingApplicationsController,
     MailCredentialsController,
+    TelephonyController,
     MailboxController,
     AdminMailCredentialsController,
     AdminMailboxController,
@@ -1581,6 +1584,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     SaveMailCredentialsUseCase,
     GetMailCredentialsUseCase,
+    GetClickToCallCredentialsUseCase,
     DeleteMailCredentialsUseCase,
     ImapMailboxReader,
     SmtpImapMailSender,
@@ -2307,6 +2311,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     GetApplicationOrderUseCase,
     CreateApplicationPaymentUseCase,
+    VerifyApplicationPaymentUseCase,
     CompleteApplicationPaymentUseCase,
     ConfirmApplicationPaymentUseCase,
     SetBillingEmailUseCase,
@@ -2457,7 +2462,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     // Onboarding use cases
     PaymentEventService,
     GetOnboardingPlansUseCase,
-    GetExchangeRateUseCase,
     LowBalanceNotifierService,
     PlatformTopUpWalletUseCase,
     UpdateWalletCreditSettingsUseCase,

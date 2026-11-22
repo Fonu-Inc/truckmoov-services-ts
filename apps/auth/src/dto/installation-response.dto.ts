@@ -205,6 +205,11 @@ export class InstallationJobPageSchema {
   @ApiProperty({ example: 1 }) page!: number;
   @ApiProperty({ example: 20, description: 'At most 100.' }) limit!: number;
   @ApiProperty() total!: number;
+  @ApiProperty({
+    description: 'Jobs per status under the same filters, status aside. Every status is present.',
+    example: { unassigned: 3, assigned: 1, scheduled: 4, in_progress: 0, overdue: 0, issue_reported: 0, completed: 12, cancelled: 1 },
+  })
+  countsByStatus!: Record<string, number>;
 }
 
 export class InstallationJobPageResponse extends StandardApiResponse<InstallationJobPageSchema> {

@@ -67,6 +67,12 @@ function whereOf(filters: JobFilters): { sql: string; params: unknown[] } {
   if (filters.scheduledBefore) add('o.scheduled_date < ?', filters.scheduledBefore);
   if (filters.completedFrom) add('coalesce(o.completed_at, o.cancelled_at) >= ?', filters.completedFrom);
   if (filters.completedBefore) add('coalesce(o.completed_at, o.cancelled_at) < ?', filters.completedBefore);
+  if (filters.startedFrom) add('o.started_at >= ?', filters.startedFrom);
+  if (filters.startedBefore) add('o.started_at < ?', filters.startedBefore);
+  if (filters.createdFrom) add('o.created_at >= ?', filters.createdFrom);
+  if (filters.createdBefore) add('o.created_at < ?', filters.createdBefore);
+  if (filters.tenantType) add('app.applicant_type = ?', filters.tenantType);
+  if (filters.assigned !== undefined) add(filters.assigned ? 'o.installer_id is not null' : 'o.installer_id is null');
 
   const q = filters.search?.trim();
   if (q) {

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength,
+  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, MaxLength, Min, MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -78,21 +78,21 @@ export class UpdateCarrierDto {
 export class CreateBundleDto {
   @ApiPropertyOptional({ description: 'Defaults to the bundle code' }) @IsOptional() @IsString() @MinLength(1) id?: string;
   @ApiProperty({ description: 'Unique, sent to the carrier, and cannot be changed afterwards' }) @IsString() @MinLength(1) code!: string;
-  @ApiProperty() @IsString() @MinLength(1) name!: string;
+  @ApiProperty() @IsString() @MinLength(1) @MaxLength(120) name!: string;
   @ApiPropertyOptional({ description: 'Defaults to MTN' }) @IsOptional() @IsString() carrierId?: string;
-  @ApiProperty() @IsNumber() @Min(0) dataAmountGb!: number;
+  @ApiProperty() @IsNumber() @IsPositive() dataAmountGb!: number;
   @ApiProperty() @IsInt() @Min(1) validityDays!: number;
   @ApiProperty() @IsString() billingCycle!: string;
-  @ApiProperty() @IsNumber() @Min(0) priceNaira!: number;
+  @ApiProperty() @IsNumber() @IsPositive() priceNaira!: number;
   @ApiPropertyOptional() @IsOptional() @IsString() currency?: string;
   @ApiPropertyOptional({ description: 'Inactive bundles are hidden from tenants. Defaults to true' }) @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class UpdateBundleDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) dataAmountGb?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(1) @MaxLength(120) name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() dataAmountGb?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) validityDays?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() billingCycle?: string;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) priceNaira?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @IsPositive() priceNaira?: number;
   @ApiPropertyOptional() @IsOptional() active?: boolean;
 }

@@ -61,6 +61,7 @@ import { GetMyTicketAttachmentLinkUseCase } from './get-my-ticket-attachment-lin
 import { MyTicketCsatUseCases } from './my-support-ticket-csat.use-cases';
 import { TicketCsatAlreadySubmittedError } from './support-ticket-csat.repository';
 import { Portals, OnResource } from '@shared/access';
+import { numeric } from './installation-http';
 
 /** Up to 5 files per attach call — the requirements name a per-file cap, not a count, so this is a sane bound rather than a stated one. */
 const MAX_ATTACHMENTS_PER_CALL = 5;
@@ -92,20 +93,33 @@ export class SupportTicketsController extends BaseAuthController {
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'My tickets', description: 'The caller tenant’s own tickets only.' })
-  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'status', required: false, description: 'One status or a comma-separated list' })
   @ApiQuery({ name: 'category', required: false })
   @ApiQuery({ name: 'priority', required: false })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'createdBy', required: false, enum: ['me'] })
+  @ApiQuery({ name: 'channel', required: false, description: 'Matches channel, or otherChannel case-insensitively (e.g. "live chat")' })
+  @ApiQuery({ name: 'page', required: false, description: 'Omit page and limit to get up to 500 tickets' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max 100' })
   async myTickets(
     @Headers('authorization') authorization?: string,
     @Query('status') status?: string,
     @Query('category') category?: string,
     @Query('priority') priority?: string,
     @Query('search') search?: string,
+    @Query('createdBy') createdBy?: string,
+    @Query('channel') channel?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     const accessToken = this.requireToken(authorization);
+    if (createdBy && createdBy !== 'me') throw new BadRequestException('createdBy only accepts "me"');
     try {
-      return await this.listTickets.execute(accessToken, { status, category, priority, search });
+      return await this.listTickets.execute(
+        accessToken,
+        { status, category, priority, search, createdBy, channel },
+        { page: numeric(page), limit: numeric(limit) },
+      );
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       throw error;

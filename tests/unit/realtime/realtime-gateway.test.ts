@@ -230,7 +230,7 @@ describe('connection cap', () => {
     gateway.handleConnection(overflow as never);
 
     expect(gateway.openConnections()).toBe(2);
-    expect(overflow.emit).toHaveBeenCalledWith('refused', { reason: 'capacity_reached' });
+    expect(overflow.emit).toHaveBeenCalledWith('refused', { reason: 'capacity_reached', retryAfterSeconds: expect.any(Number) });
   });
 
   it('frees a slot on disconnect', () => {

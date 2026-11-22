@@ -13,6 +13,17 @@ import {
   type SupportTicketRepository,
 } from './support-ticket.repository';
 
+const MAX_PAGE_SIZE = 100;
+/** Callers that send no page get everything, as before, up to this many. */
+const UNPAGED_CAP = 500;
+
+function pageOf(paging: { page?: number; limit?: number }) {
+  return {
+    page: Math.max(1, Math.floor(paging.page ?? 1)),
+    limit: Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(paging.limit ?? 20))),
+  };
+}
+
 function displayName(user: StoredUser | null | undefined): string | null {
   return user?.profile?.fullName?.trim() || user?.email || null;
 }
@@ -40,13 +51,15 @@ export class ListMySupportTicketsUseCase {
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
   ) {}
 
-  async execute(accessToken: string, filters: SupportTicketFilters = {}) {
+  async execute(accessToken: string, filters: SupportTicketFilters = {}, paging: { page?: number; limit?: number } = {}) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
     if (actor.tenantId === 'system') {
       throw new ForbiddenError('System actors have no tenant tickets to list');
     }
 
-    const tickets = await this.ticketRepo.findAllForTenant(actor.tenantId!, filters);
+    const page = paging.page || paging.limit ? pageOf(paging) : { page: 1, limit: UNPAGED_CAP };
+    const createdBy = filters.createdBy === 'me' ? actor.id : filters.createdBy;
+    const { items: tickets, total } = await this.ticketRepo.findPageForTenant(actor.tenantId!, { ...filters, createdBy }, page);
     // Every status this tenant's tickets are in, not just the filtered page —
     // the tab chips are aggregates over everything, not the current view.
     const counts = await this.ticketRepo.countByStatusForTenant(actor.tenantId!);
@@ -58,7 +71,9 @@ export class ListMySupportTicketsUseCase {
       data: {
         tickets: await withReporterNames(this.userRepository, tickets.map(withDisplayId)),
         countsByStatus: byStatus,
-        total: tickets.length,
+        total,
+        page: page.page,
+        limit: page.limit,
       },
     };
   }

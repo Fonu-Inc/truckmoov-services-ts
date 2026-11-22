@@ -74,8 +74,16 @@ export class MikroSessionStore implements SessionStore {
     return true;
   }
 
-  async isSpent(refreshToken: string): Promise<boolean> {
-    return Boolean((await this.find(refreshToken))?.spentAt);
+  async findSpent(refreshToken: string): Promise<{ spentAt: Date; user: AuthUser } | null> {
+    const record = await this.find(refreshToken);
+    return record?.spentAt ? { spentAt: record.spentAt, user: this.toDomain(record) } : null;
+  }
+
+  async branch(spentToken: string, newToken: string, user: AuthUser): Promise<boolean> {
+    const record = await this.find(spentToken);
+    if (!record?.spentAt || !record.familyId) return false;
+    await this.write(newToken, user, record.familyId);
+    return true;
   }
 
   async revokeFamily(refreshToken: string): Promise<void> {

@@ -94,6 +94,15 @@ import { SaveAutoTopupUseCase } from './save-auto-topup.use-case';
 import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
 
+function ledgerFilters(query: WalletLedgerQueryDto) {
+  return {
+    category: query.category as never,
+    direction: query.direction,
+    from: query.from ? new Date(query.from) : undefined,
+    to: query.to ? new Date(query.to) : undefined,
+  };
+}
+
 @ApiTags('Data Bundles')
 @Portals('tenant')
 @OnResource('tenant.bundles')
@@ -383,6 +392,8 @@ export class DataBundlesController extends BaseAuthController {
   })
   @ApiQuery({ name: 'category', required: false, enum: WALLET_LEDGER_CATEGORIES })
   @ApiQuery({ name: 'direction', required: false, enum: ['debit', 'credit'] })
+  @ApiQuery({ name: 'from', required: false, description: 'ISO 8601 instant, inclusive' })
+  @ApiQuery({ name: 'to', required: false, description: 'ISO 8601 instant, inclusive' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiOkResponse({ description: 'Wallet ledger entries' })
@@ -394,11 +405,37 @@ export class DataBundlesController extends BaseAuthController {
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
     try {
       return await this.listWalletLedgerUseCase.execute(accessToken, {
-        category: query.category as never,
-        direction: query.direction,
+        ...ledgerFilters(query),
         page: query.page,
         limit: query.limit,
       });
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
+      throw error;
+    }
+  }
+
+  @Get('ledger/export')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Export the caller's wallet ledger as CSV, newest first, at most 10,000 lines" })
+  @ApiQuery({ name: 'category', required: false, enum: WALLET_LEDGER_CATEGORIES })
+  @ApiQuery({ name: 'direction', required: false, enum: ['debit', 'credit'] })
+  @ApiQuery({ name: 'from', required: false, description: 'ISO 8601 instant, inclusive' })
+  @ApiQuery({ name: 'to', required: false, description: 'ISO 8601 instant, inclusive' })
+  @ApiOkResponse({ description: 'CSV file', schema: { type: 'string', format: 'binary' } })
+  @ApiProduces('text/csv')
+  async exportWalletLedger(
+    @Query() query: WalletLedgerQueryDto,
+    @Headers('authorization') authorization?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    try {
+      const result = await this.listWalletLedgerUseCase.export(accessToken, ledgerFilters(query));
+      (res as any).set({ 'Content-Type': result.contentType, 'Content-Disposition': `attachment; filename="${result.filename}"` });
+      return new StreamableFile(result.buffer);
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);

@@ -131,7 +131,6 @@
   - `GET /auth/system/support/tickets/{ticketId}/messages` — List ticket messages (includes internal notes)
   - `POST /auth/system/support/tickets/{ticketId}/messages` — Send message or internal note on ticket
   - `GET /auth/onboarding/plans` — List subscription plans
-  - `GET /auth/onboarding/exchange-rate` — Current NGN/USD exchange rate
   - `POST /auth/onboarding/payment/intent` — Create payment intent
   - `GET /auth/onboarding/payment/events` — Subscribe to payment confirmation events (SSE)
   - `POST /auth/onboarding/payment/webhook` — Paystack payment webhook (no auth)
@@ -5186,32 +5185,6 @@ Returns all active subscription plans with NGN prices and limits.
           }
         ]
       generatedAt: string <date-time>
-    }
-}
-```
-
----
-
-### `GET /auth/onboarding/exchange-rate`
-
-**Current NGN/USD exchange rate**
-
-Live rate from ExchangeRate-API; cached 30 min.
-
-**Request body:** _none_
-
-**Responses:**
-
-- `200` — Exchange rate data
-```
-{
-  status: boolean
-  message: string
-  data:
-    {
-      ngnPerUsd: number
-      source: string
-      fetchedAt: string <date-time>
     }
 }
 ```

@@ -16,6 +16,7 @@ import {
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Portals, Requires } from '@shared/access';
 import { INSTALLATION_ORDER_STATUSES } from './contexts/installation/domain/installation-order';
+import type { JobSort } from './contexts/installation/domain/installation-job.reader';
 import { ManageInstallationOrdersUseCases } from './contexts/installation/application/use-cases/manage-installation-orders.use-cases';
 import { AdminJobChangesUseCases } from './contexts/installation/application/use-cases/admin-job-changes.use-cases';
 import {
@@ -33,6 +34,16 @@ import {
   InstallationJobDetailResponse,
   InstallationJobPageResponse,
 } from './dto/installation-response.dto';
+
+const JOB_SORTS: readonly JobSort[] = ['newest', 'scheduled', 'completion'];
+const TENANT_TYPES = ['enterprise', 'owner_operator'] as const;
+const ASSIGNMENTS = ['assigned', 'unassigned'] as const;
+
+function oneOf<T extends string>(field: string, value: string | undefined, allowed: readonly T[]): T | undefined {
+  if (!value) return undefined;
+  if (!(allowed as readonly string[]).includes(value)) throw new BadRequestException(`${field} must be one of: ${allowed.join(', ')}`);
+  return value as T;
+}
 
 const REFUSED_AS_NOT_FOUND =
   'Under PORTAL_ENFORCEMENT or PERMISSION_ENFORCEMENT=enforce, a refused caller gets "Cannot <METHOD> <path>" here instead of a 403.';
@@ -74,23 +85,53 @@ export class SystemInstallationOrdersController {
   @Get()
   @Requires('admin.installations.read')
   @ApiOperation({ summary: 'Installation jobs across every customer and installer' })
-  @ApiQuery({ name: 'status', required: false, enum: INSTALLATION_ORDER_STATUSES })
+  @ApiQuery({ name: 'status', required: false, description: `One or more of ${INSTALLATION_ORDER_STATUSES.join(', ')}, comma-separated` })
   @ApiQuery({ name: 'installerId', required: false })
   @ApiQuery({ name: 'search', required: false, description: 'Job number, customer, vehicle registration, city or state' })
+  @ApiQuery({ name: 'tenantType', required: false, enum: ['enterprise', 'owner_operator'] })
+  @ApiQuery({ name: 'assignment', required: false, enum: ['assigned', 'unassigned'], description: 'Whether an installer is on the job' })
+  @ApiQuery({ name: 'scheduledFrom', required: false, description: 'YYYY-MM-DD booked date, inclusive' })
+  @ApiQuery({ name: 'scheduledTo', required: false, description: 'YYYY-MM-DD booked date, inclusive' })
+  @ApiQuery({ name: 'startedFrom', required: false, description: 'YYYY-MM-DD Lagos day, inclusive' })
+  @ApiQuery({ name: 'startedTo', required: false, description: 'YYYY-MM-DD Lagos day, inclusive' })
+  @ApiQuery({ name: 'completedFrom', required: false, description: 'YYYY-MM-DD Lagos day of completion or cancellation, inclusive' })
+  @ApiQuery({ name: 'completedTo', required: false, description: 'YYYY-MM-DD Lagos day of completion or cancellation, inclusive' })
+  @ApiQuery({ name: 'createdFrom', required: false, description: 'YYYY-MM-DD Lagos day, inclusive' })
+  @ApiQuery({ name: 'createdTo', required: false, description: 'YYYY-MM-DD Lagos day, inclusive' })
+  @ApiQuery({ name: 'sort', required: false, enum: JOB_SORTS, description: 'Default newest' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false, description: 'Default 20, at most 100' })
-  @ApiOkResponse({ description: 'Page of jobs, newest first', type: InstallationJobPageResponse })
-  @ApiErrorResponse(400, '"status must be one of: <statuses>"')
+  @ApiOkResponse({
+    description: 'Page of jobs. countsByStatus counts every status under the same filters, status aside.',
+    type: InstallationJobPageResponse,
+  })
+  @ApiErrorResponse(
+    400,
+    '"status must be one of: <statuses>", "sort must be one of: <sorts>", "tenantType must be one of: enterprise, owner_operator", "assignment must be one of: assigned, unassigned", or "<field> must be a date (YYYY-MM-DD)"',
+  )
   @StaffErrors()
   async list(
-    @Query('status') status?: string,
-    @Query('installerId') installerId?: string,
-    @Query('search') search?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() q: Record<string, string | undefined>,
     @Headers('authorization') authorization?: string,
   ) {
-    const query = { status: jobStatusFilter(status), installerId, search, page: numeric(page), limit: numeric(limit) };
+    const query = {
+      statuses: q.status ? String(q.status).split(',').flatMap((s) => jobStatusFilter(s.trim()) ?? []) : undefined,
+      installerId: q.installerId,
+      search: q.search,
+      tenantType: oneOf('tenantType', q.tenantType, TENANT_TYPES),
+      assigned: q.assignment ? oneOf('assignment', q.assignment, ASSIGNMENTS) === 'assigned' : undefined,
+      scheduledFrom: q.scheduledFrom,
+      scheduledTo: q.scheduledTo,
+      startedFrom: q.startedFrom,
+      startedTo: q.startedTo,
+      completedFrom: q.completedFrom,
+      completedTo: q.completedTo,
+      createdFrom: q.createdFrom,
+      createdTo: q.createdTo,
+      sort: oneOf('sort', q.sort, JOB_SORTS),
+      page: numeric(q.page),
+      limit: numeric(q.limit),
+    };
     return ok(await mapped(() => this.orders.list(bearer(authorization), query)));
   }
 

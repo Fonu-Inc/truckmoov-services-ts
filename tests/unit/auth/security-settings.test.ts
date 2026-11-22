@@ -14,7 +14,8 @@ function sessionStore(lastActiveAt: Date | null) {
     deleteByRefreshToken: vi.fn(async () => {}),
     save: vi.fn(async () => {}),
     rotate: vi.fn(async () => true),
-    isSpent: vi.fn(async () => false),
+    findSpent: vi.fn(async () => null),
+    branch: vi.fn(async () => false),
     revokeFamily: vi.fn(async () => {}),
   };
 }

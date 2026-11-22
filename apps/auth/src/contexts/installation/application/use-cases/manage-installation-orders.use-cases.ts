@@ -4,6 +4,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY } from '@auth/session';
 import type { TokenService } from '@auth/session/domain/ports/token-service.port';
 import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
 import {
+  INSTALLATION_ORDER_STATUSES,
   TERMINAL_JOB_STATUSES,
   type InstallationOrderStatus,
 } from '@auth/installation/domain/installation-order';
@@ -16,7 +17,9 @@ import {
 import {
   INSTALLATION_JOB_READER,
   type InstallationJobReader,
+  type JobFilters,
   type JobRow,
+  type JobSort,
 } from '@auth/installation/domain/installation-job.reader';
 import {
   INSTALLER_REPOSITORY,
@@ -49,17 +52,54 @@ import {
   type SupportTicketRepository,
 } from '../../../../support-ticket.repository';
 import { ActivityLogService } from '../../../../activity-log.service';
+import { lagosDayBounds, nextCalendarDay } from '@shared/devices';
 import { pageOf } from './support/paging';
+import { calendarDay } from './installer-jobs.use-cases';
 import { devicesForJobs, toJobDetail, toJobListItem } from './support/installation-job.views';
 import { requireStaff, type Staff } from './support/platform-staff';
 
 export type ListInstallationOrdersQuery = {
-  status?: InstallationOrderStatus;
+  /** Any of these; all when absent. */
+  statuses?: InstallationOrderStatus[];
   installerId?: string;
   search?: string;
+  tenantType?: string;
+  assigned?: boolean;
+  /** Inclusive YYYY-MM-DD bounds: scheduled is the booked calendar date, the rest Lagos days (completed covers cancellation). */
+  scheduledFrom?: string;
+  scheduledTo?: string;
+  startedFrom?: string;
+  startedTo?: string;
+  completedFrom?: string;
+  completedTo?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sort?: JobSort;
   page?: number;
   limit?: number;
 };
+
+const storedDay = (field: string, value: string) => new Date(`${calendarDay(field, value)}T00:00:00Z`);
+const lagosFrom = (field: string, value?: string) => (value ? lagosDayBounds(calendarDay(field, value)).start : undefined);
+const lagosBefore = (field: string, value?: string) => (value ? lagosDayBounds(calendarDay(field, value)).end : undefined);
+
+function adminJobFilters(query: ListInstallationOrdersQuery): JobFilters {
+  return {
+    installerId: query.installerId,
+    search: query.search,
+    tenantType: query.tenantType,
+    assigned: query.assigned,
+    scheduledFrom: query.scheduledFrom ? storedDay('scheduledFrom', query.scheduledFrom) : undefined,
+    scheduledBefore: query.scheduledTo ? nextCalendarDay(storedDay('scheduledTo', query.scheduledTo)) : undefined,
+    startedFrom: lagosFrom('startedFrom', query.startedFrom),
+    startedBefore: lagosBefore('startedTo', query.startedTo),
+    completedFrom: lagosFrom('completedFrom', query.completedFrom),
+    completedBefore: lagosBefore('completedTo', query.completedTo),
+    createdFrom: lagosFrom('createdFrom', query.createdFrom),
+    createdBefore: lagosBefore('createdTo', query.createdTo),
+    sort: query.sort ?? 'newest',
+  };
+}
 
 function installerSummary(installer: StoredInstaller | undefined) {
   return installer ? { id: installer.id, code: installer.code, fullName: installer.fullName } : null;
@@ -89,16 +129,14 @@ export class ManageInstallationOrdersUseCases {
   async list(accessToken: string, query: ListInstallationOrdersQuery) {
     await this.staff(accessToken, 'admin.installations.read');
     const { page, limit } = pageOf(query);
-    const found = await this.jobs.list(
-      {
-        installerId: query.installerId,
-        statuses: query.status ? [query.status] : undefined,
-        search: query.search,
-        sort: 'newest',
-      },
-      { page, limit },
-    );
-    return { items: await this.items(found.items), page, limit, total: found.total };
+    const filters = adminJobFilters(query);
+    // Tab badges: the same filters with the status left out.
+    const [found, ...counts] = await Promise.all([
+      this.jobs.list({ ...filters, statuses: query.statuses?.length ? query.statuses : undefined }, { page, limit }),
+      ...INSTALLATION_ORDER_STATUSES.map((status) => this.jobs.count({ ...filters, statuses: [status] })),
+    ]);
+    const countsByStatus = Object.fromEntries(INSTALLATION_ORDER_STATUSES.map((status, i) => [status, counts[i]]));
+    return { items: await this.items(found.items), page, limit, total: found.total, countsByStatus };
   }
 
   /** One job with its units, checklist and evidence, plus every installer who rejected the offer. */

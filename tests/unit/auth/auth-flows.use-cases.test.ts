@@ -90,12 +90,12 @@ class FakeAuthNotifier {
 }
 
 class FakeSessionStore {
-  private readonly spent = new Set<string>();
+  private readonly spent = new Map<string, { spentAt: Date; user: AuthUser }>();
   private readonly families = new Map<string, string>();
 
   async rotate(oldToken: string, newToken: string, user: AuthUser) {
     const family = this.families.get(oldToken) ?? oldToken;
-    this.spent.add(oldToken);
+    this.spent.set(oldToken, { spentAt: new Date(), user });
     await this.deleteByRefreshToken(oldToken);
     await this.save(newToken, user);
     this.families.set(newToken, family);
@@ -103,13 +103,24 @@ class FakeSessionStore {
     return true;
   }
 
-  async isSpent(token: string) {
-    return this.spent.has(token);
+  async findSpent(token: string) {
+    return this.spent.get(token) ?? null;
+  }
+
+  async branch(spentToken: string, newToken: string, user: AuthUser) {
+    if (!this.spent.has(spentToken)) return false;
+    await this.save(newToken, user);
+    this.families.set(newToken, this.families.get(spentToken) ?? spentToken);
+    return true;
   }
 
   async revokeFamily(token: string) {
     const family = this.families.get(token);
-    for (const [t, f] of this.families) if (f === family) await this.deleteByRefreshToken(t);
+    for (const [t, f] of this.families) {
+      if (f !== family) continue;
+      this.spent.delete(t);
+      await this.deleteByRefreshToken(t);
+    }
   }
 
   private readonly data = new Map<string, {

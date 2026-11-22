@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength,
+  ArrayMaxSize, IsArray, IsIn, IsInt, IsISO8601, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -71,6 +71,8 @@ export class ListBundleRatesQueryDto {
 export class WalletLedgerQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() category?: string;
   @ApiPropertyOptional({ enum: ['debit', 'credit'] }) @IsOptional() @IsIn(['debit', 'credit']) direction?: 'debit' | 'credit';
+  @ApiPropertyOptional({ description: 'ISO 8601 instant, inclusive' }) @IsOptional() @IsISO8601() from?: string;
+  @ApiPropertyOptional({ description: 'ISO 8601 instant, inclusive' }) @IsOptional() @IsISO8601() to?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Type(() => Number) page?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number) limit?: number;
 }

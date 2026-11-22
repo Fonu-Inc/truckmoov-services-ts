@@ -8,6 +8,9 @@ import {
   type WalletLedgerFilters,
   type WalletLedgerRepository,
 } from './wallet-ledger.repository';
+import { buildExport } from './export.helper';
+
+const EXPORT_HEADERS = ['Date', 'Direction', 'Category', 'Quantity', 'Unit Rate (NGN)', 'Amount (NGN)', 'Balance After (NGN)', 'Reason', 'Reference'];
 
 @Injectable()
 export class ListWalletLedgerUseCase {
@@ -18,12 +21,7 @@ export class ListWalletLedgerUseCase {
   ) {}
 
   async execute(accessToken: string, filters?: WalletLedgerFilters) {
-    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
-    if (actor.tenantId === 'system') {
-      throw new ForbiddenError('System actors do not hold a wallet');
-    }
-
-    const { items, total } = await this.ledger.list(actor.tenantId!, filters);
+    const { items, total } = await this.ledger.list(await this.tenantId(accessToken), filters);
 
     return {
       status: true,
@@ -46,5 +44,32 @@ export class ListWalletLedgerUseCase {
         total,
       },
     };
+  }
+
+  /** The caller's own ledger as CSV, same columns as the platform export without the tenant. */
+  async export(accessToken: string, filters: Omit<WalletLedgerFilters, 'page' | 'limit'> = {}) {
+    const { items } = await this.ledger.list(await this.tenantId(accessToken), { ...filters, page: 1, limit: 10000 });
+    const rows = items.map((entry) => [
+      entry.createdAt.toISOString(),
+      entry.direction,
+      entry.category,
+      entry.quantity,
+      (entry.unitRateKobo / 100).toFixed(2),
+      (entry.amountKobo / 100).toFixed(2),
+      (entry.balanceAfterKobo / 100).toFixed(2),
+      entry.reason,
+      entry.reference ?? '',
+    ]);
+    const { buffer, contentType, ext } = await buildExport('csv', EXPORT_HEADERS, rows, 'Wallet Ledger');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return { buffer, contentType, filename: `wallet-ledger-${timestamp}.${ext}` };
+  }
+
+  private async tenantId(accessToken: string): Promise<string> {
+    const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
+    if (actor.tenantId === 'system') {
+      throw new ForbiddenError('System actors do not hold a wallet');
+    }
+    return actor.tenantId!;
   }
 }

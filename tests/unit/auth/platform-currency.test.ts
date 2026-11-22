@@ -5,7 +5,6 @@ import {
   type SystemSettings,
 } from "../../../apps/auth/src/system-settings.repository";
 import { UpdateSystemSettingsUseCase } from "../../../apps/auth/src/update-system-settings.use-case";
-import { GetExchangeRateUseCase } from "../../../apps/auth/src/get-exchange-rate.use-case";
 import { UnsupportedPlatformCurrencyError } from "../../../apps/auth/src/platform-currency.errors";
 import { buildDefaultOrganizationSettings } from "../../../apps/auth/src/contexts/auth/session/domain/ports/organization-settings.repository.port";
 
@@ -110,29 +109,6 @@ describe("Platform currency", () => {
     });
 
     expect(repository.settings?.defaults.platformCurrency).toBe("NGN");
-  });
-
-  it("reports Naira and no rate while conversion is off", async () => {
-    const repository = new FakeSettingsRepository();
-    const result = await new GetExchangeRateUseCase(repository as never).execute();
-
-    expect(result.data.currency).toBe("NGN");
-    expect(result.data.internationalCurrency).toBe(false);
-    // Never a number. A caller handed an invented rate cannot tell it is wrong.
-    expect(result.data.ngnPerUsd).toBeNull();
-  });
-
-  it("still returns no rate once the flag is switched on", async () => {
-    const settings = buildDefaultSystemSettings();
-    settings.features.internationalCurrency = true;
-    const repository = new FakeSettingsRepository(settings);
-
-    const result = await new GetExchangeRateUseCase(repository as never).execute();
-
-    expect(result.data.internationalCurrency).toBe(true);
-    // Turning the flag on does not conjure a rate. One has to be set, and the
-    // machinery to set it is deliberately not built yet.
-    expect(result.data.ngnPerUsd).toBeNull();
   });
 
   it("defaults a tenant to Naira, not dollars", () => {

@@ -7,6 +7,7 @@ import {
   type PaymentCallback,
   type ChargeInitiated,
   type ChargeRequest,
+  type ChargeVerification,
   type PaymentGateway,
   type RefundLookup,
   type RefundResult,
@@ -32,6 +33,12 @@ type PaystackRefundLookupResponse = {
 };
 
 type PaystackRefundRecord = { id?: number | string; status?: string };
+
+type PaystackVerifyResponse = {
+  status?: boolean;
+  data?: { status?: string; amount?: unknown; currency?: unknown; channel?: unknown } | null;
+  message?: string;
+};
 
 function refundStatus(value: unknown): RefundStatus {
   if (value === 'processed') return 'processed';
@@ -133,6 +140,41 @@ export class PaystackGateway implements PaymentGateway {
       throw new PaymentGatewayError(this.name, `Paystack did not answer (${reason})`);
     }
     return this.toLookup(response.status, response.data);
+  }
+
+  async verifyCharge(reference: string): Promise<ChargeVerification> {
+    if (!this.isConfigured()) {
+      throw new PaymentGatewayError(this.name, 'Paystack is not configured');
+    }
+    const baseUrl = this.config.payment.paystackBaseUrl.replace(/\/+$/, '');
+    let response: { status: number; data: PaystackVerifyResponse | undefined };
+    try {
+      response = await axios.get<PaystackVerifyResponse>(
+        `${baseUrl}/transaction/verify/${encodeURIComponent(reference)}`,
+        {
+          headers: { Authorization: `Bearer ${this.config.payment.paystackSecretKey}` },
+          timeout: REFUND_TIMEOUT_MS,
+          validateStatus: () => true,
+        },
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      throw new PaymentGatewayError(this.name, `Paystack did not answer (${reason})`);
+    }
+    const unpaid = { paid: false, amountKobo: null, currency: null, channel: null };
+    if (response.status === 404) return unpaid;
+    const body = response.data;
+    if (response.status >= 400 || !body?.status) {
+      throw new PaymentGatewayError(this.name, body?.message ?? `Paystack answered ${response.status}`);
+    }
+    const data = body.data;
+    if (data?.status !== 'success') return unpaid;
+    return {
+      paid: true,
+      amountKobo: Number.isInteger(data.amount) ? (data.amount as number) : null,
+      currency: typeof data.currency === 'string' ? data.currency : null,
+      channel: typeof data.channel === 'string' ? data.channel : null,
+    };
   }
 
   private toLookup(httpStatus: number, body: PaystackRefundLookupResponse | undefined): RefundLookup {

@@ -4,6 +4,7 @@ export {
   PaymentGatewayError,
   type ChargeInitiated,
   type ChargeRequest,
+  type ChargeVerification,
   type PaidAmount,
   type PaymentCallback,
   type PaymentGateway,

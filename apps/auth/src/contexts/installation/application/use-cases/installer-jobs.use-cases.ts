@@ -82,7 +82,7 @@ function isCalendarDay(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function calendarDay(field: string, value: string): string {
+export function calendarDay(field: string, value: string): string {
   if (!isCalendarDay(value)) {
     throw new OnboardingValidationError(field, `${field} must be a date (YYYY-MM-DD)`);
   }

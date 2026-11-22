@@ -12,28 +12,36 @@ export class InMemorySessionStore implements SessionStore {
     user: AuthUser;
     updatedAt: Date;
     familyId: string;
-    spent: boolean;
+    spentAt: Date | null;
   }>();
 
   async save(refreshToken: string, user: AuthUser): Promise<void> {
-    this.refreshToUser.set(refreshToken, { user, updatedAt: new Date(), familyId: randomUUID(), spent: false });
+    this.refreshToUser.set(refreshToken, { user, updatedAt: new Date(), familyId: randomUUID(), spentAt: null });
   }
 
   async getByRefreshToken(refreshToken: string): Promise<AuthUser | null> {
     const session = this.refreshToUser.get(refreshToken);
-    return session && !session.spent ? session.user : null;
+    return session && !session.spentAt ? session.user : null;
   }
 
   async rotate(oldToken: string, newToken: string, user: AuthUser): Promise<boolean> {
     const old = this.refreshToUser.get(oldToken);
-    if (!old || old.spent) return false;
-    this.refreshToUser.set(oldToken, { ...old, spent: true });
-    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId: old.familyId, spent: false });
+    if (!old || old.spentAt) return false;
+    this.refreshToUser.set(oldToken, { ...old, spentAt: new Date() });
+    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId: old.familyId, spentAt: null });
     return true;
   }
 
-  async isSpent(refreshToken: string): Promise<boolean> {
-    return this.refreshToUser.get(refreshToken)?.spent === true;
+  async findSpent(refreshToken: string): Promise<{ spentAt: Date; user: AuthUser } | null> {
+    const session = this.refreshToUser.get(refreshToken);
+    return session?.spentAt ? { spentAt: session.spentAt, user: session.user } : null;
+  }
+
+  async branch(spentToken: string, newToken: string, user: AuthUser): Promise<boolean> {
+    const spent = this.refreshToUser.get(spentToken);
+    if (!spent?.spentAt) return false;
+    this.refreshToUser.set(newToken, { user, updatedAt: new Date(), familyId: spent.familyId, spentAt: null });
+    return true;
   }
 
   async revokeFamily(refreshToken: string): Promise<void> {
@@ -62,7 +70,7 @@ export class InMemorySessionStore implements SessionStore {
     const summary = new Map<string, UserSessionActivity>();
 
     for (const session of this.refreshToUser.values()) {
-      if (session.spent || !userIds.includes(session.user.id)) {
+      if (session.spentAt || !userIds.includes(session.user.id)) {
         continue;
       }
 
