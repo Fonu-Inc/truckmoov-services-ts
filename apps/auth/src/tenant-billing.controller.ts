@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Controller,
+  UseGuards,
   ForbiddenException,
   Get,
   Headers,
@@ -66,6 +67,7 @@ import {
   TenantQuotationDetailResponse,
   TenantQuotationsPageResponse,
 } from './dto/tenant-billing.dto';
+import { OnboardingSettledGuard } from './onboarding-gate';
 
 function mapPaymentErrors(error: unknown): never {
   if (error instanceof RenewalNotPayableError) {
@@ -168,6 +170,7 @@ export class TenantBillingController {
     return this.run(authorization, (tenantId) => this.listActivity.execute(tenantId, query));
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post('invoices/:id/pay-wallet')
   @ApiOperation({ summary: 'Pay a renewal invoice in full from the wallet' })
   @ApiCreatedResponse({ type: PayRenewalWalletResponse })
@@ -175,6 +178,7 @@ export class TenantBillingController {
     return this.run(authorization, (tenantId) => this.payFromWallet.execute(tenantId, id));
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post('invoices/:id/pay-card')
   @ApiOperation({ summary: 'Start a card payment for a renewal invoice' })
   @ApiCreatedResponse({ type: PayRenewalCardResponse })

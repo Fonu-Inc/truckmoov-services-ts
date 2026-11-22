@@ -36,6 +36,7 @@ import { DeviceSetupRequestListResponse, DeviceSetupRequestResponse } from "./dt
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource, Requires } from "@shared/access";
 import { paginate } from "@shared/pagination";
+import { OnboardingSettledGuard } from "./onboarding-settled.guard";
 
 @ApiTags("Device Setup Requests")
 @Portals("tenant")
@@ -57,6 +58,7 @@ export class DeviceSetupRequestsController extends BaseFleetController {
 
   // Asking Fonu for devices changes none the tenant already has.
   @Requires("tenant.devices.read")
+  @UseGuards(OnboardingSettledGuard)
   @Post()
   @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({

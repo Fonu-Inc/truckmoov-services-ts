@@ -93,6 +93,7 @@ import { ListSimsForAllocationUseCase } from './list-sims-for-allocation.use-cas
 import { SaveAutoTopupUseCase } from './save-auto-topup.use-case';
 import { SaveSpendingLimitUseCase } from './save-spending-limit.use-case';
 import { TopupWalletUseCase } from './topup-wallet.use-case';
+import { OnboardingSettledGuard } from './onboarding-gate';
 
 function ledgerFilters(query: WalletLedgerQueryDto) {
   return {
@@ -337,7 +338,7 @@ export class DataBundlesController extends BaseAuthController {
   }
 
   @Post('allocations')
-  @UseGuards(IdempotencyGuard)
+  @UseGuards(OnboardingSettledGuard, IdempotencyGuard)
   @RequireIdempotency()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Allocate bundle to SIMs' })

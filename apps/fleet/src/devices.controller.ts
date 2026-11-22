@@ -84,6 +84,7 @@ import {
 import { TenantScoped } from "./tenant-scoped.decorator";
 import { Portals, OnResource } from "@shared/access";
 import { paginate } from "@shared/pagination";
+import { OnboardingSettledGuard } from "./onboarding-settled.guard";
 
 @ApiTags("Devices")
 @Portals("tenant")
@@ -267,7 +268,7 @@ export class DevicesController extends BaseFleetController {
   @Post()
   @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
-  @UseGuards(IdempotencyGuard)
+  @UseGuards(OnboardingSettledGuard, IdempotencyGuard)
   @ApiOperation({
     summary: "Create device",
     description: "Registers a standalone GPS/IoT device before it is assigned to a vehicle.",
@@ -296,7 +297,7 @@ export class DevicesController extends BaseFleetController {
   @Post("import")
   @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER)
   @RequireIdempotency()
-  @UseGuards(IdempotencyGuard)
+  @UseGuards(OnboardingSettledGuard, IdempotencyGuard)
   @ApiOperation({
     summary: "Bulk import devices",
     description:

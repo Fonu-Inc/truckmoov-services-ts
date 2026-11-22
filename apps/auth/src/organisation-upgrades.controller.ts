@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  UseGuards,
   ForbiddenException,
   Get,
   Headers,
@@ -39,6 +40,7 @@ import {
   TargetPlanRequiredError,
 } from './organisation-upgrade.use-cases';
 import { Portals, OnResource, Requires } from '@shared/access';
+import { OnboardingSettledGuard } from './onboarding-gate';
 
 /**
  * An owner-operator's way out of the vehicle cap.
@@ -64,6 +66,7 @@ export class OrganisationUpgradesController extends BaseAuthController {
 
   @Portals('tenant')
   @Requires('tenant.upgrades.manage')
+  @UseGuards(OnboardingSettledGuard)
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ask to be promoted to enterprise' })

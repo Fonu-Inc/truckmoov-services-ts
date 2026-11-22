@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Body,
   Controller,
+  UseGuards,
   Get,
   NotFoundException,
   Param,
@@ -74,6 +75,7 @@ import { UnassignDeviceFromSimUseCase } from './unassign-device-from-sim.use-cas
 import { UpdateTenantSimUseCase } from './update-tenant-sim.use-case';
 import { UploadDeviceMappingCsvUseCase } from './upload-device-mapping-csv.use-case';
 import { Portals, OnResource } from '@shared/access';
+import { OnboardingSettledGuard } from './onboarding-gate';
 
 @ApiTags('SIMs')
 @Portals('tenant')
@@ -150,6 +152,7 @@ export class TenantSimsController extends BaseAuthController {
     return new StreamableFile(Buffer.from(csv));
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post('import')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Import SIMs from CSV' })
@@ -227,6 +230,7 @@ export class TenantSimsController extends BaseAuthController {
     return new StreamableFile(Buffer.from(csv));
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post('requests/device-mapping')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Upload device mapping CSV' })
@@ -246,6 +250,7 @@ export class TenantSimsController extends BaseAuthController {
     }
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post('requests')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit SIM provisioning request' })
@@ -280,6 +285,7 @@ export class TenantSimsController extends BaseAuthController {
     }
   }
 
+  @UseGuards(OnboardingSettledGuard)
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Register a SIM' })

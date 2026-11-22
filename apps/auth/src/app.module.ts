@@ -266,6 +266,8 @@ import { InstallerSettingsController } from './installer-settings.controller';
 import { InternalInstallersController } from './internal-installers.controller';
 import { InternalNotificationRecipientsController } from './internal-notification-recipients.controller';
 import { InternalTenantContactController } from './internal-tenant-contact.controller';
+import { InternalOnboardingGateController } from './internal-onboarding-gate.controller';
+import { OnboardingGate, OnboardingSettledGuard } from './onboarding-gate';
 import { InternalOtpController } from './contexts/otp/internal-otp.controller';
 import { DotgoTransactionalSmsProvider } from './contexts/otp/dotgo-transactional-sms.provider';
 import { UnifiedSmsService } from './contexts/otp/unified-sms.service';
@@ -985,6 +987,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalInstallersController,
     InternalNotificationRecipientsController,
     InternalTenantContactController,
+    InternalOnboardingGateController,
     InternalOtpController,
     SystemInstallersController,
     SystemInstallationOrdersController,
@@ -1786,6 +1789,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     ListSystemAdminInvitesUseCase,
     ListMisplacedSystemAccountsUseCase,
     InternalCallerService,
+    OnboardingGate,
+    OnboardingSettledGuard,
     AuthRefusalReporter,
     AccessRefusedListener,
     ...accessProviders({ callers: AuthCallerAudience, reporter: AuthRefusalReporter, permissions: AuthPermissions }),
