@@ -707,6 +707,12 @@ export class SystemTenantListItemSchema {
   @ApiProperty({ description: 'False when no plan is assigned; null quota limits then mean no plan, not unlimited.' })
   planAssigned!: boolean;
 
+  @ApiProperty({ enum: ['prepaid', 'postpaid'], nullable: true })
+  billingModel!: 'prepaid' | 'postpaid' | null;
+
+  @ApiProperty({ description: 'Number of overdue invoices for this tenant.' })
+  overdueInvoices!: number;
+
   @ApiProperty({ enum: ['active', 'pending', 'suspended', 'inactive'] })
   status!: 'active' | 'pending' | 'suspended' | 'inactive';
 

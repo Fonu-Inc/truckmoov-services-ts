@@ -129,6 +129,8 @@ export interface InvoiceRepository {
     total: number;
   }>;
   countOverdue(today: string): Promise<number>;
+  /** Overdue invoice count per tenant, keyed by tenant id. */
+  countOverdueByTenant(today: string): Promise<Map<string, number>>;
   /**
    * Inserts a renewal invoice and links it to the period in one transaction.
    * created is false, and nothing is written, when the period already has one.

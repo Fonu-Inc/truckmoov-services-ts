@@ -57,6 +57,11 @@ import {
   type TenantCollectionsRepository,
 } from './tenant-collections.repository';
 import {
+  INVOICE_REPOSITORY,
+  lagosDate,
+  type InvoiceRepository,
+} from '@auth/onboarding';
+import {
   DEFAULT_TENANT_FEATURES,
   TENANT_ONBOARDING_REPOSITORY,
   type StoredTenantOnboarding,
@@ -122,6 +127,10 @@ type SystemTenantRow = {
   planCode: string | null;
   planName: string | null;
   planAssigned: boolean;
+  /** Prepaid/postpaid, from the tenant's plan entitlements. Null when unknown. */
+  billingModel: 'prepaid' | 'postpaid' | null;
+  /** Overdue invoices for this tenant, counted at read time. */
+  overdueInvoices: number;
   status: SystemTenantStatus;
   organizationType: TenantOrganizationType | null;
   organizationTypes: TenantOrganizationType[];
@@ -421,6 +430,8 @@ export class ListSystemTenantsUseCase {
     private readonly terminationRepository: TenantTerminationRepository,
     @Inject(PLAN_ENTITLEMENTS_REPOSITORY)
     private readonly entitlementsRepository: PlanEntitlementsRepository,
+    @Inject(INVOICE_REPOSITORY)
+    private readonly invoices: InvoiceRepository,
     @Inject(TENANT_SUSPENSION_REPOSITORY)
     private readonly suspensionRepository: TenantSuspensionRepository,
     @Inject(LICENCE_PERIOD_REPOSITORY)
@@ -457,6 +468,7 @@ export class ListSystemTenantsUseCase {
         ? await this.listInMemory()
         : await this.listDatabase();
     await this.resolvePlans(tenants);
+    await this.attachOverdueInvoices(tenants);
     await this.attachCollections(tenants);
     await this.attachSuspensions(tenants);
     return this.applyFilters(tenants, filters);
@@ -527,6 +539,17 @@ export class ListSystemTenantsUseCase {
       tenant.planQuotas = toQuotaLimits(planCode ? (entitlementsByCode.get(planCode) ?? null) : null);
       tenant.quotaOverrides = overrides.get(tenant.id) ?? noQuotaOverrides();
       tenant.quotas = withQuotaOverrides(tenant.planQuotas, tenant.quotaOverrides);
+      tenant.billingModel = planCode
+        ? (entitlementsByCode.get(planCode)?.paymentModel ?? null)
+        : null;
+    }
+  }
+
+  private async attachOverdueInvoices(tenants: SystemTenantRow[]) {
+    if (tenants.length === 0) return;
+    const counts = await this.invoices.countOverdueByTenant(lagosDate(new Date()));
+    for (const tenant of tenants) {
+      tenant.overdueInvoices = counts.get(tenant.id) ?? 0;
     }
   }
 
@@ -1043,6 +1066,8 @@ export class ListSystemTenantsUseCase {
       planCode,
       planName: null,
       planAssigned: planCode !== null,
+      billingModel: null,
+      overdueInvoices: 0,
       status,
       organizationType: organizationType ?? null,
       organizationTypes,

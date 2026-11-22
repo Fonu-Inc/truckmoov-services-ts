@@ -133,6 +133,7 @@ describe("tenant list plan state", () => {
       { findAll: async () => [{ code: "legacy-code", tier: "starter", name: "Legacy Starter" }] } as never,
       new InMemoryTenantTerminationRepository(),
       { findAll: async () => [{ planCode: "gold", quotas: { vehicles: 10 } }] } as never,
+      { countOverdueByTenant: async () => new Map() } as never,
       new InMemoryTenantSuspensionRepository(),
       { currentPlanCodes: async () => new Map([["licensed", "gold"], ["legacy", "legacy-code"]]) } as never,
       { list: async () => ({ items: [{ code: "gold", name: "Gold" }], total: 1 }) } as never,

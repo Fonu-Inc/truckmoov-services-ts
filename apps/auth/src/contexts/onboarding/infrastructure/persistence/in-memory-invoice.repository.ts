@@ -131,6 +131,15 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     return [...this.invoices.values()].filter((invoice) => invoiceOverdue(invoice, today)).length;
   }
 
+  async countOverdueByTenant(today: string): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    for (const invoice of this.invoices.values()) {
+      if (!invoice.tenantId || !invoiceOverdue(invoice, today)) continue;
+      counts.set(invoice.tenantId, (counts.get(invoice.tenantId) ?? 0) + 1);
+    }
+    return counts;
+  }
+
   async createRenewal(invoice: InvoiceWithLines, periodId: string) {
     if (this.renewalLinks.has(periodId)) return { invoice: null, created: false };
     this.invoices.set(invoice.id, copy(invoice));

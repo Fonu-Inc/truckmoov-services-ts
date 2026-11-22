@@ -50,6 +50,7 @@ function build() {
     { findAll: async () => [] } as never,
     new InMemoryTenantTerminationRepository(),
     { findAll: async () => [] } as never,
+    { countOverdueByTenant: async () => new Map() } as never,
     suspensions,
     { currentPlanCodes: async () => new Map() } as never,
     { list: async () => ({ items: [], total: 0 }) } as never,

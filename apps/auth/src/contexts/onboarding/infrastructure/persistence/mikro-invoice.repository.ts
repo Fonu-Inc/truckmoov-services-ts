@@ -302,6 +302,23 @@ export class MikroInvoiceRepository implements InvoiceRepository {
     return Number(rows[0]?.total ?? 0);
   }
 
+  async countOverdueByTenant(today: string): Promise<Map<string, number>> {
+    const em = await this.em();
+    const rows = await em.getConnection().execute<Row[]>(
+      `select tenant_id, count(*)::int as total
+         from billing_invoices
+        where tenant_id is not null
+          and status in ('issued', 'partially_paid')
+          and due_date < ?::date
+          and total_kobo > amount_paid_kobo
+        group by tenant_id`,
+      [today],
+    );
+    return new Map(
+      rows.map((row) => [String(row.tenant_id), Number(row.total ?? 0)]),
+    );
+  }
+
   async createRenewal(invoice: InvoiceWithLines, periodId: string) {
     const em = await this.em();
     const created = await em.transactional(async (tx) => {
