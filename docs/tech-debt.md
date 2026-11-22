@@ -4,27 +4,53 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
-## TD-23 — Violation rules have no backend
+## TD-23 — Violation rules depend on what the trackers report
 
-**Status:** open, recorded 22 November 2026. The Violation Rules sub-tab on the
-vehicles page (`/fleet/violations`) is hidden; `ViolationRulesTab` stays in
-truckmoov-web for when this lands.
+**Status:** partly resolved 23 November 2026. Rules, violations and the engine
+are built (`violations.*` in the fleet service, `/fleet/violation-rules` and
+`/fleet/violations`); what is left depends on the devices in the field.
 
-### The problem
+**Subject to the features of the sensor devices on the ground.** A rule can only
+fire on data a tracker actually sends. What each rule type needs:
 
-The design shows a list of violation rules (speeding, harsh braking, idling and
-so on) with a threshold, severity, scope and on/off state per rule. Nothing in
-the platform stores rules: driver behaviour events are recorded as they arrive
-from devices, with no tenant-configurable thresholds deciding what counts as a
-violation. The "Repeat Violations" figure on the same page depends on per-rule
-counts too, so it still shows "-".
+- **Overspeeding** and **restricted driving hours** run on GPS position and speed,
+  which every tracker sends. These work for all vehicles.
+- **Harsh braking, harsh acceleration and harsh cornering** fire only when the
+  tracker reports the event itself (Traccar alarm `hardBraking`,
+  `hardAcceleration`, `hardCornering`, published on `vehicle.location.updated` as
+  `alarm`), or when an integration records it through
+  `POST /fleet/drivers/behavior/events`. A GPS-only unit, or one whose
+  accelerometer alarms are switched off or named differently, never produces
+  them, so the rule stays silent. Nothing classifies harsh driving from position
+  changes (TD-3).
+- The **g-force threshold** on a harsh-driving rule is stored and shown but not
+  compared: devices report that an event happened, not the force. It becomes
+  enforceable only with hardware that sends the measured value.
+- **Idling** has no rule type yet. It would need engine/ignition state, which
+  some trackers send (`engine_on` in telemetry) and others do not.
 
-### What is needed
+Before relying on a rule type for an account, check that its trackers support
+and report that feature.
 
-A rules table and CRUD in the fleet service (type, threshold and unit, severity,
-enabled, optional vehicle or fleet scope), then applying the rules where
-behaviour events are classified, so a rule change alters what is recorded.
-Unhide the sub-tab and fill Repeat Violations once both exist.
+### What is built
+
+- Rules: create, edit, pause and delete per drivers or vehicles page, with type,
+  trigger, scope (all or selected drivers or vehicles), schedule (Lagos time),
+  severity, quota per day/week/month, repeat threshold and in-app alert switch.
+- Violations: raised only when an event breaks an active rule, never counted
+  twice (dedupe per rule), with open / under review / resolved status.
+  Overspeeding must last the rule's minimum duration; restricted hours count
+  once per vehicle per day.
+- The Violations pages' Quota column, Repeat Offenders / Repeat Violations
+  figure and Violation Rules sub-tab now read from these.
+
+### What is left
+
+- Harsh-driving coverage per device model: confirm which deployed trackers send
+  the alarms above and map any other names they use (`harshTypesFromAlarm`).
+- Idling, once engine state is reliable on the deployed devices.
+- Rules and vehicle-driver lookups are cached per pod for 30 seconds, so an edit
+  can take that long to apply on other pods.
 
 ## TD-22 — MTN pickup points are demo rows
 

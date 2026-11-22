@@ -69,7 +69,7 @@ describe("Vehicle location listener", () => {
     const liveCounts = { record: vi.fn() };
     const positions = { record: async () => {} };
     const config = { eventSigningSecret: "bus-secret", eventAcceptUnsigned: false };
-    const listener = new VehicleLocationListener(bus as never, positions as never, liveCounts as never, evaluator as never, config as never);
+    const listener = new VehicleLocationListener(bus as never, positions as never, liveCounts as never, evaluator as never, config as never, { onFix: async () => {} } as never);
     await listener.onApplicationBootstrap();
 
     const subject = "tm.tenant-a.vehicle.location.updated";

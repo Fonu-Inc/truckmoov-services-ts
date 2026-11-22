@@ -213,6 +213,9 @@ import { FLEET_RUNTIME } from "./contexts/fleet/shared/domain/ports/fleet-runtim
 import { DefaultFleetRuntime } from "./contexts/fleet/shared/infrastructure/default-fleet-runtime";
 import { DeviceTelemetryListener } from "./device-telemetry.listener";
 import { VehicleLocationListener } from "./vehicle-location.listener";
+import { ViolationRulesController, ViolationsController } from "./violations.controller";
+import { InMemoryViolationsRepository, MikroViolationsRepository, VIOLATIONS_REPOSITORY } from "./violations.repository";
+import { ViolationsService } from "./violations.service";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
 import { GeofenceDwellSweepService } from "./geofence-dwell-sweep.service";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
@@ -382,6 +385,8 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     FleetGroupsController,
     DriverGroupsController,
     DriverLicenceRemindersController,
+    ViolationRulesController,
+    ViolationsController,
     ComplianceController,
     FinancialsController,
     FuelController,
@@ -576,6 +581,15 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     MikroDriverLicenceReminderRepository,
     { provide: DRIVER_LICENCE_REMINDER_REPOSITORY, useExisting: MikroDriverLicenceReminderRepository },
     DriverLicenceRemindersService,
+    MikroViolationsRepository,
+    InMemoryViolationsRepository,
+    {
+      provide: VIOLATIONS_REPOSITORY,
+      inject: [InMemoryViolationsRepository, MikroViolationsRepository, AppConfigService],
+      useFactory: (inMemory: InMemoryViolationsRepository, mikro: MikroViolationsRepository, config: AppConfigService) =>
+        (config.persistence.backend === "in-memory" ? inMemory : mikro),
+    },
+    ViolationsService,
     MikroMaintenanceRecordRepository,
     { provide: MAINTENANCE_RECORD_REPOSITORY, useExisting: MikroMaintenanceRecordRepository },
     MaintenanceRecordsUseCase,
@@ -998,6 +1012,8 @@ export class AppModule implements NestModule {
         FleetGroupsController,
         DriverGroupsController,
         DriverLicenceRemindersController,
+        ViolationRulesController,
+        ViolationsController,
         ComplianceController,
         FinancialsController,
         FuelController,

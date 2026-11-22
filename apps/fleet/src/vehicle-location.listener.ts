@@ -4,6 +4,7 @@ import { EVENT_BUS, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { GeofenceEvaluatorService } from "./contexts/fleet/tracking/application/geofence-evaluator.service";
 import { LiveTrackingCountsService } from "./live-tracking-counts.service";
 import { busVerifier } from "./verified-bus-handler";
+import { ViolationsService } from "./violations.service";
 import {
   VEHICLE_POSITION_REPOSITORY,
   type GeoPoint,
@@ -20,6 +21,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
     private readonly liveCounts: LiveTrackingCountsService,
     private readonly geofenceEvaluator: GeofenceEvaluatorService,
     @Inject(AppConfigService) private readonly config: AppConfigService,
+    @Inject(ViolationsService) private readonly violations: ViolationsService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -37,6 +39,7 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
       const point = lat != null && lng != null ? { lat, lng } : null;
       await this.recordPosition(envelope.tenant_id, vehicleId, deviceId, point, ts);
       if (point) await this.evaluateZones(envelope.tenant_id, vehicleId, point, speedKph, ts);
+      await this.evaluateViolations(envelope.tenant_id, vehicleId, point, speedKph, ts, envelope.data["alarm"]);
     }));
 
     // Counts live in each pod's memory, so every pod needs every fix, not its share of the durable.
@@ -51,6 +54,30 @@ export class VehicleLocationListener implements OnApplicationBootstrap {
         speedKph: (envelope.data["speed_kph"] as number | null | undefined) ?? null,
       });
     }));
+  }
+
+  /** Violation rules (TD-23); a failure here must not stop the position being recorded. */
+  private async evaluateViolations(
+    tenantId: string,
+    vehicleId: string,
+    point: GeoPoint | null,
+    speedKph: number | null,
+    timestamp: number,
+    alarm: unknown,
+  ): Promise<void> {
+    try {
+      await this.violations.onFix({
+        tenantId,
+        vehicleId,
+        speedKph,
+        latitude: point?.lat ?? null,
+        longitude: point?.lng ?? null,
+        at: new Date(Number.isFinite(timestamp) ? timestamp : Date.now()),
+        alarm,
+      });
+    } catch (error) {
+      this.logger.warn(`violation_evaluation_failed:${vehicleId}:${error instanceof Error ? error.message : "unknown"}`);
+    }
   }
 
   /** A failed write must not stop zone evaluation or the live counts. */

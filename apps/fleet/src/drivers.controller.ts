@@ -43,6 +43,8 @@ import {
   RolesGuard,
 } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
+import type { ViolationType } from "./violations.domain";
+import { ViolationsService } from "./violations.service";
 import {
   VEHICLE_REPOSITORY,
   type VehicleRepository,
@@ -159,6 +161,7 @@ export class DriversController extends BaseFleetController {
     @Inject(DriverBehaviorUseCase) private readonly driverBehaviorUseCase: DriverBehaviorUseCase,
     @Inject(DriverFatigueUseCase) private readonly driverFatigueUseCase: DriverFatigueUseCase,
     @Inject(VEHICLE_REPOSITORY) private readonly vehicleRepository: VehicleRepository,
+    @Inject(ViolationsService) private readonly violations: ViolationsService,
   ) {
     super(auditLog, bus);
   }
@@ -708,7 +711,18 @@ export class DriversController extends BaseFleetController {
   @ApiCreatedResponse({ type: RecordedBehaviorEventResponse })
   @ApiBadRequestResponse({ description: "Unknown type or severity" })
   async recordBehaviorEvent(@Body() payload: RecordBehaviorEventDto, @Req() req: FleetRequestContext) {
-    const data = await this.driverBehaviorUseCase.recordEvent(this.tenantIdFromRequest(req), payload);
+    const tenantId = this.tenantIdFromRequest(req);
+    const data = await this.driverBehaviorUseCase.recordEvent(tenantId, payload);
+    await this.violations.onHarshEvent({
+      tenantId,
+      type: payload.type as ViolationType,
+      vehicleId: payload.vehicleId ?? null,
+      driverId: payload.driverId,
+      latitude: payload.latitude ?? null,
+      longitude: payload.longitude ?? null,
+      at: new Date(data.occurredAt),
+      sourceKey: `event:${data.id}`,
+    });
     return { status: true, message: "Event recorded", data };
   }
 
