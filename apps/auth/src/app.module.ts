@@ -116,6 +116,7 @@ import {
   ListTenantBillingActivityUseCase,
 } from '@auth/onboarding/application/use-cases/billing/tenant-billing-overview.use-cases';
 import { RenewalSweepService } from './renewal-sweep.service';
+import { BundleExpirySweepService } from './bundle-expiry-sweep.service';
 import { RenewalAudit } from './renewal-audit';
 import { RenewalInvoiceService } from '@auth/onboarding/application/services/renewal-invoice.service';
 import { SettleRenewalPaymentUseCase } from '@auth/onboarding/application/settle-renewal-payment.use-case';
@@ -2073,6 +2074,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     RenewalAudit,
     RenewalInvoiceService,
     RenewalSweepService,
+    BundleExpirySweepService,
     SettleRenewalPaymentUseCase,
     ListTenantInvoicesUseCase,
     GetTenantInvoiceUseCase,

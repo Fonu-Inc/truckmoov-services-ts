@@ -14,6 +14,7 @@ type LatestLocationApi = {
   latitude?: number;
   longitude?: number;
   speed_kph?: number | null;
+  heading?: number | null;
   observed_at?: string;
   fix_time?: string;
   recorded_at?: string;
@@ -37,6 +38,7 @@ export function toVehiclePositions(rows: LatestLocationApi[]): VehiclePosition[]
       latitude: position.latitude as number,
       longitude: position.longitude as number,
       speedKph: position.speed_kph ?? null,
+      heading: position.heading ?? null,
       recordedAt: positionTimestamp(position),
     }));
 }

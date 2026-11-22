@@ -24,6 +24,9 @@ export type BundleTransactionFilters = {
 export interface BundleTransactionRepository {
   findAll(filters?: BundleTransactionFilters): Promise<{ items: StoredBundleTransaction[]; total: number }>;
   save(transaction: StoredBundleTransaction): Promise<void>;
+  /** Marks a purchase's successful rows failed with the reason, once it is refunded. */
+  failByPaymentReference(tenantId: string, paymentReference: string, reason: string): Promise<void>;
+  /** The sums below count successful purchases only. */
   sumByDate(tenantId: string, startDate: Date, endDate: Date): Promise<Array<{ date: string; amountKobo: number }>>;
   sumByBundle(tenantId: string, startDate: Date, endDate: Date): Promise<Array<{ bundleId: string; amountKobo: number }>>;
   sumByCarrier(tenantId: string, startDate: Date, endDate: Date, bundles: Array<{ id: string; carrierId: string }>): Promise<Array<{ carrierId: string; amountKobo: number }>>;

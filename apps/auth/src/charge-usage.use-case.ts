@@ -35,7 +35,7 @@ export class ChargeReferenceRequiredError extends Error {
 
 export class InsufficientWalletBalanceError extends Error {
   constructor(readonly requiredKobo: number) {
-    super(`Wallet balance does not cover ${requiredKobo / 100}`);
+    super(`Wallet balance does not cover ₦${(requiredKobo / 100).toLocaleString('en-NG')}. Fund the wallet and try again.`);
   }
 }
 

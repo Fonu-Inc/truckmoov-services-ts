@@ -3,21 +3,9 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import { analyticsWindow, type AnalyticsRange } from './analytics-range';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
-
-type Range = '7d' | '30d' | '90d' | 'custom';
-
-function computeDateRange(range: Range, startDate?: string, endDate?: string): { start: Date; end: Date } {
-  const end = new Date();
-  if (range === 'custom') {
-    return { start: new Date(startDate!), end: endDate ? new Date(endDate) : end };
-  }
-  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
-  const start = new Date(end);
-  start.setDate(start.getDate() - days);
-  return { start, end };
-}
 
 @Injectable()
 export class GetCarrierDistributionUseCase {
@@ -28,11 +16,11 @@ export class GetCarrierDistributionUseCase {
     @Inject(BUNDLE_CATALOG_REPOSITORY) private readonly bundleCatalogRepository: BundleCatalogRepository,
   ) {}
 
-  async execute(accessToken: string, range: Range, startDate?: string, endDate?: string) {
+  async execute(accessToken: string, range: AnalyticsRange, startDate?: string, endDate?: string) {
     const actor = await resolveActorUser(accessToken, this.tokenService, this.userRepository);
     if (actor.tenantId === 'system') throw new ForbiddenError('System actors cannot access carrier distribution');
 
-    const { start, end } = computeDateRange(range, startDate, endDate);
+    const { start, end } = analyticsWindow(range, startDate, endDate);
     const tenantId = actor.tenantId!;
 
     const byBundle = await this.bundleTransactionRepository.sumByBundle(tenantId, start, end);

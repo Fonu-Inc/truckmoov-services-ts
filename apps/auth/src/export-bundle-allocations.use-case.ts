@@ -3,7 +3,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
+import { BUNDLE_ALLOCATION_REPOSITORY, effectiveAllocationStatus, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository, type StoredBundleCatalog } from './bundle-catalog.repository';
 import { buildExport } from './export.helper';
 
@@ -50,7 +50,7 @@ export class ExportBundleAllocationsUseCase {
         b?.carrierId ?? '',
         b?.dataAmountGb ?? '',
         (alloc.dataUsedMb / 1024).toFixed(2),
-        alloc.status,
+        effectiveAllocationStatus(alloc),
         alloc.activatedAt?.toISOString() ?? '',
         alloc.expiresAt?.toISOString() ?? '',
         daysLeft,

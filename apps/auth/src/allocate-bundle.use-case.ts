@@ -34,6 +34,9 @@ export class PurchaseRefundedError extends Error {
   }
 }
 
+const BLOCKED_SIM_STATUSES = new Set(['suspended', 'deactivated']);
+const REFUND_REASON = 'Allocation failed; the amount was refunded to the wallet';
+
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -120,6 +123,10 @@ export class AllocateBundleUseCase {
     const known = new Set(sims.map((s) => s.msisdn));
     const unknown = mobileNumbers.filter((n) => !known.has(n));
     if (unknown.length > 0) throw new AllocationReferenceError('mobileNumbers', `No SIM found for: ${unknown.join(', ')}`);
+    const blocked = sims.filter((s) => BLOCKED_SIM_STATUSES.has(s.status)).map((s) => `${s.msisdn} (${s.status})`);
+    if (blocked.length > 0) {
+      throw new AllocationReferenceError('mobileNumbers', `Cannot top up a suspended or deactivated SIM: ${blocked.join(', ')}`);
+    }
   }
 
   // A replay is judged and refunded against the original debit, never the replaying request.
@@ -175,6 +182,7 @@ export class AllocateBundleUseCase {
 
   private async refundPurchase(tenantId: string, key: string, debit: StoredWalletLedgerEntry | null) {
     await this.cancelAllocations(tenantId, key);
+    await this.bundleTransactionRepository.failByPaymentReference(tenantId, key, REFUND_REASON);
     if (!debit) return;
     await this.tenantWalletRepository.credit(tenantId, debit.amountKobo, {
       category: 'refund',

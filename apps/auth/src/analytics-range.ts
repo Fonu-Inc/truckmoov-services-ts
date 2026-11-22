@@ -1,10 +1,19 @@
+import { lagosDayKey } from './sim-usage.repository';
+
 export type AnalyticsRange = '7d' | '30d' | '90d' | 'custom';
 
-/** The window a data-bundle analytics chart covers, ending now unless custom says otherwise. */
+/**
+ * The window a data-bundle analytics chart covers, ending now unless custom says otherwise.
+ * Custom dates are whole Lagos days, so startDate = endDate (Today, Yesterday) covers that day.
+ */
 export function analyticsWindow(range: AnalyticsRange, startDate?: string, endDate?: string): { start: Date; end: Date } {
   const end = new Date();
   if (range === 'custom') {
-    return { start: new Date(startDate!), end: endDate ? new Date(endDate) : end };
+    const day = (value: string) => lagosDayKey(new Date(value));
+    return {
+      start: new Date(`${day(startDate!)}T00:00:00.000+01:00`),
+      end: endDate ? new Date(`${day(endDate)}T23:59:59.999+01:00`) : end,
+    };
   }
   const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
   const start = new Date(end);

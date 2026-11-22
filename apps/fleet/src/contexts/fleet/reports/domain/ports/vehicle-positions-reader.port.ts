@@ -3,6 +3,7 @@ export type VehiclePosition = {
   latitude: number;
   longitude: number;
   speedKph: number | null;
+  heading?: number | null;
   recordedAt: string;
 };
 

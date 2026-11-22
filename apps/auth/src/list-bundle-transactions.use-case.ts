@@ -3,7 +3,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
+import { BUNDLE_CATALOG_REPOSITORY, findBundlesByIds, type BundleCatalogRepository } from './bundle-catalog.repository';
 import { BUNDLE_TRANSACTION_REPOSITORY, type BundleTransactionRepository } from './bundle-transaction.repository';
 
 type Filters = {
@@ -39,6 +39,7 @@ export class ListBundleTransactionsUseCase {
       page: filters?.page,
       limit: filters?.limit,
     });
+    const bundles = await findBundlesByIds(this.bundleCatalogRepository, items.map((t) => t.bundleId));
 
     return {
       status: true,
@@ -48,7 +49,12 @@ export class ListBundleTransactionsUseCase {
           id: t.id,
           date: t.createdAt.toISOString(),
           mobileNumber: t.mobileNumber,
-          bundle: { id: t.bundleId, code: '', name: '', carrier: '' },
+          bundle: {
+            id: t.bundleId,
+            code: bundles.get(t.bundleId)?.code ?? '',
+            name: bundles.get(t.bundleId)?.name ?? '',
+            carrier: bundles.get(t.bundleId)?.carrierId ?? '',
+          },
           amount: t.amountKobo / 100,
           status: t.status,
           paymentReference: t.paymentReference ?? null,

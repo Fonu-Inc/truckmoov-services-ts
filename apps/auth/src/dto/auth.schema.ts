@@ -2481,6 +2481,7 @@ export class BundleSummaryDataSchema {
   @ApiProperty() activeAllocations!: number;
   @ApiProperty() expiredAllocations!: number;
   @ApiProperty() expiringWithinSevenDays!: number;
+  @ApiProperty({ description: 'Active allocations ending within 30 days (includes the 7-day ones)' }) expiringWithinThirtyDays!: number;
   @ApiProperty() monthlySpend!: number;
   @ApiProperty() topUpsThisMonth!: number;
   @ApiProperty() totalDataUsedGb!: number;

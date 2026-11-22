@@ -92,11 +92,14 @@ export class LiveTrackingUseCase {
         model: vehicle["model"] ?? null,
         status,
         driver: driver ? { id: String(driver["id"]), name: String(driver["name"] ?? "") } : null,
+        driverId: driver ? String(driver["id"]) : null,
+        driverPhone: driver ? String(driver["phone"] ?? "") || null : null,
         position: position
           ? {
               lat: position.latitude,
               lng: position.longitude,
               speedKph: position.speedKph,
+              heading: position.heading ?? null,
               fixedAt: position.recordedAt,
             }
           : null,

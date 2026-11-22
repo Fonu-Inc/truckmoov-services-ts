@@ -32,16 +32,20 @@ export class GetBundleSummaryUseCase {
       successfulTopUpTransactions,
       allocationCounts,
       expiringWithinSevenDays,
+      expiringWithinThirtyDays,
       monthlySpendKobo,
       topUpsThisMonth,
+      usageByBundle,
     ] = await Promise.all([
       this.tenantWalletRepository.findByTenantId(tenantId),
       this.walletTopUpRepository.sumSuccessfulByTenantId(tenantId),
       this.walletTopUpRepository.countSuccessfulByTenantId(tenantId),
       this.bundleAllocationRepository.countByStatus(tenantId),
       this.bundleAllocationRepository.findExpiringWithin(tenantId, 7),
+      this.bundleAllocationRepository.findExpiringWithin(tenantId, 30),
       this.bundleTransactionRepository.sumTotalByTenantAndMonth(tenantId, now.getFullYear(), now.getMonth() + 1),
       this.bundleTransactionRepository.countByTenantAndMonth(tenantId, now.getFullYear(), now.getMonth() + 1),
+      this.bundleAllocationRepository.sumDataUsedByBundle(tenantId),
     ]);
 
     return {
@@ -55,9 +59,10 @@ export class GetBundleSummaryUseCase {
         activeAllocations: allocationCounts['active'] ?? 0,
         expiredAllocations: allocationCounts['expired'] ?? 0,
         expiringWithinSevenDays: expiringWithinSevenDays.length,
+        expiringWithinThirtyDays: expiringWithinThirtyDays.length,
         monthlySpend: monthlySpendKobo / 100,
         topUpsThisMonth,
-        totalDataUsedGb: 0,
+        totalDataUsedGb: usageByBundle.reduce((sum, b) => sum + b.usedMb, 0) / 1024,
       },
     };
   }

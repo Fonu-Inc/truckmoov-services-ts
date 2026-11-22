@@ -4,6 +4,26 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-24 — Data bundle usage needs a carrier usage feed
+
+`bundle_allocations.data_used_mb` is written as 0 when a bundle is bought and
+nothing updates it: there is no carrier usage feed (MTN or any other) in the
+codebase. Every figure built on it is real code reading a column that stays 0:
+
+- the usage bars and "x used / y" on the M2M IoT Bundles allocations table and
+  in Allocation Details (`/data-bundles`);
+- the "Total Data Used" KPI (`GET /auth/data-bundles/summary` →
+  `totalDataUsedGb`, the sum over non-cancelled allocations);
+- "Used" in the Subscription Usage chart (`/analytics/subscription-usage`).
+
+Expiry does not depend on this: the bundle expiry sweep
+(`bundle-expiry-sweep.service.ts`) moves allocations to `expired` on time.
+
+**Direction:** ingest per-MSISDN bundle consumption from the carrier (MTN M2M
+usage API or CDR files), write it to `data_used_mb` per active allocation, and
+mark an allocation exhausted when it reaches `data_total_mb`. No UI change is
+needed once the column moves.
+
 ## TD-23 — Violation rules depend on what the trackers report
 
 **Status:** partly resolved 23 November 2026. Rules, violations and the engine

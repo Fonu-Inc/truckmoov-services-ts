@@ -3,7 +3,7 @@ import { TOKEN_SERVICE, USER_REPOSITORY, ForbiddenError } from './contexts/auth/
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
-import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository } from './bundle-allocation.repository';
+import { BUNDLE_ALLOCATION_REPOSITORY, effectiveAllocationStatus, type BundleAllocationRepository } from './bundle-allocation.repository';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 
 export class BundleAllocationNotFoundError extends Error {
@@ -50,7 +50,7 @@ export class GetBundleAllocationUseCase {
         activatedAt: alloc.activatedAt?.toISOString() ?? null,
         expiresAt: alloc.expiresAt?.toISOString() ?? null,
         daysLeft: Math.max(0, Math.ceil((alloc.expiresAt ? alloc.expiresAt.getTime() - now : 0) / 86400000)),
-        status: alloc.status,
+        status: effectiveAllocationStatus(alloc),
       },
     };
   }

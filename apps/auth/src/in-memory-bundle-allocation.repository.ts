@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  BundleAllocationFilters,
-  BundleAllocationRepository,
-  StoredBundleAllocation,
+import {
+  EXPIRING_WITHIN_DAYS,
+  effectiveAllocationStatus,
+  type BundleAllocationFilters,
+  type BundleAllocationRepository,
+  type StoredBundleAllocation,
 } from './bundle-allocation.repository';
 
 @Injectable()
@@ -12,7 +14,14 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
   async findAll(filters?: BundleAllocationFilters): Promise<{ items: StoredBundleAllocation[]; total: number }> {
     let results = [...this.store.values()];
     if (filters?.tenantId !== undefined) results = results.filter((a) => a.tenantId === filters.tenantId);
-    if (filters?.status) results = results.filter((a) => a.status === filters.status);
+    if (filters?.status !== 'cancelled') results = results.filter((a) => a.status !== 'cancelled');
+    if (filters?.status === 'expiring') {
+      const expiring = new Set((await this.findExpiringWithin(filters.tenantId ?? '', EXPIRING_WITHIN_DAYS)).map((a) => a.id));
+      results = results.filter((a) => expiring.has(a.id));
+    } else if (filters?.status) {
+      results = results.filter((a) => effectiveAllocationStatus(a) === filters.status);
+    }
+    // shortcut: search and billingCycles do not look into the catalog here (the Mikro repository does); fine for in-memory runs.
     if (filters?.search) {
       const q = filters.search.toLowerCase();
       results = results.filter((a) => a.mobileNumber.toLowerCase().includes(q));
@@ -41,7 +50,8 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
     const counts: Record<string, number> = {};
     for (const a of this.store.values()) {
       if (a.tenantId !== tenantId) continue;
-      counts[a.status] = (counts[a.status] ?? 0) + 1;
+      const status = effectiveAllocationStatus(a);
+      counts[status] = (counts[status] ?? 0) + 1;
     }
     return counts;
   }
@@ -65,7 +75,7 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
   ): Promise<Array<{ bundleId: string; usedMb: number; totalMb: number }>> {
     const map = new Map<string, { usedMb: number; totalMb: number }>();
     for (const a of this.store.values()) {
-      if (a.tenantId !== tenantId) continue;
+      if (a.tenantId !== tenantId || a.status === 'cancelled') continue;
       if (window && !liveIn(a, window)) continue;
       const existing = map.get(a.bundleId) ?? { usedMb: 0, totalMb: 0 };
       map.set(a.bundleId, {
@@ -74,6 +84,16 @@ export class InMemoryBundleAllocationRepository implements BundleAllocationRepos
       });
     }
     return [...map.entries()].map(([bundleId, data]) => ({ bundleId, ...data }));
+  }
+
+  async expireDue(now: Date): Promise<number> {
+    let moved = 0;
+    for (const a of this.store.values()) {
+      if (a.status !== 'active' || !a.expiresAt || a.expiresAt >= now) continue;
+      this.store.set(a.id, { ...a, status: 'expired', updatedAt: now });
+      moved++;
+    }
+    return moved;
   }
 }
 

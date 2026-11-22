@@ -37,10 +37,18 @@ export class InMemoryBundleTransactionRepository implements BundleTransactionRep
     this.store.set(transaction.id, transaction);
   }
 
+  async failByPaymentReference(tenantId: string, paymentReference: string, reason: string): Promise<void> {
+    for (const t of this.store.values()) {
+      if (t.tenantId === tenantId && t.paymentReference === paymentReference && t.status === 'success') {
+        this.store.set(t.id, { ...t, status: 'failed', failureReason: reason });
+      }
+    }
+  }
+
   async sumByDate(tenantId: string, startDate: Date, endDate: Date): Promise<Array<{ date: string; amountKobo: number }>> {
     const map = new Map<string, number>();
     for (const t of this.store.values()) {
-      if (t.tenantId !== tenantId || t.createdAt < startDate || t.createdAt > endDate) continue;
+      if (t.tenantId !== tenantId || t.status !== 'success' || t.createdAt < startDate || t.createdAt > endDate) continue;
       const date = t.createdAt.toISOString().slice(0, 10);
       map.set(date, (map.get(date) ?? 0) + t.amountKobo);
     }
@@ -50,7 +58,7 @@ export class InMemoryBundleTransactionRepository implements BundleTransactionRep
   async sumByBundle(tenantId: string, startDate: Date, endDate: Date): Promise<Array<{ bundleId: string; amountKobo: number }>> {
     const map = new Map<string, number>();
     for (const t of this.store.values()) {
-      if (t.tenantId !== tenantId || t.createdAt < startDate || t.createdAt > endDate) continue;
+      if (t.tenantId !== tenantId || t.status !== 'success' || t.createdAt < startDate || t.createdAt > endDate) continue;
       map.set(t.bundleId, (map.get(t.bundleId) ?? 0) + t.amountKobo);
     }
     return [...map.entries()].map(([bundleId, amountKobo]) => ({ bundleId, amountKobo }));

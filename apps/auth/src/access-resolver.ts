@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ACCESS_CHANGED_SUBJECT, portalOfPermission, predefinedRole, type PermissionKey } from '@shared/access';
 import { EVENT_BUS, type EventBus } from '@shared/eventbus';
+import { OWNER_OPERATOR_ORGANISATION_TYPE, Role } from '@shared/rbac';
 import { SYSTEM_TENANT_ID, portalFor, type Portal } from '@shared/identity';
 import type { StoredUser, UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TENANT_ROLE_REPOSITORY, type TenantRoleRepository } from './tenant-role.repository';
@@ -54,10 +55,11 @@ export class AccessResolver {
       for (const r of removals) {
         if (r.effectiveAt.getTime() > now) expiresAt = Math.min(expiresAt, r.effectiveAt.getTime());
       }
+      const organizationType = await this.organizationTypeOf(user.tenantId);
       access = toAccess(
         user,
-        (await this.permissionsOf(user)).filter((p) => !removed.has(p)),
-        await this.organizationTypeOf(user.tenantId),
+        withOrganizationGrants(user, await this.permissionsOf(user), organizationType).filter((p) => !removed.has(p)),
+        organizationType,
       );
     }
     this.cache.set(userId, { access, expiresAt });
@@ -92,6 +94,19 @@ export class AccessResolver {
   forget(userId: string): void {
     this.cache.delete(userId);
   }
+}
+
+/**
+ * An owner operator's operations manager may buy M2M data bundles for the
+ * account; an enterprise's stays read-only. Custom roles keep exactly what they grant.
+ */
+export function withOrganizationGrants(
+  user: Pick<StoredUser, 'role' | 'customRoleId'>,
+  permissions: PermissionKey[],
+  organizationType: string | null,
+): PermissionKey[] {
+  if (user.customRoleId || user.role !== Role.OPERATIONS_MANAGER || organizationType !== OWNER_OPERATOR_ORGANISATION_TYPE) return permissions;
+  return permissions.includes('tenant.bundles.manage') ? permissions : [...permissions, 'tenant.bundles.manage'];
 }
 
 function toAccess(user: StoredUser, permissions: PermissionKey[], organizationType: string | null): ResolvedAccess {

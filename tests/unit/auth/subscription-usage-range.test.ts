@@ -7,6 +7,7 @@ vi.mock(
 
 import { GetSubscriptionUsageUseCase } from "../../../apps/auth/src/get-subscription-usage.use-case";
 import { InMemoryBundleAllocationRepository } from "../../../apps/auth/src/in-memory-bundle-allocation.repository";
+import { InMemoryBundleCatalogRepository } from "../../../apps/auth/src/in-memory-bundle-catalog.repository";
 
 const day = (offset: number) => new Date(Date.now() + offset * 86_400_000);
 
@@ -15,7 +16,7 @@ async function useCase() {
   const base = { tenantId: "t1", mobileNumber: "234", status: "active", paymentReference: "k", createdAt: day(0), updatedAt: day(0) };
   await allocations.save({ ...base, id: "recent", bundleId: "b-recent", dataUsedMb: 300, dataTotalMb: 1024, activatedAt: day(-5), expiresAt: day(25) } as never);
   await allocations.save({ ...base, id: "old", bundleId: "b-old", dataUsedMb: 900, dataTotalMb: 1024, activatedAt: day(-80), expiresAt: day(-50) } as never);
-  return new GetSubscriptionUsageUseCase({} as never, {} as never, allocations);
+  return new GetSubscriptionUsageUseCase({} as never, {} as never, allocations, new InMemoryBundleCatalogRepository());
 }
 
 describe("subscription usage over a range", () => {

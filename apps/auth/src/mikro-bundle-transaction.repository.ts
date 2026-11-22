@@ -44,8 +44,10 @@ export class MikroBundleTransactionRepository implements BundleTransactionReposi
     if (filters?.endDate) { conditions.push('created_at <= ?'); params.push(filters.endDate); }
     if (filters?.search) {
       const q = `%${filters.search}%`;
-      conditions.push('(mobile_number ilike ? or id::text ilike ? or payment_reference ilike ?)');
-      params.push(q, q, q);
+      conditions.push(
+        '(mobile_number ilike ? or id::text ilike ? or payment_reference ilike ? or bundle_id in (select id from bundle_catalog where code ilike ? or name ilike ?))',
+      );
+      params.push(q, q, q, q, q);
     }
 
     const where = conditions.length ? `where ${conditions.join(' and ')}` : '';
@@ -72,12 +74,22 @@ export class MikroBundleTransactionRepository implements BundleTransactionReposi
     await em.upsert(BundleTransactionRecord, transaction as unknown as BundleTransactionRecord);
   }
 
+  async failByPaymentReference(tenantId: string, paymentReference: string, reason: string): Promise<void> {
+    const orm = await getAuthOrm(this.config.db);
+    await orm.em.getConnection().execute(
+      `update bundle_transactions set status = 'failed', failure_reason = ?
+       where tenant_id = ? and payment_reference = ? and status = 'success'`,
+      [reason, tenantId, paymentReference],
+      'run',
+    );
+  }
+
   async sumByDate(tenantId: string, startDate: Date, endDate: Date): Promise<Array<{ date: string; amountKobo: number }>> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ date: string; amount_kobo: string }>>(
       `select to_char(created_at, 'YYYY-MM-DD') as date, sum(amount_kobo)::bigint as amount_kobo
        from bundle_transactions
-       where tenant_id = ? and created_at >= ? and created_at <= ?
+       where tenant_id = ? and status = 'success' and created_at >= ? and created_at <= ?
        group by date order by date asc`,
       [tenantId, startDate, endDate],
     );
@@ -89,7 +101,7 @@ export class MikroBundleTransactionRepository implements BundleTransactionReposi
     const rows = await orm.em.getConnection().execute<Array<{ bundle_id: string; amount_kobo: string }>>(
       `select bundle_id, sum(amount_kobo)::bigint as amount_kobo
        from bundle_transactions
-       where tenant_id = ? and created_at >= ? and created_at <= ?
+       where tenant_id = ? and status = 'success' and created_at >= ? and created_at <= ?
        group by bundle_id`,
       [tenantId, startDate, endDate],
     );

@@ -5,10 +5,11 @@ import {
   BundleAllocationRecord,
   getAuthOrm,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
-import type {
-  BundleAllocationFilters,
-  BundleAllocationRepository,
-  StoredBundleAllocation,
+import {
+  EXPIRING_WITHIN_DAYS,
+  type BundleAllocationFilters,
+  type BundleAllocationRepository,
+  type StoredBundleAllocation,
 } from './bundle-allocation.repository';
 
 function toStored(r: BundleAllocationRecord): StoredBundleAllocation {
@@ -38,10 +39,27 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
     const params: unknown[] = [];
 
     if (filters?.tenantId !== undefined) { conditions.push('tenant_id = ?'); params.push(filters.tenantId); }
-    if (filters?.status) { conditions.push('status = ?'); params.push(filters.status); }
+    if (filters?.status !== 'cancelled') conditions.push(`status <> 'cancelled'`);
+    if (filters?.status === 'expiring') {
+      conditions.push(`status = 'active' and expires_at >= now() and expires_at <= now() + (? * interval '1 day')`);
+      params.push(EXPIRING_WITHIN_DAYS);
+    } else if (filters?.status === 'expired') {
+      conditions.push(`(status = 'expired' or expires_at < now())`);
+    } else if (filters?.status === 'active') {
+      conditions.push(`status = 'active' and (expires_at is null or expires_at >= now())`);
+    } else if (filters?.status) {
+      conditions.push('status = ?');
+      params.push(filters.status);
+    }
     if (filters?.search) {
-      conditions.push('mobile_number ilike ?');
-      params.push(`%${filters.search}%`);
+      const q = `%${filters.search}%`;
+      conditions.push('(mobile_number ilike ? or bundle_id in (select id from bundle_catalog where code ilike ? or name ilike ?))');
+      params.push(q, q, q);
+    }
+    if (filters?.billingCycles?.length) {
+      const cycles = filters.billingCycles.map((c) => c.toLowerCase());
+      conditions.push(`bundle_id in (select id from bundle_catalog where lower(billing_cycle) in (${cycles.map(() => '?').join(', ')}))`);
+      params.push(...cycles);
     }
 
     const where = conditions.length ? `where ${conditions.join(' and ')}` : '';
@@ -86,7 +104,8 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
   async countByStatus(tenantId: string): Promise<Record<string, number>> {
     const orm = await getAuthOrm(this.config.db);
     const rows = await orm.em.getConnection().execute<Array<{ status: string; count: string }>>(
-      'select status, count(*)::int as count from bundle_allocations where tenant_id = ? group by status',
+      `select case when status = 'active' and expires_at < now() then 'expired' else status end as status, count(*)::int as count
+       from bundle_allocations where tenant_id = ? group by 1`,
       [tenantId],
     );
     const counts: Record<string, number> = {};
@@ -115,9 +134,19 @@ export class MikroBundleAllocationRepository implements BundleAllocationReposito
       : '';
     const rows = await orm.em.getConnection().execute<Array<{ bundle_id: string; used_mb: string; total_mb: string }>>(
       `select bundle_id, sum(data_used_mb)::numeric as used_mb, sum(data_total_mb)::numeric as total_mb
-       from bundle_allocations where tenant_id = ?${inWindow} group by bundle_id`,
+       from bundle_allocations where tenant_id = ? and status <> 'cancelled'${inWindow} group by bundle_id`,
       window ? [tenantId, window.end, window.start] : [tenantId],
     );
     return rows.map((r) => ({ bundleId: r.bundle_id, usedMb: Number(r.used_mb), totalMb: Number(r.total_mb) }));
+  }
+
+  async expireDue(now: Date): Promise<number> {
+    const orm = await getAuthOrm(this.config.db);
+    const result = (await orm.em.getConnection().execute(
+      `update bundle_allocations set status = 'expired', updated_at = ? where status = 'active' and expires_at < ?`,
+      [now, now],
+      'run',
+    )) as unknown as { affectedRows: number };
+    return result.affectedRows;
   }
 }

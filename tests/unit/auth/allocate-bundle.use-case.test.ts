@@ -47,7 +47,7 @@ function makeUseCase(wallet: InMemoryTenantWalletRepository) {
     }),
   };
   const bundleAllocationRepository = new InMemoryBundleAllocationRepository();
-  const bundleTransactionRepository = { save: vi.fn().mockResolvedValue(undefined) };
+  const bundleTransactionRepository = { save: vi.fn().mockResolvedValue(undefined), failByPaymentReference: vi.fn() };
 
   return new AllocateBundleUseCase(
     {} as any,
@@ -68,7 +68,7 @@ const payload = { carrierId: "c1", planType: "p", bundleId: "b1", mobileNumbers:
 function build(
   wallet: InMemoryTenantWalletRepository,
   allocations: InMemoryBundleAllocationRepository,
-  transactions: { save: (t: any) => Promise<void> } = { save: vi.fn().mockResolvedValue(undefined) },
+  transactions: { save: (t: any) => Promise<void>; failByPaymentReference: (...args: any[]) => Promise<void> } = { save: vi.fn().mockResolvedValue(undefined), failByPaymentReference: vi.fn() },
   limit: any = noSpendingLimit(),
 ) {
   const catalog = {
@@ -120,7 +120,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 1000, currency: "NGN", updatedAt: new Date() });
     const allocations = new InMemoryBundleAllocationRepository();
-    const transactions = { save: vi.fn().mockRejectedValue(new Error("tx down")) };
+    const transactions = { save: vi.fn().mockRejectedValue(new Error("tx down")), failByPaymentReference: vi.fn() };
     const useCase = build(wallet, allocations, transactions);
 
     await expect(useCase.execute("tok", { ...payload, idempotencyKey: "k2" })).rejects.toThrow("tx down");
@@ -128,6 +128,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(1000);
     const saved = await allocations.findByPaymentReference("t1", "k2");
     expect(saved.every((a) => a.status === "cancelled")).toBe(true);
+    expect(transactions.failByPaymentReference).toHaveBeenCalledWith("t1", "k2", expect.stringContaining("refunded"));
   });
 
   it("replayed purchase returns the original allocation and debits once", async () => {
@@ -167,7 +168,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
   it("works without a key and stores a generated one as payment reference", async () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: new Date() });
-    const transactions = { save: vi.fn().mockResolvedValue(undefined) };
+    const transactions = { save: vi.fn().mockResolvedValue(undefined), failByPaymentReference: vi.fn() };
     const useCase = build(wallet, new InMemoryBundleAllocationRepository(), transactions);
 
     const a = await useCase.execute("tok", payload);
@@ -184,7 +185,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 1000, currency: "NGN", updatedAt: new Date() });
     const allocations = new InMemoryBundleAllocationRepository();
-    const transactions = { save: vi.fn().mockRejectedValue(new Error("tx down")) };
+    const transactions = { save: vi.fn().mockRejectedValue(new Error("tx down")), failByPaymentReference: vi.fn() };
     const useCase = build(wallet, allocations, transactions);
     await expect(useCase.execute("tok", { ...payload, idempotencyKey: "k5" })).rejects.toThrow("tx down");
 
@@ -216,7 +217,7 @@ describe("AllocateBundleUseCase — double-spend guard", () => {
     const pricey = {
       findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 99_000, dataAmountGb: 1, validityDays: 30, active: true }),
     };
-    const replay = new AllocateBundleUseCase({} as any, {} as any, pricey as any, wallet, allocations as any, { save: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
+    const replay = new AllocateBundleUseCase({} as any, {} as any, pricey as any, wallet, allocations as any, { save: vi.fn(), failByPaymentReference: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
     const many = Array.from({ length: 500 }, (_, i) => `n${i}`);
 
     const result = await replay.execute("tok", { ...payload, mobileNumbers: many, idempotencyKey: "k8" });
@@ -287,8 +288,9 @@ describe("AllocateBundleUseCase — unknown references", () => {
     const sims = new InMemorySimRepository();
     await sims.save(sim({ id: "s1", msisdn: "08000000001" }));
     await sims.save(sim({ id: "s2", iccid: "8923400000000000002", msisdn: "08000000002", tenantId: "other" }));
+    await sims.save(sim({ id: "s3", iccid: "8923400000000000003", msisdn: "08000000003", status: "suspended" }));
     const allocations = new InMemoryBundleAllocationRepository();
-    const transactions = { save: vi.fn().mockResolvedValue(undefined) };
+    const transactions = { save: vi.fn().mockResolvedValue(undefined), failByPaymentReference: vi.fn() };
     const limit = { assertWithinLimit: vi.fn(), recordSpend: vi.fn() };
     const debit = vi.spyOn(wallet, "debit");
     const useCase = new AllocateBundleUseCase(
@@ -316,6 +318,17 @@ describe("AllocateBundleUseCase — unknown references", () => {
     expect(limit.assertWithinLimit).not.toHaveBeenCalled();
     expect(transactions.save).not.toHaveBeenCalled();
     expect(await allocations.findByPaymentReference("t1", "k-ref")).toHaveLength(0);
+    expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);
+  });
+
+  it("refuses a suspended SIM before charging", async () => {
+    const { useCase, wallet, debit } = await setup();
+
+    await expect(useCase.execute("tok", { ...valid, mobileNumbers: ["08000000003"], idempotencyKey: "k-sus" })).rejects.toMatchObject({
+      field: "mobileNumbers",
+      message: "Cannot top up a suspended or deactivated SIM: 08000000003 (suspended)",
+    });
+    expect(debit).not.toHaveBeenCalled();
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);
   });
 
@@ -347,7 +360,7 @@ describe("AllocateBundleUseCase — what a purchase may name", () => {
     const wallet = new InMemoryTenantWalletRepository();
     await wallet.save({ tenantId: "t1", balanceKobo: 5000, currency: "NGN", updatedAt: new Date() });
     const catalog = { findById: vi.fn().mockResolvedValue({ id: "b1", carrierId: "c1", name: "B", priceKobo: 1000, dataAmountGb: 1, validityDays: 30, active: false }) };
-    const useCase = new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, new InMemoryBundleAllocationRepository() as any, { save: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
+    const useCase = new AllocateBundleUseCase({} as any, {} as any, catalog as any, wallet, new InMemoryBundleAllocationRepository() as any, { save: vi.fn(), failByPaymentReference: vi.fn() } as any, noSpendingLimit(), carrierC1(), anySims(), new InMemoryWalletLedgerRepository(wallet));
 
     await expect(useCase.execute("tok", payload)).rejects.toMatchObject({ field: "bundleId", message: "Bundle is not available" });
     expect((await wallet.findByTenantId("t1"))?.balanceKobo).toBe(5000);

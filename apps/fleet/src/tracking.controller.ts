@@ -5,6 +5,7 @@ import { Role, Roles, RolesGuard } from "@shared/rbac";
 import { AuditLogService } from "./audit-log.service";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
 import { LiveTrackingUseCase } from "./contexts/fleet/tracking/application/live-tracking.use-case";
+import { alertPosition } from "./contexts/fleet/tracking/domain/alert-position";
 import {
   ShareLinkExpiredError,
   ShareVehicleLocationUseCase,
@@ -75,7 +76,7 @@ export class TrackingController extends BaseFleetController {
   @Roles(Role.ENTERPRISE_ADMIN, Role.OWNER_OPERATOR, Role.OPERATIONS_MANAGER, Role.DISPATCHER)
   @ApiOperation({
     summary: "Map alerts panel",
-    description: "Recent alerts for the fleet, newest first.",
+    description: "Recent alerts for the fleet, newest first. latitude/longitude are where the alert fired, null when unknown.",
   })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiOkResponse({ description: "Recent alerts" })
@@ -95,6 +96,7 @@ export class TrackingController extends BaseFleetController {
       severity: alert.severity,
       vehicleId: alert.vehicleId,
       details: alert.details,
+      ...alertPosition(alert.details),
       triggeredAt: alert.triggeredAt.toISOString(),
     }));
 

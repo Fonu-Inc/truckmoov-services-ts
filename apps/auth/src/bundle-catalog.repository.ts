@@ -32,3 +32,10 @@ export interface BundleCatalogRepository {
 }
 
 export const BUNDLE_CATALOG_REPOSITORY = Symbol('BUNDLE_CATALOG_REPOSITORY');
+
+/** Catalog rows for the given ids, looked up once each; unknown ids are left out. */
+export async function findBundlesByIds(repo: BundleCatalogRepository, ids: Iterable<string>): Promise<Map<string, StoredBundleCatalog>> {
+  const unique = [...new Set(ids)];
+  const found = await Promise.all(unique.map((id) => repo.findById(id)));
+  return new Map(found.filter((b): b is StoredBundleCatalog => !!b).map((b) => [b.id, b]));
+}
