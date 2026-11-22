@@ -1912,6 +1912,32 @@ export const SupportTicketAttachmentRecordSchema = new EntitySchema<SupportTicke
   },
 });
 
+export class SupportTicketCsatRecord {
+  id!: string;
+  ticketId!: string;
+  tenantId!: string;
+  userId!: string;
+  rating!: number;
+  comment!: string | null;
+  wouldRecommend!: boolean | null;
+  createdAt!: Date;
+}
+
+export const SupportTicketCsatRecordSchema = new EntitySchema<SupportTicketCsatRecord>({
+  class: SupportTicketCsatRecord,
+  tableName: 'support_ticket_csat',
+  properties: {
+    id: { type: 'string', length: 64, primary: true },
+    ticketId: { type: 'string', length: 64, fieldName: 'ticket_id', unique: true },
+    tenantId: { type: 'string', length: 64, fieldName: 'tenant_id' },
+    userId: { type: 'string', length: 64, fieldName: 'user_id' },
+    rating: { type: 'smallint' },
+    comment: { type: 'text', nullable: true },
+    wouldRecommend: { type: 'boolean', nullable: true, fieldName: 'would_recommend' },
+    createdAt: { type: 'datetime', defaultRaw: 'now()', fieldName: 'created_at' },
+  },
+});
+
 /* ── Bundle Carriers ────────────────────────────────── */
 
 export class BundleCarrierRecord {
@@ -2331,6 +2357,7 @@ async function initAuthOrm(cfg: DbConfig) {
       SupportTicketRecordSchema,
       SupportMessageRecordSchema,
       SupportTicketAttachmentRecordSchema,
+      SupportTicketCsatRecordSchema,
       AuthEventRecordSchema,
       BlockedIpRecordSchema,
       AutoBlockRuleRecordSchema,

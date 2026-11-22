@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -15,6 +15,8 @@ import {
   SUPPORT_TICKET_ATTACHMENT_REPOSITORY,
   type SupportTicketAttachmentRepository,
 } from './support-ticket-attachment.repository';
+import { SUPPORT_TICKET_CSAT_REPOSITORY, type SupportTicketCsatRepository } from './support-ticket-csat.repository';
+import { toCsatView } from './my-support-ticket-csat.use-cases';
 
 @Injectable()
 export class GetSystemSupportTicketUseCase {
@@ -26,6 +28,7 @@ export class GetSystemSupportTicketUseCase {
     @Inject(InstallerTicketContextService) private readonly installerTickets: InstallerTicketContextService,
     @Inject(SUPPORT_TICKET_ATTACHMENT_REPOSITORY)
     private readonly attachmentRepo: SupportTicketAttachmentRepository,
+    @Optional() @Inject(SUPPORT_TICKET_CSAT_REPOSITORY) private readonly csatRepo?: SupportTicketCsatRepository,
   ) {}
 
   async execute(accessToken: string, ticketId: string) {
@@ -36,10 +39,11 @@ export class GetSystemSupportTicketUseCase {
     const ticket = await this.ticketRepo.findById(ticketId);
     if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
 
-    const [messages, facts, attachments] = await Promise.all([
+    const [messages, facts, attachments, csat] = await Promise.all([
       this.messageRepo.findByTicketId(ticketId),
       this.installerTickets.describe([ticket]),
       this.attachmentRepo.findByTicketId(ticketId),
+      this.csatRepo?.findByTicketId(ticketId) ?? null,
     ]);
     const installerReporter = facts.get(ticket.id)?.reporterName;
     const creator = !installerReporter && ticket.createdBy
@@ -66,6 +70,7 @@ export class GetSystemSupportTicketUseCase {
           ...a,
           createdAt: a.createdAt.toISOString(),
         })),
+        csat: toCsatView(csat),
       },
     };
   }

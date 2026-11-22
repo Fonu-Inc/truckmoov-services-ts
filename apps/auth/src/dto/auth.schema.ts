@@ -2239,6 +2239,33 @@ export class SystemSupportTicketAttachmentSchema {
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
 }
 
+export class SupportTicketCsatSchema {
+  @ApiProperty({ minimum: 1, maximum: 5 }) rating!: number;
+  @ApiProperty({ nullable: true, type: String }) comment!: string | null;
+  @ApiProperty({ nullable: true, type: Boolean }) wouldRecommend!: boolean | null;
+  @ApiProperty({ description: 'The user who rated it' }) userId!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+}
+
+export class SupportTicketCsatResponse extends StandardApiResponse<SupportTicketCsatSchema | null> {
+  @ApiProperty({ type: SupportTicketCsatSchema, nullable: true, description: 'Null until someone on the account rates the ticket' })
+  data!: SupportTicketCsatSchema | null;
+}
+
+export class SupportTicketAttachmentLinkSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty() fileName!: string;
+  @ApiProperty() size!: number;
+  @ApiProperty() mimeType!: string;
+  @ApiProperty({ description: 'Signed, expires after five minutes' }) url!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) expiresAt!: string;
+}
+
+export class SupportTicketAttachmentLinkResponse extends StandardApiResponse<SupportTicketAttachmentLinkSchema> {
+  @ApiProperty({ type: SupportTicketAttachmentLinkSchema })
+  data!: SupportTicketAttachmentLinkSchema;
+}
+
 export class SystemSupportTicketDetailDataSchema {
   @ApiProperty() id!: string;
   @ApiProperty({ example: 1000 }) ticketNumber!: number;
@@ -2258,6 +2285,8 @@ export class SystemSupportTicketDetailDataSchema {
   @ApiProperty({ type: String, format: 'date-time' }) updatedAt!: string;
   @ApiProperty({ type: SystemSupportMessageSchema, isArray: true }) messages!: SystemSupportMessageSchema[];
   @ApiProperty({ type: SystemSupportTicketAttachmentSchema, isArray: true }) attachments!: SystemSupportTicketAttachmentSchema[];
+  @ApiProperty({ type: SupportTicketCsatSchema, nullable: true, description: "The tenant's satisfaction rating, read-only" })
+  csat!: SupportTicketCsatSchema | null;
 }
 
 export class SystemSupportTicketDetailResponse extends StandardApiResponse<SystemSupportTicketDetailDataSchema> {

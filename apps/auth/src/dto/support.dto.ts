@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_CHANNELS, STATUS_ROUTE_TICKET_STATUSES } from '../support-ticket.repository';
 
 const ESCALATION_TARGETS = ['fleetpro_internal', 'fonu_connectivity', 'vendor_installer'] as const;
@@ -106,4 +106,23 @@ export class ReopenTicketDto {
   @IsString()
   @MinLength(3)
   reason!: string;
+}
+
+export class SubmitTicketCsatDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @ApiPropertyOptional({ nullable: true, maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  comment?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  wouldRecommend?: boolean | null;
 }

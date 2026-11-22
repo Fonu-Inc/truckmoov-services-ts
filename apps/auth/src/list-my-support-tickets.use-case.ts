@@ -2,15 +2,31 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
-import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
+import type { StoredUser, UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import {
   SUPPORT_TICKET_STATUSES,
   SUPPORT_TICKET_REPOSITORY,
   withDisplayId,
   type SupportTicketFilters,
+  type StoredSupportTicket,
   type SupportTicketRepository,
 } from './support-ticket.repository';
+
+function displayName(user: StoredUser | null | undefined): string | null {
+  return user?.profile?.fullName?.trim() || user?.email || null;
+}
+
+/** Each ticket's reporter as a name (or email), looked up once per distinct user. */
+export async function withReporterNames<T extends Pick<StoredSupportTicket, 'createdBy'>>(
+  users: Pick<UserRepository, 'findById'>,
+  tickets: T[],
+): Promise<Array<T & { reporterName: string | null }>> {
+  const ids = [...new Set(tickets.map((t) => t.createdBy).filter(Boolean))];
+  const found = await Promise.all(ids.map((id) => users.findById(id)));
+  const byId = new Map(ids.map((id, i) => [id, displayName(found[i])]));
+  return tickets.map((t) => ({ ...t, reporterName: byId.get(t.createdBy) ?? null }));
+}
 
 /**
  * The tenant's own tickets only. The platform side deliberately sees all of
@@ -39,7 +55,11 @@ export class ListMySupportTicketsUseCase {
     return {
       status: true,
       message: 'success',
-      data: { tickets: tickets.map(withDisplayId), countsByStatus: byStatus, total: tickets.length },
+      data: {
+        tickets: await withReporterNames(this.userRepository, tickets.map(withDisplayId)),
+        countsByStatus: byStatus,
+        total: tickets.length,
+      },
     };
   }
 }

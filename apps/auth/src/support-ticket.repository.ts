@@ -151,6 +151,17 @@ export function searchedTicketNumber(search: string): number | null {
   return /^\d{1,15}$/.test(digits) ? Number(digits) : null;
 }
 
+/** Tenant list search: subject, description, internal id, or the ticket number in any form searchedTicketNumber reads. */
+export function matchesTenantSearch(
+  ticket: Pick<StoredSupportTicket, 'id' | 'subject' | 'description' | 'ticketNumber'>,
+  search: string,
+): boolean {
+  const q = search.trim().toLowerCase();
+  if (!q) return true;
+  if (searchedTicketNumber(q) === ticket.ticketNumber) return true;
+  return [ticket.subject, ticket.description, ticket.id].some((field) => field.toLowerCase().includes(q));
+}
+
 export function withDisplayId<T extends { ticketNumber: number }>(ticket: T): T & { displayId: string } {
   return { ...ticket, displayId: ticketDisplayId(ticket.ticketNumber) };
 }

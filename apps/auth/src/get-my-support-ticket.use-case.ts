@@ -5,6 +5,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { SUPPORT_TICKET_REPOSITORY, withDisplayId, type SupportTicketRepository } from './support-ticket.repository';
+import { withReporterNames } from './list-my-support-tickets.use-case';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
 import {
   SUPPORT_TICKET_ATTACHMENT_REPOSITORY,
@@ -45,7 +46,8 @@ export class GetMySupportTicketUseCase {
       this.attachmentRepo.findByTicketId(ticketId),
     ]);
     const messages = allMessages.filter((m) => !m.isInternal);
+    const [named] = await withReporterNames(this.userRepository, [withDisplayId(ticket)]);
 
-    return { status: true, message: 'success', data: { ticket: withDisplayId(ticket), messages, attachments } };
+    return { status: true, message: 'success', data: { ticket: named, messages, attachments } };
   }
 }

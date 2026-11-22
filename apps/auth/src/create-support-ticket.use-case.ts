@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -6,6 +6,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { TOKEN_SERVICE, USER_REPOSITORY, ID_GENERATOR } from './contexts/auth/session';
 import type { IdGenerator } from './contexts/auth/session/domain/ports/id-generator.port';
 import { FleetFactsService } from './fleet-facts.service';
+import { SupportTicketNotifierService } from './support-ticket-notifier.service';
 import {
   SUPPORT_TICKET_CATEGORIES,
   SUPPORT_TICKET_CHANNELS,
@@ -64,6 +65,7 @@ export class CreateSupportTicketUseCase {
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+    @Optional() @Inject(SupportTicketNotifierService) private readonly notifier?: SupportTicketNotifierService,
   ) {}
 
   async execute(command: CreateSupportTicketCommand) {
@@ -141,6 +143,7 @@ export class CreateSupportTicketUseCase {
       updatedAt: now,
     };
     await this.ticketRepo.save(ticket);
+    await this.notifier?.notifyRaised(ticket.tenantId, ticket.id, { reporter_type: 'tenant_user' });
 
     return { ticket: withDisplayId(ticket) };
   }

@@ -369,6 +369,11 @@ import { SUPPORT_MESSAGE_REPOSITORY } from './support-message.repository';
 import { SUPPORT_TICKET_ATTACHMENT_REPOSITORY } from './support-ticket-attachment.repository';
 import { TICKET_FILE_SCANNER, UnscannedTicketFileScanner } from './ticket-file-scanner.port';
 import { SupportTicketNotifierService } from './support-ticket-notifier.service';
+import { SUPPORT_TICKET_CSAT_REPOSITORY } from './support-ticket-csat.repository';
+import { InMemorySupportTicketCsatRepository } from './in-memory-support-ticket-csat.repository';
+import { MikroSupportTicketCsatRepository } from './mikro-support-ticket-csat.repository';
+import { MyTicketCsatUseCases } from './my-support-ticket-csat.use-cases';
+import { GetMyTicketAttachmentLinkUseCase } from './get-my-ticket-attachment-link.use-case';
 import { TicketAttachmentUploaderService } from './ticket-attachment-uploader.service';
 import { CreateSupportTicketUseCase } from './create-support-ticket.use-case';
 import { ListMySupportTicketsUseCase } from './list-my-support-tickets.use-case';
@@ -1508,6 +1513,19 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
         config: AppConfigService,
       ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
     },
+    InMemorySupportTicketCsatRepository,
+    MikroSupportTicketCsatRepository,
+    {
+      provide: SUPPORT_TICKET_CSAT_REPOSITORY,
+      inject: [InMemorySupportTicketCsatRepository, MikroSupportTicketCsatRepository, AppConfigService],
+      useFactory: (
+        inMemory: InMemorySupportTicketCsatRepository,
+        mikro: MikroSupportTicketCsatRepository,
+        config: AppConfigService,
+      ) => (config.persistence.backend === 'in-memory' ? inMemory : mikro),
+    },
+    MyTicketCsatUseCases,
+    GetMyTicketAttachmentLinkUseCase,
     { provide: TICKET_FILE_SCANNER, useClass: UnscannedTicketFileScanner },
     SupportTicketNotifierService,
     TicketAttachmentUploaderService,

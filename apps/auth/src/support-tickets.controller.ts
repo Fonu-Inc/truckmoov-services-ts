@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   Headers,
@@ -54,7 +55,11 @@ import {
   MAX_TICKET_ATTACHMENT_BYTES,
 } from './support-ticket-attachment.errors';
 import { StorageQuotaExceededError } from './storage-usage.repository';
-import { CreateSupportTicketDto, ReopenTicketDto, ReplyToTicketDto } from './dto/support.dto';
+import { CreateSupportTicketDto, ReopenTicketDto, ReplyToTicketDto, SubmitTicketCsatDto } from './dto/support.dto';
+import { SupportTicketAttachmentLinkResponse, SupportTicketCsatResponse } from './dto/auth.schema';
+import { GetMyTicketAttachmentLinkUseCase } from './get-my-ticket-attachment-link.use-case';
+import { MyTicketCsatUseCases } from './my-support-ticket-csat.use-cases';
+import { TicketCsatAlreadySubmittedError } from './support-ticket-csat.repository';
 import { Portals, OnResource } from '@shared/access';
 
 /** Up to 5 files per attach call — the requirements name a per-file cap, not a count, so this is a sane bound rather than a stated one. */
@@ -78,6 +83,8 @@ export class SupportTicketsController extends BaseAuthController {
     @Inject(GetSupportOptionsUseCase) private readonly getSupportOptionsUseCase: GetSupportOptionsUseCase,
     @Inject(PreviewTicketContextUseCase) private readonly previewTicketContextUseCase: PreviewTicketContextUseCase,
     @Inject(ExportMySupportTicketsUseCase) private readonly exportMySupportTicketsUseCase: ExportMySupportTicketsUseCase,
+    @Inject(GetMyTicketAttachmentLinkUseCase) private readonly attachmentLink: GetMyTicketAttachmentLinkUseCase,
+    @Inject(MyTicketCsatUseCases) private readonly csat: MyTicketCsatUseCases,
   ) {
     super(activityLogService);
   }
@@ -307,6 +314,57 @@ export class SupportTicketsController extends BaseAuthController {
       if (error instanceof StorageQuotaExceededError) {
         throw new HttpException(error.message, HttpStatus.PAYLOAD_TOO_LARGE);
       }
+      throw error;
+    }
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'A short-lived download link for one attachment on a ticket of this account' })
+  @ApiOkResponse({ type: SupportTicketAttachmentLinkResponse })
+  async attachmentDownload(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Headers('authorization') authorization?: string,
+  ): Promise<SupportTicketAttachmentLinkResponse> {
+    const accessToken = this.requireToken(authorization);
+    const data = await this.runSupport(() => this.attachmentLink.execute(accessToken, id, attachmentId));
+    return { status: true, message: 'success', data };
+  }
+
+  @Get(':id/csat')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "The ticket's satisfaction rating, or null when nobody has rated it" })
+  @ApiOkResponse({ type: SupportTicketCsatResponse })
+  async getCsat(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+  ): Promise<SupportTicketCsatResponse> {
+    const accessToken = this.requireToken(authorization);
+    const data = await this.runSupport(() => this.csat.get(accessToken, id));
+    return { status: true, message: 'success', data };
+  }
+
+  @Post(':id/csat')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Rate a resolved or closed ticket',
+    description: 'One rating per ticket for the whole account. 400 before the ticket is resolved, 409 once rated.',
+  })
+  @ApiOkResponse({ type: SupportTicketCsatResponse })
+  async submitCsat(
+    @Param('id') id: string,
+    @Body(BodyOrDataPipe) payload: SubmitTicketCsatDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<SupportTicketCsatResponse> {
+    const accessToken = this.requireToken(authorization);
+    try {
+      const data = await this.csat.submit({ accessToken, ticketId: id, ...payload });
+      return { status: true, message: 'Thanks for your feedback', data };
+    } catch (error) {
+      this.rethrowInvalidAccessToken(error);
+      if (error instanceof TicketActionNotAllowedError) throw new BadRequestException(error.message);
+      if (error instanceof TicketCsatAlreadySubmittedError) throw new ConflictException(error.message);
       throw error;
     }
   }

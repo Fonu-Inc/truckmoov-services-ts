@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ForbiddenError } from './contexts/auth/session';
 import { resolveActorUser } from './contexts/auth/session/application/use-cases/support/resolve-actor-user';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -7,6 +7,7 @@ import type { UserRepository } from './contexts/auth/session/domain/ports/user-r
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import { clearEscalation, SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from './support-ticket.repository';
 import { SUPPORT_MESSAGE_REPOSITORY, type SupportMessageRepository } from './support-message.repository';
+import { SupportTicketNotifierService } from './support-ticket-notifier.service';
 export class TicketActionNotAllowedError extends Error {
   constructor(message: string) {
     super(message);
@@ -44,6 +45,7 @@ export class ReplyToMySupportTicketUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
+    @Optional() @Inject(SupportTicketNotifierService) private readonly notifier?: SupportTicketNotifierService,
   ) {}
 
   async execute(command: ReplyToMySupportTicketCommand) {
@@ -76,6 +78,7 @@ export class ReplyToMySupportTicketUseCase {
     ticket.status = wasWaitingOnTenant ? 'in_progress' : ticket.status;
     ticket.updatedAt = now;
     await this.ticketRepo.save(ticket);
+    await this.notifier?.notifyCustomerReplied(ticket.tenantId, ticket.id, ticket.status);
 
     return { message: saved, ticketStatus: ticket.status };
   }
@@ -99,6 +102,7 @@ export class CloseMySupportTicketUseCase {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
+    @Optional() @Inject(SupportTicketNotifierService) private readonly notifier?: SupportTicketNotifierService,
   ) {}
 
   async execute(command: ChangeMySupportTicketStatusCommand) {
@@ -115,6 +119,7 @@ export class CloseMySupportTicketUseCase {
     ticket.closedAt = now;
     ticket.updatedAt = now;
     await this.ticketRepo.save(ticket);
+    await this.notifier?.notifyCustomerStatusChanged(ticket.tenantId, ticket.id, ticket.status);
 
     return { ticket };
   }
@@ -134,6 +139,7 @@ export class ReopenMySupportTicketUseCase {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly ticketRepo: SupportTicketRepository,
     @Inject(SUPPORT_MESSAGE_REPOSITORY) private readonly messageRepo: SupportMessageRepository,
+    @Optional() @Inject(SupportTicketNotifierService) private readonly notifier?: SupportTicketNotifierService,
   ) {}
 
   async execute(command: ChangeMySupportTicketStatusCommand) {
@@ -164,6 +170,7 @@ export class ReopenMySupportTicketUseCase {
       isInternal: false,
       createdAt: now,
     });
+    await this.notifier?.notifyCustomerStatusChanged(ticket.tenantId, ticket.id, ticket.status);
 
     return { ticket };
   }

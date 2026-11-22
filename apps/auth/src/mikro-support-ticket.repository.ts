@@ -6,6 +6,7 @@ import {
   SupportTicketRecord,
 } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
+  matchesTenantSearch,
   searchedTicketNumber,
   type StoredSupportTicket,
   type SupportTicketFilters,
@@ -98,10 +99,7 @@ export class MikroSupportTicketRepository implements SupportTicketRepository {
     const records = await em.find(SupportTicketRecord, where, { orderBy: { createdAt: 'desc' } });
 
     if (!filters?.search) return records.map(toStored);
-    const q = filters.search.toLowerCase();
-    return records
-      .filter((r) => r.subject.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.id.toLowerCase().includes(q))
-      .map(toStored);
+    return records.map(toStored).filter((t) => matchesTenantSearch(t, filters.search!));
   }
 
   async findById(id: string): Promise<StoredSupportTicket | null> {

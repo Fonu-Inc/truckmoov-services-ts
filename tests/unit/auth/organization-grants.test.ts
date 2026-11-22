@@ -12,6 +12,13 @@ describe("Organisation grants", () => {
     expect(withOrganizationGrants({ role: "OPERATIONS_MANAGER", customRoleId: null }, read, "enterprise")).toEqual(read);
     expect(withOrganizationGrants({ role: "OPERATIONS_MANAGER", customRoleId: null }, read, null)).toEqual(read);
     expect(withOrganizationGrants({ role: "OPERATIONS_MANAGER", customRoleId: "r1" }, read, "owner_operator")).toEqual(read);
-    expect(withOrganizationGrants({ role: "DISPATCHER", customRoleId: null }, read, "owner_operator")).toEqual(read);
+  });
+
+  it("lets an owner operator's staff raise and follow support tickets, but not enterprise staff", () => {
+    for (const role of ["OPERATIONS_MANAGER", "DISPATCHER", "FINANCE_VIEWER"]) {
+      expect(withOrganizationGrants({ role, customRoleId: null }, [], "owner_operator")).toEqual(expect.arrayContaining(["tenant.support.read", "tenant.support.manage"]));
+      expect(withOrganizationGrants({ role, customRoleId: null }, [], "enterprise")).toEqual([]);
+    }
+    expect(withOrganizationGrants({ role: "DISPATCHER", customRoleId: null }, [], "owner_operator")).not.toContain("tenant.bundles.manage");
   });
 });

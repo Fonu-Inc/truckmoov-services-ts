@@ -97,16 +97,25 @@ export class AccessResolver {
 }
 
 /**
- * An owner operator's operations manager may buy M2M data bundles for the
- * account; an enterprise's stays read-only. Custom roles keep exactly what they grant.
+ * Extra permissions the standard staff roles get inside an owner operator's
+ * organisation only: buying M2M bundles (operations manager) and raising and
+ * following support tickets. Enterprise staff keep the predefined set, and a
+ * custom role keeps exactly what it grants.
  */
+const OWNER_OPERATOR_STAFF_GRANTS: Partial<Record<string, PermissionKey[]>> = {
+  [Role.OPERATIONS_MANAGER]: ['tenant.bundles.manage', 'tenant.support.read', 'tenant.support.manage'],
+  [Role.DISPATCHER]: ['tenant.support.read', 'tenant.support.manage'],
+  [Role.FINANCE_VIEWER]: ['tenant.support.read', 'tenant.support.manage'],
+};
+
 export function withOrganizationGrants(
   user: Pick<StoredUser, 'role' | 'customRoleId'>,
   permissions: PermissionKey[],
   organizationType: string | null,
 ): PermissionKey[] {
-  if (user.customRoleId || user.role !== Role.OPERATIONS_MANAGER || organizationType !== OWNER_OPERATOR_ORGANISATION_TYPE) return permissions;
-  return permissions.includes('tenant.bundles.manage') ? permissions : [...permissions, 'tenant.bundles.manage'];
+  const extra = OWNER_OPERATOR_STAFF_GRANTS[user.role];
+  if (user.customRoleId || !extra || organizationType !== OWNER_OPERATOR_ORGANISATION_TYPE) return permissions;
+  return [...new Set([...permissions, ...extra])];
 }
 
 function toAccess(user: StoredUser, permissions: PermissionKey[], organizationType: string | null): ResolvedAccess {

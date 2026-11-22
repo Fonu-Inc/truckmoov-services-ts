@@ -30,6 +30,8 @@ const FORWARDED_SUBJECTS = [
   // Only for owner operators limited to their own vehicles; never sent to the tenant room.
   'tm.*.tracking.owner_counts',
   'tm.*.vehicle.owner.assigned',
+  // Support ticket changes: raised, replied, customer_replied, status_changed.
+  'tm.*.support_ticket.*',
 ] as const;
 
 const SUSPENDED_EVENT = 'tenant.suspended';
@@ -39,6 +41,7 @@ const ALERT_EVENT = 'alert.triggered';
 const MAILBOX_EVENT = 'mailbox.updated';
 const OWNER_COUNTS_EVENT = 'tracking.owner_counts';
 const OWNER_ASSIGNED_EVENT = 'vehicle.owner.assigned';
+const SUPPORT_TICKET_PREFIX = 'support_ticket.';
 
 /** Forwarded as a batched frame, not per message. */
 const COALESCED_SUBJECT_EVENT = 'vehicle.location.updated';
@@ -129,8 +132,9 @@ export class NatsFanoutBridge implements OnApplicationBootstrap, OnApplicationSh
     if (event === ALERT_EVENT && typeof vehicleId === 'string' && this.gateway.hasScopedSockets(tenantId)) {
       this.gateway.emitToVehicle(tenantId, vehicleId, event, data?.data ?? {});
     }
-    // The mailbox is the organisation's, and REST lets a limited owner operator read it.
-    if (event === MAILBOX_EVENT && this.gateway.hasScopedSockets(tenantId)) {
+    // The mailbox and support tickets are the organisation's, and REST lets a limited owner operator read both.
+    const organisationWide = event === MAILBOX_EVENT || event.startsWith(SUPPORT_TICKET_PREFIX);
+    if (organisationWide && this.gateway.hasScopedSockets(tenantId)) {
       this.gateway.emitToScoped(tenantId, event, data?.data ?? {});
     }
     if (event === SUSPENDED_EVENT) this.gateway.disconnectTenant(tenantId);
