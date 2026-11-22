@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { InMemorySimRepository } from '../../../apps/auth/src/in-memory-sim.repository';
 import { InMemorySimActivationBatchRepository } from '../../../apps/auth/src/in-memory-sim-activation-batch.repository';
+import { ApproveSystemSimRequestUseCase } from '../../../apps/auth/src/approve-system-sim-request.use-case';
+import { InMemorySimProvisioningRequestRepository } from '../../../apps/auth/src/in-memory-sim-provisioning-request.repository';
 import { InMemorySimProvisioningRequestRepository } from '../../../apps/auth/src/in-memory-sim-provisioning-request.repository';
 import { InMemoryDeviceSetupRequestRepository } from '../../../apps/auth/src/in-memory-device-setup-request.repository';
 import {
@@ -222,6 +224,18 @@ describe('SIM batch use-cases', () => {
     expect(result.data.completed).toBe(1);
     expect(result.data.needsAttention).toBe(1);
     expect(result.data.totalSimsQueued).toBe(8); // excludes completed
+  });
+
+  it('records an approved request as an activation that is already done', async () => {
+    const requests = new InMemorySimProvisioningRequestRepository();
+    const batches = new InMemorySimActivationBatchRepository();
+    await requests.save({ id: 'req-1', tenantId: 't1', tenantName: 'Acme', numberOfSims: 4, preferredOperator: 'MTN', requestedPlan: 'iot_basic', requestedDataLimitMb: 1024, deviceMappingData: null, status: 'pending', createdAt: new Date(), updatedAt: new Date() } as never);
+    const result = await new ApproveSystemSimRequestUseCase(systemActor() as never, systemUserRepo() as never, requests, batches).execute(TOKEN, 'req-1');
+    const batch = (await batches.findById(result.data.batchId))!;
+    expect(batch).toMatchObject({ status: 'completed', simsActivated: 4, simsFailed: 0 });
+    expect(batch.startedAt).not.toBeNull();
+    expect(batch.completedAt).not.toBeNull();
+    expect((await new GetSystemSimBatchesSummaryUseCase(systemActor() as never, systemUserRepo() as never, batches).execute(TOKEN)).data.totalSimsQueued).toBe(0);
   });
 
   it('reads the screen label "partial" as partially_completed', () => {
