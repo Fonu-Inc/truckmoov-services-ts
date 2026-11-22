@@ -10,10 +10,7 @@ import { resolveActorUser } from "./contexts/auth/session/application/use-cases/
 import type { TokenService } from "./contexts/auth/session/domain/ports/token-service.port";
 import type { UserRepository } from "./contexts/auth/session/domain/ports/user-repository.port";
 import { getAuthOrm } from "./contexts/auth/session/infrastructure/persistence/auth-orm";
-import {
-  TENANT_ONBOARDING_REPOSITORY,
-  type TenantOnboardingRepository,
-} from "./tenant-onboarding.repository";
+import { ListSystemTenantsUseCase } from "./list-system-tenants.use-case";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
 
 const SYSTEM_VIEWER_ROLES = new Set<string>([Role.SUPER_ADMIN, Role.SYSTEM_ADMIN]);
@@ -23,8 +20,23 @@ const UNAVAILABLE_METRICS = [
   "sensorGpsMessagesPerHour",
 ] as const;
 
-type CountRow = { count?: number | string };
+type CountRow = {
+  total?: number | string;
+  this_month?: number | string;
+};
 type ExistsRow = { exists?: boolean | number | string };
+type DbConnection =
+  Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T
+    ? T
+    : never;
+
+export type SystemDashboardChanges = {
+  totalTenants: number | null;
+  activeTenants: number | null;
+  totalVehicles: number | null;
+  totalDrivers: number | null;
+  totalDevices: number | null;
+};
 
 export type SystemDashboardData = {
   totalTenants: number;
@@ -34,6 +46,7 @@ export type SystemDashboardData = {
   totalSimCards: number | null;
   dataUsageTodayMb: number | null;
   sensorGpsMessagesPerHour: number | null;
+  changes: SystemDashboardChanges;
   unavailableMetrics: string[];
   generatedAt: string;
 };
@@ -47,8 +60,8 @@ export class GetSystemDashboardUseCase {
     private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: UserRepository,
-    @Inject(TENANT_ONBOARDING_REPOSITORY)
-    private readonly tenantOnboardingRepository: TenantOnboardingRepository,
+    @Inject(ListSystemTenantsUseCase)
+    private readonly listSystemTenantsUseCase: ListSystemTenantsUseCase,
   ) {}
 
   async execute(accessToken: string) {
@@ -57,15 +70,50 @@ export class GetSystemDashboardUseCase {
       throw new ForbiddenError("You are not permitted to view the system dashboard");
     }
 
-    const counts = this.config.persistence.backend === "in-memory"
-      ? await this.getInMemoryCounts()
-      : await this.getDatabaseCounts();
+    // The dashboard and the Tenants page must agree on what a tenant is. The
+    // list also includes tenant ids found only in settings, business info or
+    // fleet rows, which the old auth_users/onboarding count missed.
+    const tenants = await this.listSystemTenantsUseCase.list(accessToken, {});
+    const fleet = this.config.persistence.backend === "in-memory"
+      ? { vehicles: ZERO, drivers: ZERO, devices: ZERO }
+      : await this.getFleetCounts();
+
+    const monthStart = startOfCurrentMonth();
+    const tenantsThisMonth = tenants.filter(
+      (tenant) => toDate(tenant.createdAt) >= monthStart,
+    ).length;
+    const activeTenants = tenants.filter(
+      (tenant) => tenant.status === "active",
+    ).length;
+    const activeThisMonth = tenants.filter(
+      (tenant) =>
+        tenant.status === "active" && toDate(tenant.createdAt) >= monthStart,
+    ).length;
 
     const data: SystemDashboardData = {
-      ...counts,
+      totalTenants: tenants.length,
+      totalVehicles: fleet.vehicles.total,
+      totalDrivers: fleet.drivers.total,
+      totalSensors: fleet.devices.total,
       totalSimCards: null,
       dataUsageTodayMb: null,
       sensorGpsMessagesPerHour: null,
+      changes: {
+        totalTenants: monthOverMonthPercent(tenants.length, tenantsThisMonth),
+        activeTenants: monthOverMonthPercent(activeTenants, activeThisMonth),
+        totalVehicles: monthOverMonthPercent(
+          fleet.vehicles.total,
+          fleet.vehicles.thisMonth,
+        ),
+        totalDrivers: monthOverMonthPercent(
+          fleet.drivers.total,
+          fleet.drivers.thisMonth,
+        ),
+        totalDevices: monthOverMonthPercent(
+          fleet.devices.total,
+          fleet.devices.thisMonth,
+        ),
+      },
       unavailableMetrics: [...UNAVAILABLE_METRICS],
       generatedAt: new Date().toISOString(),
     };
@@ -77,94 +125,39 @@ export class GetSystemDashboardUseCase {
     };
   }
 
-  private async getInMemoryCounts() {
-    const [users, onboardings] = await Promise.all([
-      this.userRepository.findAll(),
-      this.tenantOnboardingRepository.findAll(),
-    ]);
-    const tenantIds = new Set<string>([
-      ...users
-        .map((user) => user.tenantId)
-        .filter((tenantId) => tenantId && tenantId !== SYSTEM_TENANT_ID),
-      ...onboardings
-        .map((onboarding) => onboarding.tenantId)
-        .filter((tenantId) => tenantId && tenantId !== SYSTEM_TENANT_ID),
-    ]);
-
-    return {
-      totalTenants: tenantIds.size,
-      totalVehicles: 0,
-      totalDrivers: 0,
-      totalSensors: 0,
-    };
-  }
-
-  private async getDatabaseCounts() {
+  private async getFleetCounts() {
     const orm = await getAuthOrm(this.config.db);
     const connection = orm.em.getConnection();
-    const hasTenantOnboardingsTable = await this.tableExists(connection, "system_tenant_onboardings");
-
-    const tenantCountQuery = hasTenantOnboardingsTable
-      ? `
-        select count(distinct tenant_id)::int as count
-        from (
-          select tenant_id from auth_users where tenant_id <> ?
-          union
-          select tenant_id from system_tenant_onboardings where tenant_id <> ?
-        ) as tenants
-      `
-      : "select count(distinct tenant_id)::int as count from auth_users where tenant_id <> ?";
-
-    const [tenantCountRows, vehicleCount, driverCount, sensorCount] = await Promise.all([
-      connection.execute<CountRow[]>(
-        tenantCountQuery,
-        hasTenantOnboardingsTable
-          ? [SYSTEM_TENANT_ID, SYSTEM_TENANT_ID]
-          : [SYSTEM_TENANT_ID],
-      ),
-      this.countTable(connection, "fleet_vehicles"),
-      this.countTable(connection, "fleet_drivers"),
-      this.countTable(connection, "fleet_devices"),
+    const [vehicles, drivers, devices] = await Promise.all([
+      this.countTableWithMonth(connection, "fleet_vehicles"),
+      this.countTableWithMonth(connection, "fleet_drivers"),
+      this.countTableWithMonth(connection, "fleet_devices"),
     ]);
-
-    return {
-      totalTenants: this.toNumber(tenantCountRows[0]?.count),
-      totalVehicles: vehicleCount,
-      totalDrivers: driverCount,
-      totalSensors: sensorCount,
-    };
+    return { vehicles, drivers, devices };
   }
 
-  private async tableExists(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
+  private async countTableWithMonth(
+    connection: DbConnection,
     tableName: string,
-  ) {
+  ): Promise<{ total: number; thisMonth: number }> {
     const existsRows = await connection.execute<ExistsRow[]>(
       "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
       [tableName],
     );
-
-    return this.toBoolean(existsRows[0]?.exists);
-  }
-
-  private async countTable(
-    connection: Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T ? T : never,
-    tableName: string,
-  ) {
-    const existsRows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      [tableName],
-    );
-
     if (!this.toBoolean(existsRows[0]?.exists)) {
-      return 0;
+      return { total: 0, thisMonth: 0 };
     }
 
     const rows = await connection.execute<CountRow[]>(
-      `select count(*)::int as count from \"${tableName}\"`,
+      `select
+         count(*)::int as total,
+         count(*) filter (where created_at >= date_trunc('month', now()))::int as this_month
+       from "${tableName}"`,
     );
-
-    return this.toNumber(rows[0]?.count);
+    return {
+      total: this.toNumber(rows[0]?.total),
+      thisMonth: this.toNumber(rows[0]?.this_month),
+    };
   }
 
   private toNumber(value: unknown) {
@@ -178,4 +171,30 @@ export class GetSystemDashboardUseCase {
       || value === "t"
       || value === "true";
   }
+}
+
+const ZERO = { total: 0, thisMonth: 0 };
+
+/**
+ * The dashboard's "vs last month" figure. `total` is today's cumulative count
+ * and `addedThisMonth` is what was created in the current calendar month, so
+ * last month's closing total is `total - addedThisMonth`.
+ */
+export function monthOverMonthPercent(
+  total: number,
+  addedThisMonth: number,
+): number | null {
+  const previous = total - addedThisMonth;
+  if (previous <= 0) return null;
+  return Math.round((addedThisMonth / previous) * 100);
+}
+
+function startOfCurrentMonth(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+/** Dates from the tenant list are ISO strings; an unparseable one counts as today. */
+function toDate(value: string): Date {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }

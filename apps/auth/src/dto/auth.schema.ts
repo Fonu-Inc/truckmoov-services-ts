@@ -409,6 +409,23 @@ export class ActivityLogResponse extends StandardApiResponse<
   data!: ActivityLogEntrySchema[];
 }
 
+export class SystemDashboardChangesSchema {
+  @ApiProperty({ nullable: true, type: Number })
+  totalTenants!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  activeTenants!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  totalVehicles!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  totalDrivers!: number | null;
+
+  @ApiProperty({ nullable: true, type: Number })
+  totalDevices!: number | null;
+}
+
 export class SystemDashboardDataSchema {
   @ApiProperty()
   totalTenants!: number;
@@ -430,6 +447,9 @@ export class SystemDashboardDataSchema {
 
   @ApiProperty({ nullable: true, type: Number })
   sensorGpsMessagesPerHour!: number | null;
+
+  @ApiProperty({ type: SystemDashboardChangesSchema })
+  changes!: SystemDashboardChangesSchema;
 
   @ApiProperty({ type: String, isArray: true })
   unavailableMetrics!: string[];
