@@ -118,6 +118,8 @@ export type StoredOnboardingApplication = {
   id: string;
   reference: string;
   tokenHash: string;
+  /** The token the payment email replaced, so a wizard already open in a browser keeps working. */
+  previousTokenHash?: string | null;
   applicantType: OnboardingApplicantType;
   organizationName: string;
   businessEmail: string;

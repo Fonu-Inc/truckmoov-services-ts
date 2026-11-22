@@ -24,6 +24,7 @@ export class OnboardingApplicationRecord {
   id!: string;
   reference!: string;
   tokenHash!: string;
+  previousTokenHash?: string | null;
   applicantType!: string;
   organizationName!: string;
   businessEmail!: string;
@@ -55,6 +56,7 @@ export const OnboardingApplicationRecordSchema =
       id: { type: 'string', primary: true },
       reference: { type: 'string', length: 32, unique: true },
       tokenHash: { fieldName: 'token_hash', type: 'string', length: 128, unique: true },
+      previousTokenHash: { fieldName: 'previous_token_hash', type: 'string', length: 128, nullable: true },
       setupLinkStatus: { fieldName: 'setup_link_status', type: 'string', length: 16, nullable: true },
       setupLinkSentAt: { fieldName: 'setup_link_sent_at', type: 'datetime', nullable: true },
       setupLinkError: { fieldName: 'setup_link_error', type: 'text', nullable: true },

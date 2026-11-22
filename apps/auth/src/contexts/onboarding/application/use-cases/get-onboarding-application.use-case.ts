@@ -36,7 +36,8 @@ export class GetOnboardingApplicationUseCase {
     // A wrong token is reported as a missing application: telling a caller that
     // an id exists but their token is wrong is what makes ids worth guessing.
     if (!application) throw new ApplicationNotFoundError();
-    if (application.tokenHash !== hashApplicationToken(applicationToken)) {
+    const presented = hashApplicationToken(applicationToken);
+    if (application.tokenHash !== presented && application.previousTokenHash !== presented) {
       throw new ApplicationNotFoundError();
     }
     // An abandoned draft reads as gone rather than as a locked application:

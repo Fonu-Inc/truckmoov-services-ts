@@ -59,6 +59,7 @@ export class InMemoryOnboardingApplicationRepository
   async completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void> {
     const application = this.applications.get(id);
     if (!application) return;
+    application.previousTokenHash = application.tokenHash;
     application.tokenHash = tokenHash;
     application.paymentNotifiedAt = application.paymentNotifiedAt ?? at;
     application.paymentNoticeError = null;

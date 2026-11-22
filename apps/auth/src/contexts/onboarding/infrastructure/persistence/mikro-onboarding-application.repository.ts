@@ -32,6 +32,7 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     id: r.id,
     reference: r.reference,
     tokenHash: r.tokenHash,
+    previousTokenHash: r.previousTokenHash ?? null,
     applicantType: r.applicantType as StoredOnboardingApplication['applicantType'],
     organizationName: r.organizationName,
     businessEmail: r.businessEmail,
@@ -188,7 +189,7 @@ export class MikroOnboardingApplicationRepository
   async completePaymentNotice(id: string, tokenHash: string, at: Date): Promise<void> {
     await this.run(
       `update onboarding_applications
-         set token_hash = ?, payment_notified_at = coalesce(payment_notified_at, ?),
+         set previous_token_hash = token_hash, token_hash = ?, payment_notified_at = coalesce(payment_notified_at, ?),
              last_notice_error = null, updated_at = ?
        where id = ?`,
       [tokenHash, at, at, id],
