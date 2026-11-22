@@ -1,6 +1,6 @@
 import { Migration } from "@mikro-orm/migrations";
 
-/** Fleets: named groups of a tenant's vehicles. A vehicle may belong to more than one. */
+/** Fleets: named groups of a tenant's vehicles. A vehicle belongs to one fleet at most (enforced in FleetGroupsUseCase). */
 export class Migration20261122150000 extends Migration {
   override async up(): Promise<void> {
     this.addSql(`create table if not exists "fleet_groups" (

@@ -70,7 +70,7 @@ export class FleetGroupsUseCase {
       name,
       description: this.validDescription(input.description),
       violationsEnabled: input.violationsEnabled === true,
-      vehicleIds: await this.validVehicles(tenantId, input.vehicleIds ?? []),
+      vehicleIds: await this.validVehicles(tenantId, input.vehicleIds ?? [], null),
       createdAt: now,
       updatedAt: now,
     };
@@ -88,7 +88,7 @@ export class FleetGroupsUseCase {
       name,
       description: input.description === undefined ? existing.description : this.validDescription(input.description),
       violationsEnabled: input.violationsEnabled ?? existing.violationsEnabled,
-      vehicleIds: input.vehicleIds === undefined ? existing.vehicleIds : await this.validVehicles(tenantId, input.vehicleIds),
+      vehicleIds: input.vehicleIds === undefined ? existing.vehicleIds : await this.validVehicles(tenantId, input.vehicleIds, id),
       updatedAt: now,
     };
     await this.groups.save(group);
@@ -114,13 +114,21 @@ export class FleetGroupsUseCase {
     return description || null;
   }
 
-  /** Only the tenant's own vehicles can be grouped; an unknown id is refused rather than dropped. */
-  private async validVehicles(tenantId: string, vehicleIds: string[]): Promise<string[]> {
+  /**
+   * Only the tenant's own vehicles can be grouped, and a vehicle sits in one
+   * fleet at most. An unknown or taken id is refused rather than dropped.
+   */
+  private async validVehicles(tenantId: string, vehicleIds: string[], fleetId: string | null): Promise<string[]> {
     const wanted = [...new Set(vehicleIds)];
     if (wanted.length === 0) return [];
     const known = new Set((await this.vehicles.listIdsAndOwnersByTenant(tenantId)).map((vehicle) => vehicle.id));
     const unknown = wanted.filter((vehicleId) => !known.has(vehicleId));
     if (unknown.length > 0) throw new FleetGroupInputError("vehicleIds", `Unknown vehicle: ${unknown.join(", ")}`);
+    for (const other of await this.groups.listByTenant(tenantId)) {
+      if (other.id === fleetId) continue;
+      const taken = wanted.find((vehicleId) => other.vehicleIds.includes(vehicleId));
+      if (taken) throw new FleetGroupInputError("vehicleIds", `Vehicle ${taken} is already in ${other.name}`);
+    }
     return wanted;
   }
 }

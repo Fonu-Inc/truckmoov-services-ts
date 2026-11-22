@@ -278,6 +278,12 @@ import { MAINTENANCE_PROFILE_REPOSITORY } from "./maintenance-profile.repository
 import { GeofenceZonesUseCase } from "./geofence-zones.use-case";
 import { MikroGeofenceZoneRepository } from "./mikro-geofence-zone.repository";
 import { FleetGroupsController } from "./fleet-groups.controller";
+import { DriverGroupsController } from "./driver-groups.controller";
+import { DriverLicenceRemindersController } from "./driver-licence-reminders.controller";
+import { DriverLicenceRemindersService } from "./driver-licence-reminders.service";
+import { DRIVER_LICENCE_REMINDER_REPOSITORY, MikroDriverLicenceReminderRepository } from "./driver-licence-reminders.repository";
+import { DriverGroupsUseCase } from "./driver-groups.use-case";
+import { DRIVER_GROUP_REPOSITORY, MikroDriverGroupRepository } from "./driver-groups.repository";
 import { FleetGroupsUseCase } from "./fleet-groups.use-case";
 import { FLEET_GROUP_REPOSITORY, MikroFleetGroupRepository } from "./fleet-groups.repository";
 import { GEOFENCE_ZONE_REPOSITORY } from "./geofence-zone.repository";
@@ -374,6 +380,8 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     MaintenanceController,
     GeofencesController,
     FleetGroupsController,
+    DriverGroupsController,
+    DriverLicenceRemindersController,
     ComplianceController,
     FinancialsController,
     FuelController,
@@ -562,6 +570,12 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     MikroFleetGroupRepository,
     { provide: FLEET_GROUP_REPOSITORY, useExisting: MikroFleetGroupRepository },
     FleetGroupsUseCase,
+    MikroDriverGroupRepository,
+    { provide: DRIVER_GROUP_REPOSITORY, useExisting: MikroDriverGroupRepository },
+    DriverGroupsUseCase,
+    MikroDriverLicenceReminderRepository,
+    { provide: DRIVER_LICENCE_REMINDER_REPOSITORY, useExisting: MikroDriverLicenceReminderRepository },
+    DriverLicenceRemindersService,
     MikroMaintenanceRecordRepository,
     { provide: MAINTENANCE_RECORD_REPOSITORY, useExisting: MikroMaintenanceRecordRepository },
     MaintenanceRecordsUseCase,
@@ -982,6 +996,8 @@ export class AppModule implements NestModule {
         MaintenanceController,
         GeofencesController,
         FleetGroupsController,
+        DriverGroupsController,
+        DriverLicenceRemindersController,
         ComplianceController,
         FinancialsController,
         FuelController,

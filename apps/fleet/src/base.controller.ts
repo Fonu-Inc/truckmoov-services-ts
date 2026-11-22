@@ -12,6 +12,7 @@ import { registrationKey } from "./contexts/fleet/waybills/domain/vehicle-regist
 import { InvoiceNotFoundError } from "./contexts/fleet/waybills/application/use-cases/invoice-lifecycle.use-cases";
 import { PricingRuleNotFoundError } from "./contexts/fleet/waybills/application/use-cases/pricing-rule.use-cases";
 import { DriverNotFoundError } from "./contexts/fleet/drivers";
+import { ownedDriverIdsFrom } from "./contexts/fleet/drivers/domain/driver-roster";
 import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
 import { FleetQuotaExceededError } from "./quota.service";
 import { VehicleCapacityError } from "./contexts/fleet/vehicles/domain/vehicle-capacity";
@@ -131,6 +132,18 @@ export abstract class BaseFleetController {
 
     const vehicles = await repository.findAllByOwnerOperatorId(ownerOperatorId, tenantId);
     return new Set(vehicles.map((vehicle) => vehicle.id));
+  }
+
+  /** Drivers a limited owner operator may see: those on their own vehicles. Null when unrestricted. */
+  protected async ownedDriverIdsFor(
+    vehicles: { findAllByOwnerOperatorId(ownerOperatorId: string, tenantId: string): Promise<Array<{ id: string }>> },
+    drivers: { findAll(filters: { tenantId: string }): Promise<Array<{ id: string; assignedVehicleId: string | null }>> },
+    tenantId: string,
+    req: FleetRequestContext,
+  ): Promise<Set<string> | null> {
+    const ownedVehicles = await this.ownedVehicleIdsFor(vehicles, tenantId, req);
+    if (!ownedVehicles) return null;
+    return ownedDriverIdsFrom(ownedVehicles, await drivers.findAll({ tenantId }));
   }
 
   protected tenantIdFromRequest(req: FleetRequestContext): string {

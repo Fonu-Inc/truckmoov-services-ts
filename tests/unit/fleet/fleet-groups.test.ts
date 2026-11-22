@@ -75,4 +75,10 @@ describe("Fleets", () => {
   it("requires a name", async () => {
     await expect(fleets.create("t1", { name: "  " })).rejects.toBeInstanceOf(FleetGroupInputError);
   });
+
+  it("keeps a vehicle in one fleet at most", async () => {
+    const island = await fleets.create("t1", { name: "Island", vehicleIds: ["v1"] });
+    await expect(fleets.create("t1", { name: "Mainland", vehicleIds: ["v1"] })).rejects.toBeInstanceOf(FleetGroupInputError);
+    await expect(fleets.update("t1", island.id, { vehicleIds: ["v1", "v2"] })).resolves.toMatchObject({ vehicleIds: ["v1", "v2"] });
+  });
 });
