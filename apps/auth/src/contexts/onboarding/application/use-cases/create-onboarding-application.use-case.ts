@@ -38,7 +38,9 @@ import {
   validateState,
   validateStreetAddress,
   validateTaxIdentificationNumber,
+  OnboardingValidationError,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { normalizeMtnNumber } from '../../../../telecom-master.use-cases';
 import { enforceIdentityClaims } from './support/enforce-identity-claims';
 import { resolveM2mPlanCode } from './support/resolve-m2m-plan';
 
@@ -59,6 +61,8 @@ export type CreateOnboardingApplicationCommand = {
   identificationType?: unknown;
   identificationNumber?: unknown;
   m2mPlanCode?: unknown;
+  telecomMasterNumberType?: unknown;
+  telecomMasterMsisdn?: unknown;
 };
 
 @Injectable()
@@ -163,5 +167,27 @@ export function validateApplicationDetails(
     identificationNumber: validateIdentificationNumber(
       command.identificationNumber,
     ),
+    ...validateTelecomMaster(command.telecomMasterNumberType, command.telecomMasterMsisdn),
   };
+}
+
+/** The number is kept only with 'existing'; usability (taken, device SIM) is checked at verify and approval. */
+function validateTelecomMaster(
+  numberType: unknown,
+  msisdn: unknown,
+): Pick<StoredOnboardingApplication, 'telecomMasterNumberType' | 'telecomMasterMsisdn'> {
+  const type = String(numberType ?? '').trim();
+  if (type === '') return { telecomMasterNumberType: null, telecomMasterMsisdn: null };
+  if (type !== 'existing' && type !== 'new') {
+    throw new OnboardingValidationError(
+      'telecomMasterNumberType',
+      'Telecom Master number type must be one of: existing, new',
+    );
+  }
+  if (type === 'new') return { telecomMasterNumberType: 'new', telecomMasterMsisdn: null };
+  const normalized = normalizeMtnNumber(String(msisdn ?? ''));
+  if (!normalized) {
+    throw new OnboardingValidationError('telecomMasterMsisdn', 'Enter a valid MTN mobile number.');
+  }
+  return { telecomMasterNumberType: 'existing', telecomMasterMsisdn: normalized };
 }

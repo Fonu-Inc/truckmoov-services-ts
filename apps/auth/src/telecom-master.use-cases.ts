@@ -298,7 +298,7 @@ export class ResolveTelecomMasterRequestUseCase {
   }
 }
 
-async function assertNumberUsable(
+export async function assertNumberUsable(
   repository: TelecomMasterRepository,
   msisdn: string,
   exceptRequestId?: string,
@@ -405,4 +405,70 @@ function retryTransition(status: TelecomMasterStatus): {
     return { status: 'allocation_pending', action: 'retry_allocation' };
   }
   return null;
+}
+
+/** The apply wizard's side of Telecom Master: checks a number before the account exists, and opens the request at approval. */
+@Injectable()
+export class ApplicationTelecomMasterUseCases {
+  constructor(
+    @Inject(TELECOM_MASTER_REPOSITORY)
+    private readonly repository: TelecomMasterRepository,
+  ) {}
+
+  // shortcut: MTN prefix + not taken + not a device SIM; MTN exposes no subscriber lookup, swap in when it does.
+  async verify(input: string | undefined) {
+    const msisdn = normalizeMtnNumber(input);
+    if (!msisdn) throw new TelecomMasterInvalidInputError();
+    await assertNumberUsable(this.repository, msisdn);
+    return { status: true, message: 'Number verified', data: { msisdn } };
+  }
+
+  async openForApplication(application: {
+    id: string;
+    reference: string;
+    tenantId: string;
+    organizationName: string;
+    businessEmail: string;
+    numberType: TelecomMasterNumberType;
+    msisdn: string | null;
+  }) {
+    let status = initialTelecomMasterStatus(application.numberType);
+    let failureReason: string | null = null;
+    if (application.msisdn) {
+      // The number may have been claimed while the application sat in review; record it, don't block approval.
+      failureReason = await assertNumberUsable(this.repository, application.msisdn).then(
+        () => null,
+        (error: Error) => error.message,
+      );
+      if (failureReason) status = 'verification_failed';
+    }
+    const now = new Date();
+    const id = randomUUID();
+    await this.repository.save({
+      id,
+      tenantId: application.tenantId,
+      organizationName: application.organizationName,
+      contactEmail: application.businessEmail,
+      applicationId: application.id,
+      applicationReference: application.reference,
+      msisdn: application.msisdn,
+      simSerial: null,
+      numberType: application.numberType,
+      status,
+      mtnReference: null,
+      failureReason,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await this.repository.appendEvent({
+      id: randomUUID(),
+      requestId: id,
+      action: 'created',
+      detail: `Requested on application ${application.reference} (${application.numberType}); awaiting MTN`,
+      fromStatus: null,
+      toStatus: status,
+      actorId: null,
+      createdAt: now,
+    });
+  }
 }

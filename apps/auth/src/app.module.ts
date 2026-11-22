@@ -854,6 +854,7 @@ import {
   RetryTelecomMasterRequestUseCase,
   ResolveTelecomMasterRequestUseCase,
   TenantTelecomMasterUseCases,
+  ApplicationTelecomMasterUseCases,
 } from './telecom-master.use-cases';
 import { TenantTelecomMasterController } from './tenant-telecom-master.controller';
 // Bundle catalog
@@ -2510,6 +2511,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     RetryTelecomMasterRequestUseCase,
     ResolveTelecomMasterRequestUseCase,
     TenantTelecomMasterUseCases,
+    ApplicationTelecomMasterUseCases,
     {
       provide: BUNDLE_CARRIER_REPOSITORY,
       inject: [InMemoryBundleCarrierRepository, MikroBundleCarrierRepository, AppConfigService],

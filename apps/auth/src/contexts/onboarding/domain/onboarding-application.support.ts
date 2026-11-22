@@ -253,6 +253,10 @@ export function toApplicationView(
       role: application.contactRole,
     },
     m2mPlanCode: application.m2mPlanCode,
+    telecomMaster: {
+      numberType: application.telecomMasterNumberType ?? null,
+      msisdn: application.telecomMasterMsisdn ?? null,
+    },
     registry: {
       rcNumber: application.rcNumber,
       taxIdentificationNumber: application.taxIdentificationNumber,

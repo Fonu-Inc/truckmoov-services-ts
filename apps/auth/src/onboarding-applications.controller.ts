@@ -106,11 +106,18 @@ import {
   VerificationSendLimitError,
 } from '@auth/onboarding';
 import {
+  ApplicationTelecomMasterUseCases,
+  TelecomMasterInvalidInputError,
+  TelecomMasterNumberUnavailableError,
+} from './telecom-master.use-cases';
+import {
   BillingEmailDto,
   OnboardingApplicationDto,
   OnboardingFulfilmentDto,
   ResumeApplicationDto,
   VerificationCodeDto,
+  VerifyTelecomMasterNumberDto,
+  VerifiedTelecomMasterNumberResponse,
 } from './dto/onboarding-application.dto';
 import {
   ListPickupLocationsUseCase,
@@ -277,6 +284,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly pickupLocations: ListPickupLocationsUseCase,
     @Inject(SetApplicationFulfilmentUseCase)
     private readonly setFulfilment: SetApplicationFulfilmentUseCase,
+    @Inject(ApplicationTelecomMasterUseCases)
+    private readonly telecomMaster: ApplicationTelecomMasterUseCases,
   ) {
     super(activityLogService);
   }
@@ -341,6 +350,32 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @RateLimited()
   async checkEmailAvailability(@Query('email') email?: string, @Query('applicationId') applicationId?: string) {
     return this.run(() => this.emailAvailability.execute(email, applicationId));
+  }
+
+  @Post('telecom-master/verify')
+  @ApiOperation({
+    summary: 'Check an existing MTN number for the Telecom Master',
+    description:
+      'MTN Nigeria prefix, not already a live Telecom Master, not a tracking device SIM. No MTN subscriber lookup exists yet. Public because it runs before the application exists; create/update re-check the format.',
+  })
+  @ApiBody({ type: VerifyTelecomMasterNumberDto })
+  @ApiCreatedResponse({ description: 'Number accepted', type: VerifiedTelecomMasterNumberResponse })
+  @ApiErrorResponse(400, '{ message, field: "telecomMasterMsisdn" }: not an MTN Nigeria number', OnboardingFieldErrorBody)
+  @ApiErrorResponse(409, '{ message, field: "telecomMasterMsisdn" }: already a Telecom Master or a device SIM', OnboardingFieldErrorBody)
+  @RateLimited()
+  async verifyTelecomMasterNumber(@Body('msisdn') msisdn?: string) {
+    try {
+      return await this.telecomMaster.verify(msisdn);
+    }
+    catch (error) {
+      if (error instanceof TelecomMasterInvalidInputError) {
+        throw new BadRequestException({ message: error.message, field: 'telecomMasterMsisdn' });
+      }
+      if (error instanceof TelecomMasterNumberUnavailableError) {
+        throw new ConflictException({ message: error.message, field: 'telecomMasterMsisdn' });
+      }
+      throw error;
+    }
   }
 
   @Post('resume')

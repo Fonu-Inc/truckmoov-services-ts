@@ -172,6 +172,9 @@ export class SubmitOnboardingApplicationUseCase {
     if (!emailVerified) reasons.push('the business email is not verified');
     if (!phoneVerified) reasons.push('the phone number is not verified');
     if (!fleet.planSelected) reasons.push('no M2M licence plan was chosen');
+    if (application.telecomMasterNumberType === 'existing' && !application.telecomMasterMsisdn) {
+      reasons.push('no valid MTN number was given for the Telecom Master');
+    }
     if (!fleet.indemnitySigned) {
       reasons.push('the indemnity agreement is not signed');
     }

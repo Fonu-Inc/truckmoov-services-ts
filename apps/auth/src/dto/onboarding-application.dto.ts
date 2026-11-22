@@ -1,3 +1,4 @@
+import { StandardApiResponse } from '@shared/openapi';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Allow } from 'class-validator';
 import {
@@ -84,6 +85,36 @@ export class OnboardingApplicationDto {
     description: 'Number on the identification document supplied.',
   })
   identificationNumber?: string;
+
+  @Allow()
+  @ApiPropertyOptional({
+    enum: ['existing', 'new'],
+    description: 'Telecom Master: use an existing MTN number, or have MTN allocate a new one.',
+  })
+  telecomMasterNumberType?: string;
+
+  @Allow()
+  @ApiPropertyOptional({
+    example: '08031234567',
+    description: 'Required when telecomMasterNumberType is existing. MTN Nigeria mobile number.',
+  })
+  telecomMasterMsisdn?: string;
+}
+
+export class VerifyTelecomMasterNumberDto {
+  @Allow()
+  @ApiProperty({ example: '08031234567', description: 'The MTN number to check.' })
+  msisdn!: string;
+}
+
+class VerifiedTelecomMasterNumberSchema {
+  @ApiProperty({ example: '2348031234567', description: 'The number in 234 format.' })
+  msisdn!: string;
+}
+
+export class VerifiedTelecomMasterNumberResponse extends StandardApiResponse<VerifiedTelecomMasterNumberSchema> {
+  @ApiProperty({ type: VerifiedTelecomMasterNumberSchema })
+  data!: VerifiedTelecomMasterNumberSchema;
 }
 
 export class VerificationCodeDto {

@@ -65,6 +65,7 @@ import {
 } from '../../../../tenant-trial.repository';
 import { trialEndsAfter } from '../../../../tenant-trial';
 import { TrialDaysResolver } from '../../../../trial-days.resolver';
+import { ApplicationTelecomMasterUseCases } from '../../../../telecom-master.use-cases';
 
 // Matches the existing tenant bootstrap invite window.
 const SETUP_LINK_TTL_MS = 72 * 60 * 60 * 1000;
@@ -170,6 +171,8 @@ export class ApproveOnboardingApplicationUseCase {
     private readonly trialDaysResolver: TrialDaysResolver,
     @Inject(ApplicationPaymentNoticeService)
     private readonly paymentNotices: ApplicationPaymentNoticeService,
+    @Inject(ApplicationTelecomMasterUseCases)
+    private readonly telecomMaster: ApplicationTelecomMasterUseCases,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -241,6 +244,17 @@ export class ApproveOnboardingApplicationUseCase {
       },
     );
     await this.startTrial(approved.tenantId!, now);
+    if (approved.telecomMasterNumberType) {
+      await this.telecomMaster.openForApplication({
+        id: approved.id,
+        reference: approved.reference,
+        tenantId: approved.tenantId!,
+        organizationName: approved.organizationName,
+        businessEmail: approved.businessEmail,
+        numberType: approved.telecomMasterNumberType,
+        msisdn: approved.telecomMasterMsisdn ?? null,
+      });
+    }
     // Straight to payment skips the provisioning step that would otherwise send this.
     if (approved.stage === 'payment') await this.paymentNotices.paymentOpened(approved, now);
 

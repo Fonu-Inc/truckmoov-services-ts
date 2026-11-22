@@ -74,6 +74,10 @@ function summarize(application: StoredOnboardingApplication) {
     contactFullName: application.contactFullName,
     contactRole: application.contactRole,
     address: `${application.streetAddress}, ${application.city}, ${application.state}`,
+    telecomMaster: {
+      numberType: application.telecomMasterNumberType ?? null,
+      msisdn: application.telecomMasterMsisdn ?? null,
+    },
     status: application.status,
     stage: application.stage,
     // The queue shows a stage and a label beside it. The label is derived from

@@ -78,6 +78,7 @@ describe("Deciding an onboarding application", () => {
       { startIfAbsent: async () => undefined } as never,
       { resolve: async () => null } as never,
       { paymentOpened: async () => void paymentNotices++ } as never,
+      {} as never,
     );
 
   const reject = () =>
@@ -122,6 +123,7 @@ describe("Deciding an onboarding application", () => {
       {} as never,
       { generate: () => `id-${++ids}` },
       { availability: async () => ({ tracked: false, availableQuantity: 0 }) } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

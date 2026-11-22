@@ -271,7 +271,7 @@ describe('Onboarding applications HTTP contract', () => {
     const res = await request(app.getHttpServer())
       .post(`/auth/onboarding/applications/${id}/indemnity-signature`)
       .set('x-application-token', token)
-      .field('signer_name', 'Jane Doe')
+      .field('signer_name', 'Arne Logistics Ltd')
       .field('template_version', agreement.body.data.version)
       .field('method', 'drawn')
       .attach('file', REAL_PNG, 'signature.png');

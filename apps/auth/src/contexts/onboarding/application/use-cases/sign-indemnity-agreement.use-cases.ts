@@ -17,6 +17,7 @@ import {
   type OnboardingApplicationRepository,
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { assertApplicationEditable } from '@auth/onboarding/domain/onboarding-application.support';
+import { companyNameMatches } from '@auth/onboarding/domain/company-name-match';
 import {
   OnboardingValidationError,
   validateSignerName,
@@ -120,6 +121,12 @@ export class SignIndemnityAgreementUseCase {
     }
 
     const signerName = validateSignerName(input.signerName);
+    if (!companyNameMatches(signerName, application.organizationName)) {
+      throw new OnboardingValidationError(
+        'signerName',
+        `This must match your company name: ${application.organizationName}`,
+      );
+    }
     const method = validateSignatureMethod(input.method);
     const inspected = inspectSignatureFile(input.file);
     const file = input.file as UploadedDocumentFile;

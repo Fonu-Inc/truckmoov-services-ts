@@ -45,6 +45,9 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
       null,
     identificationNumber: r.identificationNumber ?? null,
     m2mPlanCode: r.m2mPlanCode ?? null,
+    telecomMasterNumberType:
+      (r.telecomMasterNumberType as StoredOnboardingApplication['telecomMasterNumberType']) ?? null,
+    telecomMasterMsisdn: r.telecomMasterMsisdn ?? null,
     billingEmail: r.billingEmail ?? null,
     billingEmailVerifiedAt: r.billingEmailVerifiedAt ?? null,
     streetAddress: r.streetAddress,

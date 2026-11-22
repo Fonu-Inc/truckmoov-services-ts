@@ -15,6 +15,8 @@ export class OnboardingApplicationRecord {
   setupLinkSentAt?: Date | null;
   setupLinkError?: string | null;
   setupLinkAttempts?: number;
+  telecomMasterNumberType?: string | null;
+  telecomMasterMsisdn?: string | null;
   paymentNotifiedAt?: Date | null;
   paymentNoticeError?: string | null;
   paymentNoticeAttempts?: number;
@@ -57,6 +59,8 @@ export const OnboardingApplicationRecordSchema =
       setupLinkSentAt: { fieldName: 'setup_link_sent_at', type: 'datetime', nullable: true },
       setupLinkError: { fieldName: 'setup_link_error', type: 'text', nullable: true },
       setupLinkAttempts: { fieldName: 'setup_link_attempts', type: 'number', default: 0 },
+      telecomMasterNumberType: { fieldName: 'telecom_master_number_type', type: 'string', length: 16, nullable: true },
+      telecomMasterMsisdn: { fieldName: 'telecom_master_msisdn', type: 'string', length: 32, nullable: true },
       paymentNotifiedAt: { fieldName: 'payment_notified_at', type: 'datetime', nullable: true },
       paymentNoticeError: { fieldName: 'last_notice_error', type: 'text', nullable: true },
       paymentNoticeAttempts: { fieldName: 'notice_attempts', type: 'number', default: 0 },

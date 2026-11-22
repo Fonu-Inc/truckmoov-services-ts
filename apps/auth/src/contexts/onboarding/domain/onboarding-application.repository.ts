@@ -138,6 +138,10 @@ export type StoredOnboardingApplication = {
   identificationNumber: string | null;
   /** The M2M licence the applicant chose, priced per device at payment. */
   m2mPlanCode: string | null;
+  /** Telecom Master: reuse an MTN number ('existing') or have MTN allocate one ('new'). */
+  telecomMasterNumberType?: 'existing' | 'new' | null;
+  /** Only with 'existing'; 234XXXXXXXXXX like telecom_master_requests.msisdn. */
+  telecomMasterMsisdn?: string | null;
   /** Where the invoice and receipt go. Verified before any money moves. */
   billingEmail: string | null;
   billingEmailVerifiedAt: Date | null;
