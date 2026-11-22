@@ -8,15 +8,16 @@ import { SIM_REPOSITORY, type SimRepository } from './sim.repository';
 import { BUNDLE_ALLOCATION_REPOSITORY, type BundleAllocationRepository, type StoredBundleAllocation } from './bundle-allocation.repository';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
 import { buildExport } from './export.helper';
+import { FleetFactsService } from './fleet-facts.service';
 
 export const BUNDLE_TYPES = ['subscription', 'top_up'] as const;
 export type BundleType = (typeof BUNDLE_TYPES)[number];
 
 type Filters = { search?: string; bundleType?: BundleType; format?: 'csv' | 'xlsx' };
-type Line = Record<string, unknown> & { kind: BundleType | null };
+type Line = Record<string, unknown> & { kind: BundleType | null; vehicleLabel: string | null };
 type AdoptionRow = { tenantId: string; tenantName: string; simCount: number; activeBundleCount: number; carriers: string[]; monthlySpendNgn: number; lines: Line[] };
 
-const HEADERS = ['Tenant', 'Tenant ID', 'SIMs', 'Active Bundles', 'Carriers', 'Monthly Spend (NGN)'];
+const HEADERS = ['Tenant', 'Mobile Number', 'ICCID', 'Vehicle', 'Bundle', 'Type', 'Price (NGN)', 'Expires (days)'];
 const DAY_MS = 86_400_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -48,15 +49,15 @@ export class GetSystemBundleAdoptionUseCase {
     @Inject(SIM_REPOSITORY) private readonly sims: SimRepository,
     @Inject(BUNDLE_ALLOCATION_REPOSITORY) private readonly allocations: BundleAllocationRepository,
     @Inject(BUNDLE_CATALOG_REPOSITORY) private readonly catalog: BundleCatalogRepository,
+    @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
   ) {}
 
   async execute(accessToken: string, filters: Filters = {}, now = new Date()) {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository);
-    const { rows } = await this.adoption(now);
-    const search = filters.search?.trim().toLowerCase();
+    const { rows } = await this.adoption(now, true);
     const data = rows
-      .filter((row) => !filters.bundleType || row.lines.some((line) => line.kind === filters.bundleType))
-      .filter((row) => !search || JSON.stringify(row).toLowerCase().includes(search))
+      .map((row) => ({ ...row, lines: visibleLines(row, filters) }))
+      .filter((row) => row.lines.length > 0)
       .sort((a, b) => a.tenantName.localeCompare(b.tenantName));
     return { status: true, message: 'Bundle adoption retrieved', data: { total: data.length, items: data } };
   }
@@ -64,7 +65,7 @@ export class GetSystemBundleAdoptionUseCase {
   /** The four figures above the bundle tables. */
   async summary(accessToken: string, now = new Date()) {
     await ensureSystemActor(accessToken, this.tokenService, this.userRepository);
-    const { rows, allocations, bundles } = await this.adoption(now);
+    const { rows, allocations, bundles } = await this.adoption(now, false);
     const horizon = now.getTime() + 7 * DAY_MS;
     return {
       status: true,
@@ -78,14 +79,28 @@ export class GetSystemBundleAdoptionUseCase {
     };
   }
 
+  /** One row per live bundle on a SIM, the lines the table lists, for the search and bundle type given. */
   async export(accessToken: string, filters: Filters = {}) {
     const result = await this.execute(accessToken, filters);
-    const rows = result.data.items.map((row) => [row.tenantName, row.tenantId, row.simCount, row.activeBundleCount, row.carriers.join(', '), row.monthlySpendNgn.toFixed(2)]);
+    const rows = result.data.items.flatMap((row) =>
+      row.lines
+        .filter((line) => line.status === 'active' && line.kind)
+        .map((line) => [
+          row.tenantName,
+          line.mobileNumber,
+          line.iccid ?? '',
+          line.vehicleLabel ?? '',
+          line.bundleName ?? line.bundleId,
+          line.kind === 'top_up' ? 'top-up' : 'subscription',
+          line.priceNgn ?? 0,
+          line.expiresInDays ?? 0,
+        ]),
+    );
     const { buffer, contentType, ext } = await buildExport(filters.format ?? 'csv', HEADERS, rows, 'Bundle Adoption');
     return { buffer, contentType, ext, filename: `bundle-adoption-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${ext}` };
   }
 
-  private async adoption(now: Date) {
+  private async adoption(now: Date, withVehicles: boolean) {
     const [onboardings, sims, allocations, bundles] = await Promise.all([
       this.onboardings.findAll(),
       this.sims.findAll({ limit: 100_000 }),
@@ -126,11 +141,14 @@ export class GetSystemBundleAdoptionUseCase {
         dataTotalMb: allocation.dataTotalMb,
         kind: kinds.get(allocation.id) ?? null,
         priceNgn: bundle ? bundle.priceKobo / 100 : null,
+        vehicleLabel: null,
         expiresAt: expiresAt?.toISOString() ?? null,
         expiresInDays: expiresAt && expiresAt.getTime() > now.getTime() ? Math.ceil((expiresAt.getTime() - now.getTime()) / DAY_MS) : null,
       });
       rows.set(allocation.tenantId, row);
     }
+
+    if (withVehicles) await this.nameVehicles([...rows.values()]);
 
     return {
       rows: [...rows.values()].map(({ carrierSet, ...row }) => ({ ...row, carriers: [...carrierSet].sort(), monthlySpendNgn: round2(row.monthlySpendNgn) })),
@@ -138,4 +156,35 @@ export class GetSystemBundleAdoptionUseCase {
       bundles: bundles.items,
     };
   }
+
+  /** Puts each line's plate on it, asking fleet once per tenant. A tenant fleet cannot answer for shows no plates. */
+  private async nameVehicles(rows: Array<{ tenantId: string; lines: Line[] }>) {
+    await Promise.all(rows.map(async (row) => {
+      const ids = [...new Set(row.lines.map((line) => line.vehicleId).filter((id): id is string => typeof id === 'string'))];
+      const labels = ids.length > 0 ? await this.fleet.vehicleLabels(row.tenantId, ids) : null;
+      for (const line of row.lines) {
+        line.vehicleLabel = (typeof line.vehicleId === 'string' && labels?.get(line.vehicleId)) || null;
+      }
+    }));
+  }
+}
+
+/**
+ * The lines the table shows: a mobile number stays when it has a bundle of the chosen kind and
+ * the search finds the tenant's name, the number, its ICCID, its vehicle or one of its bundles.
+ */
+function visibleLines(row: AdoptionRow, filters: Filters): Line[] {
+  const search = filters.search?.trim().toLowerCase();
+  const tenantHit = !!search && row.tenantName.toLowerCase().includes(search);
+  const byNumber = new Map<string, Line[]>();
+  for (const line of row.lines) {
+    const number = String(line.mobileNumber);
+    byNumber.set(number, [...(byNumber.get(number) ?? []), line]);
+  }
+  return [...byNumber.values()]
+    .filter((lines) => !filters.bundleType || lines.some((line) => line.kind === filters.bundleType))
+    .filter((lines) => !search || tenantHit || lines.some((line) =>
+      [line.mobileNumber, line.iccid, line.vehicleLabel, line.bundleName].some((field) => typeof field === 'string' && field.toLowerCase().includes(search)),
+    ))
+    .flat();
 }

@@ -69,8 +69,8 @@ export class SystemBillingController extends BaseAuthController {
 
   @Get('bundle-adoption')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List cross-tenant bundle adoption (system admin)', description: 'Each tenant with its SIMs and, per line, the bundles on it: kind (subscription or top_up), price and days until expiry.' })
-  @ApiQuery({ name: 'bundleType', required: false, enum: BUNDLE_TYPES, description: 'Only tenants with a bundle of this kind' })
+  @ApiOperation({ summary: 'List cross-tenant bundle adoption (system admin)', description: 'Each tenant with, per line, the bundle on it: kind (subscription or top_up), price, days until expiry and the vehicle plate. Search and bundleType keep whole SIMs.' })
+  @ApiQuery({ name: 'bundleType', required: false, enum: BUNDLE_TYPES, description: 'Only SIMs with a bundle of this kind' })
   async listBundleAdoption(@Query('search') search: string | undefined, @Query('bundleType') bundleType: string | undefined, @Headers('authorization') authorization?: string) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
@@ -85,7 +85,7 @@ export class SystemBillingController extends BaseAuthController {
 
   @Get('bundle-adoption/export')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Export cross-tenant bundle adoption (system admin)' })
+  @ApiOperation({ summary: 'Export cross-tenant bundle adoption (system admin)', description: 'One row per live bundle on a SIM, for the same search and bundleType as the list.' })
   @ApiQuery({ name: 'bundleType', required: false, enum: BUNDLE_TYPES })
   async exportBundleAdoption(@Query('search') search: string | undefined, @Query('bundleType') bundleType: string | undefined, @Query('format') format: 'csv' | 'xlsx' | undefined, @Headers('authorization') authorization: string | undefined, @Res() response: any) {
     const accessToken = this.extractBearerToken(authorization);

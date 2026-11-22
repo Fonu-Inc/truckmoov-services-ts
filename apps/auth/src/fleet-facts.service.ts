@@ -195,6 +195,42 @@ export class FleetFactsService {
   }
 
   /**
+   * The registration plate for each of a tenant's vehicle ids. Null when fleet cannot be
+   * reached, so a screen shows no plate rather than a wrong one.
+   */
+  async vehicleLabels(tenantId: string, vehicleIds: string[]): Promise<Map<string, string> | null> {
+    if (vehicleIds.length === 0) return new Map();
+    if (!isSafePathId(tenantId)) return null;
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    const labels = new Map<string, string>();
+    try {
+      // Ids travel in the query string, so ask in chunks that stay well under a URL limit.
+      for (let i = 0; i < vehicleIds.length; i += 100) {
+        const response = await axios.get<{ data?: { labels?: Record<string, string> } }>(
+          `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/vehicle-labels`,
+          {
+            headers,
+            params: { ids: vehicleIds.slice(i, i + 100).join(',') },
+            timeout: 4000,
+            validateStatus: () => true,
+          },
+        );
+        if (response.status !== 200) return null;
+        for (const [id, label] of Object.entries(response.data?.data?.labels ?? {})) labels.set(id, label);
+      }
+      return labels;
+    } catch (error) {
+      this.logger.warn(
+        `fleet_vehicle_labels_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Every row of a tenant's vehicles, drivers or devices, for the data export.
    * Null when fleet cannot be reached: an export must fail rather than ship a
    * file that is quietly missing a whole table.

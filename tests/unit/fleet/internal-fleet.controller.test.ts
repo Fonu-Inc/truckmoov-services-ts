@@ -150,6 +150,22 @@ describe("fleet tenant-scope boot check", () => {
   });
 });
 
+describe("vehicle labels for platform screens", () => {
+  it("names the tenant's vehicles by id and leaves out ids that are not theirs", async () => {
+    const vehicles = new InMemoryVehicleRepository();
+    await vehicles.save(vehicle("veh-1", "tenant-a"));
+    await vehicles.save(vehicle("veh-2", "tenant-b"));
+    const controller = new InternalFleetController(
+      {} as never, {} as never, vehicles, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never,
+    );
+
+    const result = await controller.tenantVehicleLabels("tenant-a", "veh-1,veh-2,nope");
+
+    expect(result.data.labels).toEqual({ "veh-1": "LAG-123-AB" });
+  });
+});
+
 describe("live socket scope for owner operators", () => {
   async function scopeHarness(access: unknown) {
     const vehicles = new InMemoryVehicleRepository();

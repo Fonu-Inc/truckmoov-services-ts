@@ -315,6 +315,24 @@ export class InternalFleetController extends BaseFleetController {
   }
 
   /**
+   * The registration plate for each vehicle id asked about, so a platform screen that only
+   * holds an id (a SIM's vehicle) can name it. An id that is not this tenant's is left out.
+   */
+  @Get("tenants/:tenantId/vehicle-labels")
+  @UseGuards(PlatformActorGuard)
+  async tenantVehicleLabels(@Param("tenantId") tenantId: string, @Query("ids") ids?: string) {
+    const wanted = new Set((ids ?? "").split(",").map(id => id.trim()).filter(Boolean).slice(0, 200));
+    const vehicles = (await this.vehicles.findAll({ tenantId })) as unknown as Array<Record<string, unknown>>;
+    const labels: Record<string, string> = {};
+    for (const vehicle of vehicles) {
+      const id = String(vehicle["id"]);
+      if (wanted.has(id))
+        labels[id] = String(vehicle["registrationNumber"] ?? vehicle["plateNumber"] ?? id);
+    }
+    return { status: true, message: "success", data: { labels } };
+  }
+
+  /**
    * Which drivers, in any tenant, list this number. Platform staff use it to
    * tie a WhatsApp conversation to a person; nothing beyond who and where.
    */
