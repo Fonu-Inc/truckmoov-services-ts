@@ -364,3 +364,16 @@ export class VehicleCsvColumnsSchema {
 export class VehicleCsvColumnsResponse extends StandardApiResponse<VehicleCsvColumnsSchema> {
   @ApiProperty({ type: VehicleCsvColumnsSchema }) data!: VehicleCsvColumnsSchema;
 }
+
+export class PickupLocationSchema {
+  @ApiProperty() id!: string;
+  @ApiProperty({ example: 'Lagos' }) state!: string;
+  @ApiProperty({ example: 'Ikeja' }) area!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ type: String, nullable: true }) address!: string | null;
+  @ApiProperty({ description: 'A placeholder row until MTN\'s list is loaded' }) isDemo!: boolean;
+}
+
+export class PickupLocationsResponse extends StandardApiResponse<PickupLocationSchema[]> {
+  @ApiProperty({ type: [PickupLocationSchema] }) data!: PickupLocationSchema[];
+}

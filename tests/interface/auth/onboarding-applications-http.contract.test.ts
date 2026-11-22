@@ -317,7 +317,7 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.status).toBe('draft');
     expect(res.body.data.organization.organizationPhone).toBe('+2348000000000');
-    expect(res.body.data.missingDocuments).toHaveLength(8);
+    expect(res.body.data.missingDocuments).toHaveLength(6);
     expect(res.body.data.verification).toEqual({
       emailVerified: false,
       phoneVerified: false,
@@ -624,7 +624,7 @@ describe('Onboarding applications HTTP contract', () => {
       .set('x-application-token', token);
 
     expect(res.status).toBe(400);
-    expect(res.body.missingDocuments).toHaveLength(8);
+    expect(res.body.missingDocuments).toHaveLength(6);
     expect(res.body.vehicleCount).toBe(0);
     expect(res.body.indemnitySigned).toBe(false);
     expect(res.body.emailVerified).toBe(false);

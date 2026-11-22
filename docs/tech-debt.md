@@ -4,6 +4,26 @@ Known debt with a decided direction, waiting on scheduling. Newest first.
 
 ---
 
+## TD-22 — MTN pickup points are demo rows
+
+The apply wizard's Device Fulfilment card lists MTN Connect Stores and Service
+Centres from `pickup_locations` (`GET /auth/onboarding/applications/pickup-locations`).
+Migration20261122140000 seeds eight placeholder rows, each with `is_demo = true`
+and "(demo)" in the name, so the flow works end to end before the real list exists.
+
+### What is missing
+
+MTN's actual store list (state, area, name, address). Nothing in the platform
+holds it, and there is no admin screen or endpoint to edit the table.
+
+### When this is picked up
+
+Once MTN supplies the list: load it into `pickup_locations` (a migration or a
+one-off script), then set `active = false` on the `is_demo` rows rather than
+deleting them, because submitted applications may reference them in
+`onboarding_applications.fulfilment.pickupLocationId`. Add an admin screen only
+if the list changes often enough to need one.
+
 ## TD-21 — Onboarding, jobs, SIM, tracking and index batch leftovers
 
 **Status:** open, updated 2 October 2026. Most of the batch is fixed (payment

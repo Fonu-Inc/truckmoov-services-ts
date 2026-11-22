@@ -64,6 +64,14 @@ export class UpdateOnboardingApplicationUseCase {
       ...application,
       ...details,
       m2mPlanCode,
+      returningCustomer:
+        command.returningCustomer === undefined
+          ? application.returningCustomer ?? false
+          : command.returningCustomer === true,
+      // Chosen on the documents step, so a details save without it keeps it.
+      ...(command.identificationType === undefined
+        ? { identificationType: application.identificationType }
+        : {}),
       // Changing a verified contact drops that verification: the code was
       // proven against the old address, not the new one.
       emailVerifiedAt:

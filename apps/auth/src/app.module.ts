@@ -6,6 +6,14 @@ import { ConfigModule, AppConfigService } from '@shared/config';
 import { LoginRateLimitGuard } from './login-rate-limit.guard';
 import { IdempotencyGuard, REDIS_CLIENT, RedisClientProvider } from '@shared/rbac';
 import { CheckEmailAvailabilityUseCase } from './contexts/onboarding/email-availability/check-email-availability.use-case';
+import {
+  ListPickupLocationsUseCase,
+  SetApplicationFulfilmentUseCase,
+} from './contexts/onboarding/application/use-cases/application-fulfilment.use-cases';
+import { PICKUP_LOCATION_REPOSITORY, type PickupLocationRepository } from './contexts/onboarding/domain/pickup-location.repository';
+import { InMemoryPickupLocationRepository } from './contexts/onboarding/infrastructure/persistence/in-memory-pickup-location.repository';
+import { MikroPickupLocationRepository } from './contexts/onboarding/infrastructure/persistence/mikro-pickup-location.repository';
+import { ContactController, SubmitContactEnquiryUseCase } from './contact-enquiry';
 import { EMAIL_BITSET, InMemoryEmailBitset } from './contexts/onboarding/email-availability/email-bitset';
 import { EmailBloomService } from './contexts/onboarding/email-availability/email-bloom.service';
 import { RedisEmailBitset, type BitRedis } from './contexts/onboarding/email-availability/redis-email-bitset';
@@ -966,6 +974,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SystemInstallersController,
     SystemInstallationOrdersController,
     OnboardingApplicationsController,
+    ContactController,
     InstallationController,
     SystemOnboardingApplicationsController,
     MailCredentialsController,
@@ -2400,6 +2409,17 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     EmailBloomService,
     CheckEmailAvailabilityUseCase,
+    { provide: InMemoryPickupLocationRepository, useFactory: () => new InMemoryPickupLocationRepository() },
+    MikroPickupLocationRepository,
+    {
+      provide: PICKUP_LOCATION_REPOSITORY,
+      inject: [InMemoryPickupLocationRepository, MikroPickupLocationRepository, AppConfigService],
+      useFactory: (inMemory: PickupLocationRepository, mikro: PickupLocationRepository, config: AppConfigService) =>
+        config.persistence.backend === 'in-memory' ? inMemory : mikro,
+    },
+    ListPickupLocationsUseCase,
+    SetApplicationFulfilmentUseCase,
+    SubmitContactEnquiryUseCase,
     {
       provide: ONBOARDING_APPLICATION_REPOSITORY,
       inject: [InMemoryOnboardingApplicationRepository, MikroOnboardingApplicationRepository, AppConfigService],

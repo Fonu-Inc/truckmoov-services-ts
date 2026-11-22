@@ -44,6 +44,8 @@ import { resolveM2mPlanCode } from './support/resolve-m2m-plan';
 
 export type CreateOnboardingApplicationCommand = {
   applicantType: unknown;
+  /** An existing MTN customer; omitted on update keeps the current value. */
+  returningCustomer?: unknown;
   organizationName: unknown;
   businessEmail: unknown;
   organizationPhone: unknown;
@@ -102,6 +104,8 @@ export class CreateOnboardingApplicationUseCase {
       setupLinkSentAt: null,
       setupLinkError: null,
       setupLinkAttempts: 0,
+      returningCustomer: command.returningCustomer === true,
+      fulfilment: null,
       createdAt: now,
       updatedAt: now,
     };

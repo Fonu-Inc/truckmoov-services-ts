@@ -107,9 +107,14 @@ import {
 import {
   BillingEmailDto,
   OnboardingApplicationDto,
+  OnboardingFulfilmentDto,
   ResumeApplicationDto,
   VerificationCodeDto,
 } from './dto/onboarding-application.dto';
+import {
+  ListPickupLocationsUseCase,
+  SetApplicationFulfilmentUseCase,
+} from './contexts/onboarding/application/use-cases/application-fulfilment.use-cases';
 import {
   ApplicationOrderResponse,
   ApplicationPaymentResponse,
@@ -119,6 +124,7 @@ import {
   IndemnitySignatureResponse,
   EmailAvailabilityResponse,
   M2mPlansResponse,
+  PickupLocationsResponse,
   OnboardingApplicationResponse,
   OnboardingApplicationStatusResponse,
   ResumeApplicationResponse,
@@ -264,6 +270,10 @@ export class OnboardingApplicationsController extends BaseAuthController {
     private readonly scheduleInstallation: ScheduleInstallationUseCase,
     @Inject(CheckEmailAvailabilityUseCase)
     private readonly emailAvailability: CheckEmailAvailabilityUseCase,
+    @Inject(ListPickupLocationsUseCase)
+    private readonly pickupLocations: ListPickupLocationsUseCase,
+    @Inject(SetApplicationFulfilmentUseCase)
+    private readonly setFulfilment: SetApplicationFulfilmentUseCase,
   ) {
     super(activityLogService);
   }
@@ -301,6 +311,18 @@ export class OnboardingApplicationsController extends BaseAuthController {
   @RateLimited()
   async listM2mPlans() {
     return this.m2mPlans.execute();
+  }
+
+  @Get('pickup-locations')
+  @ApiOperation({
+    summary: 'List MTN pickup points',
+    description:
+      'Connect Stores and Service Centres an applicant can collect devices from, ordered by state and area. isDemo marks placeholder rows until MTN\'s list is loaded.',
+  })
+  @ApiOkResponse({ description: 'Pickup points returned', type: PickupLocationsResponse })
+  @RateLimited()
+  async listPickupLocations() {
+    return this.pickupLocations.execute();
   }
 
   @Get('email-availability')
@@ -617,6 +639,66 @@ export class OnboardingApplicationsController extends BaseAuthController {
       this.requestDevices.execute({
         applicationId,
         applicationToken: token,
+        quantity: payload.quantity,
+        useCase: payload.useCase,
+        notes: payload.notes,
+        confirmAvailableQuantity: payload.confirmAvailableQuantity,
+      }),
+    );
+  }
+
+  @Put(':applicationId/fulfilment')
+  @ApiOperation({
+    summary: 'Set how the devices reach the applicant',
+    description:
+      'Pickup needs pickupLocationId from the pickup-locations list; delivery (Enterprise only) needs deliveryStreet, deliveryCity and deliveryState.',
+  })
+  @ApiOkResponse({ description: 'Fulfilment saved', type: OnboardingApplicationResponse })
+  @ApiErrorResponse(400, FIELD_OR_WHITELIST, OnboardingFieldErrorBody, ApiValidationErrorBody)
+  @TokenErrors()
+  @ApiErrorResponse(409, NOT_EDITABLE)
+  @ApplicationTokenHeader()
+  @RecordsApplicationActivity('fulfilment_set', 'Device fulfilment chosen')
+  async setApplicationFulfilment(
+    @Param('applicationId') applicationId: string,
+    @Body() payload: OnboardingFulfilmentDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.setFulfilment.execute({ applicationId, applicationToken: token, ...payload }),
+    );
+  }
+
+  @Patch(':applicationId/device-requests/:requestId')
+  @ApiOperation({
+    summary: 'Change a device request',
+    description:
+      'Same rules and responses as adding one, with this request\'s own devices freed for its new quantity. Saved in place; on a stock shortfall nothing changes until it is repeated with confirmAvailableQuantity: true.',
+  })
+  @ApiOkResponse({ description: 'Same shape as adding a device request', type: OnboardingApplicationResponse })
+  @ApiErrorResponse(
+    400,
+    `${FIELD_OR_WHITELIST} Asking for more devices than vehicles is field "quantity".`,
+    OnboardingFieldErrorBody,
+    ApiValidationErrorBody,
+  )
+  @TokenErrors(`${NOT_FOUND}, or "Device request not found"`)
+  @ApiErrorResponse(409, NOT_EDITABLE)
+  @ApplicationTokenHeader()
+  @RecordsApplicationActivity('device_request_updated', 'Device request updated')
+  async updateApplicationDeviceRequest(
+    @Param('applicationId') applicationId: string,
+    @Param('requestId') requestId: string,
+    @Body() payload: OnboardingDeviceRequestDto,
+    @Headers(APPLICATION_TOKEN_HEADER) applicationToken?: string,
+  ) {
+    const token = this.requireApplicationToken(applicationToken);
+    return this.run(() =>
+      this.requestDevices.execute({
+        applicationId,
+        applicationToken: token,
+        requestId,
         quantity: payload.quantity,
         useCase: payload.useCase,
         notes: payload.notes,

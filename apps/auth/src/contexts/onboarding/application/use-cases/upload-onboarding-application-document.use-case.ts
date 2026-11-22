@@ -22,7 +22,7 @@ import {
   applicationDocumentKey,
   assertApplicationEditable,
   isPerVehicleDocument,
-  requiredDocumentTypes,
+  acceptedDocumentTypes,
 } from '@auth/onboarding/domain/onboarding-application.support';
 import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
 import { enforceIdentityClaims } from './support/enforce-identity-claims';
@@ -223,9 +223,9 @@ function assertRequiredForApplicant(
   documentType: OnboardingDocumentType,
   applicantType: OnboardingApplicantType,
 ): void {
-  if (requiredDocumentTypes(applicantType).includes(documentType)) return;
+  if (acceptedDocumentTypes(applicantType).includes(documentType)) return;
   throw new OnboardingValidationError(
     'document_type',
-    `${documentType} is not required for ${applicantType}`,
+    `${documentType} is not accepted for ${applicantType}`,
   );
 }

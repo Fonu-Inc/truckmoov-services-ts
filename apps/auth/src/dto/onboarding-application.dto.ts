@@ -13,6 +13,12 @@ export class OnboardingApplicationDto {
   applicantType!: string;
 
   @Allow()
+  @ApiPropertyOptional({
+    description: 'An existing MTN customer, who owes only the Customer Request Letter. Omitted on update keeps the saved value.',
+  })
+  returningCustomer?: boolean;
+
+  @Allow()
   @ApiProperty({ example: 'Arne logistics Ltd', maxLength: 160 })
   organizationName!: string;
 
@@ -96,4 +102,26 @@ export class BillingEmailDto {
   @Allow()
   @ApiProperty({ example: 'accounts@arne.com' })
   billingEmail!: string;
+}
+
+export class OnboardingFulfilmentDto {
+  @Allow()
+  @ApiProperty({ enum: ['pickup', 'delivery'], description: 'Owner-Operators can only pick up' })
+  method!: string;
+
+  @Allow()
+  @ApiPropertyOptional({ description: 'Required for pickup: an id from GET onboarding/applications/pickup-locations' })
+  pickupLocationId?: string;
+
+  @Allow()
+  @ApiPropertyOptional({ description: 'Required for delivery' })
+  deliveryStreet?: string;
+
+  @Allow()
+  @ApiPropertyOptional({ description: 'Required for delivery' })
+  deliveryCity?: string;
+
+  @Allow()
+  @ApiPropertyOptional({ description: 'Required for delivery: a Nigerian state' })
+  deliveryState?: string;
 }

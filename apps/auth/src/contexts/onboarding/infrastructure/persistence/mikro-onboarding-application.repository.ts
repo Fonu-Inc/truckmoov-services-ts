@@ -67,6 +67,8 @@ function toStored(r: OnboardingApplicationRecord): StoredOnboardingApplication {
     paymentNoticeError: r.paymentNoticeError ?? null,
     paymentNoticeAttempts: r.paymentNoticeAttempts ?? 0,
     paymentNoticeAttemptedAt: r.paymentNoticeAttemptedAt ?? null,
+    returningCustomer: r.returningCustomer ?? false,
+    fulfilment: (r.fulfilment as StoredOnboardingApplication['fulfilment']) ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };

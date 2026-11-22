@@ -42,10 +42,23 @@ export const REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE: Record<
     'signature_card',
     'utility_bill',
     'identification_card',
-    'proof_of_ownership',
-    'vehicle_license',
   ],
-  owner_operator: ['proof_of_ownership', 'vehicle_license'],
+  owner_operator: ['customer_request_letter', 'identification_card'],
+};
+
+/** An existing MTN customer owes only the request letter, whatever their type. */
+export const RETURNING_CUSTOMER_DOCUMENTS: readonly OnboardingDocumentType[] = ['customer_request_letter'];
+
+/**
+ * What an applicant may upload: everything required plus proof of ownership
+ * and vehicle licences, which are no longer required but still reviewed when given.
+ */
+export const ACCEPTED_DOCUMENTS_BY_APPLICANT_TYPE: Record<
+  OnboardingApplicantType,
+  readonly OnboardingDocumentType[]
+> = {
+  enterprise: [...REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE.enterprise, 'proof_of_ownership', 'vehicle_license'],
+  owner_operator: [...REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE.owner_operator, 'proof_of_ownership', 'vehicle_license'],
 };
 
 /**
@@ -56,6 +69,10 @@ export const REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE: Record<
 export const PER_VEHICLE_DOCUMENT_TYPES: readonly OnboardingDocumentType[] = [
   'vehicle_license',
 ];
+
+export type OnboardingFulfilment =
+  | { method: 'pickup'; pickupLocationId: string }
+  | { method: 'delivery'; deliveryStreet: string; deliveryCity: string; deliveryState: string };
 
 export const ONBOARDING_IDENTIFICATION_TYPES = [
   'nin',
@@ -151,6 +168,10 @@ export type StoredOnboardingApplication = {
   paymentNoticeError?: string | null;
   paymentNoticeAttempts?: number;
   paymentNoticeAttemptedAt?: Date | null;
+  /** An existing MTN customer: required documents shrink to the request letter. */
+  returningCustomer?: boolean;
+  /** How the requested devices reach the applicant; null until chosen. */
+  fulfilment?: OnboardingFulfilment | null;
   createdAt: Date;
   updatedAt: Date;
 };

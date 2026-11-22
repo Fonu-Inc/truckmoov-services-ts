@@ -1,7 +1,9 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import {
+  ACCEPTED_DOCUMENTS_BY_APPLICANT_TYPE,
   PER_VEHICLE_DOCUMENT_TYPES,
   REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE,
+  RETURNING_CUSTOMER_DOCUMENTS,
   type OnboardingApplicantType,
   type OnboardingDocumentType,
   type OnboardingVerificationChannel,
@@ -146,8 +148,16 @@ export function assertVerificationChannelOpen(
 
 export function requiredDocumentTypes(
   applicantType: OnboardingApplicantType,
+  returningCustomer = false,
 ): readonly OnboardingDocumentType[] {
-  return REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE[applicantType];
+  return returningCustomer ? RETURNING_CUSTOMER_DOCUMENTS : REQUIRED_DOCUMENTS_BY_APPLICANT_TYPE[applicantType];
+}
+
+/** What the applicant may upload, required or not. */
+export function acceptedDocumentTypes(
+  applicantType: OnboardingApplicantType,
+): readonly OnboardingDocumentType[] {
+  return ACCEPTED_DOCUMENTS_BY_APPLICANT_TYPE[applicantType];
 }
 
 export function isPerVehicleDocument(type: OnboardingDocumentType): boolean {
@@ -157,9 +167,10 @@ export function isPerVehicleDocument(type: OnboardingDocumentType): boolean {
 export function missingDocumentTypes(
   applicantType: OnboardingApplicantType,
   documents: StoredOnboardingApplicationDocument[],
+  returningCustomer = false,
 ): OnboardingDocumentType[] {
   const present = new Set(documents.map((document) => document.documentType));
-  return requiredDocumentTypes(applicantType).filter(
+  return requiredDocumentTypes(applicantType, returningCustomer).filter(
     (type) => !present.has(type),
   );
 }
@@ -175,8 +186,9 @@ export function vehiclesMissingDocuments(
   applicantType: OnboardingApplicantType,
   vehicles: StoredOnboardingApplicationVehicle[],
   documents: StoredOnboardingApplicationDocument[],
+  returningCustomer = false,
 ): { vehicleId: string; registrationNumber: string; documentType: OnboardingDocumentType }[] {
-  const perVehicleRequired = requiredDocumentTypes(applicantType).filter(
+  const perVehicleRequired = requiredDocumentTypes(applicantType, returningCustomer).filter(
     isPerVehicleDocument,
   );
   if (perVehicleRequired.length === 0) return [];
@@ -283,12 +295,15 @@ export function toApplicationView(
       rejectionReason: document.rejectionReason,
       uploadedAt: document.createdAt.toISOString(),
     })),
-    missingDocuments: missingDocumentTypes(application.applicantType, documents),
+    missingDocuments: missingDocumentTypes(application.applicantType, documents, application.returningCustomer),
     vehiclesMissingDocuments: vehiclesMissingDocuments(
       application.applicantType,
       vehicles,
       documents,
+      application.returningCustomer,
     ),
+    returningCustomer: application.returningCustomer ?? false,
+    fulfilment: application.fulfilment ?? null,
     decisionReason: application.decisionReason,
     submittedAt: application.submittedAt?.toISOString() ?? null,
     createdAt: application.createdAt.toISOString(),

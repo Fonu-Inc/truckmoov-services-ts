@@ -45,6 +45,8 @@ export class RequestApplicationDevicesUseCase {
     useCase: unknown;
     notes?: unknown;
     confirmAvailableQuantity?: unknown;
+    /** Set to change that request in place instead of adding one. */
+    requestId?: string;
   }) {
     const application = await this.getApplication.resolve(
       input.applicationId,
@@ -57,10 +59,16 @@ export class RequestApplicationDevicesUseCase {
     const quantity = validateDeviceQuantity(input.quantity);
     const useCase = validateDeviceUseCase(input.useCase);
     const notes = validateDeviceNotes(input.notes);
-    const [vehicles, requests] = await Promise.all([
+    const [vehicles, allRequests] = await Promise.all([
       this.applications.findVehiclesByApplicationId(application.id),
       this.applications.findDeviceRequestsByApplicationId(application.id),
     ]);
+    const editing = input.requestId
+      ? allRequests.find((request) => request.id === input.requestId)
+      : undefined;
+    if (input.requestId && !editing) throw new DeviceRequestNotFoundError();
+    // The edited request's own devices are freed for its new quantity.
+    const requests = editing ? allRequests.filter((request) => request.id !== editing.id) : allRequests;
 
     // Each device is fitted to one vehicle, so the fleet on the application is
     // the ceiling. Device quantity and SIM allocation are one plan: a device
@@ -108,13 +116,13 @@ export class RequestApplicationDevicesUseCase {
 
     const now = new Date();
     await this.applications.saveDeviceRequest({
-      id: this.idGenerator.generate(),
+      id: editing?.id ?? this.idGenerator.generate(),
       applicationId: application.id,
       quantity,
       useCase,
       notes,
       confirmedAvailableQuantity: stockShort ? stock.availableQuantity : null,
-      createdAt: now,
+      createdAt: editing?.createdAt ?? now,
       updatedAt: now,
     });
 
@@ -122,7 +130,7 @@ export class RequestApplicationDevicesUseCase {
 
     return {
       status: true,
-      message: 'Device request submitted',
+      message: editing ? 'Device request updated' : 'Device request submitted',
       data: {
         ...(await loadApplicationView(this.applications, application)),
         requestSaved: true,

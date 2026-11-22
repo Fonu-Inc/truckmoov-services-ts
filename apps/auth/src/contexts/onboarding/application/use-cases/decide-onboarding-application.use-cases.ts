@@ -186,7 +186,7 @@ export class ApproveOnboardingApplicationUseCase {
     const documents = await this.applications.findDocumentsByApplicationId(
       application.id,
     );
-    this.assertDocumentsSettled(application.applicantType, documents);
+    this.assertDocumentsSettled(application.applicantType, documents, application.returningCustomer);
 
     return this.approve(application, actor.id);
   }
@@ -345,8 +345,9 @@ export class ApproveOnboardingApplicationUseCase {
   private assertDocumentsSettled(
     applicantType: OnboardingApplicantType,
     documents: StoredOnboardingApplicationDocument[],
+    returningCustomer = false,
   ): void {
-    const missing = missingDocumentTypes(applicantType, documents);
+    const missing = missingDocumentTypes(applicantType, documents, returningCustomer);
     if (missing.length > 0) {
       throw new ApplicationDocumentsIncompleteError(
         `${missing.length} required document(s) are missing`,

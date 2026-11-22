@@ -39,6 +39,8 @@ export class OnboardingApplicationRecord {
   reviewedAt!: Date | null;
   decisionReason!: string | null;
   tenantId!: string | null;
+  returningCustomer?: boolean;
+  fulfilment?: Record<string, unknown> | null;
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -84,6 +86,8 @@ export const OnboardingApplicationRecordSchema =
       reviewedAt: { fieldName: 'reviewed_at', type: 'datetime', nullable: true },
       decisionReason: { fieldName: 'decision_reason', type: 'text', nullable: true },
       tenantId: { fieldName: 'tenant_id', type: 'string', length: 64, nullable: true },
+      returningCustomer: { fieldName: 'returning_customer', type: 'boolean', default: false },
+      fulfilment: { type: 'json', nullable: true },
       createdAt: { fieldName: 'created_at', type: 'datetime', defaultRaw: 'now()' },
       updatedAt: { fieldName: 'updated_at', type: 'datetime', onUpdate: () => new Date(), defaultRaw: 'now()' },
     },

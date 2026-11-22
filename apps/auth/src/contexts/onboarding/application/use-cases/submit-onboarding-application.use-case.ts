@@ -79,11 +79,13 @@ export class SubmitOnboardingApplicationUseCase {
       missingDocuments: missingDocumentTypes(
         application.applicantType,
         documents,
+        application.returningCustomer,
       ),
       vehiclesMissing: vehiclesMissingDocuments(
         application.applicantType,
         vehicles,
         documents,
+        application.returningCustomer,
       ),
       vehicleCount: vehicles.length,
       requestedDevices: requestedDeviceCount(deviceRequests),
@@ -262,7 +264,7 @@ export class GetOnboardingApplicationStatusUseCase {
             label: 'Documents received',
             complete:
               submitted &&
-              missingDocumentTypes(application.applicantType, documents)
+              missingDocumentTypes(application.applicantType, documents, application.returningCustomer)
                 .length === 0,
           },
           {

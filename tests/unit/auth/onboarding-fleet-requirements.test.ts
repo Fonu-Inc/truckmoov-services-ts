@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptedDocumentTypes,
   DRAFT_LIFETIME_MS,
   isDraftExpired,
   missingDocumentTypes,
@@ -8,7 +9,6 @@ import {
 } from "@auth/onboarding/domain/onboarding-application.support";
 import type {
   StoredOnboardingApplication,
-  StoredOnboardingApplicationDocument,
   StoredOnboardingApplicationVehicle,
   StoredOnboardingDeviceRequest,
 } from "@auth/onboarding/domain/onboarding-application.repository";
@@ -17,29 +17,6 @@ import {
   parseOnboardingVehicleCsv,
   VehicleCsvColumnsMissingError,
 } from "@auth/onboarding/domain/onboarding-vehicle-csv";
-
-function document(
-  documentType: string,
-  vehicleId: string | null = null,
-): StoredOnboardingApplicationDocument {
-  return {
-    id: `doc-${documentType}-${vehicleId ?? "app"}`,
-    applicationId: "app-1",
-    vehicleId,
-    tenantId: null,
-    documentType: documentType as StoredOnboardingApplicationDocument["documentType"],
-    documentName: `${documentType}.pdf`,
-    fileKey: `key/${documentType}`,
-    fileSize: 1,
-    mimeType: "application/pdf",
-    status: "pending",
-    rejectionReason: null,
-    reviewedBy: null,
-    reviewedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
 
 function vehicle(
   id: string,
@@ -78,15 +55,36 @@ function deviceRequest(quantity: number): StoredOnboardingDeviceRequest {
 }
 
 describe("Required documents by applicant type", () => {
-  it("asks an enterprise applicant for eight documents", () => {
-    expect(missingDocumentTypes("enterprise", [])).toHaveLength(8);
+  it("asks an enterprise applicant for the six business documents", () => {
+    expect(missingDocumentTypes("enterprise", [])).toEqual([
+      "customer_request_letter",
+      "cac_document",
+      "tax_certificate_or_tin",
+      "signature_card",
+      "utility_bill",
+      "identification_card",
+    ]);
   });
 
-  it("asks an owner operator for two", () => {
+  it("asks an owner operator for the request letter and an ID", () => {
     expect(missingDocumentTypes("owner_operator", [])).toEqual([
-      "proof_of_ownership",
-      "vehicle_license",
+      "customer_request_letter",
+      "identification_card",
     ]);
+  });
+
+  it("asks a returning customer of either type for the request letter only", () => {
+    for (const applicantType of ["enterprise", "owner_operator"] as const) {
+      expect(missingDocumentTypes(applicantType, [], true)).toEqual(["customer_request_letter"]);
+    }
+  });
+
+  it("still accepts proof of ownership and vehicle licences without requiring them", () => {
+    for (const applicantType of ["enterprise", "owner_operator"] as const) {
+      expect(acceptedDocumentTypes(applicantType)).toEqual(
+        expect.arrayContaining(["proof_of_ownership", "vehicle_license"]),
+      );
+    }
   });
 
   it("does not ask either type for the signed indemnity form", () => {
@@ -99,29 +97,12 @@ describe("Required documents by applicant type", () => {
 });
 
 describe("Per-vehicle documents", () => {
-  it("names each vehicle still missing its licence", () => {
+  it("are no longer required of either type", () => {
     const vehicles = [vehicle("v1", "LAG-123-ABC"), vehicle("v2", "LAG-456-DEF")];
-    const documents = [document("vehicle_license", "v1")];
 
-    expect(
-      vehiclesMissingDocuments("owner_operator", vehicles, documents),
-    ).toEqual([
-      {
-        vehicleId: "v2",
-        registrationNumber: "LAG-456-DEF",
-        documentType: "vehicle_license",
-      },
-    ]);
-  });
-
-  it("does not accept an application-wide licence for a vehicle", () => {
-    const vehicles = [vehicle("v1", "LAG-123-ABC")];
-
-    expect(
-      vehiclesMissingDocuments("owner_operator", vehicles, [
-        document("vehicle_license"),
-      ]),
-    ).toHaveLength(1);
+    for (const applicantType of ["enterprise", "owner_operator"] as const) {
+      expect(vehiclesMissingDocuments(applicantType, vehicles, [])).toEqual([]);
+    }
   });
 });
 
