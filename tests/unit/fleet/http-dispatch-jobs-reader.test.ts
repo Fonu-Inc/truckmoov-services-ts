@@ -77,3 +77,35 @@ describe("HttpDispatchJobsReader", () => {
     expect(vi.mocked(axios.get)).not.toHaveBeenCalled();
   });
 });
+
+describe("HttpDispatchJobsReader paging", () => {
+  beforeEach(() => vi.mocked(axios.get).mockReset());
+
+  function page(ids: string[], pageNo: number, totalPages: number) {
+    return {
+      status: 200,
+      data: { status: true, data: ids.map((id) => ({ id })), meta: { total: 0, page: pageNo, limit: 100, totalPages } },
+    };
+  }
+
+  it("reads every page at the maximum page size", async () => {
+    vi.mocked(axios.get)
+      .mockResolvedValueOnce(page(["a", "b"], 1, 2))
+      .mockResolvedValueOnce(page(["c"], 2, 2));
+
+    const jobs = await buildReader().listJobs("t1", { status: "delivered" });
+
+    expect(jobs.map((job) => job.id)).toEqual(["a", "b", "c"]);
+    expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(2);
+    expect((vi.mocked(axios.get).mock.calls[1][1] as any).params).toEqual({ status: "delivered", page: 2, limit: 100 });
+  });
+
+  it("stops at the page cap", async () => {
+    vi.mocked(axios.get).mockImplementation(async () => page(["x"], 1, 999));
+
+    const jobs = await buildReader().listJobs("t1");
+
+    expect(vi.mocked(axios.get)).toHaveBeenCalledTimes(50);
+    expect(jobs).toHaveLength(50);
+  });
+});

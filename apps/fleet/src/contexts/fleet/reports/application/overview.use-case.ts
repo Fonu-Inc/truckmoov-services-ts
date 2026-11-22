@@ -255,7 +255,7 @@ export class OverviewUseCase {
   }
 
   /**
-   * Active vehicles with the driver and route they are currently running.
+   * Vehicles running an active job, with the driver and route.
    * Dispatch's map is the freshest source for a job's waypoints; the jobs list
    * covers the in-progress statuses the map does not carry.
    */
@@ -300,7 +300,7 @@ export class OverviewUseCase {
 
     const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
     const items = vehicles
-      .filter((vehicle) => vehicle.status === "active")
+      .filter((vehicle) => jobByVehicle.has(vehicle.id))
       .map((vehicle) => {
         const job = jobByVehicle.get(vehicle.id);
         const driverId = job?.driverId ?? vehicle.assignedDriverId;

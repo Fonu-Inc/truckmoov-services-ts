@@ -158,6 +158,20 @@ describe("OverviewUseCase operational vehicles", () => {
     });
   });
 
+  it("leaves out active vehicles with no active job", async () => {
+    const useCase = buildUseCase({
+      vehicles: [makeVehicle("348"), makeVehicle("771")],
+      jobs: [
+        makeJob({ id: "j1", assignedVehicleId: "348" }),
+        makeJob({ id: "j2", assignedVehicleId: "771", status: "delivered" }),
+      ],
+    });
+
+    const result = await useCase.execute(ownerOperator);
+
+    expect(result.vehiclesInOperation.items.map((item) => item.vehicleId)).toEqual(["348"]);
+  });
+
   it("returns the eight most recent jobs for the enterprise account", async () => {
     const useCase = buildUseCase({
       jobs: Array.from({ length: 9 }, (_, i) => makeJob({

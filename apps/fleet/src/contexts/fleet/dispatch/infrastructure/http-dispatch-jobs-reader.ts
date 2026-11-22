@@ -12,11 +12,15 @@ import type {
 import { EMPTY_ACTIVE_JOBS_MAP } from "../domain/ports/dispatch-jobs-reader.port";
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const JOBS_PAGE_SIZE = 100;
+// shortcut: stops at 5,000 jobs per tenant, move aggregates into Go once a tenant gets near it.
+const MAX_JOBS_PAGES = 50;
 
 type DispatchJobEnvelope = {
   status?: boolean;
   message?: string;
   data?: DispatchJobApi[] | null;
+  meta?: { total?: number; page?: number; limit?: number; totalPages?: number } | null;
 };
 
 type DispatchJobStopApi = {
@@ -96,23 +100,31 @@ export class HttpDispatchJobsReader implements DispatchJobsReader {
       return [];
     }
 
+    const jobs: DispatchJob[] = [];
     try {
-      const res = await axios.get<DispatchJobEnvelope>(`${this.baseUrl()}/dispatch/jobs`, {
-        params: filters?.status ? { status: filters.status } : undefined,
-        headers,
-        timeout: REQUEST_TIMEOUT_MS,
-        validateStatus: () => true,
-      });
+      for (let page = 1; page <= MAX_JOBS_PAGES; page++) {
+        const res = await axios.get<DispatchJobEnvelope>(`${this.baseUrl()}/dispatch/jobs`, {
+          params: { ...(filters?.status ? { status: filters.status } : {}), page, limit: JOBS_PAGE_SIZE },
+          headers,
+          timeout: REQUEST_TIMEOUT_MS,
+          validateStatus: () => true,
+        });
 
-      if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.data)) {
-        this.logger.warn(`dispatch read returned ${res.status}; degrading to empty jobs`);
-        return [];
+        if (res.status < 200 || res.status >= 300 || !Array.isArray(res.data?.data)) {
+          this.logger.warn(`dispatch read returned ${res.status} on page ${page}; degrading to ${jobs.length} jobs`);
+          return jobs;
+        }
+
+        jobs.push(...res.data.data.map((j) => this.toDomain(j)));
+        const totalPages = res.data.meta?.totalPages;
+        const done = totalPages !== undefined ? page >= totalPages : res.data.data.length < JOBS_PAGE_SIZE;
+        if (done) return jobs;
       }
-
-      return res.data.data.map((j) => this.toDomain(j));
+      this.logger.warn(`dispatch read stopped at ${MAX_JOBS_PAGES} pages (${jobs.length} jobs)`);
+      return jobs;
     } catch (err) {
-      this.logger.warn(`dispatch read failed: ${(err as Error).message}; degrading to empty jobs`);
-      return [];
+      this.logger.warn(`dispatch read failed: ${(err as Error).message}; degrading to ${jobs.length} jobs`);
+      return jobs;
     }
   }
 
