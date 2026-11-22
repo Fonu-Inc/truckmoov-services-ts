@@ -52,11 +52,13 @@ function submitted(): StoredOnboardingApplication {
 describe("Deciding an onboarding application", () => {
   let applications: InMemoryOnboardingApplicationRepository;
   let tenantsCreated: number;
+  let paymentNotices: number;
   let ids: number;
 
   beforeEach(async () => {
     applications = new InMemoryOnboardingApplicationRepository();
     tenantsCreated = 0;
+    paymentNotices = 0;
     ids = 0;
     await applications.save(submitted());
   });
@@ -75,6 +77,7 @@ describe("Deciding an onboarding application", () => {
       { findByTier: async () => null } as never,
       { startIfAbsent: async () => undefined } as never,
       { resolve: async () => null } as never,
+      { paymentOpened: async () => void paymentNotices++ } as never,
     );
 
   const reject = () =>
@@ -122,6 +125,7 @@ describe("Deciding an onboarding application", () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await expect(failing.executeAsSystem("app-1")).rejects.toThrow("db down");
@@ -131,6 +135,7 @@ describe("Deciding an onboarding application", () => {
   it("approval moves straight to payment when stock allows", async () => {
     const res = await approve().executeAsSystem("app-1");
     expect(res.data.stage).toBe("payment");
+    expect(paymentNotices).toBe(1);
   });
 });
 

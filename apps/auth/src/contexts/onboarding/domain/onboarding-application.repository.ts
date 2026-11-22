@@ -290,7 +290,7 @@ export interface OnboardingApplicationRepository {
   findLiveByBusinessEmail(
     businessEmail: string,
   ): Promise<StoredOnboardingApplication | null>;
-  /** The review queue: drafts only when asked for by status. See inReviewQueue. */
+  /** The review queue, newest first: drafts only when asked for by status. See inReviewQueue. */
   findForReview(filters?: OnboardingApplicationQueueFilters): Promise<{
     items: StoredOnboardingApplication[];
     total: number;

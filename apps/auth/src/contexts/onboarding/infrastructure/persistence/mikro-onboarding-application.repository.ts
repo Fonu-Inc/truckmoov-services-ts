@@ -305,7 +305,7 @@ export class MikroOnboardingApplicationRepository
     const [records, total] = await em.findAndCount(
       OnboardingApplicationRecord,
       where,
-      { orderBy: { createdAt: 'asc' }, limit, offset: (page - 1) * limit },
+      { orderBy: { createdAt: 'desc' }, limit, offset: (page - 1) * limit },
     );
     return { items: records.map(toStored), total };
   }

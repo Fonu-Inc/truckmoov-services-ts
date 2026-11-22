@@ -3,6 +3,8 @@ import { Role } from "@shared/rbac";
 import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
 import { InviteNotFoundError } from "../../domain/errors/invite-not-found.error";
 import { INSTALLER_ACCOUNTS, type InstallerAccounts } from "../../domain/ports/installer-accounts.port";
+import { ONBOARDING_APPLICATION_REPOSITORY, type OnboardingApplicationRepository } from "@auth/onboarding/domain/onboarding-application.repository";
+import { knownInviteeName } from "../services/known-invitee-name";
 
 @Injectable()
 export class ValidateInviteUseCase {
@@ -12,6 +14,8 @@ export class ValidateInviteUseCase {
     // Optional so direct use-case tests can leave it out; Nest always supplies it.
     @Optional() @Inject(INSTALLER_ACCOUNTS)
     private readonly installers?: InstallerAccounts,
+    @Optional() @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications?: OnboardingApplicationRepository,
   ) {}
 
   async execute(token: string) {
@@ -25,13 +29,7 @@ export class ValidateInviteUseCase {
       email: invite.email,
       role: invite.role,
       tenantId: invite.tenantId,
-      fullName: await this.installerName(invite.role, invite.email),
+      fullName: await knownInviteeName(invite, this.installers, this.applications),
     };
-  }
-
-  /** The name the installer was invited under, so the sign-up screen need not ask for it. */
-  private async installerName(role: string, email: string): Promise<string | null> {
-    if (role !== Role.INSTALLER || !this.installers) return null;
-    return (await this.installers.invited(email))?.fullName ?? null;
   }
 }

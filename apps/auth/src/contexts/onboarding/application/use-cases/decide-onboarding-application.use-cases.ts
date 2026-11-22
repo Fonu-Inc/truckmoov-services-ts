@@ -53,6 +53,7 @@ import {
 import { BusinessEmailInUseError } from '@auth/onboarding/domain/onboarding-application.support';
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
 import { sendWithRotatedToken } from '../services/send-with-rotated-token';
+import { ApplicationPaymentNoticeService } from '../services/application-payment-notice.service';
 import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
 import {
   SUBSCRIPTION_PLAN_REPOSITORY,
@@ -167,6 +168,8 @@ export class ApproveOnboardingApplicationUseCase {
     private readonly trials: TenantTrialRepository,
     @Inject(TrialDaysResolver)
     private readonly trialDaysResolver: TrialDaysResolver,
+    @Inject(ApplicationPaymentNoticeService)
+    private readonly paymentNotices: ApplicationPaymentNoticeService,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -238,6 +241,8 @@ export class ApproveOnboardingApplicationUseCase {
       },
     );
     await this.startTrial(approved.tenantId!, now);
+    // Straight to payment skips the provisioning step that would otherwise send this.
+    if (approved.stage === 'payment') await this.paymentNotices.paymentOpened(approved, now);
 
     return {
       status: true,

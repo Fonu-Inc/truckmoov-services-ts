@@ -4,6 +4,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
+import { MTN_BUNDLE_ID_PREFIX } from './contexts/mtn/mtn-bundle-catalog.mapper';
 
 type Payload = {
   name?: string;
@@ -20,6 +21,14 @@ export class BundleNotFoundError extends Error {
   }
 }
 
+export class CarrierManagedBundleError extends Error {
+  constructor() {
+    super('MTN decides when this bundle is on sale; it follows the MTN catalogue sync');
+  }
+}
+
+export const isCarrierManagedBundle = (bundleId: string) => bundleId.startsWith(MTN_BUNDLE_ID_PREFIX);
+
 @Injectable()
 export class UpdateSystemBundleUseCase {
   constructor(
@@ -33,6 +42,8 @@ export class UpdateSystemBundleUseCase {
 
     const existing = await this.bundleCatalogRepository.findById(bundleId);
     if (!existing) throw new BundleNotFoundError();
+    if (payload.active !== undefined && payload.active !== existing.active && isCarrierManagedBundle(existing.id))
+      throw new CarrierManagedBundleError();
 
     await this.bundleCatalogRepository.save({
       ...existing,

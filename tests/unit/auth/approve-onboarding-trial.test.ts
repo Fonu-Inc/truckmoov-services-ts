@@ -82,6 +82,7 @@ describe("Approving a self-serve application starts the trial", () => {
         { get: async () => ({ onboardingTrialDaysOverride: override }) } as never,
         { findByPlanCode: async () => (entitlementDays === null ? null : { trialDays: entitlementDays }) } as never,
       ),
+      { paymentOpened: async () => "sent" } as never,
     );
 
   it("records a trial for the new tenant from the plan's trial days", async () => {

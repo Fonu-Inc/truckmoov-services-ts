@@ -41,7 +41,7 @@ import {
   ListSystemBundleCatalogQueryDto,
 } from './dto/sim-management.dto';
 import { ListSystemBundleCatalogUseCase } from './list-system-bundle-catalog.use-case';
-import { BundleNotFoundError, UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
+import { BundleNotFoundError, CarrierManagedBundleError, UpdateSystemBundleUseCase } from './update-system-bundle.use-case';
 import { CarrierNotFoundError, UpdateSystemCarrierUseCase } from './update-system-carrier.use-case';
 import { BUNDLE_TYPES, GetSystemBundleAdoptionUseCase, type BundleType } from './get-system-bundle-adoption.use-case';
 import { SyncMtnBundleCatalogUseCase, MtnBundleSyncBusyError } from './sync-mtn-bundle-catalog.use-case';
@@ -258,6 +258,7 @@ export class SystemBillingController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof BundleNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof CarrierManagedBundleError) throw new ConflictException(error.message);
       throw error;
     }
   }
@@ -275,6 +276,7 @@ export class SystemBillingController extends BaseAuthController {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
       if (error instanceof BundleNotFoundError) throw new NotFoundException(error.message);
+      if (error instanceof CarrierManagedBundleError) throw new ConflictException(error.message);
       throw error;
     }
   }

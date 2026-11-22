@@ -4,7 +4,7 @@ import type { TokenService } from './contexts/auth/session/domain/ports/token-se
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { ensureSystemActor } from './system-authz';
 import { BUNDLE_CATALOG_REPOSITORY, type BundleCatalogRepository } from './bundle-catalog.repository';
-import { BundleNotFoundError } from './update-system-bundle.use-case';
+import { BundleNotFoundError, CarrierManagedBundleError, isCarrierManagedBundle } from './update-system-bundle.use-case';
 
 @Injectable()
 export class DeleteSystemBundleUseCase {
@@ -19,6 +19,7 @@ export class DeleteSystemBundleUseCase {
 
     const bundle = await this.bundleCatalogRepository.findById(bundleId);
     if (!bundle) throw new BundleNotFoundError();
+    if (isCarrierManagedBundle(bundle.id)) throw new CarrierManagedBundleError();
 
     await this.bundleCatalogRepository.save({ ...bundle, active: false, updatedAt: new Date() });
 

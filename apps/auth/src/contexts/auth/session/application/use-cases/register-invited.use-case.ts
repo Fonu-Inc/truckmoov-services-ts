@@ -10,10 +10,12 @@ import { InviteNotFoundError } from "../../domain/errors/invite-not-found.error"
 import { FullNameRequiredError } from "../../domain/errors/full-name-required.error";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { USER_REPOSITORY, type UserRepository } from "../../domain/ports/user-repository.port";
-import { INVITE_REPOSITORY, type InviteRepository } from "../../domain/ports/invite-repository.port";
+import { INVITE_REPOSITORY, type InviteRepository, type StoredInvite } from "../../domain/ports/invite-repository.port";
 import { SESSION_STORE, type SessionStore } from "../../domain/ports/session-store.port";
 import { TOKEN_SERVICE, type TokenService } from "../../domain/ports/token-service.port";
 import { INSTALLER_ACCOUNTS, type InstallerAccounts } from "../../domain/ports/installer-accounts.port";
+import { ONBOARDING_APPLICATION_REPOSITORY, type OnboardingApplicationRepository } from "@auth/onboarding/domain/onboarding-application.repository";
+import { knownInviteeName } from "../services/known-invitee-name";
 
 export type RegisterInvitedCommand = {
   inviteToken: string;
@@ -42,6 +44,9 @@ export class RegisterInvitedUseCase {
     @Optional()
     @Inject(TenantOrganizationTypeReader)
     private readonly organizationTypes?: TenantOrganizationTypeReader,
+    @Optional()
+    @Inject(ONBOARDING_APPLICATION_REPOSITORY)
+    private readonly applications?: OnboardingApplicationRepository,
   ) {}
 
   async execute(command: RegisterInvitedCommand) {
@@ -63,7 +68,7 @@ export class RegisterInvitedUseCase {
     const existing = await this.userRepo.findByEmail(invite.email);
     if (existing) throw new EmailTakenError();
 
-    const fullName = await this.fullNameFor(invite.role, invite.email, command.fullName);
+    const fullName = await this.fullNameFor(invite, command.fullName);
     const id = this.idGenerator.generate();
     const passwordHash = await this.passwordHasher.hash(command.password);
     const role = invite.role;
@@ -104,15 +109,13 @@ export class RegisterInvitedUseCase {
     return { accessToken, refreshToken, expiresIn: 3600, user: { ...user.toPrimitives(), organizationType } };
   }
 
-  /** An installer's name is the one on their installer record, which customers see. */
-  private async fullNameFor(role: string, email: string, given?: string): Promise<string> {
-    if (role !== Role.INSTALLER) {
-      const name = given?.trim();
-      if (!name) throw new FullNameRequiredError();
-      return name;
-    }
-    const installer = await this.installers.invited(email);
-    if (!installer) throw new InviteNotFoundError();
-    return installer.fullName;
+  /** A name the platform already holds wins over a typed one; only otherwise is one required. */
+  private async fullNameFor(invite: StoredInvite, given?: string): Promise<string> {
+    const known = await knownInviteeName(invite, this.installers, this.applications);
+    if (known) return known;
+    if (invite.role === Role.INSTALLER) throw new InviteNotFoundError();
+    const name = given?.trim();
+    if (!name) throw new FullNameRequiredError();
+    return name;
   }
 }

@@ -162,7 +162,7 @@ export class InMemoryOnboardingApplicationRepository
           application.reference,
         ].some((field) => field.toLowerCase().includes(search));
       })
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const page = filters?.page ?? 1;
     const limit = filters?.limit ?? 50;
