@@ -158,6 +158,21 @@ describe("OverviewUseCase operational vehicles", () => {
     });
   });
 
+  it("returns the eight most recent jobs for the enterprise account", async () => {
+    const useCase = buildUseCase({
+      jobs: Array.from({ length: 9 }, (_, i) => makeJob({
+        id: `j${i}`,
+        createdAt: new Date(Date.UTC(2026, 10, 1 + i)).toISOString(),
+      })),
+    });
+
+    const result = await useCase.execute({ tenantId: "t1", ownerOperatorId: null });
+
+    expect(result.jobs.total).toBe(9);
+    expect(result.jobs.items).toHaveLength(8);
+    expect(result.jobs.items[0].id).toBe("j8");
+  });
+
   it("falls back to the jobs list for an in-progress job missing from the map", async () => {
     const useCase = buildUseCase({
       vehicles: [makeVehicle("771")],

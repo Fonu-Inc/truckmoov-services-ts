@@ -23,6 +23,7 @@ import { AuditLogService } from "../../../../audit-log.service";
 // rather than by the caller: an overview that can be asked for everything is a
 // listing endpoint wearing a dashboard's name.
 const LIST_LIMIT = 5;
+const JOB_LIST_LIMIT = 8;
 const ACTIVITY_LIMIT = 10;
 // Owner operators are filtered after the audit read, so the scan has to be
 // wider than the feed or a neighbouring operator's events could fill it.
@@ -241,7 +242,7 @@ export class OverviewUseCase {
   private recentJobs(jobs: DispatchJob[]) {
     return [...jobs]
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-      .slice(0, LIST_LIMIT)
+      .slice(0, JOB_LIST_LIMIT)
       .map((job) => ({
         id: job.id,
         reference: job.reference,
