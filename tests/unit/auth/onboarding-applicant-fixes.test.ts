@@ -40,13 +40,14 @@ describe("field names on applicant validation errors", () => {
   it("reports a missing signer name under signer_name", () => {
     expect(fieldOf(() => validateSignerName(undefined))).toEqual({
       field: "signer_name",
-      message: "Signer name must be between 2 and 80 characters",
+      message: "Company name must be between 2 and 160 characters",
     });
   });
 
-  it("holds the signer to the same name rules as a contact", () => {
-    expect(fieldOf(() => validateSignerName("Ada")).field).toBe("signer_name");
-    expect(validateSignerName("  Ada   Obi ")).toBe("Ada Obi");
+  it("holds the signer to the company name rules", () => {
+    expect(fieldOf(() => validateSignerName("123")).field).toBe("signer_name");
+    expect(validateSignerName("  Dedede   Ltd ")).toBe("Dedede Ltd");
+    expect(validateSignerName("Dedede")).toBe("Dedede");
   });
 });
 

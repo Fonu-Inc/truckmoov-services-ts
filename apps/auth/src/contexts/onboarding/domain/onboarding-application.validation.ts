@@ -393,9 +393,9 @@ export function validateBillingEmail(value: unknown): string {
   return underField(() => validateBusinessEmail(value), 'billingEmail', 'Business email', 'Billing email');
 }
 
-/** The signer's name follows the contact name rules, reported as signer_name. */
+/** The agreement is signed in the company's name, so the organization name rules apply, reported as signer_name. */
 export function validateSignerName(value: unknown): string {
-  return underField(() => validateContactFullName(value), 'signer_name', 'Contact full name', 'Signer name');
+  return underField(() => validateOrganizationName(value), 'signer_name', 'Organization name', 'Company name');
 }
 
 function underField(
