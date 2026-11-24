@@ -87,6 +87,7 @@ import {
   AuthPersistenceHealthCheck,
 } from './contexts/auth/session';
 import { AuthController } from './auth.controller';
+import { AppVersionController } from './app-version.controller';
 import { ProfileController } from './profile.controller';
 import { OrganizationController } from './organization.controller';
 import { SystemController } from './system.controller';
@@ -975,6 +976,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InternalAccessController,
     CapabilitiesController,
     TenantRolesController,
+    AppVersionController,
     SystemRolesController,
     GovernanceController,
     StaffRolesController,

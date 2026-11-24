@@ -228,6 +228,18 @@ export class AppConfigService {
     };
   }
 
+  /** Mobile builds older than minVersion are blocked at start-up and sent to the store. */
+  get mobileApp() {
+    return {
+      minVersion: this.config.get<string>("MOBILE_MIN_VERSION", ""),
+      latestVersion: this.config.get<string>("MOBILE_LATEST_VERSION", ""),
+      storeUrls: {
+        android: this.config.get<string>("MOBILE_STORE_URL_ANDROID", ""),
+        ios: this.config.get<string>("MOBILE_STORE_URL_IOS", ""),
+      },
+    };
+  }
+
   /** Addresses, or CIDR ranges, that are never blocked by hand or by an auto-block rule. */
   get ipBlockAllowlist(): string[] {
     return this.config
