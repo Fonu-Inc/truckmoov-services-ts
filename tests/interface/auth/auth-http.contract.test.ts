@@ -320,6 +320,12 @@ describe('Auth HTTP contract', () => {
       expect(second.status).toBe(401);
       expect(third.status).toBe(401);
       expect(fourth.status).toBe(429);
+
+      // Another account from the same address has its own attempts left.
+      const other = await request(rateLimitedApp.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'someone-else@contract.com', password: 'WrongPass!' });
+      expect(other.status).toBe(401);
     } finally {
       await rateLimitedApp.close();
       process.env.LOGIN_RATE_LIMIT_BURST = previousBurst;

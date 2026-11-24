@@ -68,7 +68,7 @@ export class SystemSecurityController extends BaseAuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List authentication events' })
   @ApiQuery({ name: 'tenantId', required: false, type: String })
-  @ApiQuery({ name: 'eventType', required: false, enum: ['login', 'logout', 'refresh'] })
+  @ApiQuery({ name: 'eventType', required: false, enum: ['login', 'logout', 'refresh', 'access'] })
   @ApiQuery({ name: 'status', required: false, enum: ['success', 'failed'] })
   @ApiQuery({ name: 'ipAddress', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })

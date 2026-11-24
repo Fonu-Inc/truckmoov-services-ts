@@ -5,7 +5,8 @@
  * to be decided up front rather than discovered later.
  */
 // access is a request refused because the caller had no business on that
-// route. It counts toward automatic IP blocking alongside failed logins.
+// route, or a sign-in turned away by the rate limit. It is logged for review
+// and never counts toward automatic IP blocking: only a failed login does.
 export const AUTH_EVENT_TYPES = ['login', 'logout', 'refresh', 'access'] as const;
 export type AuthEventType = (typeof AUTH_EVENT_TYPES)[number];
 
@@ -18,6 +19,7 @@ export const AUTH_FAILURE_REASONS = [
   'account_locked',
   'mfa_failed',
   'suspicious',
+  'rate_limited',
 ] as const;
 export type AuthFailureReason = (typeof AUTH_FAILURE_REASONS)[number];
 

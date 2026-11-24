@@ -564,8 +564,8 @@ export class AppConfigService {
       // limit: a handful of attempts, then a slow refill, to throttle
       // credential-stuffing/brute-force without needing per-deployment env
       // tuning to get a safe-by-default value.
-      loginRateLimitRps: this.config.get<number>("LOGIN_RATE_LIMIT_RPS", 0.1),
-      loginRateLimitBurst: this.config.get<number>("LOGIN_RATE_LIMIT_BURST", 5),
+      loginRateLimitRps: this.config.get<number>("LOGIN_RATE_LIMIT_RPS", 0.2),
+      loginRateLimitBurst: this.config.get<number>("LOGIN_RATE_LIMIT_BURST", 10),
       // The public onboarding endpoints are metered per IP. One applicant makes
       // roughly twenty five calls (ten uploads, two verifications, submit), and
       // a shared office or mobile NAT puts several applicants behind one

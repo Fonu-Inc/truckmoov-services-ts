@@ -41,12 +41,12 @@ export type RecordAuthEventCommand = {
 // (e.g. a superadmin hitting the tenant login endpoint with their correct
 // password) — neither is a credential-guessing signal. A wrong second-factor
 // code has its own per-account cooldown, which a block would pre-empt.
-const NON_BLOCKING_FAILURES: ReadonlyArray<AuthFailureReason | null | undefined> = ['account_locked', 'mfa_failed'];
+const NON_BLOCKING_FAILURES: ReadonlyArray<AuthFailureReason | null | undefined> = ['account_locked', 'mfa_failed', 'rate_limited'];
 
+// Refused requests are logged but never counted: a signed-in user's page that
+// calls a route outside its portal is a UI fault, not a credential guess.
 function countsTowardBlocking(command: RecordAuthEventCommand): boolean {
-  if (command.status !== 'failed') return false;
-  if (command.eventType === 'access') return true;
-  return command.eventType === 'login' && !NON_BLOCKING_FAILURES.includes(command.failureReason);
+  return command.status === 'failed' && command.eventType === 'login' && !NON_BLOCKING_FAILURES.includes(command.failureReason);
 }
 
 /**
@@ -92,8 +92,21 @@ export class RecordAuthEventUseCase {
     }
   }
 
+  private readonly evaluating = new Set<string>();
+
   private async evaluateAutoBlock(ipAddress: string): Promise<void> {
     if (ipMatchesAny(ipAddress, this.config?.ipBlockAllowlist ?? [])) return;
+    // Parallel failures from one IP would each insert a block row.
+    if (this.evaluating.has(ipAddress)) return;
+    this.evaluating.add(ipAddress);
+    try {
+      await this.evaluateUnlocked(ipAddress);
+    } finally {
+      this.evaluating.delete(ipAddress);
+    }
+  }
+
+  private async evaluateUnlocked(ipAddress: string): Promise<void> {
     const alreadyBlocked = await this.blockedIps.findActiveByIp(ipAddress);
     if (alreadyBlocked) return;
 
@@ -141,7 +154,7 @@ export class RecordAuthEventUseCase {
       alertType: 'security_alerts',
       severity: 'high',
       subject: `IP ${ipAddress} auto-blocked`,
-      body: `Rule "${decision.ruleName}" blocked ${ipAddress} after repeated failed logins or refused requests.`,
+      body: `Rule "${decision.ruleName}" blocked ${ipAddress} after repeated failed logins.`,
       context: { ipAddress, ruleId: decision.ruleId },
     });
   }

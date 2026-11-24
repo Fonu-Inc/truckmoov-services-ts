@@ -25,7 +25,7 @@ export class AuthCallerAudience extends VerifiedCallerAudience {
   }
 }
 
-/** Each refused request counts toward the IP's automatic block, like a failed login. */
+/** Each refused request is logged for review; it does not count toward an IP block. */
 @Injectable()
 export class AuthRefusalReporter implements RefusalReporter {
   constructor(@Inject(RecordAuthEventUseCase) private readonly events: RecordAuthEventUseCase) {}
