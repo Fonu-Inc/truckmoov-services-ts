@@ -82,6 +82,7 @@ import {
  */
 /** The tenant drawer shows a handful of rows; an operator manages the rest elsewhere. */
 const DRAWER_ROW_LIMIT = 25;
+const UNFITTABLE_LIFECYCLE: readonly string[] = ["faulty", "suspended", "decommissioned"];
 /** A job lists a handful of units; a page of them at most. */
 const MAX_DEVICE_IDS = 100;
 /** Tracking pages the held-device list; this is the most it may take at once. */
@@ -471,8 +472,9 @@ export class InternalFleetController extends BaseFleetController {
    */
   @Get("tenants/:tenantId/devices")
   @UseGuards(PlatformActorGuard)
-  async tenantDevices(@Param("tenantId") tenantId: string, @Query("ids") ids?: string) {
+  async tenantDevices(@Param("tenantId") tenantId: string, @Query("ids") ids?: string, @Query("unfitted") unfitted?: string) {
     if (ids !== undefined) return this.devicesByIds(tenantId, ids);
+    if (unfitted === "true") return this.unfittedDevices(tenantId);
     const devices = await this.devices.findAll({ tenantId });
     const rows = devices.slice(0, DRAWER_ROW_LIMIT).map((device) => ({
       deviceId: device.id,
@@ -509,6 +511,15 @@ export class InternalFleetController extends BaseFleetController {
     if (scope === "vehicles") return vehicleExport(await this.vehicles.findAll({ tenantId }));
     if (scope === "drivers") return driverExport(await this.drivers.findAll({ tenantId }));
     return deviceExport(await this.devices.findAll({ tenantId }));
+  }
+
+  /** Uncapped: the devices a tenant holds that sit on no vehicle, are not on hold and can still be fitted. */
+  private async unfittedDevices(tenantId: string) {
+    const devices = await this.devices.findAll({ tenantId });
+    const items = devices
+      .filter((device) => !device.vehicleId && !device.holdCause && !UNFITTABLE_LIFECYCLE.includes(device.lifecycleStatus))
+      .map((device) => ({ deviceId: device.id }));
+    return { status: true, message: "success", data: { total: items.length, items } };
   }
 
   private async devicesByIds(tenantId: string, ids: string) {

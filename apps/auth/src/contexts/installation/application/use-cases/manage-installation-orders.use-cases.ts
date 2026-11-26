@@ -39,6 +39,7 @@ import {
   type JobDeviceLookup,
 } from '@auth/installation/domain/ports/job-device-lookup.port';
 import { INSTALLATION_JOB_CONTEXT } from '@auth/installation/domain/installer-support';
+import { pairUnitsWithDevices } from '@auth/installation/domain/unit-device-pairing';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
   type OnboardingApplicationRepository,
@@ -200,6 +201,39 @@ export class ManageInstallationOrdersUseCases {
     return { index: bound.deviceIndex, vehicleId: bound.vehicleId, device };
   }
 
+  /**
+   * Fits the customer's free fleet devices to the unbound units of its open job, so nobody
+   * binds each by hand. `assigned` limits it to devices just given to the tenant. A
+   * device it cannot place is left for the manual bind.
+   */
+  async autoBindUnits(tenantId: string, actor: Staff | null, assigned?: string[]) {
+    const order = await this.orders.findOpenByTenantId(tenantId);
+    if (!order) return [];
+    const units = await this.orders.findAssignments(order.id);
+    if (units.every((unit) => unit.fleetDeviceId)) return [];
+
+    const held = assigned ? await this.devices.forTenant(tenantId, assigned) : null;
+    const candidates = assigned ? assigned.filter((id) => held?.has(id)) : await this.devices.unfittedForTenant(tenantId);
+    const free: string[] = [];
+    for (const id of candidates ?? []) {
+      if (!(await this.orders.findAssignmentByFleetDeviceId(id))) free.push(id);
+    }
+
+    const bound: StoredDeviceAssignment[] = [];
+    for (const unit of pairUnitsWithDevices(units, free)) {
+      try {
+        await this.orders.saveAssignment(unit);
+      } catch (error) {
+        // Another bind took this device first; the rest still fit.
+        if (error instanceof DeviceAlreadyBoundError) continue;
+        throw error;
+      }
+      bound.push(unit);
+      await this.audit(actor, order, unit);
+    }
+    return bound.map((unit) => ({ orderNumber: order.orderNumber, deviceIndex: unit.deviceIndex, deviceId: unit.fleetDeviceId }));
+  }
+
   private staff(accessToken: string, permission: 'admin.installations.read' | 'admin.installations.manage'): Promise<Staff> {
     return requireStaff({ tokens: this.tokens, access: this.access, users: this.users }, accessToken, permission);
   }
@@ -261,17 +295,17 @@ export class ManageInstallationOrdersUseCases {
     return device;
   }
 
-  private async audit(staff: Staff, order: StoredInstallationOrder, unit: StoredDeviceAssignment): Promise<void> {
+  private async audit(staff: Staff | null, order: StoredInstallationOrder, unit: StoredDeviceAssignment): Promise<void> {
     await this.activity.record({
       tenantId: SYSTEM_TENANT_ID,
       service: 'auth',
       action: 'system.installation.unit_bound',
       entityType: 'installation_order',
       entityId: order.id,
-      summary: `Device bound to unit ${unit.deviceIndex} of ${order.orderNumber}`,
-      actorId: staff.id,
-      actorRole: staff.role,
-      actorEmail: staff.email,
+      summary: `Device bound to unit ${unit.deviceIndex} of ${order.orderNumber}${staff ? '' : ' automatically'}`,
+      actorId: staff?.id,
+      actorRole: staff?.role,
+      actorEmail: staff?.email,
       metadata: { orderTenantId: order.tenantId, deviceIndex: unit.deviceIndex, fleetDeviceId: unit.fleetDeviceId },
     });
   }

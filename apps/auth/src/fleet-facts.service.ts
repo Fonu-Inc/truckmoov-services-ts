@@ -362,6 +362,32 @@ export class FleetFactsService {
   }
 
   /**
+   * Ids of the devices a tenant holds that are on no vehicle, not on hold and still fittable.
+   * Null when fleet cannot be reached.
+   */
+  async tenantUnfittedDeviceIds(tenantId: string): Promise<string[] | null> {
+    if (!isSafePathId(tenantId)) return null;
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) return null;
+
+    try {
+      const response = await axios.get<{ data?: { items?: Array<{ deviceId?: string }> } }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/tenants/${encodeURIComponent(tenantId)}/devices`,
+        { headers, params: { unfitted: 'true' }, timeout: 4000, validateStatus: () => true },
+      );
+
+      if (response.status !== 200) return null;
+      return (response.data?.data?.items ?? []).flatMap((item) => (item.deviceId ? [item.deviceId] : []));
+    } catch (error) {
+      this.logger.warn(
+        `fleet_tenant_unfitted_devices_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Whether the named devices a tenant holds are reporting.
    *
    * Null when fleet could not be asked. The caller must not read that as every

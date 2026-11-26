@@ -118,6 +118,8 @@ export interface InstallationOrderRepository {
     applicationId: string,
   ): Promise<StoredInstallationOrder | null>;
   findByTenantId(tenantId: string): Promise<StoredInstallationOrder | null>;
+  /** The tenant's newest order that is not completed or cancelled. */
+  findOpenByTenantId(tenantId: string): Promise<StoredInstallationOrder | null>;
   /** Oldest booking first, then creation, then id; resumes after `after`. */
   findUnassigned(limit: number, after?: UnassignedCursor): Promise<StoredInstallationOrder[]>;
   /**

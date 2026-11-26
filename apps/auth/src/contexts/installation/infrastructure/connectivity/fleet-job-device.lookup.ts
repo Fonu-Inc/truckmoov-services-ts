@@ -33,4 +33,8 @@ export class FleetJobDeviceLookup implements JobDeviceLookup {
     const devices = items.map(toJobDevice);
     return new Map(devices.map((device) => [device.id, device]));
   }
+
+  unfittedForTenant(tenantId: string): Promise<string[] | null> {
+    return this.fleet.tenantUnfittedDeviceIds(tenantId);
+  }
 }

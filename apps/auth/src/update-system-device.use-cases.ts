@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ManageInstallationOrdersUseCases } from './contexts/installation';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -58,10 +59,13 @@ export class UpdateSystemDeviceUseCase {
 /** Records that stock devices now belong to a tenant. */
 @Injectable()
 export class AssignSystemDevicesUseCase {
+  private readonly logger = new Logger(AssignSystemDevicesUseCase.name);
+
   constructor(
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+    @Inject(ManageInstallationOrdersUseCases) private readonly installations: ManageInstallationOrdersUseCases,
   ) {}
 
   async execute(
@@ -70,7 +74,7 @@ export class AssignSystemDevicesUseCase {
     deviceIds: string[],
     notes?: string,
   ) {
-    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+    const actor = await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
       allowedRoles: SYSTEM_MUTATOR_ROLES,
       forbiddenMessage: 'You are not permitted to assign devices',
     });
@@ -78,10 +82,18 @@ export class AssignSystemDevicesUseCase {
     const result = await this.fleet.assignDevicesToTenant(tenantId, deviceIds, notes);
     if (!result.ok) throw new SystemDeviceWriteRefusedError(result.status, result.message);
 
+    // The devices are the tenant's now whatever happens next, so a failed fit must not fail the assignment.
+    const bound = await this.installations
+      .autoBindUnits(tenantId, { id: actor.id, email: actor.email, role: actor.role }, deviceIds)
+      .catch((error) => {
+        this.logger.warn(`auto_bind_units_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`);
+        return [];
+      });
+
     return {
       status: true,
       message: 'Devices assigned',
-      data: { tenantId, updated: result.updated },
+      data: { tenantId, updated: result.updated, bound },
     };
   }
 }

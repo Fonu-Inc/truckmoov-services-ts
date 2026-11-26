@@ -21,6 +21,8 @@ export type JobDevice = {
  */
 export interface JobDeviceLookup {
   forTenant(tenantId: string, deviceIds: string[]): Promise<Map<string, JobDevice> | null>;
+  /** Ids of the tenant's devices that are on no vehicle and not on hold. Null when fleet could not be asked. */
+  unfittedForTenant(tenantId: string): Promise<string[] | null>;
 }
 
 export const JOB_DEVICE_LOOKUP = Symbol('JOB_DEVICE_LOOKUP');

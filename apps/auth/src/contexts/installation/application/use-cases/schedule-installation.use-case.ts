@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ID_GENERATOR, type IdGenerator } from '@auth/session/domain/ports/id-generator.port';
 import {
   ONBOARDING_APPLICATION_REPOSITORY,
@@ -38,6 +38,7 @@ import {
 import { IssueSetupLinkUseCase } from './issue-setup-link.use-case';
 import { InstallerAssignmentService } from '../services/installer-assignment.service';
 import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
+import { ManageInstallationOrdersUseCases } from './manage-installation-orders.use-cases';
 
 export class InstallationNotSchedulableError extends Error {
   constructor(message: string) {
@@ -63,6 +64,7 @@ export class ScheduleInstallationUseCase {
     private readonly issueSetupLink: IssueSetupLinkUseCase,
     @Inject(ID_GENERATOR) private readonly idGenerator: IdGenerator,
     @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
+    @Optional() @Inject(ManageInstallationOrdersUseCases) private readonly installations?: ManageInstallationOrdersUseCases,
   ) {}
 
   async execute(input: {
@@ -131,6 +133,11 @@ export class ScheduleInstallationUseCase {
         createdAt: now,
       })),
     );
+
+    // Devices already in the customer's fleet fit the new units now; a failure leaves the manual bind.
+    await this.installations?.autoBindUnits(tenantId, null).catch((error) => {
+      this.logger.warn(`auto_bind_units_failed:${order.orderNumber}:${error instanceof Error ? error.message : 'unknown'}`);
+    });
 
     await this.advance(application, now);
 

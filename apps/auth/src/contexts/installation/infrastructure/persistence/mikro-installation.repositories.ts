@@ -11,6 +11,7 @@ import {
 import {
   ACTIVE_JOB_STATUSES,
   buildOrderNumber,
+  TERMINAL_JOB_STATUSES,
   type InstallationOrderStatus,
 } from '@auth/installation/domain/installation-order';
 import { DeviceAlreadyBoundError } from '@auth/installation/domain/installation-job.errors';
@@ -478,6 +479,18 @@ export class MikroInstallationOrderRepository
   ): Promise<StoredInstallationOrder | null> {
     const em = await this.em();
     const record = await em.findOne(InstallationOrderRecord, { tenantId });
+    return record ? toStoredOrder(record) : null;
+  }
+
+  async findOpenByTenantId(
+    tenantId: string,
+  ): Promise<StoredInstallationOrder | null> {
+    const em = await this.em();
+    const record = await em.findOne(
+      InstallationOrderRecord,
+      { tenantId, status: { $nin: [...TERMINAL_JOB_STATUSES] } },
+      { orderBy: { createdAt: 'desc', id: 'asc' } },
+    );
     return record ? toStoredOrder(record) : null;
   }
 

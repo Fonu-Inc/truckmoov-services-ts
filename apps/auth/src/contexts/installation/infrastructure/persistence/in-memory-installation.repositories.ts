@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   ACTIVE_JOB_STATUSES,
   buildOrderNumber,
+  TERMINAL_JOB_STATUSES,
   type InstallationOrderStatus,
 } from '@auth/installation/domain/installation-order';
 import { DeviceAlreadyBoundError } from '@auth/installation/domain/installation-job.errors';
@@ -290,6 +291,16 @@ export class InMemoryInstallationOrderRepository
     return (
       [...this.orders.values()].find((order) => order.tenantId === tenantId) ??
       null
+    );
+  }
+
+  async findOpenByTenantId(
+    tenantId: string,
+  ): Promise<StoredInstallationOrder | null> {
+    return (
+      [...this.orders.values()]
+        .filter((order) => order.tenantId === tenantId && !TERMINAL_JOB_STATUSES.includes(order.status))
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
     );
   }
 
