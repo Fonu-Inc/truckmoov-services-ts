@@ -291,6 +291,11 @@ describe('Auth HTTP contract', () => {
     // span longer than that, the bucket refills, and the fourth is allowed.
     // What is being tested is the burst, so the refill is turned off.
     process.env.LOGIN_RATE_LIMIT_RPS = '0.0001';
+    // The default auto-block rule blocks an IP after three failed logins, which
+    // would turn the other-account request below into a 403; this test is about
+    // the rate limiter, so the loopback address is exempt from blocking.
+    const previousAllowlist = process.env.IP_BLOCK_ALLOWLIST;
+    process.env.IP_BLOCK_ALLOWLIST = '127.0.0.1,::1,::ffff:127.0.0.1';
     vi.resetModules();
     // prom-client's registry is process-global; the shared app already
     // registered its metrics, so clear it before this second in-process app
@@ -330,6 +335,8 @@ describe('Auth HTTP contract', () => {
       await rateLimitedApp.close();
       process.env.LOGIN_RATE_LIMIT_BURST = previousBurst;
       process.env.LOGIN_RATE_LIMIT_RPS = previousRps;
+      if (previousAllowlist === undefined) delete process.env.IP_BLOCK_ALLOWLIST;
+      else process.env.IP_BLOCK_ALLOWLIST = previousAllowlist;
       vi.resetModules();
     }
   });

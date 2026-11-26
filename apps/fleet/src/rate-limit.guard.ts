@@ -11,8 +11,10 @@ export class RateLimitGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<{ ip?: string }>();
-    if (!this.limiter.consume(resolveClientIp(req))) {
+    const http = context.switchToHttp();
+    const key = resolveClientIp(http.getRequest<{ ip?: string }>());
+    if (!this.limiter.consume(key)) {
+      http.getResponse?.<{ setHeader?: (n: string, v: string) => void }>()?.setHeader?.("Retry-After", String(this.limiter.retryAfter(key)));
       throw new HttpException("Rate limit exceeded", HttpStatus.TOO_MANY_REQUESTS);
     }
     return true;

@@ -5,7 +5,7 @@ import { LoginRateLimitGuard } from "../../../apps/auth/src/login-rate-limit.gua
 
 function makeGuard(rps = 1, burst = 3): LoginRateLimitGuard {
   const config = { auth: { loginRateLimitRps: rps, loginRateLimitBurst: burst } } as AppConfigService;
-  return new LoginRateLimitGuard(config);
+  return new LoginRateLimitGuard(config, { execute: async () => undefined } as never);
 }
 
 function makeCtx(ip = "1.2.3.4", forwardedFor?: string) {
@@ -68,5 +68,23 @@ describe("LoginRateLimitGuard", () => {
     expect(guard.canActivate(makeEndpointCtx("10.0.0.5", "AuthController", "loginTwoFactor"))).toBe(true);
 
     expect(() => guard.canActivate(makeEndpointCtx("10.0.0.5", "AuthController", "login"))).toThrow(HttpException);
+  });
+
+  it("reads the account from a data-wrapped body and from identifier", () => {
+    const guard = makeGuard(0.1, 1);
+    const ctx = (ip: string, body: unknown) =>
+      ({ switchToHttp: () => ({ getRequest: () => ({ ip, method: "POST", body }) }) }) as any;
+    expect(guard.canActivate(ctx("9.9.9.1", { data: { email: "A@x.com" } }))).toBe(true);
+    expect(() => guard.canActivate(ctx("9.9.9.2", { email: "a@x.com" }))).toThrow(HttpException);
+    expect(guard.canActivate(ctx("9.9.9.3", { identifier: "b@x.com" }))).toBe(true);
+    expect(() => guard.canActivate(ctx("9.9.9.4", { identifier: "B@x.com" }))).toThrow(HttpException);
+  });
+
+  it("caps rotating accounts from one IP", () => {
+    const guard = makeGuard(0.001, 1);
+    const ctx = (email: string) =>
+      ({ switchToHttp: () => ({ getRequest: () => ({ ip: "8.8.8.8", method: "POST", body: { email } }) }) }) as any;
+    for (let i = 0; i < 5; i++) expect(guard.canActivate(ctx(`u${i}@x.com`))).toBe(true);
+    expect(() => guard.canActivate(ctx("u6@x.com"))).toThrow(HttpException);
   });
 });

@@ -6,10 +6,17 @@ export class TokenBucketRateLimiter {
   private readonly buckets = new Map<string, Bucket>();
   private sweepAt = SWEEP_THRESHOLD;
 
-  constructor(
-    private readonly rps: number,
-    private readonly burst: number,
-  ) {}
+  private readonly rps: number;
+  private readonly burst: number;
+
+  // Env values arrive as strings; a NaN here would make every request pass, so refuse to start.
+  constructor(rps: number, burst: number) {
+    this.rps = Number(rps);
+    this.burst = Number(burst);
+    if (!Number.isFinite(this.rps) || this.rps < 0 || !Number.isFinite(this.burst) || this.burst < 1) {
+      throw new Error(`Invalid rate limit: rps=${rps}, burst=${burst}`);
+    }
+  }
 
   /** Returns true if the request may proceed, false if the bucket is empty. */
   consume(key: string): boolean {
@@ -21,7 +28,8 @@ export class TokenBucketRateLimiter {
       this.buckets.set(key, bucket);
     }
 
-    const elapsed = (now - bucket.lastRefill) / 1000;
+    // A clock stepping backwards must not drain tokens.
+    const elapsed = Math.max(0, now - bucket.lastRefill) / 1000;
     bucket.tokens = Math.min(this.burst, bucket.tokens + elapsed * this.rps);
     bucket.lastRefill = now;
 
@@ -30,6 +38,14 @@ export class TokenBucketRateLimiter {
     }
     bucket.tokens--;
     return true;
+  }
+
+  /** Whole seconds until `key` has a token again; 1 if unknown. */
+  retryAfter(key: string): number {
+    const bucket = this.buckets.get(key);
+    if (!bucket || this.rps <= 0) return 1;
+    const tokens = Math.min(this.burst, bucket.tokens + ((Date.now() - bucket.lastRefill) / 1000) * this.rps);
+    return Math.max(1, Math.ceil((1 - tokens) / this.rps));
   }
 
   // A bucket that has refilled is the same as no bucket, so dropping it loses nothing.

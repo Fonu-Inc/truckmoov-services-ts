@@ -124,6 +124,11 @@ async function bootstrap() {
   // Rate limits key on req.ip; without this it is the gateway pod's address.
   if (cfg.audit.trustedProxies.length) {
     app.getHttpAdapter().getInstance().set("trust proxy", cfg.audit.trustedProxies);
+  } else if (cfg.app.env === "production") {
+    new JsonLogger("fleet-service").warn("trust_proxy_unset", {
+      effect: "req.ip is the gateway, so every client shares one rate-limit and IP-block bucket",
+      set: "AUDIT_TRUSTED_PROXIES",
+    });
   }
 
   // This service owns the /fleet namespace at the gateway. Keeping the

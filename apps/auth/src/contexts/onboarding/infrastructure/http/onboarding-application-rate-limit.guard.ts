@@ -25,8 +25,10 @@ export class OnboardingApplicationRateLimitGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<{ ip?: string }>();
-    if (!this.limiter.consume(resolveClientIp(req))) {
+    const http = context.switchToHttp();
+    const key = resolveClientIp(http.getRequest<{ ip?: string }>());
+    if (!this.limiter.consume(key)) {
+      http.getResponse?.<{ setHeader?: (n: string, v: string) => void }>()?.setHeader?.("Retry-After", String(this.limiter.retryAfter(key)));
       throw new HttpException(
         'Too many requests, please try again shortly',
         HttpStatus.TOO_MANY_REQUESTS,

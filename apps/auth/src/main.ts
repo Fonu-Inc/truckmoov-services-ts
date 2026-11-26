@@ -79,6 +79,11 @@ async function bootstrap() {
   // takes the right-most forwarded address that is not one of these hops.
   if (cfg.audit.trustedProxies.length) {
     app.getHttpAdapter().getInstance().set("trust proxy", cfg.audit.trustedProxies);
+  } else if (cfg.app.env === "production") {
+    new JsonLogger("auth-service").warn("trust_proxy_unset", {
+      effect: "req.ip is the gateway, so every client shares one rate-limit and IP-block bucket",
+      set: "AUDIT_TRUSTED_PROXIES",
+    });
   }
 
   // This service owns the /auth namespace at the gateway. Keeping the
