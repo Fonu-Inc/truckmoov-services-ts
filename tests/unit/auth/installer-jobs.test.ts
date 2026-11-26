@@ -372,11 +372,11 @@ describe("the installation sweep", () => {
 
     expect(lagosDate(lateEvening)).toBe("2026-09-25");
     expect(await sweep.run(new Date("2026-09-24T22:30:00Z"))).toEqual({ assigned: 0, overdue: 0, reminded: 1 });
-    expect(await sweep.run(lateEvening)).toEqual({ assigned: 0, overdue: 1, reminded: 0 });
+    expect(await sweep.run(lateEvening)).toEqual({ assigned: 0, overdue: 2, reminded: 0 });
     expect((await h.orders.findById("yesterday"))?.status).toBe("overdue");
     expect((await h.orders.findById("today"))?.status).toBe("scheduled");
     expect((await h.orders.findById("started"))?.status).toBe("in_progress");
-    expect((await h.orders.findById("offered"))?.status).toBe("assigned");
+    expect((await h.orders.findById("offered"))?.status).toBe("overdue");
   });
 
   it("does not offer an order whose date has passed", async () => {

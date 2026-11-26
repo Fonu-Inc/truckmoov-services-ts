@@ -188,12 +188,13 @@ export class InMemoryInstallationOrderRepository
     from: readonly InstallationOrderStatus[],
     before: Date,
     now: Date,
-  ): Promise<number> {
+  ): Promise<StoredInstallationOrder[]> {
     const due = this.all().filter(
       (order) => from.includes(order.status) && order.scheduledDate.getTime() < before.getTime(),
     );
-    for (const order of due) await this.save({ ...order, status: 'overdue', updatedAt: now });
-    return due.length;
+    const moved = due.map((order) => ({ ...order, status: 'overdue' as const, updatedAt: now }));
+    for (const order of moved) await this.save(order);
+    return moved;
   }
 
   async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {

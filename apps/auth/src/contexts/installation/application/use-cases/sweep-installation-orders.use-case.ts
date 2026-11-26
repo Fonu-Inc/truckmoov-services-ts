@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   INSTALLATION_ORDER_REPOSITORY,
   type InstallationOrderRepository,
@@ -8,6 +8,7 @@ import { OVERDUE_SOURCE_STATUSES, REMINDER_STATUSES } from '@auth/installation/d
 import { lagosToday, nextCalendarDay } from '@shared/devices';
 import { InstallerAssignmentService, rejectersByOrder } from '../services/installer-assignment.service';
 import { InstallerNotifier, assignedNotice } from '../services/installer-notifier.service';
+import { PlatformAlertPublisher } from '../../../../platform-alert.publisher';
 
 const BATCH_SIZE = 100;
 
@@ -26,16 +27,33 @@ export class SweepInstallationOrdersUseCase {
     @Inject(INSTALLATION_ORDER_REPOSITORY) private readonly orders: InstallationOrderRepository,
     @Inject(InstallerAssignmentService) private readonly assignment: InstallerAssignmentService,
     @Inject(InstallerNotifier) private readonly notifier: InstallerNotifier,
+    @Optional() @Inject(PlatformAlertPublisher) private readonly alerts?: PlatformAlertPublisher,
   ) {}
 
   async run(now: Date = new Date()): Promise<{ assigned: number; overdue: number; reminded: number }> {
     const assigned = await this.assignWaiting(now);
-    const overdue = await this.orders.markOverdue(OVERDUE_SOURCE_STATUSES, lagosToday(now), now);
+    const overdue = await this.flagOverdue(now);
     const reminded = await this.remind(now);
     if (assigned > 0 || overdue > 0 || reminded > 0) {
       this.logger.log(`installation_sweep:assigned=${assigned}:overdue=${overdue}:reminded=${reminded}`);
     }
     return { assigned, overdue, reminded };
+  }
+
+  /** Jobs past their day that nobody started: the installer is told, and so are the platform admins. */
+  private async flagOverdue(now: Date): Promise<number> {
+    const moved = await this.orders.markOverdue(OVERDUE_SOURCE_STATUSES, lagosToday(now), now);
+    for (const order of moved) {
+      await this.notifier.notify({ type: 'job_overdue', order, stamp: 'overdue' }, now);
+      await this.alerts?.raise({
+        alertType: 'installation_issues',
+        severity: 'high',
+        subject: `Installation ${order.orderNumber} is overdue`,
+        body: `${order.orderNumber} was booked for ${order.scheduledDate.toISOString().slice(0, 10)} and was not started. Reschedule it or follow up with the installer.`,
+        context: { orderId: order.id, orderNumber: order.orderNumber, installerId: order.installerId, tenantId: order.tenantId },
+      });
+    }
+    return moved.length;
   }
 
   /** The stamp is written before the notice, so replicas sweeping together remind once. */

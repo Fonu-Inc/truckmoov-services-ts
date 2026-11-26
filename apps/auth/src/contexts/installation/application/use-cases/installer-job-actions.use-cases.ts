@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { lagosToday } from '@shared/devices';
 import { TOKEN_SERVICE } from '@auth/session';
 import type { TokenService } from '@auth/session/domain/ports/token-service.port';
 import {
@@ -65,6 +66,9 @@ export class InstallerJobActionsUseCases {
     const { order } = await this.job(accessToken, jobId);
     if (order.status !== 'assigned') {
       throw new InstallationJobConflictError(`A job that is ${order.status} cannot be accepted`);
+    }
+    if (order.scheduledDate < lagosToday(now)) {
+      throw new InstallationJobConflictError('This job is overdue and can no longer be accepted. Contact support to reschedule');
     }
     await moveJob(this.orders, order, 'scheduled', now);
   }

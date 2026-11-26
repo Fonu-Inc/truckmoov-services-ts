@@ -12,6 +12,7 @@ export const INSTALLER_NOTIFICATION_TYPES = [
   'device_verification_failed',
   'support_ticket_updated',
   'job_closed',
+  'job_overdue',
 ] as const;
 export type InstallerNotificationType = (typeof INSTALLER_NOTIFICATION_TYPES)[number];
 export type JobNotificationType = Exclude<InstallerNotificationType, 'support_ticket_updated'>;
@@ -47,6 +48,7 @@ const TYPE_TOGGLES: Record<InstallerNotificationType, TypeToggle> = {
   device_verification_failed: 'jobAndIssueUpdates',
   support_ticket_updated: 'supportTicketUpdates',
   job_closed: 'jobAndIssueUpdates',
+  job_overdue: 'jobAndIssueUpdates',
 };
 
 /** Known toggles only, each defaulting to on. */
@@ -110,6 +112,10 @@ const COPY: Record<JobNotificationType, (facts: NotificationFacts) => Notificati
   job_closed: (f) => ({
     title: `Job #${f.jobNumber} closed`,
     body: `${f.customer || 'The customer'} rated the installation ${f.rating}/5.`,
+  }),
+  job_overdue: (f) => ({
+    title: `Job #${f.jobNumber} is overdue`,
+    body: `Job #${f.jobNumber} was due on ${dayMonth.format(f.scheduledDate)} and has not been completed. Contact support to reschedule.`,
   }),
 };
 

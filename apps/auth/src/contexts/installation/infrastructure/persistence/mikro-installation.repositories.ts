@@ -379,14 +379,21 @@ export class MikroInstallationOrderRepository
     from: readonly InstallationOrderStatus[],
     before: Date,
     now: Date,
-  ): Promise<number> {
-    if (from.length === 0) return 0;
+  ): Promise<StoredInstallationOrder[]> {
+    if (from.length === 0) return [];
     const em = await this.em();
-    return em.nativeUpdate(
-      InstallationOrderRecord,
-      { status: { $in: [...from] }, scheduledDate: { $lt: before } },
-      { status: 'overdue', updatedAt: now },
-    );
+    const due = await em.find(InstallationOrderRecord, { status: { $in: [...from] }, scheduledDate: { $lt: before } });
+    const moved: StoredInstallationOrder[] = [];
+    for (const record of due) {
+      // One conditional write per order, so replicas sweeping together each move an order once.
+      const changed = await em.nativeUpdate(
+        InstallationOrderRecord,
+        { id: record.id, status: record.status },
+        { status: 'overdue', updatedAt: now },
+      );
+      if (changed > 0) moved.push({ ...toStoredOrder(record), status: 'overdue', updatedAt: now });
+    }
+    return moved;
   }
 
   async transition(order: StoredInstallationOrder, from: InstallationOrderStatus): Promise<boolean> {

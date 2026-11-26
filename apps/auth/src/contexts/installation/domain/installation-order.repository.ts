@@ -141,8 +141,8 @@ export interface InstallationOrderRepository {
    * no reminder yet, and returns them. Each order is claimed by one caller only.
    */
   claimReminders(statuses: readonly InstallationOrderStatus[], day: Date, now: Date): Promise<StoredInstallationOrder[]>;
-  /** Moves orders in `from` dated before `before` to overdue; returns how many moved. */
-  markOverdue(from: readonly InstallationOrderStatus[], before: Date, now: Date): Promise<number>;
+  /** Moves orders in `from` dated before `before` to overdue; returns the orders this call moved. */
+  markOverdue(from: readonly InstallationOrderStatus[], before: Date, now: Date): Promise<StoredInstallationOrder[]>;
   nextOrderNumber(): Promise<string>;
   /**
    * Writes the order's status and step stamps only while it is still `from`,
