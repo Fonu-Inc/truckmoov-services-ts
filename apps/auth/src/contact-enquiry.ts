@@ -26,7 +26,7 @@ export class ContactEnquiryDto {
 }
 
 const SUBJECT = 'New enquiry from the website';
-const TEMPLATE = `<p><strong>{{companyName}}</strong> sent a message from the Truckmoov website.</p>
+const TEMPLATE = `<p><strong>{{companyName}}</strong> sent a message from the FleetPro website.</p>
 <p>Name: {{contactName}}<br>Email: {{businessEmail}}</p>
 <p style="white-space:pre-wrap">{{message}}</p>`;
 

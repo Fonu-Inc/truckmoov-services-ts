@@ -1,4 +1,4 @@
-export const FORGOT_PASSWORD_SUBJECT = "Reset your TruckMoov password";
+export const FORGOT_PASSWORD_SUBJECT = "Reset your FleetPro password";
 
 export const FORGOT_PASSWORD_EMAIL_TEMPLATE = `
 <!DOCTYPE html>
@@ -18,7 +18,7 @@ export const FORGOT_PASSWORD_EMAIL_TEMPLATE = `
 <body>
   <div class="container">
     <div class="header">
-      <h1>TruckMoov</h1>
+      <h1>FleetPro</h1>
     </div>
     <div class="body">
       <p>Hello,</p>
@@ -29,7 +29,7 @@ export const FORGOT_PASSWORD_EMAIL_TEMPLATE = `
       <p>This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      &copy; {{year}} TruckMoov. All rights reserved.
+      &copy; {{year}} FleetPro. All rights reserved.
     </div>
   </div>
 </body>

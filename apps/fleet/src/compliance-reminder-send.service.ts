@@ -32,7 +32,7 @@ export class ComplianceReminderSendService {
     if (expiring.length > 0) {
       await this.mailer.send({
         to: recipientEmail,
-        subject: `${expiring.length} compliance document(s) need attention — TruckMoov`,
+        subject: `${expiring.length} compliance document(s) need attention — FleetPro`,
         template: COMPLIANCE_REMINDER_TEMPLATE,
         variables: {
           leadDays: String(leadDays),
@@ -74,7 +74,7 @@ const COMPLIANCE_REMINDER_TEMPLATE = `
 <head><meta charset="utf-8" /></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f5f5; margin:0; padding:24px;">
   <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
-    <div style="background:#1a1a2e;padding:24px;text-align:center;"><h1 style="color:#f5c518;margin:0;font-size:22px;">TruckMoov</h1></div>
+    <div style="background:#1a1a2e;padding:24px;text-align:center;"><h1 style="color:#f5c518;margin:0;font-size:22px;">FleetPro</h1></div>
     <div style="padding:28px;color:#333;">
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Compliance documents expiring</h2>
       <p style="color:#555;font-size:15px;">{{dueCount}} document(s) expire within {{leadDays}} days, or already have.</p>
@@ -83,7 +83,7 @@ const COMPLIANCE_REMINDER_TEMPLATE = `
         <tbody>{{rows}}</tbody>
       </table>
     </div>
-    <div style="padding:18px;text-align:center;color:#aaa;font-size:12px;background:#fafafa;">© {{year}} TruckMoov</div>
+    <div style="padding:18px;text-align:center;color:#aaa;font-size:12px;background:#fafafa;">© {{year}} FleetPro</div>
   </div>
 </body>
 </html>

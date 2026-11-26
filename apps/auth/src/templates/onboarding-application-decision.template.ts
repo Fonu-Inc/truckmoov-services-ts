@@ -15,7 +15,7 @@ const SHELL_STYLES = `
 `;
 
 export const APPLICATION_REJECTED_SUBJECT =
-  'Your Fleet Pro application was not approved — TruckMoov';
+  'Your FleetPro application was not approved';
 
 export const APPLICATION_REJECTED_TEMPLATE = `
 <!DOCTYPE html>
@@ -27,10 +27,10 @@ export const APPLICATION_REJECTED_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>Your application was not approved</h2>
-      <p>We reviewed the Fleet Pro application for {{organizationName}} and cannot approve it at this time.</p>
+      <p>We reviewed the FleetPro application for {{organizationName}} and cannot approve it at this time.</p>
       <div class="reason">{{reason}}</div>
       <p>No account has been created and the application is now closed. You can apply again with the same email address once the points above are resolved.</p>
       <div class="btn-wrap"><a class="btn" href="{{applyLink}}">Start a new application</a></div>
@@ -38,14 +38,14 @@ export const APPLICATION_REJECTED_TEMPLATE = `
       <p class="meta">Application reference: {{reference}}</p>
       <p class="meta">If you believe this decision is wrong, reply to this email and our team will look again.</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>
 `;
 
 export const APPLICATION_CHANGES_REQUESTED_SUBJECT =
-  'Action needed on your Fleet Pro application — TruckMoov';
+  'Action needed on your FleetPro application';
 
 export const APPLICATION_CHANGES_REQUESTED_TEMPLATE = `
 <!DOCTYPE html>
@@ -57,24 +57,24 @@ export const APPLICATION_CHANGES_REQUESTED_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>We need something corrected</h2>
-      <p>Your Fleet Pro application for {{organizationName}} is almost there. Our reviewers asked for the following:</p>
+      <p>Your FleetPro application for {{organizationName}} is almost there. Our reviewers asked for the following:</p>
       <div class="reason">{{reason}}</div>
       <p>Open your application to replace the documents concerned and submit it again. Nothing else needs redoing.</p>
       <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Continue your application</a></div>
       <p class="fallback">{{resumeLink}}</p>
       <p class="meta">Application reference: {{reference}}</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>
 `;
 
 export const APPLICATION_RESUME_SUBJECT =
-  'Continue your Fleet Pro application — TruckMoov';
+  'Continue your FleetPro application';
 
 export const APPLICATION_RESUME_TEMPLATE = `
 <!DOCTYPE html>
@@ -86,23 +86,23 @@ export const APPLICATION_RESUME_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>Pick up where you left off</h2>
-      <p>Here is the link back into the Fleet Pro application for {{organizationName}}. It opens the application exactly as you left it.</p>
+      <p>Here is the link back into the FleetPro application for {{organizationName}}. It opens the application exactly as you left it.</p>
       <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Continue my application</a></div>
       <p class="fallback">{{resumeLink}}</p>
       <p>This link replaces any earlier one, so older links no longer work. It is as good as a password: anyone holding it can see and change your application.</p>
       <p class="meta">Application reference: {{reference}}</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>
 `;
 
 export const NEW_APPLICATION_ALERT_SUBJECT =
-  'New Fleet Pro application — TruckMoov';
+  'New FleetPro application';
 
 export const NEW_APPLICATION_ALERT_TEMPLATE = `
 <!DOCTYPE html>
@@ -114,7 +114,7 @@ export const NEW_APPLICATION_ALERT_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>{{organizationName}} has applied</h2>
       <p>A new {{applicantType}} application is in the onboarding queue.</p>
@@ -124,14 +124,14 @@ export const NEW_APPLICATION_ALERT_TEMPLATE = `
       </div>
       <p class="meta">Application reference: {{reference}}</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>
 `;
 
 export const APPLICATION_PAYMENT_OPEN_SUBJECT =
-  'Your Fleet Pro application is ready for payment — TruckMoov';
+  'Your FleetPro application is ready for payment';
 
 export const APPLICATION_PAYMENT_OPEN_TEMPLATE = `
 <!DOCTYPE html>
@@ -143,23 +143,23 @@ export const APPLICATION_PAYMENT_OPEN_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>You can pay now</h2>
-      <p>Good news: the devices for {{organizationName}} are ready and your Fleet Pro application is waiting for payment. Pay to move on to booking your installation.</p>
+      <p>Good news: the devices for {{organizationName}} are ready and your FleetPro application is waiting for payment. Pay to move on to booking your installation.</p>
       <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Continue to payment</a></div>
       <p class="fallback">{{resumeLink}}</p>
       <p>This link replaces any earlier one, so older links no longer work. It is as good as a password: anyone holding it can see and change your application.</p>
       <p class="meta">Application reference: {{reference}}</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>
 `;
 
 export const APPLICATION_PAYMENT_REFUNDED_SUBJECT =
-  'Your payment has been refunded — TruckMoov';
+  'Your payment has been refunded — FleetPro';
 
 export const APPLICATION_PAYMENT_REFUNDED_TEMPLATE = `
 <!DOCTYPE html>
@@ -171,16 +171,16 @@ export const APPLICATION_PAYMENT_REFUNDED_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>Your payment is being refunded</h2>
-      <p>The payment we received for the Fleet Pro application for {{organizationName}} did not match the amount due, so we have refunded it. Your bank can take a few working days to show the money.</p>
+      <p>The payment we received for the FleetPro application for {{organizationName}} did not match the amount due, so we have refunded it. Your bank can take a few working days to show the money.</p>
       <div class="btn-wrap"><a class="btn" href="{{resumeLink}}">Open my application</a></div>
       <p class="fallback">{{resumeLink}}</p>
       <p>To go ahead, open your application and pay the amount shown there. This link replaces any earlier one.</p>
       <p class="meta">Application reference: {{reference}}</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>

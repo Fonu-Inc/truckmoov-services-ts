@@ -1,4 +1,4 @@
-export const BILLING_INVOICE_SUBJECT = 'Your TruckMoov invoice {{invoiceNumber}}';
+export const BILLING_INVOICE_SUBJECT = 'Your FleetPro invoice {{invoiceNumber}}';
 
 export const BILLING_INVOICE_TEMPLATE = `
 <!DOCTYPE html>
@@ -22,7 +22,7 @@ export const BILLING_INVOICE_TEMPLATE = `
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>Invoice {{invoiceNumber}}</h2>
       <p>Hello {{customerName}}, thank you for your payment. Your invoice is below.</p>
@@ -35,7 +35,7 @@ export const BILLING_INVOICE_TEMPLATE = `
       </table>
       <p>Keep this email for your records.</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>

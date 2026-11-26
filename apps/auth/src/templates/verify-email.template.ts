@@ -1,4 +1,4 @@
-export const VERIFY_EMAIL_SUBJECT = "Confirm your email address — TruckMoov";
+export const VERIFY_EMAIL_SUBJECT = "Confirm your email address — FleetPro";
 
 export const VERIFY_EMAIL_TEMPLATE = `
 <!DOCTYPE html>
@@ -24,12 +24,12 @@ export const VERIFY_EMAIL_TEMPLATE = `
 <body>
   <div class="container">
     <div class="header">
-      <h1>TruckMoov</h1>
+      <h1>FleetPro</h1>
     </div>
     <div class="body">
       <h2>Welcome aboard, {{firstName}}!</h2>
       <p>
-        You're almost ready to start managing your fleet with TruckMoov. Before you dive in,
+        You're almost ready to start managing your fleet with FleetPro. Before you dive in,
         we need to verify that this email address belongs to you.
       </p>
       <p>
@@ -45,11 +45,11 @@ export const VERIFY_EMAIL_TEMPLATE = `
         <a href="{{verificationLink}}">{{verificationLink}}</a>
       </p>
       <p style="margin-top: 24px;">
-        If you didn't create a TruckMoov account, you can safely ignore this email.
+        If you didn't create a FleetPro account, you can safely ignore this email.
       </p>
     </div>
     <div class="footer">
-      &copy; {{year}} TruckMoov. All rights reserved.<br />
+      &copy; {{year}} FleetPro. All rights reserved.<br />
       This email was sent to {{email}}.
     </div>
   </div>

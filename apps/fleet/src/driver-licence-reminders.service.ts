@@ -136,7 +136,7 @@ export class DriverLicenceRemindersService implements OnApplicationBootstrap, On
     const expired = expiry < lagosToday(now);
     await this.mailer.send({
       to: reminder.recipientEmail,
-      subject: `${reminder.driverName}'s driver licence ${expired ? "has expired" : "expires soon"} — TruckMoov`,
+      subject: `${reminder.driverName}'s driver licence ${expired ? "has expired" : "expires soon"} — FleetPro`,
       template: LICENCE_REMINDER_TEMPLATE,
       variables: {
         driverName: escapeHtml(reminder.driverName),
@@ -158,12 +158,12 @@ const LICENCE_REMINDER_TEMPLATE = `
 <head><meta charset="utf-8" /></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f5f5; margin:0; padding:24px;">
   <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
-    <div style="background:#1a1a2e;padding:24px;text-align:center;"><h1 style="color:#f5c518;margin:0;font-size:22px;">TruckMoov</h1></div>
+    <div style="background:#1a1a2e;padding:24px;text-align:center;"><h1 style="color:#f5c518;margin:0;font-size:22px;">FleetPro</h1></div>
     <div style="padding:28px;color:#333;">
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Driver licence renewal</h2>
       <p style="color:#555;font-size:15px;">{{driverName}}'s driver licence ({{licenseNumber}}) {{when}}. Please arrange a renewal.</p>
     </div>
-    <div style="padding:18px;text-align:center;color:#aaa;font-size:12px;background:#fafafa;">© {{year}} TruckMoov</div>
+    <div style="padding:18px;text-align:center;color:#aaa;font-size:12px;background:#fafafa;">© {{year}} FleetPro</div>
   </div>
 </body>
 </html>

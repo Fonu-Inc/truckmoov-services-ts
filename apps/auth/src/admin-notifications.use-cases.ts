@@ -137,7 +137,7 @@ export class SendTestAlertUseCase {
     await this.alerts.raise({
       alertType: setting.alertType,
       severity: 'critical',
-      subject: 'Test alert from Truckmoov',
+      subject: 'Test alert from FleetPro',
       body: `Sent by ${actor.email} from Settings → Notifications. If you can read this, ${setting.alertType} alerts reach you.`,
       context: { test: true },
     });

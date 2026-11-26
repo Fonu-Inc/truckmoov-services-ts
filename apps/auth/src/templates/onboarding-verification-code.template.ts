@@ -1,5 +1,5 @@
 export const ONBOARDING_VERIFICATION_CODE_SUBJECT =
-  'Your verification code — TruckMoov';
+  'Your verification code — FleetPro';
 
 export const ONBOARDING_VERIFICATION_CODE_TEMPLATE = `
 <!DOCTYPE html>
@@ -22,15 +22,15 @@ export const ONBOARDING_VERIFICATION_CODE_TEMPLATE = `
 <body>
   <div class="container">
     <div class="header">
-      <h1>TruckMoov</h1>
+      <h1>FleetPro</h1>
     </div>
     <div class="body">
       <h2>Verify your email</h2>
-      <p>Use this code to continue your Fleet Pro application for {{organizationName}}.</p>
+      <p>Use this code to continue your FleetPro application for {{organizationName}}.</p>
       <div class="code">{{code}}</div>
       <p>The code expires in {{expiryMinutes}} minutes. If you did not start an application, ignore this email.</p>
     </div>
-    <div class="footer">© {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">© {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>

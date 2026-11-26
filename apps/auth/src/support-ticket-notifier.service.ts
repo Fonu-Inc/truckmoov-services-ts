@@ -82,7 +82,7 @@ export class SupportTicketNotifierService {
         recipient: reporter.email,
         channel: 'email',
         notificationType: 'support_ticket_update',
-        content: `${line(ref)}\n\n${ticket.subject}\n\nOpen Ticketing & Support in TruckMoov to see the details.`,
+        content: `${line(ref)}\n\n${ticket.subject}\n\nOpen Ticketing & Support in FleetPro to see the details.`,
       });
     } catch (error) {
       this.logger.warn(

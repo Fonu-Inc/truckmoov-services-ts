@@ -59,7 +59,7 @@ describe("notice emails", () => {
       expect(body).not.toMatch(/network (was|has been) (told|notified|barred)|carrier|barred|dry-run|cascade|ingest/i);
     }
     const suspended = (await render({ kind: "suspended" })).body;
-    expect(suspended).toMatch(/SIMs are marked as paused in TruckMoov/);
+    expect(suspended).toMatch(/SIMs are marked as paused in FleetPro/);
     expect(suspended).toMatch(/users/);
     expect(suspended).toMatch(/tracking links/);
   });

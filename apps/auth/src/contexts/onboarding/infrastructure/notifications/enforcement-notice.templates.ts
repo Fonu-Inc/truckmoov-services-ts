@@ -39,7 +39,7 @@ export const NOTICE_COPY: Record<NoticeKind, NoticeCopy> = {
     headline: 'Your account is paused',
     paragraphs: [
       'Hello {{customerName}}, your account is paused because {{amountOwedNgn}}, due on {{dueDate}}, was not paid.',
-      'Your users cannot sign in, your devices, vehicles and public tracking links are on hold, and your SIMs are marked as paused in TruckMoov.',
+      'Your users cannot sign in, your devices, vehicles and public tracking links are on hold, and your SIMs are marked as paused in FleetPro.',
       'Pay to restore everything automatically. No action is needed from you after payment.',
     ],
     showItems: true,
@@ -85,7 +85,7 @@ const PAGE = `<!DOCTYPE html>
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>TruckMoov</h1></div>
+    <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
       <h2>{{headline}}</h2>
       {{paragraphs}}
@@ -93,7 +93,7 @@ const PAGE = `<!DOCTYPE html>
       {{payBlock}}
       <p>Questions? Write to {{supportEmail}}.</p>
     </div>
-    <div class="footer">&copy; {{year}} TruckMoov. All rights reserved.</div>
+    <div class="footer">&copy; {{year}} FleetPro. All rights reserved.</div>
   </div>
 </body>
 </html>`;

@@ -1,4 +1,4 @@
-export const INVITE_USER_SUBJECT = "You've been invited to TruckMoov — set up your account";
+export const INVITE_USER_SUBJECT = "You've been invited to FleetPro — set up your account";
 
 export const INVITE_USER_TEMPLATE = `
 <!DOCTYPE html>
@@ -25,13 +25,13 @@ export const INVITE_USER_TEMPLATE = `
 <body>
   <div class="container">
     <div class="header">
-      <h1>TruckMoov</h1>
+      <h1>FleetPro</h1>
     </div>
     <div class="body">
-      <h2>You've been invited to join TruckMoov</h2>
+      <h2>You've been invited to join FleetPro</h2>
       <span class="role-badge">{{role}}</span>
       <p>
-        Someone on your team has set up a TruckMoov account for you. Click the button below
+        Someone on your team has set up a FleetPro account for you. Click the button below
         to create your password and get started — it only takes a minute.
       </p>
       <p>
@@ -50,7 +50,7 @@ export const INVITE_USER_TEMPLATE = `
       </p>
     </div>
     <div class="footer">
-      &copy; {{year}} TruckMoov. All rights reserved.
+      &copy; {{year}} FleetPro. All rights reserved.
     </div>
   </div>
 </body>
