@@ -1,6 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable, Inject, HttpException, HttpStatus } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Injectable, Inject, Optional, HttpException, HttpStatus } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
-import { TokenBucketRateLimiter, resolveClientIp } from "@shared/http";
+import { SharedWindowLimit, TokenBucketRateLimiter, resolveClientIp, type EvalRedis } from "@shared/http";
+import { REDIS_CLIENT } from "@shared/rbac";
 import { RecordAuthEventUseCase } from "./record-auth-event.use-case";
 
 // Per-IP allowance across many accounts, as a multiple of the per-account one.
@@ -20,11 +21,15 @@ export class LoginRateLimitGuard implements CanActivate {
   private readonly limiter: TokenBucketRateLimiter;
   private readonly ipLimiter: TokenBucketRateLimiter;
   // Last time a rejection was written to the audit log, per IP and endpoint.
+  // Cluster-wide caps through Redis, when it is configured; the buckets above stay per pod.
+  private readonly sharedAccount: SharedWindowLimit | null = null;
+  private readonly sharedIp: SharedWindowLimit | null = null;
   private readonly lastLogged = new Map<string, number>();
 
   constructor(
     @Inject(AppConfigService) config: AppConfigService,
     @Inject(RecordAuthEventUseCase) private readonly events: RecordAuthEventUseCase,
+    @Optional() @Inject(REDIS_CLIENT) redis?: EvalRedis | null,
   ) {
     this.limiter = new TokenBucketRateLimiter(
       config.auth.loginRateLimitRps,
@@ -34,9 +39,14 @@ export class LoginRateLimitGuard implements CanActivate {
       config.auth.loginRateLimitRps * IP_WIDE_FACTOR,
       config.auth.loginRateLimitBurst * IP_WIDE_FACTOR,
     );
+    if (redis) {
+      const { loginRateLimitRps: rps, loginRateLimitBurst: burst } = config.auth;
+      this.sharedAccount = new SharedWindowLimit(redis, "login", Number(burst), Number(rps));
+      this.sharedIp = new SharedWindowLimit(redis, "login-ip", Number(burst) * IP_WIDE_FACTOR, Number(rps) * IP_WIDE_FACTOR);
+    }
   }
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
       body?: unknown;
       headers?: Record<string, string | string[] | undefined>;
@@ -55,15 +65,39 @@ export class LoginRateLimitGuard implements CanActivate {
     const accountOk = this.limiter.consume(accountKey);
     const ipOk = !email || !accountOk || this.ipLimiter.consume(ipKey);
     if (!accountOk || !ipOk) {
-      const retry = Math.max(
-        accountOk ? 1 : this.limiter.retryAfter(accountKey),
-        ipOk ? 1 : this.ipLimiter.retryAfter(ipKey),
+      this.reject(
+        context,
+        Math.max(accountOk ? 1 : this.limiter.retryAfter(accountKey), ipOk ? 1 : this.ipLimiter.retryAfter(ipKey)),
+        ipKey,
+        email,
+        ip,
+        req.headers?.["user-agent"],
       );
-      context.switchToHttp().getResponse?.<{ setHeader?: (n: string, v: string) => void }>()?.setHeader?.("Retry-After", String(retry));
-      this.recordRejection(ipKey, email, ip, req.headers?.["user-agent"]);
-      throw new HttpException("Too many login attempts, please try again later", HttpStatus.TOO_MANY_REQUESTS);
     }
-    return true;
+    if (!this.sharedAccount || !this.sharedIp) return true;
+    const [sharedAccount, sharedIp] = [this.sharedAccount, this.sharedIp];
+    return Promise.all([
+      sharedAccount.exceeded(accountKey),
+      email ? sharedIp.exceeded(ipKey) : false,
+    ]).then(([accountOver, ipOver]) => {
+      if (accountOver || ipOver) {
+        this.reject(context, Math.max(accountOver ? sharedAccount.windowSeconds : 1, ipOver ? sharedIp.windowSeconds : 1), ipKey, email, ip, req.headers?.["user-agent"]);
+      }
+      return true;
+    });
+  }
+
+  private reject(
+    context: ExecutionContext,
+    retry: number,
+    ipKey: string,
+    email: string | null,
+    ip: string,
+    agent: string | string[] | undefined,
+  ): never {
+    context.switchToHttp().getResponse?.<{ setHeader?: (n: string, v: string) => void }>()?.setHeader?.("Retry-After", String(retry));
+    this.recordRejection(ipKey, email, ip, agent);
+    throw new HttpException("Too many login attempts, please try again later", HttpStatus.TOO_MANY_REQUESTS);
   }
 
   // At most one audit row per IP and endpoint a minute, so a flood of rejected requests
