@@ -114,6 +114,7 @@ export function toDashboardJob(row: JobRow) {
 function toVehicleView(vehicle: StoredOnboardingApplicationVehicle | undefined) {
   if (!vehicle) return null;
   return {
+    id: vehicle.id,
     registrationNumber: vehicle.registrationNumber,
     vehicleType: vehicle.vehicleType,
     make: vehicle.make,
@@ -156,6 +157,7 @@ function toUnitView(assignment: StoredDeviceAssignment, parts: JobDetailParts) {
   const deviceId = assignment.fleetDeviceId;
   return {
     index: assignment.deviceIndex,
+    vehicleId: assignment.vehicleId ?? null,
     vehicle: toVehicleView(parts.vehicles.find((v) => v.id === assignment.vehicleId)),
     device: deviceId ? (parts.devices.get(deviceId) ?? null) : null,
     sim: deviceId ? toSimView(parts.sims.find((s) => s.deviceId === deviceId)) : null,

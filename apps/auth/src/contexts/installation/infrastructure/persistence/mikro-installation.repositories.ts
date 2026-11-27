@@ -159,6 +159,7 @@ function toStoredEvidence(r: InstallationEvidenceRecord): StoredInstallationEvid
     id: r.id,
     orderId: r.orderId,
     category: r.category as StoredInstallationEvidence['category'],
+    vehicleId: r.vehicleId ?? null,
     fileKey: r.fileKey,
     fileHash: r.fileHash,
     fileSize: Number(r.fileSize),

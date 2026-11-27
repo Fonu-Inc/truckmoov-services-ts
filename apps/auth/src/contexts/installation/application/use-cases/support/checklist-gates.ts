@@ -1,3 +1,4 @@
+import { coveredVehicles } from '@auth/installation/domain/installation-evidence';
 import type { ChecklistGate } from '@auth/installation/domain/installation-checklist';
 import {
   FleetUnavailableError,
@@ -26,9 +27,13 @@ async function assertDevicesVerified(readers: GateReaders, order: StoredInstalla
 }
 
 async function assertEvidence(readers: GateReaders, order: StoredInstallationOrder): Promise<void> {
-  const evidence = await readers.orders.findEvidence(order.id);
-  if (evidence.length === 0) {
-    throw new InstallationJobConflictError('Upload at least one evidence photo before ticking this item');
+  const [evidence, units] = await Promise.all([readers.orders.findEvidence(order.id), readers.orders.findAssignments(order.id)]);
+  const vehicleIds = [...new Set(units.map((unit) => unit.vehicleId))];
+  const covered = coveredVehicles(evidence, vehicleIds);
+  if (covered < vehicleIds.length || evidence.length === 0) {
+    throw new InstallationJobConflictError(
+      `Upload at least one photo for each vehicle first (${covered} of ${vehicleIds.length} vehicles covered)`,
+    );
   }
 }
 

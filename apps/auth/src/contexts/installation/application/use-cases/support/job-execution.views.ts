@@ -19,6 +19,7 @@ export function toEvidenceView(evidence: StoredInstallationEvidence) {
   return {
     id: evidence.id,
     category: evidence.category,
+    vehicleId: evidence.vehicleId,
     label: EVIDENCE_CATEGORIES[evidence.category] ?? evidence.category,
     fileName: evidenceFileNameOf(evidence.fileKey, evidence.id),
     size: evidence.fileSize,

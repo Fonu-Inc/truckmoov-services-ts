@@ -56,3 +56,12 @@ export function evidenceFileNameOf(key: string, id: string): string {
   const last = key.slice(key.lastIndexOf('/') + 1);
   return last.startsWith(`${id}-`) ? last.slice(id.length + 1) : last;
 }
+
+export const VEHICLE_NOT_ON_JOB = "vehicleId must be one of this job's vehicles";
+
+/** Vehicles with at least one photo; a legacy photo (no vehicle) covers all of them. */
+export function coveredVehicles(evidence: { vehicleId: string | null }[], vehicleIds: string[]): number {
+  if (evidence.some((item) => item.vehicleId === null)) return vehicleIds.length;
+  const photographed = new Set(evidence.map((item) => item.vehicleId));
+  return vehicleIds.filter((id) => photographed.has(id)).length;
+}

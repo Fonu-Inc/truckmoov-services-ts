@@ -13,6 +13,8 @@ import {
 import { CHECKLIST_ITEMS, checklistItem } from '@auth/installation/domain/installation-checklist';
 import {
   InvalidEvidenceError,
+  VEHICLE_NOT_ON_JOB,
+  coveredVehicles,
   evidenceCategory,
   evidenceFileName,
   evidenceKey,
@@ -108,10 +110,13 @@ export class InstallerJobRecordsUseCases {
     }
   }
 
-  async uploadEvidence(accessToken: string, jobId: string, category: unknown, file?: UploadedDocumentFile, now: Date = new Date()) {
+  async uploadEvidence(accessToken: string, jobId: string, category: unknown, vehicleId: unknown, file?: UploadedDocumentFile, now: Date = new Date()) {
     const { installer, order } = await this.job(accessToken, jobId);
     assertOpen(order);
     const kind = evidenceCategory(category);
+    const units = await this.orders.findAssignments(order.id);
+    const vehicle = units.find((unit) => unit.vehicleId === vehicleId)?.vehicleId;
+    if (!vehicle) throw new InvalidEvidenceError(VEHICLE_NOT_ON_JOB);
     const photo = inspectEvidencePhoto(file);
     await this.scan(photo);
 
@@ -121,6 +126,7 @@ export class InstallerJobRecordsUseCases {
       id,
       orderId: order.id,
       category: kind,
+      vehicleId: vehicle,
       fileKey: evidenceKey({ tenantId: order.tenantId, orderId: order.id, category: kind, id, fileName }),
       fileHash: createHash('sha256').update(photo.buffer).digest('hex'),
       fileSize: photo.buffer.byteLength,
@@ -150,7 +156,9 @@ export class InstallerJobRecordsUseCases {
 
     try {
       // Re-read after the delete so a concurrent upload keeps its tick.
-      if ((await this.orders.findEvidence(order.id)).length === 0) {
+      const [left, units] = await Promise.all([this.orders.findEvidence(order.id), this.orders.findAssignments(order.id)]);
+      const vehicleIds = [...new Set(units.map((unit) => unit.vehicleId))];
+      if (left.length === 0 || coveredVehicles(left, vehicleIds) < vehicleIds.length) {
         for (const item of CHECKLIST_ITEMS.filter((entry) => entry.gated === 'evidence')) {
           await this.orders.deleteTick(order.id, item.key);
         }

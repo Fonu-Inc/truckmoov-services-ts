@@ -504,7 +504,9 @@ describe("an installer's jobs", () => {
     expect(detail.units).toEqual([
       {
         index: 1,
+        vehicleId: "veh-1",
         vehicle: {
+          id: "veh-1",
           registrationNumber: "LSD-1-XA", vehicleType: "truck", make: "Mercedes-Benz", model: "Actros 1844", year: 2021,
           engineNumber: "OM471", chassisNumber: "WDB96", colour: "White", engineCapacity: "12.8L", odometer: 148220,
         },

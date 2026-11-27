@@ -26,6 +26,7 @@ import { InvalidStageTransitionError } from "@auth/onboarding/domain/onboarding-
 import { InMemorySimRepository } from "../../../apps/auth/src/in-memory-sim.repository";
 import { InMemorySupportTicketRepository } from "../../../apps/auth/src/in-memory-support-ticket.repository";
 import { Migration20260924040000 } from "../../../apps/auth/src/migrations/Migration20260924040000";
+import { Migration20261127110000 } from "../../../apps/auth/src/migrations/Migration20261127110000";
 
 const NOW = new Date("2026-09-24T10:00:00Z");
 const TENANT = "tenant-1";
@@ -127,11 +128,23 @@ async function harness() {
     }
   }
 
-  async function withEvidence() {
-    await records.uploadEvidence("user-ada", "job-1", "device_installation", photo(PNG), NOW);
+  async function withEvidence(vehicleId = "veh-1") {
+    await records.uploadEvidence("user-ada", "job-1", "device_installation", vehicleId, photo(PNG), NOW);
   }
 
-  return { installers, orders, applications, fleetDevices, lookup, fleet, storage, activity, scanner, actions, records, jobs, givenJob, tickAll, withEvidence };
+  async function withSecondVehicle(fleetDeviceId: string | null = "dev-2") {
+    await applications.saveVehicle({
+      id: "veh-2", applicationId: "app-1", registrationNumber: "ABC-456-YZ", vehicleType: "van", make: "Toyota",
+      model: "Hiace", year: 2020, engineNumber: null, chassisNumber: null, color: null, engineCapacity: null,
+      odometerReading: null, purchaseType: null, purchaseTypeOther: null, createdAt: NOW, updatedAt: NOW,
+    });
+    await orders.replaceAssignments("job-1", [
+      { id: "unit-1", orderId: "job-1", deviceIndex: 1, vehicleId: "veh-1", fleetDeviceId: "dev-1", createdAt: NOW },
+      { id: "unit-2", orderId: "job-1", deviceIndex: 2, vehicleId: "veh-2", fleetDeviceId, createdAt: NOW },
+    ]);
+  }
+
+  return { installers, orders, applications, fleetDevices, lookup, fleet, storage, activity, scanner, actions, records, jobs, givenJob, tickAll, withEvidence, withSecondVehicle };
 }
 
 type Harness = Awaited<ReturnType<typeof harness>>;
@@ -294,10 +307,33 @@ describe("the checklist", () => {
 
   it("ticks evidence only once a photo is uploaded", async () => {
     const tick = () => h.records.setChecklistItem("user-ada", "job-1", "capture_installation_evidence", true, NOW);
-    await expect(tick()).rejects.toThrow("evidence photo");
+    await expect(tick()).rejects.toThrow("Upload at least one photo for each vehicle first (0 of 1 vehicles covered)");
 
     await h.withEvidence();
     await tick();
+    expect((await h.orders.findTicks("job-1")).map((t) => t.itemKey)).toEqual(["capture_installation_evidence"]);
+  });
+
+  it("needs a photo for each vehicle before ticking evidence", async () => {
+    await h.withSecondVehicle();
+    const tick = () => h.records.setChecklistItem("user-ada", "job-1", "capture_installation_evidence", true, NOW);
+
+    await h.withEvidence("veh-1");
+    await h.withEvidence("veh-1");
+    await expect(tick()).rejects.toThrow("Upload at least one photo for each vehicle first (1 of 2 vehicles covered)");
+
+    await h.withEvidence("veh-2");
+    await tick();
+    expect((await h.orders.findTicks("job-1")).map((t) => t.itemKey)).toEqual(["capture_installation_evidence"]);
+  });
+
+  it("counts a legacy photo with no vehicle as covering every vehicle", async () => {
+    await h.withSecondVehicle();
+    await h.orders.saveEvidence({
+      id: "legacy", orderId: "job-1", category: "device_installation", vehicleId: null, fileKey: "k", fileHash: "h",
+      fileSize: 1, mimeType: "image/png", uploadedBy: "ada", createdAt: NOW,
+    });
+    await h.records.setChecklistItem("user-ada", "job-1", "capture_installation_evidence", true, NOW);
     expect((await h.orders.findTicks("job-1")).map((t) => t.itemKey)).toEqual(["capture_installation_evidence"]);
   });
 
@@ -344,18 +380,24 @@ describe("evidence", () => {
     await h.givenJob({ status: "scheduled" });
   });
 
-  const upload = (h: Harness, buffer: Buffer, category = "device_installation", name?: string) =>
-    h.records.uploadEvidence("user-ada", "job-1", category, photo(buffer, name), NOW);
+  const upload = (h: Harness, buffer: Buffer, category = "device_installation", name?: string, vehicleId: unknown = "veh-1") =>
+    h.records.uploadEvidence("user-ada", "job-1", category, vehicleId, photo(buffer, name), NOW);
 
   it("stores a scanned photo privately under the order's tenant", async () => {
     const view = await upload(h, PNG);
 
     const [stored] = await h.orders.findEvidence("job-1");
     expect(stored.fileKey).toBe(`${TENANT}/installations/job-1/evidence/device_installation/${stored.id}-fitted-unit.png`);
-    expect(stored).toMatchObject({ category: "device_installation", mimeType: "image/png", fileSize: PNG.length, uploadedBy: "ada" });
+    expect(stored).toMatchObject({ category: "device_installation", vehicleId: "veh-1", mimeType: "image/png", fileSize: PNG.length, uploadedBy: "ada" });
     expect(stored.fileHash).toMatch(/^[0-9a-f]{64}$/);
     expect(h.storage.store).toHaveBeenCalledWith(stored.fileKey, expect.objectContaining({ mimeType: "image/png" }));
-    expect(view).toMatchObject({ id: stored.id, label: "Device installation", fileName: "fitted-unit.png", size: PNG.length });
+    expect(view).toMatchObject({ id: stored.id, vehicleId: "veh-1", label: "Device installation", fileName: "fitted-unit.png", size: PNG.length });
+  });
+
+  it("refuses a missing vehicle or one that is not on the job", async () => {
+    await expect(upload(h, PNG, "device_installation", undefined, null)).rejects.toThrow("vehicleId must be one of this job's vehicles");
+    await expect(upload(h, PNG, "device_installation", undefined, "veh-9")).rejects.toBeInstanceOf(InvalidEvidenceError);
+    expect(h.storage.store).not.toHaveBeenCalled();
   });
 
   it("takes a WebP named after its bytes", async () => {
@@ -402,7 +444,8 @@ describe("removing evidence", () => {
     await h.givenJob({ status: "in_progress" });
   });
 
-  const upload = (h: Harness) => h.records.uploadEvidence("user-ada", "job-1", "device_installation", photo(PNG), NOW);
+  const upload = (h: Harness, vehicleId = "veh-1") =>
+    h.records.uploadEvidence("user-ada", "job-1", "device_installation", vehicleId, photo(PNG), NOW);
 
   it("removes the row and the file, audits, and unticks evidence when none is left", async () => {
     const first = await upload(h);
@@ -425,6 +468,17 @@ describe("removing evidence", () => {
         metadata: { orderTenantId: "tenant-1", evidenceId: first.id, category: "device_installation", fileHash: stored.fileHash },
       }),
     );
+  });
+
+  it("unticks evidence when a vehicle loses its last photo but another still has one", async () => {
+    await h.withSecondVehicle();
+    const first = await upload(h, "veh-1");
+    await upload(h, "veh-2");
+    await h.orders.saveTick({ orderId: "job-1", itemKey: "capture_installation_evidence", checkedAt: NOW, checkedBy: "ada" });
+
+    await h.records.deleteEvidence("user-ada", "job-1", first.id);
+    expect(await h.orders.findEvidence("job-1")).toHaveLength(1);
+    expect((await h.orders.findTicks("job-1")).map((tick) => tick.itemKey)).not.toContain("capture_installation_evidence");
   });
 
   it("answers another installer's job or an unknown photo as not found", async () => {
@@ -527,7 +581,7 @@ describe("completing a job", () => {
     await bare.givenJob({ status: "in_progress" });
     bare.fleetDevices.set("dev-1", device("dev-1", "verified"));
     await bare.tickAll();
-    await expect(bare.actions.complete("user-ada", "job-1", NOW)).rejects.toThrow("evidence photo");
+    await expect(bare.actions.complete("user-ada", "job-1", NOW)).rejects.toThrow("Upload at least one photo for each vehicle first");
     expect(h.fleet.handOver).not.toHaveBeenCalled();
     expect(bare.fleet.handOver).not.toHaveBeenCalled();
   });
@@ -585,6 +639,8 @@ describe("the job detail while working", () => {
 
     expect(detail.checklist).toMatchObject({ completed: 14, total: 15 });
     expect(detail.evidence).toHaveLength(1);
+    expect(detail.evidence[0].vehicleId).toBe("veh-1");
+    expect(detail.units[0].vehicle?.id).toBe("veh-1");
     expect(detail.notes).toBe("Fitted under dash");
     expect(detail.completion).toMatchObject({
       customer: "Lagos Express Logistics", vehicle: "LSD-123-XA", device: "Teltonika FMB920", vehicles: ["LSD-123-XA"],
@@ -621,5 +677,21 @@ describe("the job execution migration", () => {
     expect(sql("up")).toMatch(/create table if not exists "installation_evidence"/);
     expect(sql("down")).toMatch(/drop table if exists "installation_checklist_ticks"/);
     expect(sql("down")).toMatch(/drop column if exists "installer_notes"/);
+  });
+});
+
+describe("the per-vehicle evidence migration", () => {
+  function sql(direction: "up" | "down"): string {
+    const statements: string[] = [];
+    const migration = Object.create(Migration20261127110000.prototype) as Migration20261127110000;
+    Object.assign(migration, { addSql: (statement: string) => statements.push(statement) });
+    void migration[direction]();
+    return statements.join("\n");
+  }
+
+  it("adds a nullable vehicle, backfills single-unit orders only, and drops it on the way down", () => {
+    expect(sql("up")).toMatch(/add column if not exists "vehicle_id" varchar\(64\) null/);
+    expect(sql("up")).toMatch(/\) = 1/);
+    expect(sql("down")).toMatch(/drop column if exists "vehicle_id"/);
   });
 });

@@ -191,7 +191,7 @@ describe("Abandoned application sweep", () => {
     await installationOrders.saveTick({ orderId: "order-1", itemKey: "install_device", checkedAt: stale, checkedBy: "ada" });
     const fileKey = "tenant-1/installations/order-1/evidence/device_installation/ev-1-unit.png";
     await installationOrders.saveEvidence({
-      id: "ev-1", orderId: "order-1", category: "device_installation", fileKey, fileHash: "h", fileSize: 1,
+      id: "ev-1", orderId: "order-1", vehicleId: null, category: "device_installation", fileKey, fileHash: "h", fileSize: 1,
       mimeType: "image/png", uploadedBy: "ada", createdAt: stale,
     });
 

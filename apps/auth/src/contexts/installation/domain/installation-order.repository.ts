@@ -70,6 +70,8 @@ export type StoredInstallationEvidence = {
   id: string;
   orderId: string;
   category: EvidenceCategory;
+  /** Null on photos taken before evidence was per vehicle; they count for every vehicle. */
+  vehicleId: string | null;
   fileKey: string;
   /** sha256 hex */
   fileHash: string;

@@ -119,6 +119,7 @@ export class JobCustomerSchema {
 }
 
 export class JobUnitVehicleSchema {
+  @ApiProperty() id!: string;
   @ApiProperty() registrationNumber!: string;
   @ApiProperty() vehicleType!: string;
   @ApiProperty() make!: string;
@@ -142,6 +143,7 @@ export class JobUnitSimSchema {
 
 export class JobUnitSchema {
   @ApiProperty({ example: 1 }) index!: number;
+  @ApiProperty({ type: String, nullable: true }) vehicleId!: string | null;
   @ApiProperty({ type: JobUnitVehicleSchema, nullable: true }) vehicle!: JobUnitVehicleSchema | null;
   @ApiProperty({ type: FleetDeviceSchema, nullable: true, description: 'Null until bound, or when fleet cannot answer.' })
   device!: FleetDeviceSchema | null;
@@ -171,6 +173,7 @@ export class ChecklistViewSchema {
 export class EvidenceViewSchema {
   @ApiProperty() id!: string;
   @ApiProperty() category!: string;
+  @ApiProperty(NULLABLE_STRING) vehicleId!: string | null;
   @ApiProperty() label!: string;
   @ApiProperty() fileName!: string;
   @ApiProperty() size!: number;

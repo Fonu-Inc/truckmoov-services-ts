@@ -96,7 +96,7 @@ export class InstallerJobWorkController {
   @InstallerErrors(`${JOB_NOT_FOUND}, or "Checklist item not found"`)
   @ApiErrorResponse(
     409,
-    '"Checklist items can be changed only while the installation is in progress", "Every unit needs a bound device before communication can be confirmed", "Every device on this job must be verified before communication can be confirmed", or "Upload at least one evidence photo before ticking this item"',
+    '"Checklist items can be changed only while the installation is in progress", "Every unit needs a bound device before communication can be confirmed", "Every device on this job must be verified before communication can be confirmed", or "Upload at least one photo for each vehicle first (<n> of <m> vehicles covered)"',
   )
   @ApiErrorResponse(503, '"The device service could not be reached"')
   async setChecklistItem(
@@ -129,9 +129,10 @@ export class InstallerJobWorkController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['category', 'file'],
+      required: ['category', 'vehicleId', 'file'],
       properties: {
         category: { type: 'string', enum: Object.keys(EVIDENCE_CATEGORIES) },
+        vehicleId: { type: 'string', description: "One of the job's vehicle ids" },
         file: { type: 'string', format: 'binary' },
       },
     },
@@ -140,11 +141,12 @@ export class InstallerJobWorkController {
   async uploadEvidence(
     @Param('jobId') jobId: string,
     @Body('category') category?: string,
+    @Body('vehicleId') vehicleId?: string,
     @UploadedFile() file?: UploadedDocumentFile,
     @Headers('authorization') authorization?: string,
   ) {
     const token = bearer(authorization);
-    return ok(await mapped(() => this.records.uploadEvidence(token, jobId, category, file)), 'Evidence uploaded');
+    return ok(await mapped(() => this.records.uploadEvidence(token, jobId, category, vehicleId, file)), 'Evidence uploaded');
   }
 
   @Get('evidence/:evidenceId')
@@ -161,7 +163,7 @@ export class InstallerJobWorkController {
 
   @Delete('evidence/:evidenceId')
   @ApiOperation({
-    summary: 'Remove one evidence photo from an open job; removing the last one also unticks the evidence checklist item',
+    summary: 'Remove one evidence photo from an open job; removing the last photo of a vehicle also unticks the evidence checklist item',
   })
   @ApiOkResponse({ description: 'The job without the photo. message is "Evidence removed".', type: InstallerJobDetailResponse })
   @InstallerErrors(`${JOB_NOT_FOUND}, or "Evidence not found"`)

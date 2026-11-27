@@ -167,6 +167,7 @@ export class InstallationEvidenceRecord {
   id!: string;
   orderId!: string;
   category!: string;
+  vehicleId!: string | null;
   fileKey!: string;
   fileHash!: string;
   fileSize!: number;
@@ -183,6 +184,7 @@ export const InstallationEvidenceRecordSchema =
       id: { type: 'string', length: 64, primary: true },
       orderId: { fieldName: 'order_id', type: 'string', length: 64, index: true },
       category: { type: 'string', length: 32 },
+      vehicleId: { fieldName: 'vehicle_id', type: 'string', length: 64, nullable: true },
       fileKey: { fieldName: 'file_key', type: 'string', length: 512 },
       fileHash: { fieldName: 'file_hash', type: 'string', length: 64 },
       fileSize: { fieldName: 'file_size', type: 'number' },
