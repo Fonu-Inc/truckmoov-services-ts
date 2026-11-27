@@ -38,7 +38,6 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { DEVICE_LIFECYCLE_STATUSES, DEVICE_STATUSES } from '@shared/devices';
 import { ActivityLogService } from './activity-log.service';
 import {
   DeviceSuspensionRefusedError,
@@ -83,6 +82,10 @@ import { ExportSystemDeviceCatalogUseCase } from './export-system-device-catalog
 import { ExportSystemDeviceInventoryUseCase } from './export-system-device-inventory.use-case';
 import { GetSystemDeviceDetailUseCase, SystemDeviceNotFoundError } from './get-system-device-detail.use-case';
 import { parseSnapshotPeriod } from './system-snapshot-period';
+import {
+  ApiInventoryFilters,
+  parseDeviceInventoryQuery,
+} from './system-device-inventory-query';
 import { GetSystemDeviceManufacturersUseCase } from './get-system-device-manufacturers.use-case';
 import { GetSystemDeviceMessageRateUseCase } from './get-system-device-message-rate.use-case';
 import { GetSystemDeviceSummaryUseCase } from './get-system-device-summary.use-case';
@@ -245,21 +248,21 @@ export class SystemDevicesController extends BaseAuthController {
   @ApiOperation({
     summary: 'List system device inventory',
     description:
-      'Returns the platform-wide read-only device inventory for system admins.',
+      'Returns one page of the platform-wide read-only device inventory for system admins, with stat-card counts for the selected scope.',
   })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'manufacturer', required: false, type: String })
+  @ApiInventoryFilters()
+  @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({
-    name: 'status',
+    name: 'limit',
     required: false,
-    enum: [...DEVICE_STATUSES],
-    description:
-      'Coarse status. Resolves to the lifecycle states that present as it.',
+    type: Number,
+    description: 'Default 50, clamped to 1..200',
   })
   @ApiQuery({
-    name: 'lifecycleStatus',
+    name: 'ids',
     required: false,
-    enum: [...DEVICE_LIFECYCLE_STATUSES],
+    type: String,
+    description: 'Comma-separated device ids, at most 100',
   })
   @ApiOkResponse({ type: SystemDeviceInventoryListResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
@@ -268,21 +271,16 @@ export class SystemDevicesController extends BaseAuthController {
   })
   async listSystemDeviceInventory(
     @Headers('authorization') authorization?: string,
-    @Query('search') search?: string,
-    @Query('manufacturer') manufacturer?: string,
-    @Query('status') status?: string,
-    @Query('lifecycleStatus') lifecycleStatus?: string,
+    @Query() query?: Record<string, unknown>,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
 
     try {
-      return await this.listSystemDeviceInventoryUseCase.execute(accessToken, {
-        search,
-        manufacturer,
-        status,
-        lifecycleStatus,
-      });
+      return await this.listSystemDeviceInventoryUseCase.execute(
+        accessToken,
+        parseDeviceInventoryQuery(query ?? {}),
+      );
     } catch (error) {
       this.rethrowInvalidAccessToken(error);
       if (error instanceof ForbiddenError)
@@ -433,22 +431,9 @@ export class SystemDevicesController extends BaseAuthController {
   @ApiOperation({
     summary: 'Export system device inventory',
     description:
-      'Exports the platform-wide read-only device inventory as a CSV file.',
+      'Exports every device matching the filters as a CSV file. page and limit are ignored.',
   })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  @ApiQuery({ name: 'manufacturer', required: false, type: String })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: [...DEVICE_STATUSES],
-    description:
-      'Coarse status. Resolves to the lifecycle states that present as it.',
-  })
-  @ApiQuery({
-    name: 'lifecycleStatus',
-    required: false,
-    enum: [...DEVICE_LIFECYCLE_STATUSES],
-  })
+  @ApiInventoryFilters()
   @ApiProduces('text/csv')
   @ApiOkResponse({
     description: 'CSV export of the system device inventory',
@@ -460,20 +445,18 @@ export class SystemDevicesController extends BaseAuthController {
   })
   async exportSystemDeviceInventory(
     @Headers('authorization') authorization: string | undefined,
-    @Query('search') search: string | undefined,
-    @Query('manufacturer') manufacturer: string | undefined,
-    @Query('status') status: string | undefined,
-    @Query('lifecycleStatus') lifecycleStatus: string | undefined,
+    @Query() query: Record<string, unknown>,
     @Res({ passthrough: true })
     response: { setHeader(name: string, value: string): void },
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
 
+    const { filters } = parseDeviceInventoryQuery(query);
     try {
       const exported = await this.exportSystemDeviceInventoryUseCase.execute(
         accessToken,
-        { search, manufacturer, status, lifecycleStatus },
+        filters,
       );
       response.setHeader('Content-Type', 'text/csv; charset=utf-8');
       response.setHeader(
@@ -487,12 +470,7 @@ export class SystemDevicesController extends BaseAuthController {
         entityId: 'system-device-inventory',
         summary: 'Exported system device inventory',
         metadata: {
-          filters: {
-            search: search ?? null,
-            manufacturer: manufacturer ?? null,
-            status: status ?? null,
-            lifecycleStatus: lifecycleStatus ?? null,
-          },
+          filters,
           exportedRowCount: exported.csv
             ? Math.max(exported.csv.split('\n').length - 1, 0)
             : 0,

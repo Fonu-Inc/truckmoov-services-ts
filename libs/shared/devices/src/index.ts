@@ -67,3 +67,5 @@ export {
   testTelemetryEnabled,
   testTelemetryNote,
 } from "./test-telemetry";
+
+export { PLATFORM_STOCK_LABEL } from "./platform-stock";

@@ -1,18 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
-import { lifecycleStatusesFor } from '@shared/devices';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import { ensureSystemActor } from './system-authz';
-
-type DeviceInventoryFilters = {
-  search?: string;
-  manufacturer?: string;
-  status?: string;
-  lifecycleStatus?: string;
-};
+import {
+  FAILED_PROVISION_SQL,
+  buildInventoryCte,
+  type DeviceInventoryFilters,
+  type DeviceInventoryQuery,
+  type InventoryBucket,
+} from './system-device-inventory-query';
 
 type DeviceInventoryRow = {
   id?: string;
@@ -34,10 +34,38 @@ type DeviceInventoryRow = {
   provision_attempts?: number | string | null;
   provision_next_attempt_at?: string | Date | null;
   provision_error?: string | null;
+  tenant_name?: string | null;
+  bucket?: string | null;
 };
 
 type ExistsRow = { exists?: boolean | number | string };
-type TenantNameRow = { tenant_id?: string; organization_name?: string | null };
+type CountsRow = {
+  total?: number | string;
+  all?: number | string;
+  active?: number | string;
+  inactive?: number | string;
+  assigned?: number | string;
+  unassigned?: number | string;
+  failed_provision?: number | string;
+};
+
+export type SystemDeviceInventorySummary = {
+  all: number;
+  active: number;
+  inactive: number;
+  assigned: number;
+  unassigned: number;
+  failedProvision: number;
+};
+
+const EMPTY_SUMMARY: SystemDeviceInventorySummary = {
+  all: 0,
+  active: 0,
+  inactive: 0,
+  assigned: 0,
+  unassigned: 0,
+  failedProvision: 0,
+};
 
 export type SystemDeviceInventoryListItem = {
   id: string;
@@ -48,6 +76,8 @@ export type SystemDeviceInventoryListItem = {
   protocol: string | null;
   tenantId: string;
   tenantName: string;
+  isPlatformStock: boolean;
+  bucket: InventoryBucket;
   lifecycleStatus: string;
   operationalStatus: string;
   signalStrength: number | null;
@@ -73,23 +103,42 @@ export class ListSystemDeviceInventoryUseCase {
     private readonly userRepository: UserRepository,
   ) {}
 
-  async execute(accessToken: string, filters: DeviceInventoryFilters = {}) {
-    const devices = await this.list(accessToken, filters);
+  async execute(accessToken: string, query: DeviceInventoryQuery) {
+    const { items, total, summary } = await this.query(
+      accessToken,
+      query.filters,
+      { page: query.page, limit: query.limit },
+    );
     return {
       status: true,
       message: 'success',
       data: {
-        total: devices.length,
-        devices,
-        generatedAt: new Date().toISOString(),
+        items,
+        total,
+        page: query.page,
+        limit: query.limit,
+        summary,
       },
     };
   }
 
-  async list(
+  // shortcut: unpaged rows are built in memory for the CSV export, switch to a streamed cursor past ~100k rows.
+  async listAll(
     accessToken: string,
-    filters: DeviceInventoryFilters = {},
+    filters: DeviceInventoryFilters,
   ): Promise<SystemDeviceInventoryListItem[]> {
+    return (await this.query(accessToken, filters, null)).items;
+  }
+
+  private async query(
+    accessToken: string,
+    filters: DeviceInventoryFilters,
+    paging: { page: number; limit: number } | null,
+  ): Promise<{
+    items: SystemDeviceInventoryListItem[];
+    total: number;
+    summary: SystemDeviceInventorySummary;
+  }> {
     await ensureSystemActor(
       accessToken,
       this.tokenService,
@@ -99,8 +148,9 @@ export class ListSystemDeviceInventoryUseCase {
       },
     );
 
+    const empty = { items: [], total: 0, summary: { ...EMPTY_SUMMARY } };
     if (this.config.persistence.backend === 'in-memory') {
-      return [];
+      return empty;
     }
 
     const orm = await getAuthOrm(this.config.db);
@@ -110,153 +160,91 @@ export class ListSystemDeviceInventoryUseCase {
       ['fleet_devices'],
     );
     if (!this.toBoolean(existsRows[0]?.exists)) {
-      return [];
+      return empty;
     }
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+    const cte = buildInventoryCte(filters);
+    const pageSql = paging ? 'limit ? offset ?' : '';
+    const pageParams = paging
+      ? [paging.limit, (paging.page - 1) * paging.limit]
+      : [];
 
-    if (filters.manufacturer?.trim()) {
-      conditions.push('lower(manufacturer) = lower(?)');
-      params.push(filters.manufacturer.trim());
-    }
+    const [rows, counts] = await Promise.all([
+      connection.execute<DeviceInventoryRow[]>(
+        `${cte.sql}
+        select id, imei, manufacturer, model, firmware_version, protocol, tenant_id,
+          tenant_name, bucket, status, lifecycle_status, signal_strength, last_seen,
+          vehicle_id, assigned_at, created_at, updated_at, provision_status,
+          provision_attempts, provision_next_attempt_at, provision_error
+        from flagged
+        where matched
+        order by created_at desc, id asc
+        ${pageSql}`,
+        [...cte.params, ...pageParams],
+      ),
+      paging
+        ? connection.execute<CountsRow[]>(
+            `${cte.sql}
+            select
+              (count(*) filter (where matched))::int as total,
+              count(*)::int as "all",
+              (count(*) filter (where bucket = 'active'))::int as active,
+              (count(*) filter (where bucket = 'inactive'))::int as inactive,
+              (count(*) filter (where bucket = 'assigned'))::int as assigned,
+              (count(*) filter (where bucket = 'unassigned'))::int as unassigned,
+              ${FAILED_PROVISION_SQL} as failed_provision
+            from flagged`,
+            cte.params,
+          )
+        : Promise.resolve([] as CountsRow[]),
+    ]);
 
-    if (filters.lifecycleStatus?.trim()) {
-      conditions.push('lower(lifecycle_status) = lower(?)');
-      params.push(filters.lifecycleStatus.trim());
-    }
+    const items = rows.map((row) => {
+      const tenantId = row.tenant_id?.toString() ?? '';
+      return {
+        id: row.id?.toString() ?? '',
+        imei: row.imei?.toString() ?? '',
+        manufacturer: row.manufacturer?.toString() ?? '',
+        model: row.model?.toString() ?? '',
+        firmwareVersion: row.firmware_version?.toString() ?? null,
+        protocol: row.protocol?.toString() ?? null,
+        tenantId,
+        tenantName: row.tenant_name?.toString() ?? 'Unknown tenant',
+        isPlatformStock: tenantId === SYSTEM_TENANT_ID,
+        bucket: (row.bucket?.toString() ?? 'unassigned') as InventoryBucket,
+        lifecycleStatus: row.lifecycle_status?.toString() ?? 'registered',
+        operationalStatus: row.status?.toString() ?? 'registered',
+        signalStrength:
+          row.signal_strength == null ? null : Number(row.signal_strength),
+        lastSeen: this.toIsoString(row.last_seen),
+        vehicleId: row.vehicle_id?.toString() ?? null,
+        assignedAt: this.toIsoString(row.assigned_at),
+        createdAt: this.toIsoString(row.created_at) ?? new Date().toISOString(),
+        updatedAt: this.toIsoString(row.updated_at) ?? new Date().toISOString(),
+        provisionStatus: row.provision_status?.toString() ?? null,
+        provisionAttempts: Number(row.provision_attempts ?? 0),
+        provisionNextAttemptAt: this.toIsoString(
+          row.provision_next_attempt_at,
+        ),
+        provisionError: row.provision_error?.toString() ?? null,
+      };
+    });
 
-    // The coarse status filter resolves to the lifecycle states that present as
-    // that status, so both filters read the one authoritative column.
-    if (filters.status?.trim()) {
-      const lifecycles = lifecycleStatusesFor(filters.status);
-      if (lifecycles.length === 0) return [];
-      conditions.push(
-        `lifecycle_status in (${lifecycles.map(() => '?').join(', ')})`,
-      );
-      params.push(...lifecycles);
-    }
-
-    const whereClause =
-      conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
-
-    const rows = await connection.execute<DeviceInventoryRow[]>(
-      `
-        select
-          id,
-          imei,
-          manufacturer,
-          model,
-          firmware_version,
-          protocol,
-          tenant_id,
-          status,
-          lifecycle_status,
-          signal_strength,
-          last_seen,
-          vehicle_id,
-          assigned_at,
-          created_at,
-          updated_at,
-          provision_status,
-          provision_attempts,
-          provision_next_attempt_at,
-          provision_error
-        from fleet_devices
-        ${whereClause}
-        order by created_at desc, imei asc
-      `,
-      params,
-    );
-
-    const tenantNames = await this.loadTenantNames(connection);
-    const search = filters.search?.trim().toLowerCase();
-
-    return rows
-      .map((row) => {
-        const tenantId = row.tenant_id?.toString() ?? '';
-        return {
-          id: row.id?.toString() ?? '',
-          imei: row.imei?.toString() ?? '',
-          manufacturer: row.manufacturer?.toString() ?? '',
-          model: row.model?.toString() ?? '',
-          firmwareVersion: row.firmware_version?.toString() ?? null,
-          protocol: row.protocol?.toString() ?? null,
-          tenantId,
-          tenantName: tenantNames.get(tenantId) ?? 'Unknown tenant',
-          lifecycleStatus: row.lifecycle_status?.toString() ?? 'registered',
-          operationalStatus: row.status?.toString() ?? 'registered',
-          signalStrength:
-            row.signal_strength == null ? null : Number(row.signal_strength),
-          lastSeen: this.toIsoString(row.last_seen),
-          vehicleId: row.vehicle_id?.toString() ?? null,
-          assignedAt: this.toIsoString(row.assigned_at),
-          createdAt:
-            this.toIsoString(row.created_at) ?? new Date().toISOString(),
-          updatedAt:
-            this.toIsoString(row.updated_at) ?? new Date().toISOString(),
-          provisionStatus: row.provision_status?.toString() ?? null,
-          provisionAttempts: Number(row.provision_attempts ?? 0),
-          provisionNextAttemptAt: this.toIsoString(
-            row.provision_next_attempt_at,
-          ),
-          provisionError: row.provision_error?.toString() ?? null,
-        };
-      })
-      .filter((row) => {
-        if (!search) {
-          return true;
-        }
-        return [
-          row.id,
-          row.imei,
-          row.manufacturer,
-          row.model,
-          row.tenantId,
-          row.tenantName,
-          row.lifecycleStatus,
-          row.operationalStatus,
-        ].some((value) => value.toLowerCase().includes(search));
-      });
-  }
-
-  private async loadTenantNames(
-    connection: Awaited<
-      ReturnType<typeof getAuthOrm>
-    >['em']['getConnection'] extends () => infer T
-      ? T
-      : never,
-  ) {
-    const rows = await connection.execute<TenantNameRow[]>(
-      `
-        select tenant_id, organization_name
-        from (
-          select
-            tenant_id,
-            coalesce(branding->>'organizationName', null) as organization_name
-          from auth_organization_settings
-          union
-          select
-            tenant_id,
-            coalesce(company->>'companyName', null) as organization_name
-          from system_tenant_onboardings
-        ) names
-        where tenant_id is not null
-      `,
-    );
-
-    const tenantNames = new Map<string, string>();
-    for (const row of rows) {
-      const tenantId = row.tenant_id?.toString();
-      const organizationName = row.organization_name?.toString().trim();
-      if (!tenantId || !organizationName) {
-        continue;
-      }
-      if (!tenantNames.has(tenantId)) {
-        tenantNames.set(tenantId, organizationName);
-      }
-    }
-    return tenantNames;
+    const c = counts[0];
+    return {
+      items,
+      total: c ? Number(c.total ?? 0) : items.length,
+      summary: c
+        ? {
+            all: Number(c.all ?? 0),
+            active: Number(c.active ?? 0),
+            inactive: Number(c.inactive ?? 0),
+            assigned: Number(c.assigned ?? 0),
+            unassigned: Number(c.unassigned ?? 0),
+            failedProvision: Number(c.failed_provision ?? 0),
+          }
+        : { ...EMPTY_SUMMARY },
+    };
   }
 
   private toBoolean(value: unknown) {

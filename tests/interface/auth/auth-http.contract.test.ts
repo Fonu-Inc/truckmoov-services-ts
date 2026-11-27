@@ -1822,10 +1822,29 @@ describe('Auth HTTP contract', () => {
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(inventoryRes.status).toBe(200);
-    expect(Array.isArray(inventoryRes.body.data.devices)).toBe(true);
+    expect(Array.isArray(inventoryRes.body.data.items)).toBe(true);
+    expect(inventoryRes.body.data).toMatchObject({
+      page: 1,
+      limit: 50,
+      total: expect.any(Number),
+      summary: { all: expect.any(Number), failedProvision: expect.any(Number) },
+    });
+
+    const clampedRes = await request(app.getHttpServer())
+      .get('/auth/system/devices?limit=9999&page=0&scope=stock')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(clampedRes.status).toBe(200);
+    expect(clampedRes.body.data).toMatchObject({ page: 1, limit: 200 });
+
+    const badScopeRes = await request(app.getHttpServer())
+      .get('/auth/system/devices?scope=everything')
+      .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
+
+    expect(badScopeRes.status).toBe(400);
 
     const exportInventoryRes = await request(app.getHttpServer())
-      .get('/auth/system/devices/export')
+      .get('/auth/system/devices/export?page=2&limit=1&scope=assigned')
       .set('Authorization', `Bearer ${systemLoginRes.body.accessToken}`);
 
     expect(exportInventoryRes.status).toBe(200);

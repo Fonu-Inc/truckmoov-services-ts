@@ -1066,8 +1066,14 @@ export class SystemDeviceInventoryItemSchema {
   @ApiProperty()
   tenantId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: "'Platform stock' for platform-held devices" })
   tenantName!: string;
+
+  @ApiProperty({ description: 'tenant_id is the system tenant' })
+  isPlatformStock!: boolean;
+
+  @ApiProperty({ enum: ['active', 'inactive', 'assigned', 'unassigned'] })
+  bucket!: string;
 
   @ApiProperty()
   lifecycleStatus!: string;
@@ -1106,15 +1112,45 @@ export class SystemDeviceInventoryItemSchema {
   provisionError?: string | null;
 }
 
-export class SystemDeviceInventoryListDataSchema {
+export class SystemDeviceInventorySummarySchema {
   @ApiProperty()
+  all!: number;
+
+  @ApiProperty()
+  active!: number;
+
+  @ApiProperty()
+  inactive!: number;
+
+  @ApiProperty()
+  assigned!: number;
+
+  @ApiProperty()
+  unassigned!: number;
+
+  @ApiProperty()
+  failedProvision!: number;
+}
+
+export class SystemDeviceInventoryListDataSchema {
+  @ApiProperty({ type: SystemDeviceInventoryItemSchema, isArray: true })
+  items!: SystemDeviceInventoryItemSchema[];
+
+  @ApiProperty({ description: 'Rows matching every filter' })
   total!: number;
 
-  @ApiProperty({ type: SystemDeviceInventoryItemSchema, isArray: true })
-  devices!: SystemDeviceInventoryItemSchema[];
+  @ApiProperty()
+  page!: number;
 
-  @ApiProperty({ type: String, format: 'date-time' })
-  generatedAt!: string;
+  @ApiProperty()
+  limit!: number;
+
+  @ApiProperty({
+    type: SystemDeviceInventorySummarySchema,
+    description:
+      'Counts for scope, tenantId and hideFaulty only; ignores the other filters and paging',
+  })
+  summary!: SystemDeviceInventorySummarySchema;
 }
 
 export class SystemDeviceInventoryListResponse extends StandardApiResponse<SystemDeviceInventoryListDataSchema> {

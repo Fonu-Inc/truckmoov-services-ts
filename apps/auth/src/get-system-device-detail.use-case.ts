@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { PLATFORM_STOCK_LABEL } from '@shared/devices';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -129,7 +131,10 @@ export class GetSystemDeviceDetailUseCase {
       model: row.model?.toString() ?? '',
       firmwareVersion: row.firmware_version?.toString() ?? null,
       tenantId,
-      tenantName: tenantName ?? 'Unknown tenant',
+      tenantName:
+        tenantId === SYSTEM_TENANT_ID
+          ? PLATFORM_STOCK_LABEL
+          : (tenantName ?? 'Unknown tenant'),
       lifecycleStatus: row.lifecycle_status?.toString() ?? 'registered',
       operationalStatus: row.status?.toString() ?? 'registered',
       protocol,

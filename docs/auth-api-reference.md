@@ -998,13 +998,21 @@ Returns platform-wide device inventory and device catalog summary metrics for sy
 
 **List system device inventory**
 
-Returns the platform-wide read-only device inventory for system admins.
+Returns one page of the platform-wide read-only device inventory for system admins, with stat-card counts for the selected scope.
 
 **Query params:**
-  - `search` (string, optional)
+  - `search` (string, optional) — matches IMEI, model, manufacturer, id, tenant id or tenant name (max 100 chars)
+  - `scope` (string enum("assigned" | "stock" | "all"), optional) — assigned = tenant-owned, stock = platform stock. Default all
+  - `tenantId` (string, optional)
+  - `bucket` (string enum("active" | "inactive" | "assigned" | "unassigned"), optional)
   - `manufacturer` (string, optional)
-  - `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned"), optional)
-  - `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned"), optional)
+  - `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "suspended" | "decommissioned"), optional) — coarse status. Resolves to the lifecycle states that present as it.
+  - `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "suspended" | "decommissioned"), optional)
+  - `lastSeenDays` (number enum(7 | 30 | 90), optional)
+  - `hideFaulty` (string enum("true" | "false"), optional)
+  - `page` (number, optional)
+  - `limit` (number, optional) — default 50, clamped to 1..200
+  - `ids` (string, optional) — comma-separated device ids, at most 100
 
 **Header params:**
   - `authorization` (string, required)
@@ -1020,8 +1028,7 @@ Returns the platform-wide read-only device inventory for system admins.
   message: string
   data:
     {
-      total: number
-      devices:
+      items:
         [
           {
             id: string
@@ -1029,7 +1036,9 @@ Returns the platform-wide read-only device inventory for system admins.
             manufacturer: string
             model: string
             tenantId: string
-            tenantName: string
+            tenantName: string   // "Platform stock" for platform-held devices
+            isPlatformStock: boolean
+            bucket: "active" | "inactive" | "assigned" | "unassigned"
             lifecycleStatus: string
             operationalStatus: string
             signalStrength: number | null
@@ -1040,7 +1049,18 @@ Returns the platform-wide read-only device inventory for system admins.
             updatedAt: string <date-time>
           }
         ]
-      generatedAt: string <date-time>
+      total: number   // rows matching every filter
+      page: number
+      limit: number
+      summary:   // scope, tenantId and hideFaulty only; ignores the other filters and paging
+        {
+          all: number
+          active: number
+          inactive: number
+          assigned: number
+          unassigned: number
+          failedProvision: number
+        }
     }
 }
 ```
@@ -1053,13 +1073,18 @@ Returns the platform-wide read-only device inventory for system admins.
 
 **Export system device inventory**
 
-Exports the platform-wide read-only device inventory as a CSV file.
+Exports every device matching the filters as a CSV file. page and limit are ignored.
 
 **Query params:**
-  - `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "decommissioned"), optional)
-  - `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "decommissioned"), optional)
+  - `search` (string, optional) — matches IMEI, model, manufacturer, id, tenant id or tenant name (max 100 chars)
+  - `scope` (string enum("assigned" | "stock" | "all"), optional) — assigned = tenant-owned, stock = platform stock. Default all
+  - `tenantId` (string, optional)
+  - `bucket` (string enum("active" | "inactive" | "assigned" | "unassigned"), optional)
   - `manufacturer` (string, optional)
-  - `search` (string, optional)
+  - `status` (string enum("registered" | "configured" | "assigned" | "active" | "faulty" | "suspended" | "decommissioned"), optional) — coarse status. Resolves to the lifecycle states that present as it.
+  - `lifecycleStatus` (string enum("registered" | "config_pending" | "configured" | "verified_online" | "assignable" | "assigned" | "faulty" | "suspended" | "decommissioned"), optional)
+  - `lastSeenDays` (number enum(7 | 30 | 90), optional)
+  - `hideFaulty` (string enum("true" | "false"), optional)
 
 **Request body:** _none_
 

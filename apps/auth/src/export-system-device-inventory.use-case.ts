@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ListSystemDeviceInventoryUseCase } from './list-system-device-inventory.use-case';
+import type { DeviceInventoryFilters } from './system-device-inventory-query';
 import { escapeCsvValue } from '@shared/csv';
 
 @Injectable()
@@ -11,14 +12,9 @@ export class ExportSystemDeviceInventoryUseCase {
 
   async execute(
     accessToken: string,
-    filters: {
-      search?: string;
-      manufacturer?: string;
-      status?: string;
-      lifecycleStatus?: string;
-    },
+    filters: DeviceInventoryFilters,
   ) {
-    const devices = await this.listSystemDeviceInventoryUseCase.list(
+    const devices = await this.listSystemDeviceInventoryUseCase.listAll(
       accessToken,
       filters,
     );
