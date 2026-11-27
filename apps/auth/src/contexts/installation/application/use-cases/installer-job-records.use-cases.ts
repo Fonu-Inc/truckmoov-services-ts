@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { TOKEN_SERVICE } from '@auth/session';
 import type { TokenService } from '@auth/session/domain/ports/token-service.port';
 import type { UploadedDocumentFile } from '@auth/onboarding/domain/onboarding-document-file';
@@ -9,7 +10,7 @@ import {
   MAX_INSTALLER_NOTES_LENGTH,
   OPEN_JOB_STATUSES,
 } from '@auth/installation/domain/installation-order';
-import { checklistItem } from '@auth/installation/domain/installation-checklist';
+import { CHECKLIST_ITEMS, checklistItem } from '@auth/installation/domain/installation-checklist';
 import {
   InvalidEvidenceError,
   evidenceCategory,
@@ -40,6 +41,7 @@ import {
   INSTALLATION_EVIDENCE_STORAGE,
   type InstallationEvidenceStorage,
 } from '@auth/installation/domain/ports/installation-evidence-storage.port';
+import { ActivityLogService } from '../../../../activity-log.service';
 import { TICKET_FILE_SCANNER, scanRefusal, type TicketFileScanner } from '../../../../ticket-file-scanner.port';
 import { installerJob } from './support/current-installer';
 import { assertGateOpen } from './support/checklist-gates';
@@ -60,6 +62,7 @@ function assertOpen(order: StoredInstallationOrder): void {
 
 @Injectable()
 export class InstallerJobRecordsUseCases {
+  private readonly logger = new Logger(InstallerJobRecordsUseCases.name);
   private readonly scanRequired: boolean;
 
   constructor(
@@ -70,6 +73,7 @@ export class InstallerJobRecordsUseCases {
     @Inject(INSTALLATION_EVIDENCE_STORAGE) private readonly storage: InstallationEvidenceStorage,
     @Inject(TICKET_FILE_SCANNER) private readonly scanner: TicketFileScanner,
     @Inject(AppConfigService) config: AppConfigService,
+    @Inject(ActivityLogService) private readonly activity: ActivityLogService,
   ) {
     this.scanRequired = config.fleet.documentScanRequired;
   }
@@ -134,6 +138,45 @@ export class InstallerJobRecordsUseCases {
     const evidence = (await this.orders.findEvidence(order.id)).find((item) => item.id === evidenceId);
     if (!evidence) throw new InstallationJobNotFoundError('Evidence not found');
     return { ...toEvidenceView(evidence), url: await this.storage.downloadUrl(evidence.fileKey) };
+  }
+
+  /** Row first: a failed storage delete leaves an orphan blob, never a row pointing at nothing. */
+  async deleteEvidence(accessToken: string, jobId: string, evidenceId: string): Promise<void> {
+    const { installer, order } = await this.job(accessToken, jobId);
+    assertOpen(order);
+    const evidence = (await this.orders.findEvidence(order.id)).find((item) => item.id === evidenceId);
+    if (!evidence) throw new InstallationJobNotFoundError('Evidence not found');
+    if (!(await this.orders.deleteEvidence(order.id, evidence.id))) throw new InstallationJobNotFoundError('Evidence not found');
+
+    try {
+      // Re-read after the delete so a concurrent upload keeps its tick.
+      if ((await this.orders.findEvidence(order.id)).length === 0) {
+        for (const item of CHECKLIST_ITEMS.filter((entry) => entry.gated === 'evidence')) {
+          await this.orders.deleteTick(order.id, item.key);
+        }
+      }
+    } catch (error: unknown) {
+      this.logger.warn(`installation_evidence_untick_failed:${order.orderNumber}:${evidence.id}:${String(error)}`);
+    }
+    await this.storage.delete(evidence.fileKey).catch((error: unknown) => {
+      this.logger.error(`installation_evidence_file_not_deleted:${order.orderNumber}:${evidence.id}:${String(error)}`);
+    });
+    await this.activity
+      .record({
+        tenantId: SYSTEM_TENANT_ID,
+        service: 'auth',
+        action: 'installer.job.evidence_removed',
+        entityType: 'installation_order',
+        entityId: order.id,
+        summary: `Evidence removed from ${order.orderNumber}`,
+        actorId: installer.userId,
+        actorRole: 'INSTALLER',
+        actorEmail: installer.email,
+        metadata: { orderTenantId: order.tenantId, evidenceId: evidence.id, category: evidence.category, fileHash: evidence.fileHash },
+      })
+      .catch((error: unknown) => {
+        this.logger.error(`installation_evidence_audit_failed:${order.orderNumber}:${evidence.id}:${String(error)}`);
+      });
   }
 
   private job(accessToken: string, jobId: string) {

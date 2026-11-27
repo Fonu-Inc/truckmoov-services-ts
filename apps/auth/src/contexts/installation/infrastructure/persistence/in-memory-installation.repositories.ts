@@ -255,6 +255,10 @@ export class InMemoryInstallationOrderRepository
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
+  async deleteEvidence(orderId: string, evidenceId: string): Promise<boolean> {
+    return this.evidence.get(evidenceId)?.orderId === orderId && this.evidence.delete(evidenceId);
+  }
+
   async nextOrderNumber(): Promise<string> {
     this.sequence += 1;
     return buildOrderNumber(this.sequence);

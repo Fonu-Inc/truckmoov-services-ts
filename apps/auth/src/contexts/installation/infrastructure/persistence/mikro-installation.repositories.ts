@@ -465,6 +465,11 @@ export class MikroInstallationOrderRepository
     return records.map(toStoredEvidence);
   }
 
+  async deleteEvidence(orderId: string, evidenceId: string): Promise<boolean> {
+    const em = await this.em();
+    return (await em.nativeDelete(InstallationEvidenceRecord, { orderId, id: evidenceId })) > 0;
+  }
+
   async nextOrderNumber(): Promise<string> {
     const em = await this.em();
     const [row] = await em

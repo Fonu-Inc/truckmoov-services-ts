@@ -12,6 +12,10 @@ export class ObjectStorageInstallationEvidence implements InstallationEvidenceSt
     await this.storage.putObject({ key, body: file.buffer, contentType: file.mimeType, visibility: 'private' });
   }
 
+  delete(key: string): Promise<void> {
+    return this.storage.deleteObject(key, 'private');
+  }
+
   downloadUrl(key: string): Promise<string> {
     return this.storage.createPresignedDownloadUrl({ key, expiresIn: EVIDENCE_URL_TTL_SECONDS });
   }

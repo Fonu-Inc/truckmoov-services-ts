@@ -24,6 +24,7 @@ import {
   type InstallerRepository,
 } from '@auth/installation/domain/installer.repository';
 import {
+  FleetUnavailableError,
   InstallationJobConflictError,
   InstallationJobNotFoundError,
 } from '@auth/installation/domain/installation-job.errors';
@@ -85,6 +86,28 @@ export class InstallerJobActionsUseCases {
     }
     await moveJob(this.orders, order, 'in_progress', now);
     await this.beginVerification(order, deviceIds);
+  }
+
+  /** Starts or restarts verification; devices already waiting or verified are skipped, so repeating is safe. */
+  async verifyDevices(accessToken: string, jobId: string): Promise<void> {
+    const { order } = await this.job(accessToken, jobId);
+    if (order.status !== 'in_progress') {
+      throw new InstallationJobConflictError('Device verification can be started only while the installation is in progress');
+    }
+    const units = await this.orders.findAssignments(order.id);
+    const deviceIds = boundDeviceIds(units);
+    if (units.length === 0 || deviceIds.length < units.length) {
+      throw new InstallationJobConflictError('Every unit needs a bound device before verification can start');
+    }
+    const started = await this.fleet.beginVerification(order.tenantId, deviceIds).catch(() => null);
+    if (!started) throw new FleetUnavailableError();
+    const refused = started.filter((entry) => entry.outcome === 'refused' || entry.outcome === 'missing');
+    if (refused.length > 0) {
+      const reasons = [...new Set(refused.flatMap((entry) => (entry.reason ? [entry.reason] : [])))];
+      throw new InstallationJobConflictError(
+        `This device is not configured yet, so verification cannot start. Contact support.${reasons.length ? ` (${reasons.join('; ')})` : ''}`,
+      );
+    }
   }
 
   /** Fleet inside the hold, so a fleet refusal leaves the job in progress to retry. */

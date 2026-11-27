@@ -166,6 +166,8 @@ export interface InstallationOrderRepository {
   deleteTick(orderId: string, itemKey: string): Promise<void>;
   saveEvidence(evidence: StoredInstallationEvidence): Promise<void>;
   findEvidence(orderId: string): Promise<StoredInstallationEvidence[]>;
+  /** False when no such photo is on the order. */
+  deleteEvidence(orderId: string, evidenceId: string): Promise<boolean>;
 
   replaceAssignments(
     orderId: string,

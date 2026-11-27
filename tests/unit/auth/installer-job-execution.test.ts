@@ -92,14 +92,16 @@ async function harness() {
   const storage = {
     store: vi.fn(async () => {}),
     downloadUrl: vi.fn(async (key: string) => `https://signed/${key}`),
+    delete: vi.fn(async (_key: string) => {}),
   };
+  const activity = { record: vi.fn(async () => ({})) };
   const scanner = { scan: vi.fn(async () => ({ scanned: true, clean: true })) };
   const tokens = { resolveAccessToken: (token: string) => ({ id: token }) };
   const config = { fleet: { documentScanRequired: true } };
 
   const completion = new InMemoryInstallationCompletion(orders, applications);
   const actions = new InstallerJobActionsUseCases(tokens as never, installers, orders, applications, lookup, fleet, completion);
-  const records = new InstallerJobRecordsUseCases(tokens as never, installers, orders, lookup, storage, scanner, config as never);
+  const records = new InstallerJobRecordsUseCases(tokens as never, installers, orders, lookup, storage, scanner, config as never, activity as never);
   const reader = new InMemoryInstallationJobReader(orders, applications, installers);
   const jobs = new InstallerJobsUseCases(tokens as never, installers, orders, reader, applications, lookup, new InMemorySimRepository(), new InMemorySupportTicketRepository());
 
@@ -129,7 +131,7 @@ async function harness() {
     await records.uploadEvidence("user-ada", "job-1", "device_installation", photo(PNG), NOW);
   }
 
-  return { installers, orders, applications, fleetDevices, lookup, fleet, storage, scanner, actions, records, jobs, givenJob, tickAll, withEvidence };
+  return { installers, orders, applications, fleetDevices, lookup, fleet, storage, activity, scanner, actions, records, jobs, givenJob, tickAll, withEvidence };
 }
 
 type Harness = Awaited<ReturnType<typeof harness>>;
@@ -390,6 +392,100 @@ describe("evidence", () => {
     expect(link.url).toMatch(/^https:\/\/signed\/tenant-1\/installations\/job-1\//);
     await expect(h.records.evidenceLink("user-bola", "job-1", view.id)).rejects.toBeInstanceOf(InstallationJobNotFoundError);
     await expect(h.records.evidenceLink("user-ada", "job-1", "nope")).rejects.toBeInstanceOf(InstallationJobNotFoundError);
+  });
+});
+
+describe("removing evidence", () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await harness();
+    await h.givenJob({ status: "in_progress" });
+  });
+
+  const upload = (h: Harness) => h.records.uploadEvidence("user-ada", "job-1", "device_installation", photo(PNG), NOW);
+
+  it("removes the row and the file, audits, and unticks evidence when none is left", async () => {
+    const first = await upload(h);
+    const second = await upload(h);
+    await h.orders.saveTick({ orderId: "job-1", itemKey: "capture_installation_evidence", checkedAt: NOW, checkedBy: "ada" });
+    const [stored] = await h.orders.findEvidence("job-1");
+
+    await h.records.deleteEvidence("user-ada", "job-1", first.id);
+    expect(h.storage.delete).toHaveBeenCalledWith(stored.fileKey);
+    expect((await h.orders.findTicks("job-1")).map((tick) => tick.itemKey)).toContain("capture_installation_evidence");
+
+    await h.records.deleteEvidence("user-ada", "job-1", second.id);
+    expect(await h.orders.findEvidence("job-1")).toEqual([]);
+    expect((await h.orders.findTicks("job-1")).map((tick) => tick.itemKey)).not.toContain("capture_installation_evidence");
+    expect(h.storage.delete).toHaveBeenCalledTimes(2);
+    expect(h.activity.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "installer.job.evidence_removed",
+        entityId: "job-1",
+        metadata: { orderTenantId: "tenant-1", evidenceId: first.id, category: "device_installation", fileHash: stored.fileHash },
+      }),
+    );
+  });
+
+  it("answers another installer's job or an unknown photo as not found", async () => {
+    const view = await upload(h);
+    await expect(h.records.deleteEvidence("user-bola", "job-1", view.id)).rejects.toBeInstanceOf(InstallationJobNotFoundError);
+    await expect(h.records.deleteEvidence("user-ada", "job-1", "nope")).rejects.toBeInstanceOf(InstallationJobNotFoundError);
+    expect(h.storage.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses a completed or cancelled job", async () => {
+    const view = await upload(h);
+    await h.givenJob({ status: "completed" });
+    await expect(h.records.deleteEvidence("user-ada", "job-1", view.id)).rejects.toBeInstanceOf(InstallationJobClosedError);
+  });
+
+  it("still removes the row when the file delete or the audit fails", async () => {
+    const view = await upload(h);
+    h.storage.delete.mockRejectedValueOnce(new Error("s3 down"));
+    h.activity.record.mockRejectedValueOnce(new Error("audit down"));
+    await h.records.deleteEvidence("user-ada", "job-1", view.id);
+    expect(await h.orders.findEvidence("job-1")).toEqual([]);
+  });
+});
+
+describe("starting device verification", () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await harness();
+  });
+
+  it("opens verification on the job's devices while in progress", async () => {
+    await h.givenJob({ status: "in_progress" });
+    await h.actions.verifyDevices("user-ada", "job-1");
+    expect(h.fleet.beginVerification).toHaveBeenCalledWith(TENANT, ["dev-1"]);
+  });
+
+  it("treats skipped devices as success", async () => {
+    await h.givenJob({ status: "in_progress" });
+    h.fleet.beginVerification.mockResolvedValueOnce([{ deviceId: "dev-1", outcome: "skipped" as const }]);
+    await expect(h.actions.verifyDevices("user-ada", "job-1")).resolves.toBeUndefined();
+  });
+
+  it("refuses outside in progress and with an unbound unit", async () => {
+    await h.givenJob({ status: "scheduled" });
+    await expect(h.actions.verifyDevices("user-ada", "job-1")).rejects.toBeInstanceOf(InstallationJobConflictError);
+    await h.givenJob({ status: "in_progress" }, null);
+    await expect(h.actions.verifyDevices("user-ada", "job-1")).rejects.toBeInstanceOf(InstallationJobConflictError);
+    expect(h.fleet.beginVerification).not.toHaveBeenCalled();
+  });
+
+  it("answers another installer's job as not found", async () => {
+    await h.givenJob({ status: "in_progress" });
+    await expect(h.actions.verifyDevices("user-bola", "job-1")).rejects.toBeInstanceOf(InstallationJobNotFoundError);
+  });
+
+  it("surfaces a fleet refusal and an unreachable fleet", async () => {
+    await h.givenJob({ status: "in_progress" });
+    h.fleet.beginVerification.mockResolvedValueOnce([{ deviceId: "dev-1", outcome: "refused" as const, reason: "only a configured device can be verified" }]);
+    await expect(h.actions.verifyDevices("user-ada", "job-1")).rejects.toThrow(/not configured yet.*only a configured device/);
+    h.fleet.beginVerification.mockResolvedValueOnce(null as never);
+    await expect(h.actions.verifyDevices("user-ada", "job-1")).rejects.toThrow("The device service could not be reached");
   });
 });
 

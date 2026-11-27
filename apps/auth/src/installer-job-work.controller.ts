@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Inject,
@@ -156,6 +157,37 @@ export class InstallerJobWorkController {
   ) {
     const token = bearer(authorization);
     return ok(await mapped(() => this.records.evidenceLink(token, jobId, evidenceId)));
+  }
+
+  @Delete('evidence/:evidenceId')
+  @ApiOperation({
+    summary: 'Remove one evidence photo from an open job; removing the last one also unticks the evidence checklist item',
+  })
+  @ApiOkResponse({ description: 'The job without the photo. message is "Evidence removed".', type: InstallerJobDetailResponse })
+  @InstallerErrors(`${JOB_NOT_FOUND}, or "Evidence not found"`)
+  @ApiErrorResponse(409, JOB_CLOSED)
+  async deleteEvidence(
+    @Param('jobId') jobId: string,
+    @Param('evidenceId') evidenceId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.changed(authorization, jobId, (token) => this.records.deleteEvidence(token, jobId, evidenceId), 'Evidence removed');
+  }
+
+  @Post('devices/verification')
+  @ApiOperation({
+    summary:
+      'Start or restart device verification for every device on the job. The device must still report telemetry to become verified. Read the status from units[].device.verificationStatus.',
+  })
+  @Changed('The job. message is "Verification started".')
+  @InstallerErrors(JOB_NOT_FOUND)
+  @ApiErrorResponse(
+    409,
+    '"Device verification can be started only while the installation is in progress", "Every unit needs a bound device before verification can start", or a sentence saying fleet refused a device, such as one that is not configured yet',
+  )
+  @ApiErrorResponse(503, '"The device service could not be reached"')
+  async verifyDevices(@Param('jobId') jobId: string, @Headers('authorization') authorization?: string) {
+    return this.changed(authorization, jobId, (token) => this.actions.verifyDevices(token, jobId), 'Verification started');
   }
 
   @Post('issues')
