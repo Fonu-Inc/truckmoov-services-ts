@@ -17,7 +17,19 @@ export class HttpInstallerDeviceScopeAdapter implements InstallerDeviceScopePort
     this.caller = createServiceCaller(config, "fleet");
   }
 
-  async forUser(userId: string): Promise<InstallerScopeEntry[] | null> {
+  private readonly inflight = new Map<string, Promise<InstallerScopeEntry[] | null>>();
+
+  /** Concurrent calls for one user share a single request to auth. */
+  forUser(userId: string): Promise<InstallerScopeEntry[] | null> {
+    let pending = this.inflight.get(userId);
+    if (!pending) {
+      pending = this.fetchScope(userId).finally(() => this.inflight.delete(userId));
+      this.inflight.set(userId, pending);
+    }
+    return pending;
+  }
+
+  private async fetchScope(userId: string): Promise<InstallerScopeEntry[] | null> {
     const headers = this.caller.headers("auth");
     if (!headers) return null;
 

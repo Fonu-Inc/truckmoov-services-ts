@@ -78,6 +78,10 @@ export class InMemoryInstallerRepository implements InstallerRepository {
     return this.all().find((installer) => installer.userId === userId) ?? null;
   }
 
+  findByUserIdCached(userId: string): Promise<StoredInstaller | null> {
+    return this.findByUserId(userId);
+  }
+
   async findActive(): Promise<StoredInstaller[]> {
     return this.all().filter((installer) => installer.status === 'active');
   }

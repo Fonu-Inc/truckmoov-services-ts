@@ -68,3 +68,21 @@ describe('a change reaching every cache', () => {
     expect((await resolver.resolve(repo, 'u1'))?.active).toBe(false);
   });
 });
+
+describe('concurrent lookups', () => {
+  it('make one lookup, and a forget during it leaves nothing cached', async () => {
+    const repo = await users({ id: 'u1', role: 'DISPATCHER', tenantId: 't1' });
+    const findById = vi.spyOn(repo, 'findById');
+    const resolver = new AccessResolver(new InMemoryTenantRoleRepository(), new InMemoryPermissionRemovalRepository());
+
+    await Promise.all([resolver.resolve(repo, 'u1'), resolver.resolve(repo, 'u1')]);
+    expect(findById).toHaveBeenCalledTimes(1);
+
+    resolver.forget('u1');
+    const pending = resolver.resolve(repo, 'u1');
+    resolver.forget('u1');
+    await pending;
+    await resolver.resolve(repo, 'u1');
+    expect(findById).toHaveBeenCalledTimes(3);
+  });
+});

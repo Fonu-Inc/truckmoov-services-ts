@@ -48,6 +48,8 @@ export class AppConfigService {
       // against pool size times replica count.
       poolMin: this.config.get<number>("DB_POOL_MIN", 2),
       poolMax: this.config.get<number>("DB_POOL_MAX", 10),
+      // Knex waits 60s for a free connection by default, which turns pool starvation into minute-long requests.
+      poolAcquireTimeoutMs: this.config.get<number>("DB_POOL_ACQUIRE_TIMEOUT_MS", 8000),
     };
   }
 

@@ -33,7 +33,23 @@ describe("asking auth what a user may do", () => {
 
     expect(await client.get("u1")).toBeUndefined();
     expect(await client.get("u1")).toBeUndefined();
-    expect(axios.get).toHaveBeenCalledTimes(2);
+    expect(axios.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks auth again once the unreachable back-off has passed", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(axios.get).mockResolvedValue({ status: 404, data: { message: "Cannot GET" } });
+      const client = new AccessClient("http://auth", caller);
+
+      await client.get("u1");
+      vi.advanceTimersByTime(5_001);
+      await client.get("u1");
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the last known access when auth answers a 404 that is not a missing user", async () => {

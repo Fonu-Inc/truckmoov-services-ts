@@ -43,6 +43,7 @@ import {
 import { installerJob } from './support/current-installer';
 import { JOB_CHANGED_MESSAGE, moveJob } from './support/job-transition';
 import { assertGateOpen } from './support/checklist-gates';
+import type { JobKnown } from './support/installation-job.views';
 
 function boundDeviceIds(units: StoredDeviceAssignment[]): string[] {
   return units.flatMap((unit) => (unit.fleetDeviceId ? [unit.fleetDeviceId] : []));
@@ -74,7 +75,7 @@ export class InstallerJobActionsUseCases {
     await moveJob(this.orders, order, 'scheduled', now);
   }
 
-  async start(accessToken: string, jobId: string, now: Date = new Date()): Promise<void> {
+  async start(accessToken: string, jobId: string, now: Date = new Date()): Promise<JobKnown> {
     const { order } = await this.job(accessToken, jobId);
     if (!START_SOURCE_STATUSES.includes(order.status)) {
       throw new InstallationJobConflictError(`A job that is ${order.status} cannot be started`);
@@ -86,6 +87,7 @@ export class InstallerJobActionsUseCases {
     }
     await moveJob(this.orders, order, 'in_progress', now);
     await this.beginVerification(order, deviceIds);
+    return { assignments: units };
   }
 
   /** Starts or restarts verification; devices already waiting or verified are skipped, so repeating is safe. */

@@ -4,7 +4,6 @@ import type {
   AuthHealthStatus,
 } from "@auth/session/domain/ports/health-check.port";
 import { AppConfigService } from "@shared/config";
-import { getAuthOrm } from "./persistence/auth-orm";
 
 @Injectable()
 export class AuthPersistenceHealthCheck implements AuthHealthCheck {
@@ -13,18 +12,12 @@ export class AuthPersistenceHealthCheck implements AuthHealthCheck {
     private readonly config: AppConfigService,
   ) {}
 
+  // Liveness must never touch the pool; the database is checked by /auth/health/ready.
   async check(): Promise<AuthHealthStatus> {
-    const persistenceBackend = this.config.persistence.backend;
-
-    if (persistenceBackend === "mikro-orm") {
-      const orm = await getAuthOrm(this.config.db);
-      await orm.em.getConnection().execute("select 1");
-    }
-
     return {
       service: "auth",
-      persistenceBackend,
-      database: persistenceBackend === "mikro-orm" ? "up" : "n/a",
+      persistenceBackend: this.config.persistence.backend,
+      database: "n/a",
     };
   }
 }

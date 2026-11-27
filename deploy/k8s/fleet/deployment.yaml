@@ -33,7 +33,7 @@ spec:
                 optional: false
           readinessProbe:
             httpGet:
-              path: /fleet/health
+              path: /fleet/health/ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10

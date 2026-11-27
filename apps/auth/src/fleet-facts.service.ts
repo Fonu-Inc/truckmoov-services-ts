@@ -56,6 +56,8 @@ export class FleetFactsService {
 
   private readonly caller: ServiceCaller;
 
+  private readonly deviceLookups = new Map<string, Promise<Array<Record<string, unknown>> | null>>();
+
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {
     this.caller = createServiceCaller(config, 'auth');
   }
@@ -458,14 +460,21 @@ export class FleetFactsService {
    *
    * Null when fleet cannot be reached.
    */
-  async tenantDevicesByIds(
-    tenantId: string,
-    deviceIds: string[],
-  ): Promise<Array<Record<string, unknown>> | null> {
+  tenantDevicesByIds(tenantId: string, deviceIds: string[]): Promise<Array<Record<string, unknown>> | null> {
     const ids = deviceIds.filter(isSafePathId);
-    if (!isSafePathId(tenantId)) return null;
-    if (ids.length === 0) return [];
+    if (!isSafePathId(tenantId)) return Promise.resolve(null);
+    if (ids.length === 0) return Promise.resolve([]);
 
+    // Identical calls already in flight share one request; nothing is kept once it settles.
+    const key = `${tenantId}:${[...new Set(ids)].sort().join(',')}`;
+    const pending = this.deviceLookups.get(key);
+    if (pending) return pending;
+    const call = this.fetchTenantDevices(tenantId, ids).finally(() => this.deviceLookups.delete(key));
+    this.deviceLookups.set(key, call);
+    return call;
+  }
+
+  private async fetchTenantDevices(tenantId: string, ids: string[]): Promise<Array<Record<string, unknown>> | null> {
     const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
     if (!headers) return null;
 

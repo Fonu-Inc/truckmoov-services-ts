@@ -7,7 +7,7 @@ import {
   DEVICE_CATALOG_PORT,
   type DeviceCatalogPort,
 } from "../../domain/ports/device-catalog.port";
-import type { InstallerScopeEntry } from "../../domain/ports/installer-device-scope.port";
+import { scopeKey, type InstallerScopeEntry } from "../../domain/ports/installer-device-scope.port";
 import { GetDeviceDiagnosticsUseCase } from "./get-device-diagnostics.use-case";
 import { summariseDevices } from "./get-installation-queue.use-case";
 import { VERIFICATION_FAILURE_MESSAGES } from "./record-verification-failure.use-case";
@@ -31,12 +31,6 @@ type FailureLike = { reason: string; detail: string | null };
 
 function toError(failure: FailureLike) {
   return { code: failure.reason, message: failure.detail ?? FAILURE_MESSAGES[failure.reason] ?? failure.reason };
-}
-
-function byTenant(scope: InstallerScopeEntry[]): Map<string, string[]> {
-  const grouped = new Map<string, string[]>();
-  for (const entry of scope) grouped.set(entry.tenantId, [...(grouped.get(entry.tenantId) ?? []), entry.deviceId]);
-  return grouped;
 }
 
 function toItem(entry: InstallerScopeEntry, device: Device, row: VerificationMonitorRow) {
@@ -74,10 +68,10 @@ export class InstallerDevicesUseCases {
   ) {}
 
   async verification(scope: InstallerScopeEntry[], now = new Date()) {
-    const found = await this.scopedDevices(scope, now);
-    const byId = new Map(found.map((hit) => [hit.device.id, hit]));
+    const found = await this.monitor.forDevices(scope, now);
+    const byKey = new Map(found.map((hit) => [scopeKey(hit.device.tenantId, hit.device.id), hit]));
     const items = scope.flatMap((entry) => {
-      const hit = byId.get(entry.deviceId);
+      const hit = byKey.get(scopeKey(entry.tenantId, entry.deviceId));
       return hit ? [toItem(entry, hit.device, hit.row)] : [];
     });
     const summary = summariseDevices(found.map(({ device }) => device), now);
@@ -114,13 +108,6 @@ export class InstallerDevicesUseCases {
       errors: result.failures.map(toError),
       expectedEndpoint: await this.expectedEndpoint(device.manufacturer, device.model),
     };
-  }
-
-  private async scopedDevices(scope: InstallerScopeEntry[], now: Date) {
-    const perTenant = await Promise.all(
-      [...byTenant(scope)].map(([tenantId, ids]) => this.monitor.forDevices(tenantId, ids, now)),
-    );
-    return perTenant.flat();
   }
 
   /** Where the device should report: this deployment's host, and the protocol and port its model uses. */

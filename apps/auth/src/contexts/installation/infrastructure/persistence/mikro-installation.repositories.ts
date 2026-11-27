@@ -51,6 +51,7 @@ import {
   InstallationOrderRecord,
   InstallerRecord,
 } from './installation-orm';
+import { InstallerLookupCache } from './installer-lookup-cache';
 
 function toStoredInstaller(r: InstallerRecord): StoredInstaller {
   return {
@@ -196,13 +197,20 @@ export class MikroInstallerRepository
   extends MikroBase
   implements InstallerRepository
 {
+  private readonly byUserId = new InstallerLookupCache();
+
   async save(installer: StoredInstaller): Promise<void> {
     const em = await this.em();
     const existing = await em.findOne(InstallerRecord, { id: installer.id });
     const target = existing ?? new InstallerRecord();
     Object.assign(target, installer);
     if (!existing) em.persist(target);
-    await em.flush();
+    this.byUserId.forget(installer);
+    try {
+      await em.flush();
+    } finally {
+      this.byUserId.forget(installer);
+    }
   }
 
   async findById(id: string): Promise<StoredInstaller | null> {
@@ -215,6 +223,10 @@ export class MikroInstallerRepository
 
   async findByUserId(userId: string): Promise<StoredInstaller | null> {
     return this.findOne({ userId });
+  }
+
+  findByUserIdCached(userId: string): Promise<StoredInstaller | null> {
+    return this.byUserId.get(userId, () => this.findByUserId(userId));
   }
 
   async findActive(): Promise<StoredInstaller[]> {

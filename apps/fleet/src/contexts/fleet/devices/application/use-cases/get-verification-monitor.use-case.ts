@@ -1,7 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Device } from "../../domain/entities/device.entity";
+import { scopeKey } from "../../domain/ports/installer-device-scope.port";
 import {
   DEVICE_VERIFICATION_FAILURE_REPOSITORY,
+  type DeviceVerificationFailure,
   type DeviceVerificationFailureRepository,
 } from "../../domain/repositories/device-verification-failure.repository";
 import {
@@ -52,32 +54,48 @@ export class GetVerificationMonitorUseCase {
     ]);
 
     return Promise.all(
-      [...waiting, ...failed].map((device) => this.toRow(device, tenantId, now)),
+      [...waiting, ...failed].map(async (device) =>
+        this.toRow(
+          device,
+          device.verificationStatus === "failed"
+            ? await this.failures.findByDevice(device.id, tenantId, FAILURES_PER_DEVICE)
+            : [],
+          now,
+        ),
+      ),
     );
   }
 
-  /** The named devices this tenant holds, whatever their state, each with its row. */
+  /** The named (tenant, device) pairs, whatever their state, each with its row: two queries however many tenants. */
   async forDevices(
-    tenantId: string,
-    ids: string[],
+    scope: Array<{ tenantId: string; deviceId: string }>,
     now = new Date(),
   ): Promise<Array<{ device: Device; row: VerificationMonitorRow }>> {
-    const devices = await this.devices.findByIds(tenantId, ids);
-    return Promise.all(
-      devices.map(async (device) => ({ device, row: await this.toRow(device, tenantId, now) })),
+    const wanted = new Set(scope.map((entry) => scopeKey(entry.tenantId, entry.deviceId)));
+    const devices = (await this.devices.findScoped(scope)).filter((device) =>
+      wanted.has(scopeKey(device.tenantId, device.id)),
     );
+    const failed = devices
+      .filter((device) => device.verificationStatus === "failed")
+      .map((device) => ({ tenantId: device.tenantId, deviceId: device.id }));
+    const history = failed.length > 0 ? await this.failures.findByDevices(failed) : [];
+    const byDevice = new Map<string, DeviceVerificationFailure[]>();
+    for (const failure of history) {
+      const key = scopeKey(failure.tenantId, failure.deviceId);
+      const kept = byDevice.get(key) ?? [];
+      if (kept.length < FAILURES_PER_DEVICE) byDevice.set(key, [...kept, failure]);
+    }
+    return devices.map((device) => ({
+      device,
+      row: this.toRow(device, byDevice.get(scopeKey(device.tenantId, device.id)) ?? [], now),
+    }));
   }
 
-  private async toRow(
+  private toRow(
     device: Device,
-    tenantId: string,
+    errors: DeviceVerificationFailure[],
     now: Date,
-  ): Promise<VerificationMonitorRow> {
-    const errors =
-      device.verificationStatus === "failed"
-        ? await this.failures.findByDevice(device.id, tenantId, FAILURES_PER_DEVICE)
-        : [];
-
+  ): VerificationMonitorRow {
     return {
       id: device.id,
       manufacturer: device.manufacturer,

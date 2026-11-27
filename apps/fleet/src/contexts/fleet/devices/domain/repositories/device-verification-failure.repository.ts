@@ -16,6 +16,8 @@ export type DeviceVerificationFailure = {
 };
 
 export interface DeviceVerificationFailureRepository {
+  /** Newest first, every failure of the given (tenant, device) pairs in one query; the caller caps per device. */
+  findByDevices(scope: Array<{ tenantId: string; deviceId: string }>): Promise<DeviceVerificationFailure[]>;
   append(failure: DeviceVerificationFailure): Promise<void>;
   findByDevice(
     deviceId: string,

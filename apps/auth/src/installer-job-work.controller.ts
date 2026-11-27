@@ -23,6 +23,7 @@ import { InstallerJobsUseCases } from './contexts/installation/application/use-c
 import { InstallerJobActionsUseCases } from './contexts/installation/application/use-cases/installer-job-actions.use-cases';
 import { InstallerJobRecordsUseCases } from './contexts/installation/application/use-cases/installer-job-records.use-cases';
 import { RejectJobOfferUseCase } from './contexts/installation/application/use-cases/reject-job-offer.use-case';
+import type { JobKnown } from './contexts/installation/application/use-cases/support/installation-job.views';
 import type { UploadedDocumentFile } from './contexts/onboarding/domain/onboarding-document-file';
 import { RejectJobOfferDto, SaveInstallerNotesDto, SetChecklistItemDto } from './dto/installer-portal.dto';
 import { EvidenceLinkResponse, EvidenceUploadResponse, InstallerJobDetailResponse, RejectedOfferResponse } from './dto/installer-job-response.dto';
@@ -244,14 +245,14 @@ export class InstallerJobWorkController {
   private async changed(
     authorization: string | undefined,
     jobId: string,
-    change: (token: string) => Promise<void>,
+    change: (token: string) => Promise<JobKnown | void>,
     message = 'success',
   ) {
     const token = bearer(authorization);
     return ok(
       await mapped(async () => {
-        await change(token);
-        return this.jobs.detail(token, jobId);
+        const known = await change(token);
+        return this.jobs.detail(token, jobId, known ?? {});
       }),
       message,
     );

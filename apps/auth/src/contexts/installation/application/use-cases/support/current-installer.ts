@@ -14,14 +14,16 @@ import { InstallationJobNotFoundError } from '@auth/installation/domain/installa
 /**
  * The installer behind the caller's token: sub, then installers.user_id.
  * Checked on every request, so a suspension shuts out tokens already issued.
+ * Only read-only callers pass cached; one that saves the installer back reads fresh.
  */
 export async function currentInstaller(
   deps: { tokens: TokenService; installers: InstallerRepository },
   accessToken: string,
+  cached = false,
 ): Promise<StoredInstaller> {
   const user = deps.tokens.resolveAccessToken(accessToken);
   if (!user) throw new InvalidAccessTokenError();
-  const installer = await deps.installers.findByUserId(user.id);
+  const installer = await (cached ? deps.installers.findByUserIdCached(user.id) : deps.installers.findByUserId(user.id));
   if (installer?.status !== 'active') throw new ForbiddenError('This endpoint is reserved for installers');
   return installer;
 }
@@ -32,8 +34,7 @@ export async function installerJob(
   accessToken: string,
   jobId: string,
 ): Promise<{ installer: StoredInstaller; order: StoredInstallationOrder }> {
-  const installer = await currentInstaller(deps, accessToken);
-  const order = await deps.orders.findById(jobId);
+  const [installer, order] = await Promise.all([currentInstaller(deps, accessToken, true), deps.orders.findById(jobId)]);
   if (!order || order.installerId !== installer.id) throw new InstallationJobNotFoundError();
   return { installer, order };
 }

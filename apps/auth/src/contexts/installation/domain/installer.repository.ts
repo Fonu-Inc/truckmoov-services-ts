@@ -43,6 +43,8 @@ export interface InstallerRepository {
   findById(id: string): Promise<StoredInstaller | null>;
   findByEmail(email: string): Promise<StoredInstaller | null>;
   findByUserId(userId: string): Promise<StoredInstaller | null>;
+  /** findByUserId that may be a few seconds old, for read-only callers; never read-then-save from it. */
+  findByUserIdCached(userId: string): Promise<StoredInstaller | null>;
   findActive(): Promise<StoredInstaller[]>;
   /** Newest first; search covers name, code, email and service areas. */
   list(filters: InstallerFilters, page: InstallerPageRequest): Promise<InstallerPage>;

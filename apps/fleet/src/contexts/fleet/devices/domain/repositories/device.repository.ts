@@ -40,6 +40,8 @@ export interface DeviceRepository {
   saveIfWaitingForVerification(device: Device): Promise<boolean>;
   findAll(filters: DeviceFilters): Promise<Device[]>;
   findById(id: string, tenantId: string): Promise<Device | null>;
+  /** One query for the exact (tenant, device) pairs given; a device held by another tenant is left out. */
+  findScoped(scope: Array<{ tenantId: string; deviceId: string }>): Promise<Device[]>;
   /** The named devices this tenant holds; ids held elsewhere are left out. */
   findByIds(tenantId: string, ids: string[]): Promise<Device[]>;
   /**

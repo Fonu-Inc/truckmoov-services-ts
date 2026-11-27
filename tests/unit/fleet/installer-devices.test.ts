@@ -95,17 +95,14 @@ describe("installer verification tab", () => {
     await kit.devices.save(device("a1", "tenant-a", { name: "Truck 1", verificationStatus: "waiting", configuredAt: "2026-09-24T09:58:00.000Z" }));
     await kit.devices.save(device("b1", "tenant-b"));
     await kit.devices.save(device("elsewhere", "tenant-c"));
-    const findByIds = vi.spyOn(kit.devices, "findByIds");
+    const findScoped = vi.spyOn(kit.devices, "findScoped");
 
     const { items } = await kit.useCases.verification(
       [entry("a1", "tenant-a", "FL-1001"), entry("b1", "tenant-b", "FL-1002"), entry("elsewhere", "tenant-a", "FL-1001")],
       NOW,
     );
 
-    expect(findByIds.mock.calls.map(([tenantId, ids]) => [tenantId, ids])).toEqual([
-      ["tenant-a", ["a1", "elsewhere"]],
-      ["tenant-b", ["b1"]],
-    ]);
+    expect(findScoped).toHaveBeenCalledTimes(1);
     expect(items.map((item) => [item.deviceId, item.jobNumber])).toEqual([["a1", "FL-1001"], ["b1", "FL-1002"]]);
     expect(items[0]).toMatchObject({
       name: "Truck 1",
@@ -118,6 +115,16 @@ describe("installer verification tab", () => {
       errors: [],
     });
     expect(items[1]).toMatchObject({ status: "not_started", configuredAt: null, secondsSinceConfigured: null });
+  });
+
+  it("never returns a device outside the tenant its scope entry names", async () => {
+    const kit = harness();
+    await kit.devices.save(device("a1", "tenant-a"));
+    await kit.devices.save(device("b1", "tenant-b"));
+
+    const { items } = await kit.useCases.verification([entry("a1", "tenant-a"), entry("b1", "tenant-a")], NOW);
+
+    expect(items.map((item) => item.deviceId)).toEqual(["a1"]);
   });
 
   it("counts awaiting, failed and verified today from Lagos midnight", async () => {

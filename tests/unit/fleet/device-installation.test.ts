@@ -286,12 +286,12 @@ describe("Device installation", () => {
     const findById = vi.spyOn(kit.devices, "findById").mockResolvedValueOnce(waiting).mockResolvedValueOnce(waiting);
 
     await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:00:00.000Z" });
-    const second = await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:00:05.000Z" });
+    const second = await kit.telemetry.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: "2026-08-25T10:01:00.000Z" });
 
     findById.mockRestore();
     expect(kit.events.verified).toHaveBeenCalledTimes(1);
     expect(second?.verificationStatus).toBe("verified");
-    expect(second?.lastSeen).toBe("2026-08-25T10:00:05.000Z");
+    expect(second?.lastSeen).toBe("2026-08-25T10:01:00.000Z");
   });
 
   it("keeps the raw payload of a device nothing can parse", async () => {

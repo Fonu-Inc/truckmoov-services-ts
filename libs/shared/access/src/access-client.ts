@@ -17,6 +17,8 @@ export type RemoteAccess = {
 
 const CACHE_TTL_MS = 30_000;
 const NO_USER_TTL_MS = 10_000;
+// Same window as fleet's TenantStatusService UNREACHABLE_BACKOFF_MS.
+const UNREACHABLE_BACKOFF_MS = 5_000;
 const USER_NOT_FOUND_TEXT = "user not found";
 
 /**
@@ -26,6 +28,8 @@ const USER_NOT_FOUND_TEXT = "user not found";
  */
 export class AccessClient {
   private readonly cache = new Map<string, { access: RemoteAccess | null; at: number }>();
+  private readonly inFlight = new Map<string, Promise<RemoteAccess | null | undefined>>();
+  private readonly failedAt = new Map<string, number>();
 
   constructor(
     private readonly authUrl: string,
@@ -36,7 +40,11 @@ export class AccessClient {
   async listen(bus: EventBus): Promise<void> {
     await bus.subscribeEveryInstance?.(ACCESS_CHANGED_SUBJECT, async (event) => {
       const userId = (event.data as { userId?: unknown }).userId;
-      if (typeof userId === "string") this.cache.delete(userId);
+      if (typeof userId === "string") {
+        this.cache.delete(userId);
+        this.failedAt.delete(userId);
+        this.inFlight.delete(userId);
+      }
     });
   }
 
@@ -49,23 +57,46 @@ export class AccessClient {
     if (cached && Date.now() - cached.at < (cached.access ? CACHE_TTL_MS : NO_USER_TTL_MS)) {
       return cached.access;
     }
+    // Auth was just unreachable: answer from the stale copy instead of paying another timeout.
+    const failedAt = this.failedAt.get(userId);
+    if (failedAt !== undefined && Date.now() - failedAt < UNREACHABLE_BACKOFF_MS) return cached?.access;
+    const pending = this.inFlight.get(userId);
+    if (pending) return pending;
+    const run: Promise<RemoteAccess | null | undefined> = this.fetch(userId, cached?.access, () => this.inFlight.get(userId) === run)
+      .finally(() => {
+        if (this.inFlight.get(userId) === run) this.inFlight.delete(userId);
+      });
+    this.inFlight.set(userId, run);
+    return run;
+  }
+
+  private async fetch(userId: string, stale: RemoteAccess | null | undefined, current: () => boolean): Promise<RemoteAccess | null | undefined> {
     const headers = this.caller.headers("auth");
-    if (!headers) return cached?.access;
+    if (!headers) return stale;
     try {
       const response = await axios.get<{ data?: RemoteAccess; message?: unknown }>(
         `${this.authUrl}/auth/internal/access/${encodeURIComponent(userId)}`,
         { headers, timeout: 2000, validateStatus: () => true },
       );
-      if (response.status === 404 && isUserNotFound(response.data)) return this.remember(userId, null);
-      if (response.status !== 200 || !response.data?.data) return cached?.access;
-      return this.remember(userId, response.data.data);
+      if (response.status === 404 && isUserNotFound(response.data)) return this.remember(userId, null, current);
+      if (response.status !== 200 || !response.data?.data) return this.failed(userId, stale);
+      return this.remember(userId, response.data.data, current);
     } catch {
-      return cached?.access;
+      return this.failed(userId, stale);
     }
   }
 
-  private remember(userId: string, access: RemoteAccess | null): RemoteAccess | null {
-    this.cache.set(userId, { access, at: Date.now() });
+  private failed(userId: string, stale: RemoteAccess | null | undefined): RemoteAccess | null | undefined {
+    this.failedAt.set(userId, Date.now());
+    return stale;
+  }
+
+  /** An access-changed event mid-fetch drops the in-flight run, so its answer is returned but not cached. */
+  private remember(userId: string, access: RemoteAccess | null, current: () => boolean): RemoteAccess | null {
+    if (current()) {
+      this.failedAt.delete(userId);
+      this.cache.set(userId, { access, at: Date.now() });
+    }
     return access;
   }
 }

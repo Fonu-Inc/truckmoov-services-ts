@@ -17,6 +17,8 @@ const CLUSTER_API = "https://kubernetes.default.svc";
 const SERVICE_ACCOUNT_DIR = "/var/run/secrets/kubernetes.io/serviceaccount";
 const KEY_REFRESH_MS = 60_000;
 const KEY_RETRY_MS = 5_000;
+// Short enough that kubelet token rotation is picked up well before expiry.
+const FILE_TOKEN_TTL_MS = 30_000;
 
 export type ActingFor = {
   tenantId?: string;
@@ -74,6 +76,7 @@ function encode(value: object): string {
  */
 export class ServiceCaller {
   private readonly devSecret: string;
+  private readonly fileTokens = new Map<string, { token: string; expiresAt: number }>();
 
   constructor(private readonly config: ServiceIdentityConfig) {
     this.devSecret = devSecretOutsideCluster(config.devSecret);
@@ -96,8 +99,12 @@ export class ServiceCaller {
   }
 
   private tokenFor(callee: string): string {
+    const hit = this.fileTokens.get(callee);
+    if (hit && Date.now() < hit.expiresAt) return hit.token;
     try {
-      return readFileSync(join(this.config.tokenDir, callee, "token"), "utf8").trim();
+      const token = readFileSync(join(this.config.tokenDir, callee, "token"), "utf8").trim();
+      this.fileTokens.set(callee, { token, expiresAt: Date.now() + FILE_TOKEN_TTL_MS });
+      return token;
     } catch {
       if (!this.devSecret) return "";
     }

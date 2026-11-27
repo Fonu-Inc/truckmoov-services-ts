@@ -33,7 +33,7 @@ spec:
                 optional: false
           readinessProbe:
             httpGet:
-              path: /auth/health
+              path: /auth/health/ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10

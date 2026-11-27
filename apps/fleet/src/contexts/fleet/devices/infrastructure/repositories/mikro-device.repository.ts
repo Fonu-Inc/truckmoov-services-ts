@@ -9,6 +9,7 @@ import {
   isDeviceStatus,
   isDeviceVerificationStatus,
 } from "../../domain/entities/device.entity";
+import { scopeKey } from "../../domain/ports/installer-device-scope.port";
 import type { DeviceFilters, DeviceRepository } from "../../domain/repositories/device.repository";
 import { DeviceRecord, getFleetOrm } from "../../../shared/infrastructure/persistence/fleet-orm";
 
@@ -131,6 +132,17 @@ export class MikroDeviceRepository implements DeviceRepository {
     const orm = await getFleetOrm(this.config.db);
     const records = await orm.em.fork().find(DeviceRecord, { tenantId, id: { $in: ids } });
     return records.map((record) => this.toDomain(record));
+  }
+
+  async findScoped(scope: Array<{ tenantId: string; deviceId: string }>): Promise<Device[]> {
+    if (scope.length === 0) return [];
+    const wanted = new Set(scope.map((entry) => scopeKey(entry.tenantId, entry.deviceId)));
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(DeviceRecord, {
+      tenantId: { $in: [...new Set(scope.map((entry) => entry.tenantId))] },
+      id: { $in: [...new Set(scope.map((entry) => entry.deviceId))] },
+    });
+    return records.filter((record) => wanted.has(scopeKey(record.tenantId, record.id))).map((record) => this.toDomain(record));
   }
 
   async findAllAcrossTenants(): Promise<Device[]> {

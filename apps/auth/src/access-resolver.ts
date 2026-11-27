@@ -26,11 +26,13 @@ export type ResolvedAccess = {
 };
 
 const CACHE_TTL_MS = 30_000;
+const MAX_CACHE_ENTRIES = 10_000;
 
 /** What a user may do right now, read from the account rather than from their token. */
 @Injectable()
 export class AccessResolver {
   private readonly cache = new Map<string, { access: ResolvedAccess | null; expiresAt: number }>();
+  private readonly inFlight = new Map<string, Promise<ResolvedAccess | null>>();
 
   constructor(
     @Inject(TENANT_ROLE_REPOSITORY) private readonly roles: TenantRoleRepository,
@@ -41,29 +43,57 @@ export class AccessResolver {
   ) {}
 
   async resolve(userRepository: Pick<UserRepository, 'findById'>, userId: string): Promise<ResolvedAccess | null> {
-    const now = Date.now();
     const cached = this.cache.get(userId);
-    if (cached && now < cached.expiresAt) return cached.access;
+    if (cached && Date.now() < cached.expiresAt) return cached.access;
+    const pending = this.inFlight.get(userId);
+    if (pending) return pending;
+    const run: Promise<ResolvedAccess | null> = this.load(userRepository, userId)
+      .then((entry) => {
+        // forget() during the lookup drops the in-flight entry: the answer is returned but not cached.
+        if (this.inFlight.get(userId) === run) this.store(userId, entry);
+        return entry.access;
+      })
+      .finally(() => {
+        if (this.inFlight.get(userId) === run) this.inFlight.delete(userId);
+      });
+    this.inFlight.set(userId, run);
+    return run;
+  }
+
+  private async load(
+    userRepository: Pick<UserRepository, 'findById'>,
+    userId: string,
+  ): Promise<{ access: ResolvedAccess | null; expiresAt: number }> {
+    const now = Date.now();
     const user = await userRepository.findById(userId);
     let expiresAt = now + CACHE_TTL_MS;
     let access: ResolvedAccess | null = null;
     if (user) {
-      const removals = await this.removals.activeForTenant(user.tenantId);
+      const [removals, organizationType, permissions] = await Promise.all([
+        this.removals.activeForTenant(user.tenantId),
+        this.organizationTypeOf(user.tenantId),
+        this.permissionsOf(user),
+      ]);
       const removed = new Set(removals.filter((r) => r.effectiveAt.getTime() <= now).map((r) => r.permission));
       // A removal applies on the first request at its effective time, so a
       // cached answer never outlives the next one due.
       for (const r of removals) {
         if (r.effectiveAt.getTime() > now) expiresAt = Math.min(expiresAt, r.effectiveAt.getTime());
       }
-      const organizationType = await this.organizationTypeOf(user.tenantId);
       access = toAccess(
         user,
-        withOrganizationGrants(user, await this.permissionsOf(user), organizationType).filter((p) => !removed.has(p)),
+        withOrganizationGrants(user, permissions, organizationType).filter((p) => !removed.has(p)),
         organizationType,
       );
     }
-    this.cache.set(userId, { access, expiresAt });
-    return access;
+    return { access, expiresAt };
+  }
+
+  private store(userId: string, entry: { access: ResolvedAccess | null; expiresAt: number }): void {
+    if (this.cache.size >= MAX_CACHE_ENTRIES && !this.cache.has(userId)) {
+      this.cache.delete(this.cache.keys().next().value as string);
+    }
+    this.cache.set(userId, entry);
   }
 
   /**
@@ -93,6 +123,7 @@ export class AccessResolver {
 
   forget(userId: string): void {
     this.cache.delete(userId);
+    this.inFlight.delete(userId);
   }
 }
 

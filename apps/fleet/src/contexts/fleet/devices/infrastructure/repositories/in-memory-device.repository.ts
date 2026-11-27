@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { scopeKey } from "../../domain/ports/installer-device-scope.port";
 import type { Device } from "../../domain/entities/device.entity";
 import type { DeviceFilters, DeviceRepository } from "../../domain/repositories/device.repository";
 
@@ -120,6 +121,11 @@ export class InMemoryDeviceRepository implements DeviceRepository {
       const device = this.data.get(id);
       return device && device.tenantId === tenantId ? [device] : [];
     });
+  }
+
+  async findScoped(scope: Array<{ tenantId: string; deviceId: string }>): Promise<Device[]> {
+    const wanted = new Set(scope.map((entry) => scopeKey(entry.tenantId, entry.deviceId)));
+    return [...this.data.values()].filter((device) => wanted.has(scopeKey(device.tenantId, device.id)));
   }
 
   async findById(id: string, tenantId: string): Promise<Device | null> {

@@ -11,6 +11,7 @@ export type DbConfig = {
   dbName: string;
   poolMin?: number;
   poolMax?: number;
+  poolAcquireTimeoutMs?: number;
 };
 
 export class VehicleRecord {
@@ -1325,7 +1326,7 @@ async function initFleetOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
-    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10 },
+    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10, acquireTimeoutMillis: cfg.poolAcquireTimeoutMs ?? 8000 },
     migrations: {
       path: process.env.NODE_ENV === "production"
         ? "dist/apps/fleet/src/migrations"

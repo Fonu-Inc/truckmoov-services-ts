@@ -48,6 +48,7 @@ import { TICKET_FILE_SCANNER, scanRefusal, type TicketFileScanner } from '../../
 import { installerJob } from './support/current-installer';
 import { assertGateOpen } from './support/checklist-gates';
 import { toEvidenceView } from './support/job-execution.views';
+import type { JobKnown } from './support/installation-job.views';
 
 function validNotes(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -86,7 +87,7 @@ export class InstallerJobRecordsUseCases {
     itemKey: string,
     checked: boolean,
     now: Date = new Date(),
-  ): Promise<void> {
+  ): Promise<JobKnown | void> {
     const { installer, order } = await this.job(accessToken, jobId);
     const item = checklistItem(itemKey);
     if (!item) throw new InstallationJobNotFoundError('Checklist item not found');
@@ -97,8 +98,9 @@ export class InstallerJobRecordsUseCases {
       await this.orders.deleteTick(order.id, item.key);
       return;
     }
-    await assertGateOpen({ orders: this.orders, devices: this.devices }, order, item.gated);
+    const known = await assertGateOpen({ orders: this.orders, devices: this.devices }, order, item.gated);
     await this.orders.saveTick({ orderId: order.id, itemKey: item.key, checkedAt: now, checkedBy: installer.id });
+    return known;
   }
 
   async saveNotes(accessToken: string, jobId: string, notes: unknown, now: Date = new Date()): Promise<void> {
@@ -147,16 +149,18 @@ export class InstallerJobRecordsUseCases {
   }
 
   /** Row first: a failed storage delete leaves an orphan blob, never a row pointing at nothing. */
-  async deleteEvidence(accessToken: string, jobId: string, evidenceId: string): Promise<void> {
+  async deleteEvidence(accessToken: string, jobId: string, evidenceId: string): Promise<JobKnown> {
     const { installer, order } = await this.job(accessToken, jobId);
     assertOpen(order);
     const evidence = (await this.orders.findEvidence(order.id)).find((item) => item.id === evidenceId);
     if (!evidence) throw new InstallationJobNotFoundError('Evidence not found');
     if (!(await this.orders.deleteEvidence(order.id, evidence.id))) throw new InstallationJobNotFoundError('Evidence not found');
 
+    const known: JobKnown = {};
     try {
       // Re-read after the delete so a concurrent upload keeps its tick.
       const [left, units] = await Promise.all([this.orders.findEvidence(order.id), this.orders.findAssignments(order.id)]);
+      known.assignments = units;
       const vehicleIds = [...new Set(units.map((unit) => unit.vehicleId))];
       if (left.length === 0 || coveredVehicles(left, vehicleIds) < vehicleIds.length) {
         for (const item of CHECKLIST_ITEMS.filter((entry) => entry.gated === 'evidence')) {
@@ -185,6 +189,7 @@ export class InstallerJobRecordsUseCases {
       .catch((error: unknown) => {
         this.logger.error(`installation_evidence_audit_failed:${order.orderNumber}:${evidence.id}:${String(error)}`);
       });
+    return known;
   }
 
   private job(accessToken: string, jobId: string) {

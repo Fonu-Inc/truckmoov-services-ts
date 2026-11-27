@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { scopeKey } from "../../domain/ports/installer-device-scope.port";
 import type {
   DeviceVerificationFailure,
   DeviceVerificationFailureRepository,
@@ -12,6 +13,15 @@ export class InMemoryDeviceVerificationFailureRepository
 
   async append(failure: DeviceVerificationFailure): Promise<void> {
     this.entries.push(failure);
+  }
+
+  async findByDevices(
+    scope: Array<{ tenantId: string; deviceId: string }>,
+  ): Promise<DeviceVerificationFailure[]> {
+    const wanted = new Set(scope.map((entry) => scopeKey(entry.tenantId, entry.deviceId)));
+    return this.entries
+      .filter((entry) => wanted.has(scopeKey(entry.tenantId, entry.deviceId)))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   async findByDevice(

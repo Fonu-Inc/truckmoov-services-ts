@@ -19,6 +19,9 @@ import { toActionsView, toChecklistView, toCompletionView, toEvidenceView } from
 
 export type DeviceIndex = Map<string, JobDevice>;
 
+/** Reads a mutation already made and nothing it did changes, so the detail rebuild can skip them. */
+export type JobKnown = { assignments?: StoredDeviceAssignment[]; devices?: DeviceIndex };
+
 const CUSTOMER_TYPES: Record<OnboardingApplicantType, string> = {
   enterprise: 'Enterprise',
   owner_operator: 'Owner operator',

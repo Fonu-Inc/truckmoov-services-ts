@@ -9,6 +9,9 @@ import {
   type DeviceVerificationEventPublisher,
 } from "../../domain/ports/device-verification-event.publisher";
 
+/** A verified device's lastSeen is only rewritten when it moves by at least this much. */
+export const LAST_SEEN_DEBOUNCE_MS = 30_000;
+
 export type RecordDeviceTelemetryCommand = {
   tenantId: string;
   deviceId?: string | null;
@@ -58,6 +61,7 @@ export class RecordDeviceTelemetryUseCase {
   }
 
   private async touch(device: Device, command: RecordDeviceTelemetryCommand): Promise<Device> {
+    if (isDebounced(device, command)) return device;
     const touched = device.update({
       lastSeen: command.reportedAt,
       reportedProtocol: command.reportedProtocol,
@@ -76,4 +80,11 @@ export class RecordDeviceTelemetryUseCase {
     }
     return null;
   }
+}
+
+function isDebounced(device: Device, command: RecordDeviceTelemetryCommand): boolean {
+  if (device.verificationStatus !== "verified" || !device.lastSeen) return false;
+  if (command.reportedProtocol && command.reportedProtocol !== device.reportedProtocol) return false;
+  const moved = Date.parse(command.reportedAt) - Date.parse(device.lastSeen);
+  return moved < LAST_SEEN_DEBOUNCE_MS;
 }

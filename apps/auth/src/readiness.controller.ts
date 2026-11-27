@@ -24,7 +24,10 @@ export class ReadinessController {
 
     try {
       const orm = await getAuthOrm(this.config.db);
-      await orm.em.getConnection().execute("select 1");
+      await Promise.race([
+        orm.em.getConnection().execute("select 1"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("db check timed out")), 2000).unref()),
+      ]);
       checks.postgres = "up";
     } catch {
       checks.postgres = "down";

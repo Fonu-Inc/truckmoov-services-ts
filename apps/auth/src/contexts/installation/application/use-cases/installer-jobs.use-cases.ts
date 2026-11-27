@@ -37,7 +37,7 @@ import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from '../../.
 import { currentInstaller, installerJob } from './support/current-installer';
 import { installerOptions } from './support/job-execution.views';
 import { pageOf } from './support/paging';
-import { devicesForJobs, toDashboardJob, toFeedbackView, toInstallerJobItem, toJobDetail } from './support/installation-job.views';
+import { devicesForJobs, toDashboardJob, toFeedbackView, toInstallerJobItem, toJobDetail, type JobKnown } from './support/installation-job.views';
 import { HISTORY_EXPORT_CAP, exportTimeZone, historyCsv } from './support/installation-history-export';
 import {
   activitySeries,
@@ -171,7 +171,7 @@ export class InstallerJobsUseCases {
     return historyCsv(found.items, timeZone);
   }
 
-  async detail(accessToken: string, jobId: string) {
+  async detail(accessToken: string, jobId: string, known: JobKnown = {}) {
     const { installer, order } = await installerJob(
       { tokens: this.tokens, installers: this.installers, orders: this.orders },
       accessToken,
@@ -179,7 +179,7 @@ export class InstallerJobsUseCases {
     );
     const [application, assignments, vehicles, ticks, evidence, issues, feedback] = await Promise.all([
       this.applications.findById(order.applicationId),
-      this.orders.findAssignments(order.id),
+      known.assignments ?? this.orders.findAssignments(order.id),
       this.applications.findVehiclesByApplicationId(order.applicationId),
       this.orders.findTicks(order.id),
       this.orders.findEvidence(order.id),
@@ -188,7 +188,7 @@ export class InstallerJobsUseCases {
     ]);
     const deviceIds = assignments.flatMap((a) => (a.fleetDeviceId ? [a.fleetDeviceId] : []));
     const [devices, sims] = await Promise.all([
-      devicesForJobs(this.devices, deviceIds.map((deviceId) => ({ tenantId: order.tenantId, deviceId }))),
+      known.devices ?? devicesForJobs(this.devices, deviceIds.map((deviceId) => ({ tenantId: order.tenantId, deviceId }))),
       this.sims.findByDeviceIds(deviceIds),
     ]);
 
@@ -212,7 +212,7 @@ export class InstallerJobsUseCases {
   }
 
   private installer(accessToken: string): Promise<StoredInstaller> {
-    return currentInstaller({ tokens: this.tokens, installers: this.installers }, accessToken);
+    return currentInstaller({ tokens: this.tokens, installers: this.installers }, accessToken, true);
   }
 
   private async section(filters: JobFilters) {

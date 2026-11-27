@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { signBusEvent, type BusHandler, type EventBus, type EventEnvelope } from "@shared/eventbus";
 import { DeviceTelemetryListener } from "../../../apps/fleet/src/device-telemetry.listener";
 import { Device } from "../../../apps/fleet/src/contexts/fleet/devices/domain/entities/device.entity";
@@ -112,5 +112,33 @@ describe("DeviceTelemetryListener", () => {
 
     const unchanged = await devices.findById("dev-1", TENANT);
     expect(unchanged?.reportedProtocol).toBeNull();
+  });
+});
+
+describe("RecordDeviceTelemetryUseCase last-seen debounce", () => {
+  const events = { verified: async () => {}, failed: async () => {} };
+  const at = (seconds: number) => new Date(Date.parse("2026-08-25T10:00:00.000Z") + seconds * 1000).toISOString();
+
+  it("skips the write inside 30 s for a verified device and writes after", async () => {
+    const devices = new InMemoryDeviceRepository();
+    await devices.save(makeDevice({ verificationStatus: "verified", lastSeen: at(0) }));
+    const save = vi.spyOn(devices, "save");
+    const useCase = new RecordDeviceTelemetryUseCase(devices, events);
+
+    await useCase.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: at(29) });
+    expect(save).not.toHaveBeenCalled();
+
+    await useCase.execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: at(30) });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect((await devices.findById("dev-1", TENANT))?.lastSeen).toBe(at(30));
+  });
+
+  it("never debounces first telemetry", async () => {
+    const devices = new InMemoryDeviceRepository();
+    await devices.save(makeDevice({ lastSeen: at(0) }));
+
+    await new RecordDeviceTelemetryUseCase(devices, events).execute({ tenantId: TENANT, deviceId: "dev-1", reportedAt: at(1) });
+
+    expect((await devices.findById("dev-1", TENANT))?.verificationStatus).toBe("verified");
   });
 });

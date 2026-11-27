@@ -44,6 +44,7 @@ export type DbConfig = {
   dbName: string;
   poolMin?: number;
   poolMax?: number;
+  poolAcquireTimeoutMs?: number;
 };
 
 export class AuthRoleRecord {
@@ -1437,6 +1438,7 @@ export const IotSimRecordSchema = new EntitySchema<IotSimRecord>({
   indexes: [
     { properties: ['status'] },
     { properties: ['carrier'] },
+    { name: 'iot_sims_device_id_index', expression: 'create index "iot_sims_device_id_index" on "iot_sims" ("device_id") where "device_id" is not null' },
   ],
 });
 
@@ -2414,7 +2416,7 @@ async function initAuthOrm(cfg: DbConfig) {
     user: cfg.user,
     password: cfg.password,
     dbName: cfg.dbName,
-    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10 },
+    pool: { min: cfg.poolMin ?? 2, max: cfg.poolMax ?? 10, acquireTimeoutMillis: cfg.poolAcquireTimeoutMs ?? 8000 },
     schema: 'public',
     migrations: {
       path:

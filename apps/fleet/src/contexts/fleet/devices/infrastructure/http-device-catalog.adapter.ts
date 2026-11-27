@@ -31,6 +31,7 @@ type CatalogModelResponse = {
 export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
   private readonly logger = new Logger(HttpDeviceCatalogAdapter.name);
   private cache: { models: DeviceCatalogModel[]; expiresAt: number } | null = null;
+  private loading: Promise<DeviceCatalogModel[] | null> | null = null;
 
   private readonly caller: ServiceCaller;
 
@@ -57,7 +58,10 @@ export class HttpDeviceCatalogAdapter implements DeviceCatalogPort {
       return this.cache.models;
     }
 
-    const models = await this.fetchAll();
+    this.loading ??= this.fetchAll().finally(() => {
+      this.loading = null;
+    });
+    const models = await this.loading;
     if (models === null) {
       // Serve the stale copy rather than telling an installer that a model
       // they are holding does not exist.

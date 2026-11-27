@@ -6,6 +6,8 @@ export type InstallerScopeEntry = {
   deviceId: string;
 };
 
+export const scopeKey = (tenantId: string, deviceId: string) => `${tenantId}\u0000${deviceId}`;
+
 export interface InstallerDeviceScopePort {
   /** The installer's devices, as auth decides them. Null when auth cannot be asked. */
   forUser(userId: string): Promise<InstallerScopeEntry[] | null>;
