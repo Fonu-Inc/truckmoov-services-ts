@@ -77,7 +77,7 @@ import {
 } from "@shared/devices";
 import { TestTelemetryDto } from "./dto/test-telemetry.dto";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
-import { devicesStillNeeded, orderPlatformStock } from "./contexts/fleet/devices/domain/platform-stock";
+import { claimFromStock, devicesStillNeeded, orderPlatformStock } from "./contexts/fleet/devices/domain/platform-stock";
 import { AppConfigService } from "@shared/config";
 import {
   deviceExport,
@@ -331,13 +331,12 @@ export class InternalFleetController extends BaseFleetController {
       (device) => device.lifecycleStatus !== "decommissioned",
     ).length;
     const needed = devicesStillNeeded(payload.target, held);
-    const deviceIds: string[] = [];
+    let deviceIds: string[] = [];
 
     if (needed > 0) {
-      const stock = orderPlatformStock(await this.devices.findAll({ tenantId: SYSTEM_TENANT_ID }));
+      const stock = orderPlatformStock(await this.devices.findAll({ tenantId: SYSTEM_TENANT_ID, assigned: false }));
       const now = new Date().toISOString();
-      for (const device of stock) {
-        if (deviceIds.length >= needed) break;
+      deviceIds = await claimFromStock(stock, needed, async (device) => {
         const moved = device.update({
           tenantId: payload.tenantId,
           lifecycleStatus: "assignable",
@@ -346,8 +345,8 @@ export class InternalFleetController extends BaseFleetController {
           vehicleId: null,
           holdCause: null,
         });
-        if (await this.devices.claimStockDevice(device, moved)) deviceIds.push(device.id);
-      }
+        return this.devices.claimStockDevice(device, moved);
+      });
     }
 
     return {

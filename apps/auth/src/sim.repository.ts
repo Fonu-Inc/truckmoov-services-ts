@@ -68,6 +68,7 @@ export type SimFilters = {
   tenantId?: string;
   search?: string;
   tenantIds?: string[];
+  deviceIds?: string[];
   operators?: string[];
   page?: number;
   limit?: number;

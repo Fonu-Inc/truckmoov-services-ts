@@ -10,6 +10,7 @@ export type SystemSimListFilters = {
   status?: string;
   carrier?: string;
   tenantId?: string;
+  deviceIds?: string[];
   search?: string;
   page?: number;
   limit?: number;

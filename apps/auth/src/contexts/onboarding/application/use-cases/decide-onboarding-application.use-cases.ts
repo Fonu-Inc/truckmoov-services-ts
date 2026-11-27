@@ -260,7 +260,8 @@ export class ApproveOnboardingApplicationUseCase {
       });
     }
     // Straight to payment skips the provisioning step that would otherwise send this.
-    if (approved.stage === 'payment') await this.paymentNotices.paymentOpened(approved, now);
+    // Not awaited: the SMTP round trip is the slowest step, and a failed or interrupted send stays owed to the payment-notice retry sweep.
+    if (approved.stage === 'payment') void this.paymentNotices.paymentOpened(approved, now);
 
     return {
       status: true,

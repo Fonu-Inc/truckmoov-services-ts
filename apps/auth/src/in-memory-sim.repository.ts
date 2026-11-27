@@ -12,6 +12,7 @@ export class InMemorySimRepository implements SimRepository {
     else if (filters?.status) sims = sims.filter((s) => s.status === filters.status);
     if (filters?.carrier) sims = sims.filter((s) => s.carrier.toLowerCase() === filters.carrier!.toLowerCase());
     if (filters?.tenantId !== undefined) sims = sims.filter((s) => s.tenantId === filters.tenantId);
+    if (filters?.deviceIds) sims = sims.filter((s) => !!s.deviceId && filters.deviceIds!.includes(s.deviceId));
     if (filters?.operators?.length) sims = sims.filter((s) => filters.operators!.includes(s.carrier));
     if (filters?.search) {
       const q = filters.search.toLowerCase();

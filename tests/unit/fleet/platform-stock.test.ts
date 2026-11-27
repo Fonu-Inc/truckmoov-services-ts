@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  claimFromStock,
   devicesStillNeeded,
   isHealthyStock,
   orderPlatformStock,
@@ -43,5 +44,21 @@ describe("platform stock", () => {
     expect(devicesStillNeeded(10, 4)).toBe(6);
     expect(devicesStillNeeded(10, 10)).toBe(0);
     expect(devicesStillNeeded(10, 12)).toBe(0);
+  });
+
+  it("claims in stock order and tops up from later devices when a claim is lost", async () => {
+    const stock = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
+    const tried: string[] = [];
+    const claimed = await claimFromStock(stock, 3, async (d) => {
+      tried.push(d.id);
+      return d.id !== "b";
+    });
+    expect(claimed).toEqual(["a", "c", "d"]);
+    expect(tried).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("claims only what exists when stock is short", async () => {
+    expect(await claimFromStock([{ id: "a" }], 3, async () => true)).toEqual(["a"]);
+    expect(await claimFromStock([], 3, async () => true)).toEqual([]);
   });
 });

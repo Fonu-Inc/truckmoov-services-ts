@@ -69,6 +69,10 @@ export class MikroSimRepository implements SimRepository {
     else if (filters?.status) { conditions.push(`status = ?`); params.push(filters.status); }
     if (filters?.carrier) { conditions.push(`lower(carrier) = lower(?)`); params.push(filters.carrier); }
     if (filters?.tenantId !== undefined) { conditions.push(`tenant_id = ?`); params.push(filters.tenantId); }
+    if (filters?.deviceIds) {
+      conditions.push(`device_id in (?)`);
+      params.push(filters.deviceIds.length ? filters.deviceIds : [null]);
+    }
     if (filters?.operators?.length) {
       conditions.push(`carrier in (?)`);
       params.push(filters.operators);

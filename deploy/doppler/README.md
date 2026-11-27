@@ -50,8 +50,6 @@ Auth config:
 - `PAYMENT_DEMO_MODE`
 - `PAYSTACK_BASE_URL`
 - `PAYSTACK_SECRET_KEY`
-- `FONU_COMPANY_UUID`
-- `FONU_API_KEY`
 
 Fleet config:
 

@@ -234,6 +234,16 @@ describe("listing and exporting", () => {
     expect(result.data.sims.map((s) => s.id).sort()).toEqual(["b", "c"]);
   });
 
+  it("limits the list to the given device ids", async () => {
+    await repo.save(sim({ id: "d", iccid: "89234000000000000004", deviceId: "dev1" }));
+
+    const hit = await list().execute(TOKEN, { deviceIds: ["dev1", "dev2"] });
+    const none = await list().execute(TOKEN, { deviceIds: [] });
+
+    expect(hit.data.sims.map((s) => s.id)).toEqual(["d"]);
+    expect(none.data.total).toBe(0);
+  });
+
   it("pages and reports the full total", async () => {
     const result = await list().execute(TOKEN, { page: 2, limit: 2 });
 

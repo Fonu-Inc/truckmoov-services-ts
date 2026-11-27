@@ -85,6 +85,7 @@ export class ApplicationDeviceAllocationService {
       shortfall = owedDevices(requested, await this.inventory.heldBy(tenantId).catch(() => 0));
     }
 
+    // Sequential: every write takes the same chain advisory lock, so parallel calls only hold extra connections.
     for (const deviceId of deviceIds) {
       await this.attempt(`audit:${deviceId}`, () =>
         this.activityLog.record({

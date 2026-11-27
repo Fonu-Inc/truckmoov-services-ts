@@ -175,7 +175,8 @@ export function buildInventoryCte(filters: DeviceInventoryFilters) {
     matchParams.push(filters.bucket);
   }
   if (filters.manufacturer) {
-    match.push('lower(manufacturer) = lower(?)');
+    // Mirrors the manufacturers endpoint: trimmed, blanks labelled 'Unknown'.
+    match.push("lower(coalesce(nullif(trim(manufacturer), ''), 'Unknown')) = lower(?)");
     matchParams.push(filters.manufacturer);
   }
   if (filters.lifecycleStatus) {

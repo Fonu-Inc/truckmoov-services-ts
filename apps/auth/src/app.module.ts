@@ -406,8 +406,6 @@ import {
   PaystackGateway,
 } from './contexts/payments';
 import { MailCredentialsController } from './mail-credentials.controller';
-import { TelephonyController } from './telephony.controller';
-import { GetClickToCallCredentialsUseCase } from './get-click-to-call-credentials.use-case';
 import { MailboxController } from './mailbox.controller';
 import { AdminMailboxController, AdminMailCredentialsController } from './admin-mailbox.controllers';
 import { PlatformAlertsController } from './platform-alerts.controller';
@@ -1005,7 +1003,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     InstallationController,
     SystemOnboardingApplicationsController,
     MailCredentialsController,
-    TelephonyController,
     MailboxController,
     AdminMailCredentialsController,
     AdminMailboxController,
@@ -1598,7 +1595,6 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     },
     SaveMailCredentialsUseCase,
     GetMailCredentialsUseCase,
-    GetClickToCallCredentialsUseCase,
     DeleteMailCredentialsUseCase,
     ImapMailboxReader,
     SmtpImapMailSender,

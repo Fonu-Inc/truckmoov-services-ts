@@ -207,6 +207,7 @@ export class SystemSimsController extends BaseAuthController {
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'carrier', required: false, type: String })
   @ApiQuery({ name: 'tenantId', required: false, type: String })
+  @ApiQuery({ name: 'deviceIds', required: false, type: String, description: 'Comma-separated device ids, max 100' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: '1-based; with limit enables paging' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Default 25, max 100' })
   @ApiOkResponse({ type: SystemSimsListResponse })
@@ -218,17 +219,21 @@ export class SystemSimsController extends BaseAuthController {
     @Query('status') status?: string,
     @Query('carrier') carrier?: string,
     @Query('tenantId') tenantId?: string,
+    @Query('deviceIds') deviceIds?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const accessToken = this.extractBearerToken(authorization);
     if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    const deviceIdList = deviceIds === undefined ? undefined : deviceIds.split(',').map((id) => id.trim()).filter(Boolean);
+    if (deviceIdList && deviceIdList.length > 100) throw new BadRequestException('deviceIds accepts at most 100 ids');
     try {
       return await this.listSystemSimsUseCase.execute(accessToken, {
         search,
         status,
         carrier,
         tenantId,
+        deviceIds: deviceIdList,
         ...this.parsePaging(page, limit),
       });
     } catch (error) {

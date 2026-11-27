@@ -19,3 +19,19 @@ export function orderPlatformStock<T extends StockCandidate>(devices: T[]): T[] 
 export function devicesStillNeeded(target: number, held: number): number {
   return Math.max(0, target - held);
 }
+
+/** Claims up to `needed` devices in concurrent batches, in stock order; a lost claim is topped up from the devices after it. */
+export async function claimFromStock<T extends { id: string }>(
+  stock: T[],
+  needed: number,
+  claim: (device: T) => Promise<boolean>,
+): Promise<string[]> {
+  const claimed: string[] = [];
+  for (let next = 0; claimed.length < needed && next < stock.length; ) {
+    const batch = stock.slice(next, next + needed - claimed.length);
+    next += batch.length;
+    const won = await Promise.all(batch.map(claim));
+    batch.forEach((device, i) => won[i] && claimed.push(device.id));
+  }
+  return claimed;
+}

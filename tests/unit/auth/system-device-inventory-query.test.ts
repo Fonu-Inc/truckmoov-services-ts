@@ -57,6 +57,14 @@ describe('buildInventoryCte', () => {
     expect(params).toContain('%50\\%\\_a\\\\b%');
   });
 
+  it('matches trimmed manufacturers and treats blanks as Unknown', () => {
+    const { filters } = parseDeviceInventoryQuery({ manufacturer: 'Unknown' });
+    const { sql, params } = buildInventoryCte(filters);
+    expect(sql).toContain("lower(coalesce(nullif(trim(manufacturer), ''), 'Unknown')) = lower(?)");
+    expect(params).toContain('Unknown');
+    expect(placeholders(sql)).toBe(params.length);
+  });
+
   it('binds only the tenant-name value when no filter is set', () => {
     const { sql, params } = buildInventoryCte(parseDeviceInventoryQuery({}).filters);
     expect(params).toHaveLength(1);

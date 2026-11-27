@@ -24,7 +24,21 @@ export type DeviceInventoryAvailability = {
  */
 @Injectable()
 export class OnboardingDeviceInventoryService {
+  private fleetDevicesKnown = false;
+
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
+
+  // Only 'exists' is cached: the table can appear later, never disappear.
+  private async fleetDevicesExists(): Promise<boolean> {
+    if (this.fleetDevicesKnown) return true;
+    const connection = (await getAuthOrm(this.config.db)).em.getConnection();
+    const [exists] = await connection.execute<ExistsRow[]>(
+      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
+      ['fleet_devices'],
+    );
+    this.fleetDevicesKnown = this.toBoolean(exists?.exists);
+    return this.fleetDevicesKnown;
+  }
 
   async availability(): Promise<DeviceInventoryAvailability> {
     // In-memory mode has no shared warehouse. Do not turn local/test onboarding
@@ -33,15 +47,10 @@ export class OnboardingDeviceInventoryService {
       return { tracked: false, availableQuantity: Number.MAX_SAFE_INTEGER };
     }
 
-    const orm = await getAuthOrm(this.config.db);
-    const connection = orm.em.getConnection();
-    const [exists] = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-    if (!this.toBoolean(exists?.exists)) {
+    if (!(await this.fleetDevicesExists())) {
       return { tracked: false, availableQuantity: Number.MAX_SAFE_INTEGER };
     }
+    const connection = (await getAuthOrm(this.config.db)).em.getConnection();
 
     const [row] = await connection.execute<CountRow[]>(
       `select count(*)::int as count from fleet_devices where ${PLATFORM_STOCK_PREDICATE}`,
@@ -54,13 +63,8 @@ export class OnboardingDeviceInventoryService {
   async heldBy(tenantId: string): Promise<number> {
     if (this.config.persistence.backend === 'in-memory') return 0;
 
-    const orm = await getAuthOrm(this.config.db);
-    const connection = orm.em.getConnection();
-    const [exists] = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-    if (!this.toBoolean(exists?.exists)) return 0;
+    if (!(await this.fleetDevicesExists())) return 0;
+    const connection = (await getAuthOrm(this.config.db)).em.getConnection();
 
     const [row] = await connection.execute<CountRow[]>(
       "select count(*)::int as count from fleet_devices where tenant_id = ? and lifecycle_status <> 'decommissioned'",
