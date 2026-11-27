@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { Role, roleFromId } from '@shared/rbac';
 import {
   ORGANIZATION_SETTINGS_REPOSITORY,
@@ -181,7 +182,6 @@ type SystemTenantRow = {
 
 type CountRow = { tenant_id?: string; count?: number | string };
 type SessionRow = { tenant_id?: string; last_active_at?: string | Date | null };
-type ExistsRow = { exists?: boolean | number | string };
 type UserRow = {
   id?: string;
   email?: string;
@@ -386,16 +386,6 @@ function toIsoString(value?: string | Date | null): string | null {
 
 function toNumber(value: unknown): number {
   return Number(value ?? 0) || 0;
-}
-
-function toBoolean(value: unknown): boolean {
-  return (
-    value === true ||
-    value === 1 ||
-    value === '1' ||
-    value === 't' ||
-    value === 'true'
-  );
 }
 
 function earliestCreatedAt(
@@ -1119,7 +1109,7 @@ export class ListSystemTenantsUseCase {
       ? T
       : never,
   ) {
-    if (!(await this.tableExists(connection, 'system_tenant_onboardings'))) {
+    if (!(await tableExists(connection, 'system_tenant_onboardings'))) {
       return [] as OnboardingRow[];
     }
     return connection.execute<OnboardingRow[]>(
@@ -1135,7 +1125,7 @@ export class ListSystemTenantsUseCase {
       ? T
       : never,
   ) {
-    if (!(await this.tableExists(connection, 'tenant_business_info'))) {
+    if (!(await tableExists(connection, 'tenant_business_info'))) {
       return [] as BusinessInfoRow[];
     }
     return connection.execute<BusinessInfoRow[]>(
@@ -1151,7 +1141,7 @@ export class ListSystemTenantsUseCase {
       ? T
       : never,
   ) {
-    if (!(await this.tableExists(connection, 'organizations'))) {
+    if (!(await tableExists(connection, 'organizations'))) {
       return [] as OrganizationTypesRow[];
     }
     return connection.execute<OrganizationTypesRow[]>(
@@ -1169,27 +1159,12 @@ export class ListSystemTenantsUseCase {
       : never,
     tableName: string,
   ) {
-    if (!(await this.tableExists(connection, tableName))) {
+    if (!(await tableExists(connection, tableName))) {
       return [] as CountRow[];
     }
     return connection.execute<CountRow[]>(
       `select tenant_id, count(*)::int as count from "${tableName}" group by tenant_id`,
     );
-  }
-
-  private async tableExists(
-    connection: Awaited<
-      ReturnType<typeof getAuthOrm>
-    >['em']['getConnection'] extends () => infer T
-      ? T
-      : never,
-    tableName: string,
-  ) {
-    const existsRows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      [tableName],
-    );
-    return toBoolean(existsRows[0]?.exists);
   }
 }
 

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { readSetupRequestCharges, type DeviceSetupRequestCharges } from '@shared/devices';
 import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/auth-orm';
 import {
@@ -262,12 +263,7 @@ export class MikroDeviceSetupRequestRepository implements DeviceSetupRequestRepo
 
   private async tableExists(): Promise<boolean> {
     if (this.config.persistence.backend === 'in-memory') return false;
-    const rows = await this.query<{ exists: boolean | number | string }>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_device_setup_requests'],
-    );
-    const value = rows[0]?.exists;
-    return value === true || value === 1 || value === 't' || value === 'true';
+    return tableExists({ execute: (sql, params) => this.query(sql, params ?? []) }, 'fleet_device_setup_requests');
   }
 
   private async query<T>(sql: string, params: unknown[]): Promise<T[]> {

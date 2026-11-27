@@ -71,6 +71,13 @@ describe('buildInventoryCte', () => {
     expect(placeholders(sql)).toBe(1);
   });
 
+  it('buckets unassigned platform stock as unassigned, after the inactive branch', () => {
+    const { sql } = buildInventoryCte(parseDeviceInventoryQuery({}).filters);
+    const stock = sql.indexOf("d.tenant_id = 'system' and d.vehicle_id is null then 'unassigned'");
+    expect(stock).toBeGreaterThan(sql.indexOf("then 'inactive'"));
+    expect(stock).toBeLessThan(sql.indexOf("when d.status = 'active' then 'active'"));
+  });
+
   it('counts failed provisioning fleet-wide, ignoring scope and filters', () => {
     expect(FAILED_PROVISION_SQL).toContain("lifecycle_status <> 'decommissioned'");
     expect(FAILED_PROVISION_SQL).not.toMatch(/\?|base|flagged|matched|tenant_id/);

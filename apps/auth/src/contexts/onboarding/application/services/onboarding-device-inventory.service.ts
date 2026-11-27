@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 
-type ExistsRow = { exists?: boolean | number | string };
 type CountRow = { count?: number | string };
 
 /** Mirrors fleet's isHealthyStock over the system tenant's devices: the one set the allocator draws from. */
@@ -24,20 +24,11 @@ export type DeviceInventoryAvailability = {
  */
 @Injectable()
 export class OnboardingDeviceInventoryService {
-  private fleetDevicesKnown = false;
-
   constructor(@Inject(AppConfigService) private readonly config: AppConfigService) {}
 
-  // Only 'exists' is cached: the table can appear later, never disappear.
   private async fleetDevicesExists(): Promise<boolean> {
-    if (this.fleetDevicesKnown) return true;
     const connection = (await getAuthOrm(this.config.db)).em.getConnection();
-    const [exists] = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-    this.fleetDevicesKnown = this.toBoolean(exists?.exists);
-    return this.fleetDevicesKnown;
+    return tableExists(connection, 'fleet_devices');
   }
 
   async availability(): Promise<DeviceInventoryAvailability> {
@@ -71,9 +62,5 @@ export class OnboardingDeviceInventoryService {
       [tenantId],
     );
     return Math.max(0, Number(row?.count ?? 0) || 0);
-  }
-
-  private toBoolean(value: unknown): boolean {
-    return value === true || value === 1 || value === '1' || value === 't' || value === 'true';
   }
 }

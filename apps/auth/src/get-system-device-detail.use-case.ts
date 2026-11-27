@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { PLATFORM_STOCK_LABEL } from '@shared/devices';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
@@ -32,7 +33,6 @@ type DeviceDetailRow = {
   created_at?: string | Date | null;
   updated_at?: string | Date | null;
 };
-type ExistsRow = { exists?: boolean | number | string };
 type ProtocolRow = { protocol_type?: string | null };
 type TenantNameRow = { organization_name?: string | null };
 
@@ -93,7 +93,7 @@ export class GetSystemDeviceDetailUseCase {
 
     const orm = await getAuthOrm(this.config.db);
     const connection = orm.em.getConnection();
-    if (!(await this.tableExists(connection, 'fleet_devices'))) {
+    if (!(await tableExists(connection, 'fleet_devices'))) {
       throw new SystemDeviceNotFoundError(deviceId);
     }
 
@@ -161,7 +161,7 @@ export class GetSystemDeviceDetailUseCase {
     if (!manufacturer || !model) {
       return null;
     }
-    if (!(await this.tableExists(connection, 'system_device_models'))) {
+    if (!(await tableExists(connection, 'system_device_models'))) {
       return null;
     }
     const rows = await connection.execute<ProtocolRow[]>(
@@ -199,28 +199,6 @@ export class GetSystemDeviceDetailUseCase {
       [tenantId],
     );
     return rows[0]?.organization_name?.toString().trim() || null;
-  }
-
-  private async tableExists(
-    connection: Awaited<
-      ReturnType<typeof getAuthOrm>
-    >['em']['getConnection'] extends () => infer T
-      ? T
-      : never,
-    tableName: string,
-  ) {
-    const rows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      [tableName],
-    );
-    const value = rows[0]?.exists;
-    return (
-      value === true ||
-      value === 1 ||
-      value === '1' ||
-      value === 't' ||
-      value === 'true'
-    );
   }
 
   private toIsoString(value?: string | Date | null) {

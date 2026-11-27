@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetTableExistsCache } from '@shared/db';
 
 const execute = vi.fn();
 
@@ -55,6 +56,7 @@ function dataQueries(): string[] {
 describe('device setup request organisation name', () => {
   beforeEach(() => {
     execute.mockReset();
+    resetTableExistsCache();
   });
 
   it('selects the tenant name when the request carries none', async () => {

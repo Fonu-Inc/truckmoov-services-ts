@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppConfigService } from "@shared/config";
+import { tableExists } from "@shared/db";
 import { Role } from "@shared/rbac";
 import {
   TOKEN_SERVICE,
@@ -24,7 +25,6 @@ type CountRow = {
   total?: number | string;
   this_month?: number | string;
 };
-type ExistsRow = { exists?: boolean | number | string };
 type DbConnection =
   Awaited<ReturnType<typeof getAuthOrm>>["em"]["getConnection"] extends () => infer T
     ? T
@@ -140,11 +140,7 @@ export class GetSystemDashboardUseCase {
     connection: DbConnection,
     tableName: string,
   ): Promise<{ total: number; thisMonth: number }> {
-    const existsRows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      [tableName],
-    );
-    if (!this.toBoolean(existsRows[0]?.exists)) {
+    if (!(await tableExists(connection, tableName))) {
       return { total: 0, thisMonth: 0 };
     }
 
@@ -162,14 +158,6 @@ export class GetSystemDashboardUseCase {
 
   private toNumber(value: unknown) {
     return Number(value ?? 0) || 0;
-  }
-
-  private toBoolean(value: unknown) {
-    return value === true
-      || value === 1
-      || value === "1"
-      || value === "t"
-      || value === "true";
   }
 }
 

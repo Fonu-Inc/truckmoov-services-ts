@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
 import type { UserRepository } from './contexts/auth/session/domain/ports/user-repository.port';
@@ -8,7 +9,6 @@ import { ensureSystemActor } from './system-authz';
 import { periodDays, type SnapshotPeriod } from './system-snapshot-period';
 
 type ManufacturerRow = { manufacturer?: string | null; count?: number | string | null };
-type ExistsRow = { exists?: boolean | number | string };
 
 const UNKNOWN_MANUFACTURER = 'Unknown';
 
@@ -35,11 +35,7 @@ export class GetSystemDeviceManufacturersUseCase {
   private async countByManufacturer(addedWithinDays: number | null) {
     const orm = await getAuthOrm(this.config.db);
     const connection = orm.em.getConnection();
-    const exists = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-    if (!this.toBoolean(exists[0]?.exists)) return [];
+    if (!(await tableExists(connection, 'fleet_devices'))) return [];
 
     const rows = await connection.execute<ManufacturerRow[]>(
       `select coalesce(nullif(trim(manufacturer), ''), ?) as manufacturer, count(*)::int as count
@@ -53,9 +49,5 @@ export class GetSystemDeviceManufacturersUseCase {
       manufacturer: String(row.manufacturer ?? UNKNOWN_MANUFACTURER),
       count: Number(row.count ?? 0) || 0,
     }));
-  }
-
-  private toBoolean(value: unknown) {
-    return value === true || value === 1 || value === '1' || value === 't' || value === 'true';
   }
 }

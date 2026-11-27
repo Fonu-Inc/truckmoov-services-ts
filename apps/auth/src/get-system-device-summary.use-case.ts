@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import {
   DEVICE_MODEL_CATALOG_REPOSITORY,
   type DeviceModelCatalogRepository,
@@ -11,7 +12,6 @@ import { getAuthOrm } from './contexts/auth/session/infrastructure/persistence/a
 import { ensureSystemActor } from './system-authz';
 
 type CountRow = Record<string, number | string | null | undefined>;
-type ExistsRow = { exists?: boolean | number | string };
 
 /** Every counter at zero. Returned when there is no fleet table to read. */
 const EMPTY_INVENTORY_COUNTS = {
@@ -84,12 +84,7 @@ export class GetSystemDeviceSummaryUseCase {
   private async getInventoryCounts() {
     const orm = await getAuthOrm(this.config.db);
     const connection = orm.em.getConnection();
-    const existsRows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-
-    if (!this.toBoolean(existsRows[0]?.exists)) {
+    if (!(await tableExists(connection, 'fleet_devices'))) {
       return { ...EMPTY_INVENTORY_COUNTS };
     }
 
@@ -154,15 +149,5 @@ export class GetSystemDeviceSummaryUseCase {
 
   private toNumber(value: unknown) {
     return Number(value ?? 0) || 0;
-  }
-
-  private toBoolean(value: unknown) {
-    return (
-      value === true ||
-      value === 1 ||
-      value === '1' ||
-      value === 't' ||
-      value === 'true'
-    );
   }
 }

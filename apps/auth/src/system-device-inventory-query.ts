@@ -114,9 +114,11 @@ export function parseDeviceInventoryQuery(
 
 // Server twin of the admin page's device-status buckets; read both status
 // columns because an assigned-from-stock device is lifecycle 'assignable'.
+// Unassigned platform stock reads 'unassigned' even though its status projects to 'active'.
 const BUCKET_SQL = `case
   when d.status in ('inactive','offline','suspended','decommissioned')
     or d.lifecycle_status in ('inactive','offline','suspended','decommissioned') then 'inactive'
+  when d.tenant_id = '${SYSTEM_TENANT_ID}' and d.vehicle_id is null then 'unassigned'
   when d.status = 'active' then 'active'
   when d.lifecycle_status = 'assigned' or d.status = 'assigned' or d.vehicle_id is not null then 'assigned'
   else 'unassigned' end`;

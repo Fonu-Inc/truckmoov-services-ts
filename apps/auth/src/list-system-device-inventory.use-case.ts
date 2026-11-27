@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { TOKEN_SERVICE, USER_REPOSITORY } from './contexts/auth/session';
 import type { TokenService } from './contexts/auth/session/domain/ports/token-service.port';
@@ -38,7 +39,6 @@ type DeviceInventoryRow = {
   bucket?: string | null;
 };
 
-type ExistsRow = { exists?: boolean | number | string };
 type CountsRow = {
   total?: number | string;
   all?: number | string;
@@ -155,11 +155,7 @@ export class ListSystemDeviceInventoryUseCase {
 
     const orm = await getAuthOrm(this.config.db);
     const connection = orm.em.getConnection();
-    const existsRows = await connection.execute<ExistsRow[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
-      ['fleet_devices'],
-    );
-    if (!this.toBoolean(existsRows[0]?.exists)) {
+    if (!(await tableExists(connection, 'fleet_devices'))) {
       return empty;
     }
 
@@ -245,16 +241,6 @@ export class ListSystemDeviceInventoryUseCase {
           }
         : { ...EMPTY_SUMMARY },
     };
-  }
-
-  private toBoolean(value: unknown) {
-    return (
-      value === true ||
-      value === 1 ||
-      value === '1' ||
-      value === 't' ||
-      value === 'true'
-    );
   }
 
   private toIsoString(value?: string | Date | null) {

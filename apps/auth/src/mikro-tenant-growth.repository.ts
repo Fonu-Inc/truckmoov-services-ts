@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { tableExists } from '@shared/db';
 import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 import type { TenantGrowthRepository } from './tenant-growth.repository';
@@ -12,10 +13,7 @@ export class MikroTenantGrowthRepository implements TenantGrowthRepository {
 
   async tenantsCreatedByLagosMonth(): Promise<Map<string, number>> {
     const connection = (await getAuthOrm(this.config.db)).em.fork().getConnection();
-    const exists = await connection.execute<Row[]>(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = 'system_tenant_onboardings') as exists",
-    );
-    const hasOnboardings = exists[0]?.exists === true;
+    const hasOnboardings = await tableExists(connection, 'system_tenant_onboardings');
     const rows = hasOnboardings
       ? await connection.execute<Row[]>(this.sql(true), [SYSTEM_TENANT_ID, SYSTEM_TENANT_ID])
       : await connection.execute<Row[]>(this.sql(false), [SYSTEM_TENANT_ID]);
