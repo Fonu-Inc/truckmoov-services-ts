@@ -488,7 +488,52 @@ describe("Device installation", () => {
 
     await expect(() =>
       kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" }),
-    ).rejects.toThrow("only a configured device can be verified");
+    ).rejects.toThrow("only a configured or assignable device can be verified");
+  });
+});
+
+describe("Verifying an allocated device", () => {
+  it("verifies an assignable device from telemetry", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice({ lifecycleStatus: "assignable" }));
+
+    const waiting = await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    expect(waiting.verificationStatus).toBe("waiting");
+    expect(waiting.verificationDeadline).not.toBeNull();
+
+    const verified = await kit.telemetry.execute({
+      tenantId: TENANT,
+      deviceId: "dev-1",
+      imei: null,
+      reportedAt: "2026-08-25T10:00:00.000Z",
+    });
+    expect(verified?.lifecycleStatus).toBe("verified_online");
+    expect(verified?.verificationStatus).toBe("verified");
+  });
+
+  it("fails an assignable device at the deadline and lets it be retried", async () => {
+    const kit = harness();
+    await kit.devices.save(makeDevice({ lifecycleStatus: "assignable" }));
+    await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+
+    const result = await kit.expire.execute(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    expect(result.expired).toBe(1);
+    const failed = await kit.devices.findById("dev-1", TENANT);
+    expect(failed?.verificationStatus).toBe("failed");
+    expect(failed?.lifecycleStatus).toBe("assignable");
+
+    const retried = await kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" });
+    expect(retried.verificationStatus).toBe("waiting");
+  });
+
+  it("still refuses devices that cannot be verified", async () => {
+    for (const lifecycleStatus of ["registered", "config_pending", "verified_online", "faulty", "suspended", "decommissioned"] as const) {
+      const kit = harness();
+      await kit.devices.save(makeDevice({ lifecycleStatus }));
+      await expect(
+        kit.startVerification.execute({ tenantId: TENANT, deviceId: "dev-1" }),
+      ).rejects.toThrow("only a configured or assignable device can be verified");
+    }
   });
 });
 

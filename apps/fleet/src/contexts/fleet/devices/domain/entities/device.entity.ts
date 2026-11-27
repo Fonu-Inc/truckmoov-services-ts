@@ -75,6 +75,9 @@ export const TENANT_LIFECYCLE_TARGETS = [
  * A device can be configured before it has been fitted and again after a
  * failed attempt. It cannot be configured once it is carrying a vehicle.
  */
+/** An assignable device is one the platform handed to the tenant for a job; it is verified in place. */
+const VERIFIABLE_LIFECYCLE_STATUSES: readonly DeviceLifecycleStatus[] = ["configured", "assignable"];
+
 const CONFIGURABLE_LIFECYCLE_STATUSES: readonly DeviceLifecycleStatus[] = [
   "registered",
   "config_pending",
@@ -616,8 +619,8 @@ export class Device {
    * it does not, and the deadline is what turns silence into a failure.
    */
   beginVerification(values: { deadline: string; at?: string }): Device {
-    if (this.lifecycleStatus !== "configured") {
-      throw new FleetRuleError("only a configured device can be verified");
+    if (!VERIFIABLE_LIFECYCLE_STATUSES.includes(this.lifecycleStatus)) {
+      throw new FleetRuleError("only a configured or assignable device can be verified");
     }
     if (Number.isNaN(Date.parse(values.deadline))) {
       throw new Error("deadline must be a valid ISO date");

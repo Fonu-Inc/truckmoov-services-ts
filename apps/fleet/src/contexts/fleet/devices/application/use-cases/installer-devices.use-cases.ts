@@ -53,6 +53,8 @@ function toItem(entry: InstallerScopeEntry, device: Device, row: VerificationMon
     configuredAt: row.configuredAt,
     secondsSinceConfigured: row.secondsSinceConfigured,
     lastSeenAt: row.lastSeen,
+    verificationDeadline: row.verificationDeadline,
+    verificationError: device.verificationError,
     errors: row.errors.map(toError),
   };
 }
