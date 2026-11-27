@@ -16,7 +16,6 @@ import {
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { OWNER_OPERATOR_ORGANISATION_TYPE, Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
@@ -43,6 +42,7 @@ import {
   deviceHeartbeat,
   heartbeatWindow,
 } from "./contexts/fleet/devices";
+import { RecordDeviceTelemetryUseCase } from "./contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
 import { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
 import type {
@@ -135,6 +135,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(DeviceIdentityDirectory) private readonly identities: DeviceIdentityDirectory,
     @Optional() @Inject(AccessClient) private readonly access?: AccessClient,
     @Optional() @Inject(ImportPlatformStockUseCase) private readonly importPlatformStock?: ImportPlatformStockUseCase,
+    @Optional() @Inject(RecordDeviceTelemetryUseCase) private readonly recordTelemetry?: RecordDeviceTelemetryUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -385,36 +386,19 @@ export class InternalFleetController extends BaseFleetController {
     const device = await this.devices.findLiveByImei(payload.imei);
     if (!device) throw new NotFoundException("No device with that IMEI");
 
+    if (!this.recordTelemetry) throw new ServiceUnavailableException("Telemetry recording is not available");
+
     const before = device.verificationStatus;
-    const now = new Date().toISOString();
-    await this.bus.publish(`tm.${device.tenantId}.vehicle.location.updated`, {
-      id: randomUUID(),
-      type: "vehicle.location.updated",
-      version: 1,
-      occurred_at: now,
-      tenant_id: device.tenantId,
-      data: {
-        vehicle_id: device.vehicleId ?? "",
-        device_id: device.id,
-        imei: device.imei,
-        lat: payload.latitude ?? 6.5244,
-        lng: payload.longitude ?? 3.3792,
-        speed_kph: 0,
-        heading: null,
-        accuracy_m: null,
-        fix_time: now,
-        protocol: device.reportedProtocol ?? "",
-        source: "test-telemetry",
-      },
+    // Fleet may not publish tracking's location event on the bus, so this runs the use case the listener runs.
+    await this.recordTelemetry.execute({
+      tenantId: device.tenantId,
+      deviceId: device.id,
+      imei: device.imei,
+      reportedAt: new Date().toISOString(),
+      reportedProtocol: device.reportedProtocol ?? undefined,
     });
 
-    let after = device;
-    if (before === "waiting") {
-      for (let attempt = 0; attempt < 12 && after.verificationStatus === before; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        after = (await this.devices.findById(device.id, device.tenantId)) ?? after;
-      }
-    }
+    const after = (await this.devices.findById(device.id, device.tenantId)) ?? device;
 
     return {
       status: true,

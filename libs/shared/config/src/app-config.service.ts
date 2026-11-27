@@ -46,10 +46,11 @@ export class AppConfigService {
       // all ten. Named here so the ceiling is a decision rather than a default,
       // and raisable without a code change — mind the server's max_connections
       // against pool size times replica count.
-      poolMin: this.config.get<number>("DB_POOL_MIN", 2),
-      poolMax: this.config.get<number>("DB_POOL_MAX", 10),
+      // Env values arrive as strings and tarn rejects a non-integer max, so coerce.
+      poolMin: Number(this.config.get("DB_POOL_MIN", 2)),
+      poolMax: Number(this.config.get("DB_POOL_MAX", 10)),
       // Knex waits 60s for a free connection by default, which turns pool starvation into minute-long requests.
-      poolAcquireTimeoutMs: this.config.get<number>("DB_POOL_ACQUIRE_TIMEOUT_MS", 8000),
+      poolAcquireTimeoutMs: Number(this.config.get("DB_POOL_ACQUIRE_TIMEOUT_MS", 8000)),
     };
   }
 
