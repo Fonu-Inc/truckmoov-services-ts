@@ -83,25 +83,13 @@ export class UploadOnboardingApplicationDocumentUseCase {
       inspected.extension,
     );
 
-    try {
-      await this.objectStorage.putObject({
-        key,
-        body: file.buffer,
-        // The sniffed type is stored, not the caller's: a mislabelled upload
-        // must not be served back with the label it arrived under.
-        contentType: inspected.mimeType,
-        visibility: 'private',
-      });
-    } catch (error) {
-      this.logger.error(
-        `Onboarding document upload failed for application ${application.id}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new ServiceUnavailableException('File upload failed');
-    }
-
-    const existing = await this.findExistingDocument(
-      application.id,
+    // The lookup is independent of the put; the row is still written only after the put succeeds.
+    const [, documents] = await Promise.all([
+      this.storeFile(application.id, key, file.buffer, inspected.mimeType),
+      this.applications.findDocumentsByApplicationId(application.id),
+    ]);
+    const existing = this.findExistingDocument(
+      documents,
       documentType,
       vehicleId,
     );
@@ -131,27 +119,48 @@ export class UploadOnboardingApplicationDocumentUseCase {
     await this.applications.saveDocument(document);
 
     if (existing && existing.fileKey !== key) {
-      await this.removeReplacedObject(existing.fileKey);
+      // Already swallows and logs its own failure, so nothing is gained by waiting.
+      void this.removeReplacedObject(existing.fileKey);
     }
 
-    const documents = await this.applications.findDocumentsByApplicationId(
-      application.id,
-    );
-
-    // After the row is written, so the check sees the file that was just
-    // filed; a conflict throws and the applicant is told which detail clashes.
-    await enforceIdentityClaims(
-      this.identityClaims,
-      this.applications,
-      application,
-    );
-    await touchApplication(this.applications, application);
+    // The conflict check must see the row just saved; a conflict throws and the
+    // applicant is told which detail clashes. The view reads do not depend on
+    // it, so they run alongside rather than after.
+    const [, , view] = await Promise.all([
+      enforceIdentityClaims(this.identityClaims, this.applications, application),
+      touchApplication(this.applications, application),
+      loadApplicationView(this.applications, application),
+    ]);
 
     return {
       status: true,
       message: 'Document uploaded',
-      data: await loadApplicationView(this.applications, application),
+      data: view,
     };
+  }
+
+  private async storeFile(
+    applicationId: string,
+    key: string,
+    body: Buffer,
+    mimeType: string,
+  ): Promise<void> {
+    try {
+      await this.objectStorage.putObject({
+        key,
+        body,
+        // The sniffed type is stored, not the caller's: a mislabelled upload
+        // must not be served back with the label it arrived under.
+        contentType: mimeType,
+        visibility: 'private',
+      });
+    } catch (error) {
+      this.logger.error(
+        `Onboarding document upload failed for application ${applicationId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new ServiceUnavailableException('File upload failed');
+    }
   }
 
   /**
@@ -188,13 +197,11 @@ export class UploadOnboardingApplicationDocumentUseCase {
     return vehicle.id;
   }
 
-  private async findExistingDocument(
-    applicationId: string,
+  private findExistingDocument(
+    documents: StoredOnboardingApplicationDocument[],
     documentType: string,
     vehicleId: string | null,
-  ): Promise<StoredOnboardingApplicationDocument | null> {
-    const documents =
-      await this.applications.findDocumentsByApplicationId(applicationId);
+  ): StoredOnboardingApplicationDocument | null {
     return (
       documents.find(
         (document) =>

@@ -15,6 +15,5 @@ export async function touchApplication(
   applications: OnboardingApplicationRepository,
   application: StoredOnboardingApplication,
 ): Promise<void> {
-  const current = await applications.findById(application.id);
-  if (current) await applications.save({ ...current, updatedAt: new Date() });
+  await applications.touch(application.id, new Date());
 }

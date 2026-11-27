@@ -229,6 +229,10 @@ export class MikroOnboardingApplicationRepository
     ]);
   }
 
+  async touch(id: string, at: Date): Promise<void> {
+    await this.run(`update onboarding_applications set updated_at = ? where id = ?`, [at, id]);
+  }
+
   async findPaymentNoticePending(maxAttempts: number, limit: number): Promise<StoredOnboardingApplication[]> {
     const em = await this.em();
     const records = await em.find(
@@ -468,13 +472,7 @@ export class MikroOnboardingApplicationRepository
     document: StoredOnboardingApplicationDocument,
   ): Promise<void> {
     const em = await this.em();
-    const existing = await em.findOne(OnboardingApplicationDocumentRecord, {
-      id: document.id,
-    });
-    const target = existing ?? new OnboardingApplicationDocumentRecord();
-    Object.assign(target, document);
-    if (!existing) em.persist(target);
-    await em.flush();
+    await em.upsert(OnboardingApplicationDocumentRecord, { ...document });
   }
 
   async findDocumentById(

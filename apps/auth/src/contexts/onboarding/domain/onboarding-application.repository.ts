@@ -337,6 +337,8 @@ export interface OnboardingApplicationRepository {
   ): Promise<boolean>;
   /** Replaces the applicant token alone, leaving every other field as it is. */
   replaceTokenHash(id: string, tokenHash: string): Promise<void>;
+  /** Sets `updatedAt` alone, so a concurrent write to another column is never overwritten. */
+  touch(id: string, at: Date): Promise<void>;
   /** Removes the application and everything filed against it. */
   deleteApplication(id: string): Promise<void>;
 

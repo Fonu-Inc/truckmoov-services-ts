@@ -34,21 +34,29 @@ export class MikroIdentityClaimRepository implements IdentityClaimRepository {
     applicationId: string,
     claims: IdentityClaimInput[],
   ): Promise<void> {
-    const em = await this.em();
-    await em.nativeDelete(OnboardingIdentityClaimRecord, { applicationId });
-
-    for (const claim of claims) {
-      const record = new OnboardingIdentityClaimRecord();
-      Object.assign(record, {
-        id: randomUUID(),
-        applicationId,
-        claimType: claim.claimType,
-        claimValue: claim.claimValue,
-        createdAt: new Date(),
-      });
-      em.persist(record);
+    if (claims.length === 0) {
+      await this.deleteForApplication(applicationId);
+      return;
     }
-    await em.flush();
+
+    // One statement: the delete and the insert commit together without a transaction round trip.
+    const em = await this.em();
+    const now = new Date();
+    await em.getConnection().execute(
+      `with removed as (delete from onboarding_identity_claims where application_id = ?)
+       insert into onboarding_identity_claims (id, application_id, claim_type, claim_value, created_at)
+       values ${claims.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+      [
+        applicationId,
+        ...claims.flatMap((claim) => [
+          randomUUID(),
+          applicationId,
+          claim.claimType,
+          claim.claimValue,
+          now,
+        ]),
+      ],
+    );
   }
 
   async findConflicts(

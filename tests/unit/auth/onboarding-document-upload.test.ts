@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from "@nestjs/common";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ObjectStorageService } from "@shared/object-storage";
 import { InMemoryIdentityClaimRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-identity-claim.repository";
@@ -74,11 +75,16 @@ describe("Onboarding document upload", () => {
   let applications: InMemoryOnboardingApplicationRepository;
   let upload: UploadOnboardingApplicationDocumentUseCase;
   let remove: DeleteOnboardingApplicationDocumentUseCase;
+  let putFails = false;
 
   beforeEach(() => {
+    putFails = false;
     applications = new InMemoryOnboardingApplicationRepository();
     const storage = {
-      putObject: async ({ key }: { key: string }) => key,
+      putObject: async ({ key }: { key: string }) => {
+        if (putFails) throw new Error("storage down");
+        return key;
+      },
       deleteObject: async () => undefined,
     } as unknown as ObjectStorageService;
     const claims = new InMemoryIdentityClaimRepository();
@@ -125,6 +131,41 @@ describe("Onboarding document upload", () => {
     expect(result.data.documents.map((doc) => doc.documentType)).toEqual([
       "proof_of_ownership",
     ]);
+  });
+
+  it("replaces the document of the same type and touches the application", async () => {
+    const draft = application("owner_operator");
+    const before = new Date(Date.now() - 60_000);
+    draft.updatedAt = before;
+    await applications.save(draft);
+    const input = {
+      ...target,
+      documentType: "proof_of_ownership",
+      file: pdf("ownership.pdf"),
+    };
+
+    await upload.execute(input);
+    const result = await upload.execute(input);
+
+    expect(result.data.documents).toHaveLength(1);
+    expect(result.data.documents[0].id).toBe("doc-1");
+    expect(
+      (await applications.findById("app-1"))?.updatedAt.getTime(),
+    ).toBeGreaterThan(before.getTime());
+  });
+
+  it("stores no row when the file cannot be stored", async () => {
+    await applications.save(application("owner_operator"));
+    putFails = true;
+
+    await expect(
+      upload.execute({
+        ...target,
+        documentType: "proof_of_ownership",
+        file: pdf("ownership.pdf"),
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(await applications.findDocumentsByApplicationId("app-1")).toEqual([]);
   });
 
   it("refuses an upload of the generated indemnity form", async () => {

@@ -92,6 +92,11 @@ export class InMemoryOnboardingApplicationRepository
     if (application) application.tokenHash = tokenHash;
   }
 
+  async touch(id: string, at: Date): Promise<void> {
+    const application = this.applications.get(id);
+    if (application) application.updatedAt = at;
+  }
+
   async findPaymentNoticePending(maxAttempts: number, limit: number): Promise<StoredOnboardingApplication[]> {
     return [...this.applications.values()]
       .filter(
