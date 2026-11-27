@@ -1,3 +1,5 @@
+import { preheader } from '@shared/mailer';
+
 export const FORGOT_PASSWORD_SUBJECT = "Reset your FleetPro password";
 
 export const FORGOT_PASSWORD_EMAIL_TEMPLATE = `
@@ -15,7 +17,7 @@ export const FORGOT_PASSWORD_EMAIL_TEMPLATE = `
     .footer { padding: 24px 32px; text-align: center; color: #999; font-size: 13px; border-top: 1px solid #eee; }
   </style>
 </head>
-<body>
+<body>${preheader('Use the link inside to choose a new password. It expires in 1 hour.')}
   <div class="container">
     <div class="header">
       <h1>FleetPro</h1>

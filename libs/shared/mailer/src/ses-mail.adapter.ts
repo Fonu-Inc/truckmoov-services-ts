@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { AppConfigService } from "@shared/config";
+import { formatMailFrom } from "./mail-from";
 import type { MailMessage, MailTransport } from "./mailer.port";
 
 @Injectable()
@@ -10,7 +11,7 @@ export class SesMailAdapter implements MailTransport {
 
   constructor(config: AppConfigService) {
     this.client = new SESClient({ region: config.mail.region });
-    this.from = config.mail.from;
+    this.from = formatMailFrom(config.mail.from, config.mail.fromName);
   }
 
   async send(message: MailMessage): Promise<void> {

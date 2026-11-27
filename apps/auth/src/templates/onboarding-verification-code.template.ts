@@ -1,3 +1,5 @@
+import { preheader } from '@shared/mailer';
+
 export const ONBOARDING_VERIFICATION_CODE_SUBJECT =
   'Your verification code — FleetPro';
 
@@ -19,7 +21,7 @@ export const ONBOARDING_VERIFICATION_CODE_TEMPLATE = `
     .footer { padding: 24px 32px; text-align: center; color: #aaa; font-size: 12px; border-top: 1px solid #eee; background: #fafafa; }
   </style>
 </head>
-<body>
+<body>${preheader('Your code to continue the application for {{organizationName}}.')}
   <div class="container">
     <div class="header">
       <h1>FleetPro</h1>

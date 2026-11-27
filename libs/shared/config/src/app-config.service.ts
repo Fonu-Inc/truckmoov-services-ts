@@ -402,6 +402,7 @@ export class AppConfigService {
       transport: this.config.get<string>("MAIL_TRANSPORT", "null"),
       region: this.config.get<string>("AWS_REGION", "us-east-1"),
       from: this.config.get<string>("MAIL_FROM", "noreply@truckmoov.com"),
+      fromName: this.config.get<string>("MAIL_FROM_NAME", "FleetPro"),
       smtp: {
         host: this.config.get<string>("SMTP_HOST", ""),
         port: this.config.get<number>("SMTP_PORT", 465),

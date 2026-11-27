@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import * as nodemailer from "nodemailer";
 import { AppConfigService } from "@shared/config";
+import { formatMailFrom } from "./mail-from";
 import type { MailMessage, MailTransport } from "./mailer.port";
 
 @Injectable()
@@ -10,7 +11,7 @@ export class SmtpMailAdapter implements MailTransport {
 
   constructor(config: AppConfigService) {
     const { host, port, username, password } = config.mail.smtp;
-    this.from = config.mail.from;
+    this.from = formatMailFrom(config.mail.from, config.mail.fromName);
     const portNum = Number(port);
     this.transporter = nodemailer.createTransport({
       host,

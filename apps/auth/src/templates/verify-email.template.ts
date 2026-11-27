@@ -1,3 +1,5 @@
+import { preheader } from '@shared/mailer';
+
 export const VERIFY_EMAIL_SUBJECT = "Confirm your email address — FleetPro";
 
 export const VERIFY_EMAIL_TEMPLATE = `
@@ -21,7 +23,7 @@ export const VERIFY_EMAIL_TEMPLATE = `
     .footer { padding: 24px 32px; text-align: center; color: #aaa; font-size: 12px; border-top: 1px solid #eee; background: #fafafa; }
   </style>
 </head>
-<body>
+<body>${preheader('Confirm your email address to activate your account.')}
   <div class="container">
     <div class="header">
       <h1>FleetPro</h1>

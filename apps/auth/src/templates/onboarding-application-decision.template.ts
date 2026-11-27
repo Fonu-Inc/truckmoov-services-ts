@@ -1,3 +1,5 @@
+import { preheader } from '@shared/mailer';
+
 const SHELL_STYLES = `
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
     .container { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
@@ -25,7 +27,7 @@ export const APPLICATION_REJECTED_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('We reviewed the application for {{organizationName}} and cannot approve it at this time.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
@@ -55,7 +57,7 @@ export const APPLICATION_CHANGES_REQUESTED_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('Our reviewers asked for a correction to the application for {{organizationName}}.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
@@ -84,7 +86,7 @@ export const APPLICATION_RESUME_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('Here is the link back into the application for {{organizationName}}.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
@@ -112,7 +114,7 @@ export const NEW_APPLICATION_ALERT_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('{{organizationName}} has applied and is waiting in the onboarding queue.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
@@ -141,7 +143,7 @@ export const APPLICATION_PAYMENT_OPEN_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('The devices for {{organizationName}} are ready. Pay now to book your installation.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
@@ -169,7 +171,7 @@ export const APPLICATION_PAYMENT_REFUNDED_TEMPLATE = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>${SHELL_STYLES}</style>
 </head>
-<body>
+<body>${preheader('The payment for {{organizationName}} did not match the amount due, so we refunded it.')}
   <div class="container">
     <div class="header"><h1>FleetPro</h1></div>
     <div class="body">
