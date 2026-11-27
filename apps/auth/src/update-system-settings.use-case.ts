@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { optionalAddressLine } from '@shared/nigeria';
 import {
   TOKEN_SERVICE,
   USER_REPOSITORY,
@@ -98,7 +99,10 @@ export class UpdateSystemSettingsUseCase {
       supportEmail: command.supportEmail ?? current.supportEmail,
       profile: {
         contactPhone: command.profile?.contactPhone?.trim() ?? current.profile.contactPhone,
-        contactAddress: command.profile?.contactAddress?.trim() ?? current.profile.contactAddress,
+        contactAddress:
+          command.profile?.contactAddress == null
+            ? current.profile.contactAddress
+            : (optionalAddressLine(command.profile.contactAddress, 'contactAddress', current.profile.contactAddress) ?? ''),
         logoUrl: command.profile?.logoUrl !== undefined
           ? resolveLogoUrl(command.profile.logoUrl)
           : current.profile.logoUrl,

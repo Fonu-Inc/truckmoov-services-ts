@@ -11,6 +11,7 @@ import {
   ScheduleInstallationUseCase,
 } from "@auth/installation/application/use-cases/schedule-installation.use-case";
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
+import { NigerianAddressError } from "@shared/nigeria";
 
 function thrown(fn: () => void): unknown {
   try {
@@ -119,7 +120,7 @@ describe("scheduling checks the body before the stage", () => {
     scheduledDate: new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10),
     timeSlot: "morning",
     addressLine: "12 Mazi Fedelis Street",
-    city: "Lagos",
+    city: "Ikeja",
     state: "Lagos",
     siteContactName: "Victor Akaaha",
     siteContactPhone: "+2347041386799",
@@ -151,13 +152,40 @@ describe("scheduling checks the body before the stage", () => {
   // The form maps an error to its input by the request property, so the
   // business-details names these validators were written for would miss.
   it.each([
-    ["addressLine", ""],
     ["siteContactName", ""],
   ])("names %s as its own field", async (field, value) => {
     const error = (await useCaseAt("application").execute(body({ [field]: value })).catch((e: unknown) => e)) as OnboardingValidationError;
 
     expect(error).toBeInstanceOf(OnboardingValidationError);
     expect(error.field).toBe(field);
+  });
+
+  it("accepts a state spelled loosely and a city that is one of its local government areas", async () => {
+    const error = await useCaseAt("application").execute(body({ state: "Lagos State", city: "ikeja" })).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(InstallationNotSchedulableError);
+  });
+
+  it.each([
+    ["addressLine", { addressLine: "" }],
+    ["addressLine", { addressLine: "12345" }],
+    ["state", { state: "Texas" }],
+    ["city", { city: "Gwagwalada" }],
+    ["city", { city: "Mumbai" }],
+    ["addressLongitude", { addressLatitude: 6.5 }],
+    ["addressLatitude", { addressLatitude: 51.5, addressLongitude: -0.12 }],
+    ["addressLatitude", { addressLatitude: Number.NaN, addressLongitude: 3.4 }],
+  ])("refuses a bad %s with a 400 naming it", async (field, overrides) => {
+    const error = (await useCaseAt("application").execute(body(overrides)).catch((e: unknown) => e)) as NigerianAddressError;
+
+    expect(error).toBeInstanceOf(NigerianAddressError);
+    expect(error.field).toBe(field);
+  });
+
+  it("takes coordinates inside Nigeria", async () => {
+    const error = await useCaseAt("application").execute(body({ addressLatitude: 6.5244, addressLongitude: 3.3792 })).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(InstallationNotSchedulableError);
   });
 
   it("still refuses a well formed body with the stage 409", async () => {

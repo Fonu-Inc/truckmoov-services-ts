@@ -7,13 +7,11 @@ import {
 } from '@auth/onboarding/domain/onboarding-application.repository';
 import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-application.support';
 import {
-  validateCity,
   validateContactFullName,
   validateNigerianPhone,
-  validateState,
-  validateStreetAddress,
   OnboardingValidationError,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { requireAddressLine, requireCity, requireCoordinates, requireState } from '@shared/nigeria';
 import { assertStageAdvance } from '@auth/onboarding/domain/onboarding-stage';
 import { GetOnboardingApplicationUseCase } from '@auth/onboarding/application/use-cases/get-onboarding-application.use-case';
 import {
@@ -75,6 +73,8 @@ export class ScheduleInstallationUseCase {
     addressLine: unknown;
     city: unknown;
     state: unknown;
+    addressLatitude?: unknown;
+    addressLongitude?: unknown;
     siteContactName: unknown;
     siteContactPhone: unknown;
     notes?: unknown;
@@ -192,12 +192,16 @@ export class ScheduleInstallationUseCase {
       new Set(vehicles.map((vehicle) => vehicle.id)),
     );
 
+    const state = requireState(input.state);
+    // Checked but not stored: there is no column for them yet.
+    requireCoordinates(input.addressLatitude, input.addressLongitude);
+
     return {
       scheduledDate,
       timeSlot: validateTimeSlot(input.timeSlot),
-      addressLine: validateStreetAddress(input.addressLine, 'addressLine'),
-      city: validateCity(input.city),
-      state: validateState(input.state),
+      addressLine: requireAddressLine(input.addressLine),
+      city: requireCity(input.city, state, true),
+      state,
       requiredCapabilities: validateRequiredCapabilities(input.requiredCapabilities),
       siteContactName: validateContactFullName(input.siteContactName, 'siteContactName'),
       siteContactPhone: validateNigerianPhone(input.siteContactPhone, 'siteContactPhone'),

@@ -14,6 +14,7 @@ export default defineConfig({
       "@shared/identity": path.resolve(__dirname, "libs/shared/identity/src"),
       "@shared/access": path.resolve(__dirname, "libs/shared/access/src"),
       "@shared/pagination": path.resolve(__dirname, "libs/shared/pagination/src"),
+      "@shared/nigeria": path.resolve(__dirname, "libs/shared/nigeria/src"),
       "@shared/logger": path.resolve(__dirname, "libs/shared/logger/src"),
       "@shared/db": path.resolve(__dirname, "libs/shared/db/src"),
       "@shared/rbac": path.resolve(__dirname, "libs/shared/rbac/src"),

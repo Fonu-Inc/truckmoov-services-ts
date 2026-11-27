@@ -33,6 +33,7 @@ import { InMemoryTenantRoleRepository } from "../../../apps/auth/src/in-memory-t
 import { InMemoryPermissionRemovalRepository } from "../../../apps/auth/src/in-memory-permission-removal.repository";
 import { TENANT_USER_REPORTER, type StoredSupportTicket } from "../../../apps/auth/src/support-ticket.repository";
 import { ForbiddenError } from "../../../apps/auth/src/contexts/auth/session";
+import { NigerianAddressError } from "@shared/nigeria";
 
 const NOW = new Date("2026-09-24T10:00:00Z");
 const TENANT = "tenant-1";
@@ -475,13 +476,13 @@ describe("admins rescheduling or editing a job", () => {
   it("keeps a paused overdue job overdue when only the site changes", async () => {
     await h.orders.save(order({ status: "overdue" }));
     await h.report.execute("user-ada", "job-1", { issueType: "job_scheduling", description: "Customer away" }, TODAY);
-    await h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY);
+    await h.changes.updateDetails("platform", "job-1", { city: "Surulere" }, TODAY);
 
     expect(await h.orders.findById("job-1")).toMatchObject({ status: "issue_reported", preExceptionStatus: "overdue" });
   });
 
   it("refuses callers without the permission", async () => {
-    await expect(h.changes.updateDetails("user-ada", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(h.changes.updateDetails("user-ada", "job-1", { city: "Surulere" }, TODAY)).rejects.toBeInstanceOf(ForbiddenError);
     expect(await h.orders.findById("job-1")).toEqual(order());
   });
 
@@ -494,10 +495,10 @@ describe("admins rescheduling or editing a job", () => {
 
   it("refuses in progress, completed and cancelled jobs", async () => {
     await h.orders.save(order({ status: "in_progress" }));
-    await expect(h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(InstallationJobConflictError);
+    await expect(h.changes.updateDetails("platform", "job-1", { city: "Surulere" }, TODAY)).rejects.toBeInstanceOf(InstallationJobConflictError);
     for (const status of ["completed", "cancelled"] as const) {
       await h.orders.save(order({ status }));
-      await expect(h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(InstallationJobClosedError);
+      await expect(h.changes.updateDetails("platform", "job-1", { city: "Surulere" }, TODAY)).rejects.toBeInstanceOf(InstallationJobClosedError);
     }
   });
 
@@ -514,9 +515,42 @@ describe("admins rescheduling or editing a job", () => {
     expect(await h.orders.findById("job-1")).toEqual(order());
   });
 
+  it("accepts a city that is a local government area of the stored state, spelled loosely", async () => {
+    await h.changes.updateDetails("platform", "job-1", { city: " surulere ", state: "Lagos State" }, TODAY);
+
+    expect(await h.orders.findById("job-1")).toMatchObject({ city: "Surulere", state: "Lagos" });
+  });
+
+  it("never blocks a slot edit on a legacy stored city, and audits only what changed", async () => {
+    await h.orders.save(order({ city: "Lekki" }));
+    await h.changes.updateDetails("platform", "job-1", { timeSlot: "afternoon", city: "Lekki", state: "lagos" }, TODAY);
+
+    expect(await h.orders.findById("job-1")).toMatchObject({ city: "Lekki", state: "Lagos", timeSlot: "afternoon" });
+    expect(h.activity.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "system.installation.updated", metadata: expect.objectContaining({ fields: ["timeSlot"] }) }),
+    );
+  });
+
+  it("says there is nothing to change when the location is only echoed back", async () => {
+    await expect(h.changes.updateDetails("platform", "job-1", { city: "Ikeja", state: "Lagos" }, TODAY)).rejects.toBeInstanceOf(OnboardingValidationError);
+  });
+
+  it("checks a lone city against the stored state and a lone state against the stored city", async () => {
+    await expect(h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.changes.updateDetails("platform", "job-1", { city: "Gwagwalada" }, TODAY)).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.changes.updateDetails("platform", "job-1", { state: "FCT" }, TODAY)).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.changes.updateDetails("platform", "job-1", { state: "Texas", city: "Ikeja" }, TODAY)).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.changes.updateDetails("platform", "job-1", { state: "FCT", city: "Gwagwalada" }, TODAY)).resolves.toBeTruthy();
+    expect(await h.orders.findById("job-1")).toMatchObject({ city: "Gwagwalada", state: "FCT" });
+  });
+
+  it("requires a street with a letter in it", async () => {
+    await expect(h.changes.updateDetails("platform", "job-1", { addressLine: "1234" }, TODAY)).rejects.toBeInstanceOf(NigerianAddressError);
+  });
+
   it("refuses a change made from a stale read", async () => {
     vi.spyOn(h.orders, "saveDetails").mockResolvedValueOnce(false);
-    await expect(h.changes.updateDetails("platform", "job-1", { city: "Yaba" }, TODAY)).rejects.toBeInstanceOf(InstallationJobConflictError);
+    await expect(h.changes.updateDetails("platform", "job-1", { city: "Surulere" }, TODAY)).rejects.toBeInstanceOf(InstallationJobConflictError);
   });
 });
 

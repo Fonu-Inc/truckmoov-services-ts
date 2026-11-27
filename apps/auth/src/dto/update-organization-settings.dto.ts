@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import {
   IsEmail,
   IsIn,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -54,46 +55,55 @@ class BrandingDto {
   profilePictureUrl?: string | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   primaryColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   secondaryColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   accentColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   successColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   warningColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   destructiveColor?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   sidebarBackground?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   sidebarText?: ThemedColorDto | null;
 
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => ThemedColorDto)
   sidebarAccent?: ThemedColorDto | null;

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { optionalAddressLine } from '@shared/nigeria';
 import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
@@ -126,6 +127,11 @@ export class UpdateSystemTenantUseCase {
     const currentTenant = detail.data.tenant;
     const existingOnboarding =
       await this.tenantOnboardingRepository.findByTenantId(command.tenantId);
+    const suppliedAddress = optionalAddressLine(
+      command.company?.businessAddress,
+      'businessAddress',
+      existingOnboarding?.company.businessAddress || currentTenant.address,
+    );
     const users = await this.userRepository.findAllByTenant(command.tenantId);
     const hasAcceptedUsers = users.length > 0;
 
@@ -204,7 +210,7 @@ export class UpdateSystemTenantUseCase {
           existingOnboarding?.company.billingEmail ||
           currentTenant.billingEmail,
         businessAddress:
-          command.company?.businessAddress?.trim() ||
+          suppliedAddress ||
           existingOnboarding?.company.businessAddress ||
           currentTenant.address,
         organizationType: nextOrganizationType,

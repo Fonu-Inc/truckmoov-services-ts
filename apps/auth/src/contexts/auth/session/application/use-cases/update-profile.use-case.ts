@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { optionalAddressLine } from "@shared/nigeria";
 import {
   TOKEN_SERVICE,
   type TokenService,
@@ -46,7 +47,7 @@ export class UpdateProfileUseCase {
       address:
         command.address === undefined
           ? actor.profile!.address
-          : this.toNullableTrimmedString(command.address),
+          : optionalAddressLine(command.address, "address", actor.profile!.address),
       profilePictureUrl:
         command.profilePictureUrl === undefined
           ? actor.profile!.profilePictureUrl

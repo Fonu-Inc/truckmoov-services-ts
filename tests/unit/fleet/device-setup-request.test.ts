@@ -15,6 +15,7 @@ import { ListDeviceSetupRequestsUseCase } from "../../../apps/fleet/src/contexts
 import { UpdateDeviceSetupRequestStatusUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/update-device-setup-request-status.use-case";
 import { GetDeviceSetupRequestUseCase } from "../../../apps/fleet/src/contexts/fleet/device-setup-requests/application/use-cases/get-device-setup-request.use-case";
 import { buildSetupRequestCharges } from "@shared/devices";
+import { NigerianAddressError } from "@shared/nigeria";
 
 let counter = 0;
 const runtime = {
@@ -254,6 +255,17 @@ describe("DeviceSetupRequest use-cases", () => {
     const repo = new InMemoryDeviceSetupRequestRepository();
     const create = new CreateDeviceSetupRequestUseCase(repo, runtime, authCatalog);
     await expect(create.execute({ useCase: "Telematics" })).resolves.toMatchObject({ charges: null });
+  });
+
+  it("stores a canonical Nigerian state and a clean city, and refuses the rest", async () => {
+    const create = new CreateDeviceSetupRequestUseCase(new InMemoryDeviceSetupRequestRepository(), runtime, authCatalog);
+
+    await expect(create.execute({ useCase: "Telematics", state: "Lagos State", city: "  Ikeja " })).resolves.toMatchObject({ state: "Lagos", city: "Ikeja" });
+    await expect(create.execute({ useCase: "Telematics", state: "Texas" })).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(create.execute({ useCase: "Telematics", state: "Lagos", city: "Lekki Phase 1" })).resolves.toMatchObject({ city: "Lekki Phase 1" });
+    await expect(create.execute({ useCase: "Telematics", state: "Lagos", city: "Ikeja, Lagos" })).resolves.toMatchObject({ city: "Ikeja, Lagos" });
+    await expect(create.execute({ useCase: "Telematics", state: "Lagos", city: "<b>Ikeja</b>" })).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(create.execute({ useCase: "Telematics", city: "x".repeat(81) })).rejects.toBeInstanceOf(NigerianAddressError);
   });
 
   it("scopes listing by tenant", async () => {

@@ -985,6 +985,8 @@ export class OnboardingApplicationsController extends BaseAuthController {
         addressLine: payload.addressLine,
         city: payload.city,
         state: payload.state,
+        addressLatitude: payload.addressLatitude,
+        addressLongitude: payload.addressLongitude,
         siteContactName: payload.siteContactName,
         siteContactPhone: payload.siteContactPhone,
         notes: payload.notes,

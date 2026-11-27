@@ -3,8 +3,8 @@ import {
   validateBusinessEmail,
   validateCity,
   validateNigerianPhone,
-  validateState,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { requireState } from '@shared/nigeria';
 import {
   DEFAULT_MAX_ACTIVE_JOBS,
   MAX_ACTIVE_JOBS_LIMIT,
@@ -51,7 +51,7 @@ function list(field: string, value: unknown): string[] {
 }
 
 function serviceAreas(value: unknown): string[] {
-  const areas = [...new Set(list('serviceAreas', value).map(validateState))];
+  const areas = [...new Set(list('serviceAreas', value).map((area) => requireState(area, 'serviceAreas')))];
   if (areas.length === 0) {
     throw new OnboardingValidationError('serviceAreas', 'At least one service area is required');
   }
@@ -96,7 +96,7 @@ export function newInstallerDetails(input: InstallerDetailsInput): InstallerDeta
     // State/city were introduced after installer records already existed.
     // When supplied they are strictly validated; older calls derive the home
     // state from the (also validated) first service area.
-    state: input.state === undefined ? areas[0] : validateState(input.state),
+    state: input.state === undefined ? areas[0] : requireState(input.state),
     city: input.city === undefined ? null : validateCity(input.city),
     serviceAreas: areas,
     capabilities: capabilities(input.capabilities),
@@ -115,7 +115,7 @@ export function editedInstaller(installer: StoredInstaller, input: InstallerDeta
     fullName: installerFullName(firstName, lastName),
     phoneNumber:
       input.phoneNumber === undefined ? installer.phoneNumber : validateNigerianPhone(input.phoneNumber, 'phoneNumber'),
-    state: input.state === undefined ? installer.state : validateState(input.state),
+    state: input.state === undefined ? installer.state : requireState(input.state),
     city: input.city === undefined ? installer.city : validateCity(input.city),
     serviceAreas: input.serviceAreas === undefined ? installer.serviceAreas : serviceAreas(input.serviceAreas),
     capabilities: input.capabilities === undefined ? installer.capabilities : capabilities(input.capabilities),

@@ -35,6 +35,7 @@ import { lagosDate, lagosToday } from "@shared/devices";
 import { InMemoryOnboardingApplicationRepository } from "@auth/onboarding/infrastructure/persistence/in-memory-onboarding-application.repository";
 import type { StoredOnboardingApplication } from "@auth/onboarding/domain/onboarding-application.repository";
 import { OnboardingValidationError } from "@auth/onboarding/domain/onboarding-application.validation";
+import { NigerianAddressError } from "@shared/nigeria";
 import {
   HISTORY_EXPORT_CAP,
   HISTORY_EXPORT_COLUMNS,
@@ -723,7 +724,7 @@ describe("an installer's profile", () => {
 
   it("refuses an invalid phone or state", async () => {
     await expect(profile.update("user-ada", { phoneNumber: "12345" })).rejects.toBeInstanceOf(OnboardingValidationError);
-    await expect(profile.update("user-ada", { state: "Atlantis" })).rejects.toBeInstanceOf(OnboardingValidationError);
+    await expect(profile.update("user-ada", { state: "Atlantis" })).rejects.toBeInstanceOf(NigerianAddressError);
   });
 
   it("stores a scanned PNG and deletes the old one", async () => {

@@ -5,12 +5,10 @@ import type { TokenService } from '@auth/session/domain/ports/token-service.port
 import type { UserRepository } from '@auth/session/domain/ports/user-repository.port';
 import {
   OnboardingValidationError,
-  validateCity,
   validateContactFullName,
   validateNigerianPhone,
-  validateState,
-  validateStreetAddress,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { requireAddressLine, requireCity, requireState, squash } from '@shared/nigeria';
 import {
   DETAILS_LOCKED_STATUSES,
   TERMINAL_JOB_STATUSES,
@@ -56,7 +54,9 @@ export type JobDetailsChange = {
   siteContactPhone?: unknown;
 };
 
-type DetailValidators = { [K in keyof InstallationOrderDetails]: (value: unknown) => InstallationOrderDetails[K] };
+type DetailValidators = {
+  [K in Exclude<keyof InstallationOrderDetails, 'city' | 'state'>]: (value: unknown) => InstallationOrderDetails[K];
+};
 
 /** The booking's own rules. */
 function detailValidators(now: Date): DetailValidators {
@@ -67,21 +67,31 @@ function detailValidators(now: Date): DetailValidators {
       return day;
     },
     timeSlot: validateTimeSlot,
-    addressLine: validateStreetAddress,
-    city: validateCity,
-    state: validateState,
+    addressLine: (value) => requireAddressLine(value),
     siteContactName: validateContactFullName,
     siteContactPhone: (value) => validateNigerianPhone(value, 'siteContactPhone'),
   };
 }
 
-function changedDetails(change: JobDetailsChange, now: Date): Partial<InstallationOrderDetails> {
+/** City and state are judged together, but only a pair that actually changes is checked, so a legacy stored city never blocks another edit. */
+function changedLocation(change: JobDetailsChange, order: StoredInstallationOrder): Partial<InstallationOrderDetails> {
+  const state = change.state === undefined ? order.state : requireState(change.state);
+  const stateChanged = state !== order.state;
+  const cityChanged = change.city !== undefined && squash(change.city) !== order.city;
+  if (!stateChanged && !cityChanged) return {};
+  const city = requireCity(change.city === undefined ? order.city : change.city, state, true);
+  return { ...(stateChanged && { state }), ...(city !== order.city && { city }) };
+}
+
+function changedDetails(change: JobDetailsChange, order: StoredInstallationOrder, now: Date): Partial<InstallationOrderDetails> {
   const entries = Object.entries(detailValidators(now)).flatMap(([field, validate]) => {
     const value = change[field as keyof JobDetailsChange];
-    return value === undefined ? [] : [[field, validate(value)] as const];
+    const echoed = field === 'addressLine' && squash(value) === order.addressLine;
+    return value === undefined || echoed ? [] : [[field, validate(value)] as const];
   });
-  if (entries.length === 0) throw new OnboardingValidationError('body', 'Nothing to change');
-  return Object.fromEntries(entries);
+  const changed = { ...Object.fromEntries(entries), ...changedLocation(change, order) };
+  if (Object.keys(changed).length === 0) throw new OnboardingValidationError('body', 'Nothing to change');
+  return changed;
 }
 
 function issueOutcome(value: unknown): IssueOutcome {
@@ -233,7 +243,7 @@ export class AdminJobChangesUseCases {
     if (DETAILS_LOCKED_STATUSES.includes(order.status)) {
       throw new InstallationJobConflictError(`A job that is ${order.status} cannot be rescheduled or edited`);
     }
-    const changed = changedDetails(change, now);
+    const changed = changedDetails(change, order, now);
     const updated = afterDetailsChange(order, changed, now);
     const saved = await this.orders.saveDetails(updated, order.status, { clearReminder: isReschedule(order, changed) });
     if (!saved) throw new InstallationJobConflictError(JOB_CHANGED_MESSAGE);

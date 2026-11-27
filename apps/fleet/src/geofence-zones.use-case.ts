@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
+import { isInsideNigeria } from "@shared/nigeria";
 import { randomUUID } from "crypto";
 import {
   GEOFENCE_ZONE_REPOSITORY,
@@ -33,6 +34,16 @@ type GeofenceZoneInput = {
   schedule?: { enabled?: boolean; timezone?: string | null; days?: string[]; startTime?: string | null; endTime?: string | null };
   assignedVehicleIds?: string[];
 };
+
+function assertZoneInsideNigeria(data: Partial<GeofenceZoneInput>): void {
+  const points: unknown[][] = (data.coordinates ?? []).map((pair) => (Array.isArray(pair) ? [pair[1], pair[0]] : []));
+  if (data.center) points.push([data.center.latitude, data.center.longitude]);
+  const valid = (value: unknown, limit: number) => typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit;
+  if (!points.every(([lat, lng]) => valid(lat, 90) && valid(lng, 180))) {
+    throw new BadRequestException("Zone coordinates must be valid latitude and longitude numbers");
+  }
+  if (!points.every(([lat, lng]) => isInsideNigeria(lat, lng))) throw new BadRequestException("Zone must be inside Nigeria");
+}
 
 /** Maps the flat, MikroORM-shaped repository record into the nested API response shape the UI expects. */
 export function toApiShape(zone: StoredGeofenceZone) {
@@ -99,6 +110,7 @@ export class GeofenceZonesUseCase {
   }
 
   async create(tenantId: string, data: GeofenceZoneInput) {
+    assertZoneInsideNigeria(data);
     // The plan card shows geofencing "up to 5 zones", so the limit is a quota
     // even though it reads as a feature. The quota is authoritative; the
     // feature limit mirrors it rather than being a second number to keep in step.
@@ -145,6 +157,7 @@ export class GeofenceZonesUseCase {
   }
 
   async update(tenantId: string, id: string, data: Partial<GeofenceZoneInput> & { status?: GeofenceZoneStatus }) {
+    assertZoneInsideNigeria(data);
     const zone = await this.repo.findById(id, tenantId);
     if (!zone || zone.tenantId !== tenantId) throw new GeofenceZoneNotFoundError();
 

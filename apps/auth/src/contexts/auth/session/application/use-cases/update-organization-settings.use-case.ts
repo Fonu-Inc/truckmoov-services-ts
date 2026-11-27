@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { optionalAddressLine } from "@shared/nigeria";
 import { Role } from "@shared/rbac";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import {
@@ -18,7 +19,7 @@ import {
   type UserRepository,
 } from "../../domain/ports/user-repository.port";
 import { resolveActorUser } from "./support/resolve-actor-user";
-import { assertValidTimezone } from "./support/settings-validation";
+import { assertValidBrandingColors, assertValidTimezone } from "./support/settings-validation";
 
 export type UpdateOrganizationSettingsCommand = {
   accessToken: string;
@@ -76,7 +77,7 @@ export class UpdateOrganizationSettingsUseCase {
         address:
           command.branding?.address === undefined
             ? current.branding.address
-            : command.branding.address,
+            : optionalAddressLine(command.branding.address, "address", current.branding.address),
         logoUrl:
           command.branding?.logoUrl === undefined
             ? current.branding.logoUrl
@@ -133,6 +134,7 @@ export class UpdateOrganizationSettingsUseCase {
     };
 
     assertValidTimezone(merged.defaults.timezone);
+    assertValidBrandingColors(merged.branding);
 
     await this.organizationRepo.save(merged);
     return merged;

@@ -1,8 +1,8 @@
 import {
   validateCity,
   validateNigerianPhone,
-  validateState,
 } from '@auth/onboarding/domain/onboarding-application.validation';
+import { requireState } from '@shared/nigeria';
 import { installerFullName } from '@auth/installation/domain/installer';
 import type { StoredInstaller } from '@auth/installation/domain/installer.repository';
 import { personName } from './installer-admin.support';
@@ -29,7 +29,7 @@ export function editedProfile(installer: StoredInstaller, input: ProfileInput): 
     lastName,
     fullName: installerFullName(firstName, lastName),
     phoneNumber: changed(input.phoneNumber, installer.phoneNumber, (v) => validateNigerianPhone(v, 'phoneNumber')),
-    state: changed<string | null>(input.state, installer.state, validateState),
+    state: changed<string | null>(input.state, installer.state, (v) => requireState(v)),
     city: changed<string | null>(input.city, installer.city, validateCity),
   };
 }

@@ -1,18 +1,22 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from "class-validator";
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import type { GeofenceZoneStatus } from "../geofence-zone.repository";
 
 const GEOFENCE_STATUSES: GeofenceZoneStatus[] = ["ACTIVE", "ARCHIVED"];
 const GEOFENCE_SHAPES = ["CIRCLE", "POLYGON"] as const;
 
 class GeofenceCenterDto {
-  @ApiProperty()
+  @ApiProperty({ minimum: -90, maximum: 90 })
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   latitude!: number;
 
-  @ApiProperty()
+  @ApiProperty({ minimum: -180, maximum: 180 })
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   longitude!: number;
 }
 

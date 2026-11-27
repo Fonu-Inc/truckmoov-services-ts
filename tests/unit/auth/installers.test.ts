@@ -22,6 +22,8 @@ import { TwoFactorLogin } from '../../../apps/auth/src/two-factor-login.use-case
 import { generateTotpSecret, totpCodeAt } from '@shared/crypto';
 import { ManageInstallersUseCases } from '../../../apps/auth/src/contexts/installation/application/use-cases/manage-installers.use-cases';
 import { InstallerStateError } from '../../../apps/auth/src/contexts/installation/domain/installer';
+import { OnboardingValidationError } from '@auth/onboarding/domain/onboarding-application.validation';
+import { NigerianAddressError } from '@shared/nigeria';
 
 const STAFF = [
   { id: 'platform', role: 'PLATFORM_ADMIN', tenantId: 'system' },
@@ -101,6 +103,15 @@ describe('platform admins managing installers', () => {
     );
     expect(await h.invites.findByEmail('tunde@example.com')).toMatchObject({ role: 'INSTALLER', tenantId: 'system' });
     expect(h.activity.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'system.installer.created' }));
+  });
+
+  it('canonicalises the state and service areas and refuses ones outside Nigeria', async () => {
+    const view = await h.admin.create('platform', { ...NEW_INSTALLER, state: 'Abuja (FCT)', serviceAreas: ['Lagos State', 'ogun'] });
+    expect(view).toMatchObject({ state: 'FCT', serviceAreas: ['Lagos', 'Ogun'] });
+
+    await expect(h.admin.create('platform', { ...NEW_INSTALLER, email: 'a@example.com', state: 'Texas' })).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.admin.create('platform', { ...NEW_INSTALLER, email: 'b@example.com', serviceAreas: ['Accra'] })).rejects.toBeInstanceOf(NigerianAddressError);
+    await expect(h.admin.create('platform', { ...NEW_INSTALLER, email: 'c@example.com', city: 'Ikeja 2' })).rejects.toBeInstanceOf(OnboardingValidationError);
   });
 
   it('refuses an email already used by an installer or an account', async () => {

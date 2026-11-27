@@ -483,7 +483,7 @@ describe("producers", () => {
   it("tells the assigned installer the admin changed the job", async () => {
     await h.orders.save(order("o1"));
 
-    await h.changes.updateDetails("platform", "o1", { city: "Yaba" }, NOW);
+    await h.changes.updateDetails("platform", "o1", { city: "Surulere" }, NOW);
 
     expect(await rows(h)).toMatchObject([{ type: "job_updated", body: "Installation details for Job #FL-o1 have been updated." }]);
   });
@@ -560,7 +560,7 @@ describe("the reminder sweep", () => {
 
     await h.changes.updateDetails("platform", "o1", { scheduledDate: "2026-09-27" }, NOW);
     expect((await h.orders.findById("o1"))?.reminderSentAt).toBeNull();
-    await h.changes.updateDetails("platform", "o1", { city: "Yaba" }, NOW);
+    await h.changes.updateDetails("platform", "o1", { city: "Surulere" }, NOW);
     expect((await h.orders.findById("o1"))?.reminderSentAt).toBeNull();
 
     expect((await h.sweep.run(new Date("2026-09-26T10:00:00Z"))).reminded).toBe(1);
@@ -574,7 +574,7 @@ describe("the reminder sweep", () => {
     await h.orders.save(order("o1", { scheduledDate: day("2026-09-25") }));
     await h.sweep.run(NOW);
 
-    await h.changes.updateDetails("platform", "o1", { city: "Yaba" }, NOW);
+    await h.changes.updateDetails("platform", "o1", { city: "Surulere" }, NOW);
 
     expect((await h.orders.findById("o1"))?.reminderSentAt).toEqual(NOW);
   });
@@ -585,7 +585,7 @@ describe("the reminder sweep", () => {
     await h.sweep.run(NOW);
     vi.spyOn(h.orders, "findById").mockResolvedValueOnce(beforeClaim);
 
-    await h.changes.updateDetails("platform", "o1", { city: "Yaba" }, NOW);
+    await h.changes.updateDetails("platform", "o1", { city: "Surulere" }, NOW);
 
     expect((await h.orders.findById("o1"))?.reminderSentAt).toEqual(NOW);
     expect((await h.sweep.run(new Date(NOW.getTime() + 600_000))).reminded).toBe(0);

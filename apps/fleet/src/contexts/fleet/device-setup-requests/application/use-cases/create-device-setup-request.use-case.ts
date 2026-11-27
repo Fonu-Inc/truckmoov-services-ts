@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { requireCity, requireState } from "@shared/nigeria";
 import { FLEET_RUNTIME, type FleetRuntime } from "@fleet/shared/domain/ports/fleet-runtime.port";
 import { FleetRuleError } from "../../../shared/domain/errors/fleet-rule.error";
 import {
@@ -55,6 +56,8 @@ export class CreateDeviceSetupRequestUseCase {
 
   async execute(command: CreateDeviceSetupRequestCommand) {
     await this.assertSimSelection(command);
+    const state = command.state?.trim() ? requireState(command.state) : null;
+    const city = command.city?.trim() ? requireCity(command.city, state, false) : null;
     const tenantId = command.tenantId ?? this.runtime.getDefaultTenantId();
     const referenceNumber = await nextSetupRequestReference((reference) =>
       this.repository.referenceExists(reference),
@@ -76,8 +79,8 @@ export class CreateDeviceSetupRequestUseCase {
         planType: command.planType ?? null,
         bundleId: command.bundleId ?? null,
         vehicleId: command.vehicleId ?? null,
-        state: command.state ?? null,
-        city: command.city ?? null,
+        state,
+        city,
         preferredDate: command.preferredDate ?? null,
         preferredTime: command.preferredTime ?? null,
         pickupLocationId: command.pickupLocationId ?? null,

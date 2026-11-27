@@ -36,6 +36,14 @@ export class ScheduleInstallationDto {
   state!: string;
 
   @Allow()
+  @ApiPropertyOptional({ example: 6.5244, description: 'Must be given with addressLongitude and fall inside Nigeria.' })
+  addressLatitude?: number;
+
+  @Allow()
+  @ApiPropertyOptional({ example: 3.3792, description: 'Must be given with addressLatitude and fall inside Nigeria.' })
+  addressLongitude?: number;
+
+  @Allow()
   @ApiProperty({ example: 'Victor Akaaha', maxLength: 80 })
   siteContactName!: string;
 
