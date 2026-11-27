@@ -686,6 +686,7 @@ import {
   UpdateSystemDeviceUseCase,
 } from './update-system-device.use-cases';
 import {
+  RetryDeviceProvisioningUseCase,
   ApproveSystemDeviceSetupRequestUseCase,
   GetSystemDeviceSetupSummaryUseCase,
   RejectSystemDeviceSetupRequestUseCase,
@@ -1979,6 +1980,7 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     SuperAdminBootstrapService,
     // Onboarding repositories
     InMemoryTenantBusinessInfoRepository,
+    RetryDeviceProvisioningUseCase,
     MikroTenantBusinessInfoRepository,
     {
       provide: TENANT_BUSINESS_INFO_REPOSITORY,

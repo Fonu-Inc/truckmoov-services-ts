@@ -42,6 +42,7 @@ import {
   deviceHeartbeat,
   heartbeatWindow,
 } from "./contexts/fleet/devices";
+import { RequeueTraccarRegistrationsUseCase } from "./contexts/fleet/devices/application/use-cases/requeue-traccar-registrations.use-case";
 import { RecordDeviceTelemetryUseCase } from "./contexts/fleet/devices/application/use-cases/record-device-telemetry.use-case";
 import type { DeviceRepository } from "./contexts/fleet/devices/domain/repositories/device.repository";
 import { Device } from "./contexts/fleet/devices/domain/entities/device.entity";
@@ -53,6 +54,7 @@ import type {
 import {
   PlatformAssignDevicesDto,
   PlatformAllocateStockDto,
+  PlatformRetryProvisioningDto,
   PlatformStockImportDto,
   PlatformUpdateDeviceDto,
 } from "./dto/platform-device.dto";
@@ -136,6 +138,7 @@ export class InternalFleetController extends BaseFleetController {
     @Optional() @Inject(AccessClient) private readonly access?: AccessClient,
     @Optional() @Inject(ImportPlatformStockUseCase) private readonly importPlatformStock?: ImportPlatformStockUseCase,
     @Optional() @Inject(RecordDeviceTelemetryUseCase) private readonly recordTelemetry?: RecordDeviceTelemetryUseCase,
+    @Optional() @Inject(RequeueTraccarRegistrationsUseCase) private readonly requeueRegistrations?: RequeueTraccarRegistrationsUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -372,6 +375,15 @@ export class InternalFleetController extends BaseFleetController {
     if (!this.importPlatformStock) throw new ServiceUnavailableException("Stock import is not available");
     const data = await this.importPlatformStock.execute(payload.rows);
     return { status: true, message: "Stock imported", data };
+  }
+
+  /** Gives failed Traccar registrations fresh attempts; the sweeper retries them on its next tick. */
+  @Post("devices/retry-provisioning")
+  @UseGuards(PlatformActorGuard)
+  async retryProvisioning(@Body() payload: PlatformRetryProvisioningDto) {
+    if (!this.requeueRegistrations) throw new ServiceUnavailableException("Registration retry is not available");
+    const data = await this.requeueRegistrations.execute(payload.deviceIds);
+    return { status: true, message: `${data.requeued} registrations re-queued`, data };
   }
 
   /**

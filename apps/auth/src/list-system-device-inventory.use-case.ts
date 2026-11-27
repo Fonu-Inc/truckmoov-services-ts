@@ -30,6 +30,10 @@ type DeviceInventoryRow = {
   assigned_at?: string | Date | null;
   created_at?: string | Date | null;
   updated_at?: string | Date | null;
+  provision_status?: string | null;
+  provision_attempts?: number | string | null;
+  provision_next_attempt_at?: string | Date | null;
+  provision_error?: string | null;
 };
 
 type ExistsRow = { exists?: boolean | number | string };
@@ -52,6 +56,10 @@ export type SystemDeviceInventoryListItem = {
   assignedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  provisionStatus: string | null;
+  provisionAttempts: number;
+  provisionNextAttemptAt: string | null;
+  provisionError: string | null;
 };
 
 @Injectable()
@@ -149,7 +157,11 @@ export class ListSystemDeviceInventoryUseCase {
           vehicle_id,
           assigned_at,
           created_at,
-          updated_at
+          updated_at,
+          provision_status,
+          provision_attempts,
+          provision_next_attempt_at,
+          provision_error
         from fleet_devices
         ${whereClause}
         order by created_at desc, imei asc
@@ -183,6 +195,12 @@ export class ListSystemDeviceInventoryUseCase {
             this.toIsoString(row.created_at) ?? new Date().toISOString(),
           updatedAt:
             this.toIsoString(row.updated_at) ?? new Date().toISOString(),
+          provisionStatus: row.provision_status?.toString() ?? null,
+          provisionAttempts: Number(row.provision_attempts ?? 0),
+          provisionNextAttemptAt: this.toIsoString(
+            row.provision_next_attempt_at,
+          ),
+          provisionError: row.provision_error?.toString() ?? null,
         };
       })
       .filter((row) => {

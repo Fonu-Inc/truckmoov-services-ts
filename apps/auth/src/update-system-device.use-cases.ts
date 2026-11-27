@@ -182,3 +182,29 @@ export class SendTestTelemetryUseCase {
     return { status: true, message: 'Test telemetry published', data: result.result };
   }
 }
+
+/** Sends failed tracker registrations back through the retry sweeper. */
+@Injectable()
+export class RetryDeviceProvisioningUseCase {
+  constructor(
+    @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    @Inject(FleetFactsService) private readonly fleet: FleetFactsService,
+  ) {}
+
+  async execute(accessToken: string, deviceIds?: string[]) {
+    await ensureSystemActor(accessToken, this.tokenService, this.userRepository, {
+      allowedRoles: SYSTEM_MUTATOR_ROLES,
+      forbiddenMessage: 'You are not permitted to retry device registrations',
+    });
+
+    const result = await this.fleet.requeueProvisioning(deviceIds);
+    if (!result.ok) throw new SystemDeviceWriteRefusedError(result.status, result.message);
+
+    return {
+      status: true,
+      message: `${result.requeued} device registration(s) queued for retry`,
+      data: { requeued: result.requeued },
+    };
+  }
+}

@@ -103,6 +103,7 @@ import { DeviceVerificationSweepService } from "./device-verification-sweep.serv
 import { BulkConfigureDevicesUseCase } from "./contexts/fleet/devices/application/use-cases/bulk-configure-devices.use-case";
 import { ConfigureDeviceUseCase } from "./contexts/fleet/devices/application/use-cases/configure-device.use-case";
 import { RetryTraccarRegistrationsUseCase } from "./contexts/fleet/devices/application/use-cases/retry-traccar-registrations.use-case";
+import { RequeueTraccarRegistrationsUseCase } from "./contexts/fleet/devices/application/use-cases/requeue-traccar-registrations.use-case";
 import { DeviceProvisionRetryService } from "./device-provision-retry.service";
 import { ExpireDeviceVerificationsUseCase } from "./contexts/fleet/devices/application/use-cases/expire-device-verifications.use-case";
 import { GetDeviceDiagnosticsUseCase } from "./contexts/fleet/devices/application/use-cases/get-device-diagnostics.use-case";
@@ -799,6 +800,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     RecordVerificationFailureUseCase,
     ExpireDeviceVerificationsUseCase,
     RetryTraccarRegistrationsUseCase,
+    RequeueTraccarRegistrationsUseCase,
     DeviceProvisionRetryService,
     GetInstallationQueueUseCase,
     GetVerificationMonitorUseCase,

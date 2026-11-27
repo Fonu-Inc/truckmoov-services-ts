@@ -50,6 +50,7 @@ import { BaseAuthController } from './base.controller';
 import { SuspendSystemDeviceDto } from './dto/device-setup.dto';
 import {
   AssignSystemDevicesDto,
+  RetryDeviceProvisioningDto,
   SendTestTelemetryDto,
   UpdateSystemDeviceDto,
 } from './dto/system-device.dto';
@@ -57,6 +58,7 @@ import {
   AssignSystemDevicesUseCase,
   ImportSystemDeviceStockUseCase,
   type PartialStockImportError,
+  RetryDeviceProvisioningUseCase,
   SendTestTelemetryUseCase,
   SystemDeviceWriteRefusedError,
   UpdateSystemDeviceUseCase,
@@ -139,6 +141,8 @@ export class SystemDevicesController extends BaseAuthController {
     private readonly importSystemDeviceStockUseCase: ImportSystemDeviceStockUseCase,
     @Inject(SendTestTelemetryUseCase)
     private readonly sendTestTelemetryUseCase: SendTestTelemetryUseCase,
+    @Inject(RetryDeviceProvisioningUseCase)
+    private readonly retryDeviceProvisioningUseCase: RetryDeviceProvisioningUseCase,
   ) {
     super(activityLogService);
   }
@@ -882,6 +886,41 @@ export class SystemDevicesController extends BaseAuthController {
         entityId: payload.imei,
         summary: 'Test telemetry sent for a device',
         metadata: { ...result.data },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  @Post('retry-provisioning')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Retry failed tracker registrations',
+    description:
+      'Re-queues devices whose registration with the tracking service failed, for the ids given or, with none, every failed device. Registered, pending and decommissioned devices are left alone.',
+  })
+  @ApiCreatedResponse({ description: 'data.requeued is the number of devices queued for another attempt' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to retry device registrations' })
+  @ApiBadRequestResponse({ description: 'More than 500 ids, or an id is not valid' })
+  async retryDeviceProvisioning(
+    @Body(BodyOrDataPipe) payload: RetryDeviceProvisioningDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.retryDeviceProvisioningUseCase.execute(accessToken, payload.deviceIds);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.provisioning_retried',
+        entityType: 'device',
+        entityId: 'provisioning-retry',
+        summary: `Retried tracker registration for ${result.data.requeued} device(s)`,
+        metadata: { requeued: result.data.requeued, requested: payload.deviceIds?.length ?? 'all_failed' },
       });
       return result;
     } catch (error) {

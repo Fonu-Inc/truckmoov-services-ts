@@ -221,6 +221,19 @@ export class MikroDeviceRepository implements DeviceRepository {
     return records.map((record) => this.toDomain(record));
   }
 
+  async requeueFailedProvisioning(ids: string[] | null, now: Date): Promise<number> {
+    const orm = await getFleetOrm(this.config.db);
+    return orm.em.fork().nativeUpdate(
+      DeviceRecord,
+      {
+        provisionStatus: "failed",
+        lifecycleStatus: { $ne: "decommissioned" },
+        ...(ids ? { id: { $in: ids } } : {}),
+      },
+      { provisionAttempts: 0, provisionNextAttemptAt: now, provisionError: null },
+    );
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const orm = await getFleetOrm(this.config.db);
     const em = orm.em.fork();

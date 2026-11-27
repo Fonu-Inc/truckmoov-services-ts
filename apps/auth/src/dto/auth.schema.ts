@@ -1092,6 +1092,18 @@ export class SystemDeviceInventoryItemSchema {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  provisionStatus?: string | null;
+
+  @ApiPropertyOptional({ type: Number })
+  provisionAttempts?: number;
+
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  provisionNextAttemptAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  provisionError?: string | null;
 }
 
 export class SystemDeviceInventoryListDataSchema {

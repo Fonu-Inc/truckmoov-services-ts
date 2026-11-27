@@ -199,6 +199,25 @@ export class InMemoryDeviceRepository implements DeviceRepository {
       .slice(0, limit);
   }
 
+  async requeueFailedProvisioning(ids: string[] | null, now: Date): Promise<number> {
+    let requeued = 0;
+    for (const device of this.data.values()) {
+      if (device.provisionStatus !== "failed" || device.lifecycleStatus === "decommissioned") continue;
+      if (ids && !ids.includes(device.id)) continue;
+      this.data.set(
+        device.id,
+        device.withProvisioning({
+          provisionStatus: "failed",
+          provisionAttempts: 0,
+          provisionNextAttemptAt: now.toISOString(),
+          provisionError: null,
+        }),
+      );
+      requeued++;
+    }
+    return requeued;
+  }
+
   async deleteById(id: string, tenantId: string): Promise<void> {
     const device = this.data.get(id);
     if (!device || device.tenantId !== tenantId) return;

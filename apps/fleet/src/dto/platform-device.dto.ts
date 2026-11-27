@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -81,6 +82,16 @@ export class PlatformAssignDevicesDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+}
+
+/** Re-queues failed Traccar registrations; no ids means every failed device. */
+export class PlatformRetryProvisioningDto {
+  @ApiPropertyOptional({ type: [String], maxItems: 500 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @Matches(/^[A-Za-z0-9_-]{1,64}$/, { each: true })
+  deviceIds?: string[];
 }
 
 /** Tops a tenant up to `target` devices from platform stock. */

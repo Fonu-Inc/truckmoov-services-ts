@@ -74,6 +74,16 @@ export class AssignSystemDevicesDto {
   notes?: string;
 }
 
+export class RetryDeviceProvisioningDto {
+  @ApiPropertyOptional({ type: [String], maxItems: 500, description: 'Omit or leave empty to retry every failed device' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @Matches(/^[A-Za-z0-9_-]{1,64}$/, { each: true, message: 'each device id must be a valid id' })
+  deviceIds?: string[];
+}
+
 export class SendTestTelemetryDto {
   @ApiProperty({ example: '359779090012345' })
   @IsString()

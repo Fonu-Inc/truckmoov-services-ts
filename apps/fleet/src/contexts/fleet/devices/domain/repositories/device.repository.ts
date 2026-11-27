@@ -69,6 +69,11 @@ export interface DeviceRepository {
    * across every tenant. Decommissioned devices are left out.
    */
   findProvisionRetryDue(now: Date, limit: number): Promise<Device[]>;
+  /**
+   * Makes failed-provisioning devices due again with a fresh attempt budget, across tenants,
+   * touching only the retry fields. `ids` null means all; decommissioned ones are left out.
+   */
+  requeueFailedProvisioning(ids: string[] | null, now: Date): Promise<number>;
 }
 
 export const DEVICE_REPOSITORY = Symbol("DEVICE_REPOSITORY");

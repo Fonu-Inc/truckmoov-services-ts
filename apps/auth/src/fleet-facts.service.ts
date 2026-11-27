@@ -46,7 +46,7 @@ function isSafePathId(value: string): boolean {
 
 export type TenantExportTable = { columns: string[]; rows: Array<Array<string | number | boolean | null>> };
 
-export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission' | 'update' | 'assign' | 'stock_import' | 'test_telemetry';
+export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission' | 'update' | 'assign' | 'stock_import' | 'test_telemetry' | 'retry_provisioning';
 export type TenantHoldCounts = { devices: number; vehicles: number; shareLinks: number };
 export type TenantHoldResult = ({ ok: true } & TenantHoldCounts) | { ok: false; message: string };
 
@@ -202,6 +202,36 @@ export class FleetFactsService {
       this.logger.warn(
         `fleet_device_assign_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
       );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
+  /** Re-queues failed tracker registrations; no ids means every failed device. */
+  async requeueProvisioning(
+    deviceIds?: string[],
+  ): Promise<{ ok: true; requeued: number } | { ok: false; status: number; message: string }> {
+    if (deviceIds?.some((id) => !isSafePathId(id))) {
+      return { ok: false, status: 400, message: 'A device id is not valid' };
+    }
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.post<{ data?: { requeued?: number }; message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/retry-provisioning`,
+        deviceIds?.length ? { deviceIds } : {},
+        { headers, timeout: 30000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal('retry-provisioning', 'retry_provisioning', response.status, response.data?.message);
+      }
+      return { ok: true, requeued: response.data?.data?.requeued ?? 0 };
+    } catch (error) {
+      this.logger.warn(`fleet_retry_provisioning_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return { ok: false, status: 503, message: 'The device service could not be reached' };
     }
   }
