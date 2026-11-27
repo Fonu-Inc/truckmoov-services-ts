@@ -24,6 +24,7 @@ import {
 import {
   AssignDeviceToVehicleUseCase,
   BulkImportDevicesUseCase,
+  ImportPlatformStockUseCase,
   CreateDeviceUseCase,
   DeleteDeviceUseCase,
   DEVICE_IDENTITY_EVENT_PUBLISHER,
@@ -916,6 +917,7 @@ import { FleetCallerAudience, FleetPermissions, FleetRefusalReporter } from "./a
     UpdateDeviceUseCase,
     DeleteDeviceUseCase,
     BulkImportDevicesUseCase,
+    ImportPlatformStockUseCase,
     AssignDeviceToVehicleUseCase,
     UnassignDeviceFromVehicleUseCase,
     SetDeviceLifecycleStatusUseCase,

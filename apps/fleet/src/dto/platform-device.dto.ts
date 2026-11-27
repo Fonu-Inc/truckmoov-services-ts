@@ -10,7 +10,9 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   DEVICE_LIFECYCLE_STATUSES,
   DEVICE_PROTOCOLS,
@@ -99,4 +101,38 @@ export class PlatformAllocateStockDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+}
+
+export class PlatformStockRowDto {
+  @ApiProperty({ maxLength: 32 })
+  @IsString()
+  @MaxLength(32)
+  imei!: string;
+
+  @ApiProperty({ maxLength: 64 })
+  @IsString()
+  @MaxLength(64)
+  manufacturer!: string;
+
+  @ApiProperty({ maxLength: 64 })
+  @IsString()
+  @MaxLength(64)
+  model!: string;
+
+  @ApiPropertyOptional({ maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+}
+
+/** Devices to register as platform stock. */
+export class PlatformStockImportDto {
+  @ApiProperty({ type: [PlatformStockRowDto], maxItems: 20000 })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(20000)
+  @ValidateNested({ each: true })
+  @Type(() => PlatformStockRowDto)
+  rows!: PlatformStockRowDto[];
 }

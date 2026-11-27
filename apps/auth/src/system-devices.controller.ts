@@ -17,7 +17,11 @@ import {
   Query,
   Delete,
   ServiceUnavailableException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { uploadLimits } from '@shared/http';
 import {
   ApiUnauthorizedResponse,
   ApiOkResponse,
@@ -32,6 +36,7 @@ import {
   ApiQuery,
   ApiCreatedResponse,
   ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { DEVICE_LIFECYCLE_STATUSES, DEVICE_STATUSES } from '@shared/devices';
 import { ActivityLogService } from './activity-log.service';
@@ -45,10 +50,14 @@ import { BaseAuthController } from './base.controller';
 import { SuspendSystemDeviceDto } from './dto/device-setup.dto';
 import {
   AssignSystemDevicesDto,
+  SendTestTelemetryDto,
   UpdateSystemDeviceDto,
 } from './dto/system-device.dto';
 import {
   AssignSystemDevicesUseCase,
+  ImportSystemDeviceStockUseCase,
+  type PartialStockImportError,
+  SendTestTelemetryUseCase,
   SystemDeviceWriteRefusedError,
   UpdateSystemDeviceUseCase,
 } from './update-system-device.use-cases';
@@ -85,6 +94,9 @@ import type { QuarantineAction } from './tracking-gate.client';
 import { SystemDeviceModelConflictError, SystemDeviceModelNotFoundError } from './system-device-model.errors';
 import { UpdateSystemDeviceModelUseCase } from './update-system-device-model.use-case';
 import { Portals, OnResource } from '@shared/access';
+import { StockCsvError } from './system-device-stock-csv';
+
+const MAX_STOCK_CSV_BYTES = 2 * 1024 * 1024;
 
 const QUARANTINE_AUDIT: Record<QuarantineAction, { action: string; summary: string }> = {
   dismiss: { action: 'dismissed', summary: 'Unrecognised device dismissed' },
@@ -123,6 +135,10 @@ export class SystemDevicesController extends BaseAuthController {
     private readonly updateSystemDeviceUseCase: UpdateSystemDeviceUseCase,
     @Inject(AssignSystemDevicesUseCase)
     private readonly assignSystemDevicesUseCase: AssignSystemDevicesUseCase,
+    @Inject(ImportSystemDeviceStockUseCase)
+    private readonly importSystemDeviceStockUseCase: ImportSystemDeviceStockUseCase,
+    @Inject(SendTestTelemetryUseCase)
+    private readonly sendTestTelemetryUseCase: SendTestTelemetryUseCase,
   ) {
     super(activityLogService);
   }
@@ -776,6 +792,104 @@ export class SystemDevicesController extends BaseAuthController {
     }
   }
 
+  @Post('stock/import')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Import platform device stock',
+    description:
+      'Registers devices the platform holds itself from a CSV (header imei,manufacturer,model[,name]). An IMEI that already exists is left untouched, so a file can be re-imported safely.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', required: ['file'], properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiCreatedResponse({
+    description:
+      'Stock imported. data holds total, created, skippedExisting, the first rejected lines and rejectedTotal.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted to import device stock' })
+  @ApiBadRequestResponse({ description: 'Missing file, unreadable CSV, or no importable rows' })
+  @UseInterceptors(FileInterceptor('file', uploadLimits(MAX_STOCK_CSV_BYTES)))
+  async importSystemDeviceStock(
+    @UploadedFile() file?: { buffer: Buffer },
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+    if (!file?.buffer?.length) throw new BadRequestException('Missing CSV file');
+
+    const recordImport = (
+      totals: { total: number; created: number; skippedExisting: number; rejectedTotal: number },
+      partial: boolean,
+    ) =>
+      this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.stock_imported',
+        entityType: 'device',
+        entityId: 'platform-stock',
+        summary: partial ? 'Platform device stock partly imported' : 'Platform device stock imported',
+        metadata: {
+          total: totals.total,
+          created: totals.created,
+          skippedExisting: totals.skippedExisting,
+          rejectedTotal: totals.rejectedTotal,
+          partial,
+        },
+      });
+
+    try {
+      const result = await this.importSystemDeviceStockUseCase.execute(accessToken, file.buffer.toString('utf8'));
+      await recordImport(result.data, false);
+      return result;
+    } catch (error) {
+      const partialTotals = (error as PartialStockImportError).partialTotals;
+      if (partialTotals && partialTotals.created > 0) await recordImport(partialTotals, true);
+      if (error instanceof StockCsvError) throw new BadRequestException(error.message);
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
+  @Post('test-telemetry')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Send test telemetry for a device',
+    description:
+      'Dev-only. Publishes the location fix a tracker would send, so a device waiting for verification is verified by the real telemetry path. Refused unless the environment enables it.',
+  })
+  @ApiCreatedResponse({
+    description:
+      'Fix published. data holds imei, verificationStatusBefore, verificationStatusAfter, lifecycleStatusAfter and a plain-language note.',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
+  @ApiForbiddenResponse({ description: 'Caller is not permitted, or test telemetry is disabled on this environment' })
+  @ApiBadRequestResponse({ description: 'The IMEI is not 15 digits, or a coordinate is out of range' })
+  @ApiNotFoundResponse({ description: 'No device with that IMEI' })
+  async sendTestTelemetry(
+    @Body(BodyOrDataPipe) payload: SendTestTelemetryDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
+    if (!accessToken) throw new UnauthorizedException('Missing authorization');
+
+    try {
+      const result = await this.sendTestTelemetryUseCase.execute(accessToken, payload);
+      await this.tryRecordActivityFromAccessToken(accessToken, {
+        service: 'auth',
+        action: 'system.device.test_telemetry_sent',
+        entityType: 'device',
+        entityId: payload.imei,
+        summary: 'Test telemetry sent for a device',
+        metadata: { ...result.data },
+      });
+      return result;
+    } catch (error) {
+      this.rethrowDeviceActionError(error);
+      throw error;
+    }
+  }
+
   @Patch(':deviceId')
   @ApiBearerAuth()
   @ApiOperation({
@@ -930,6 +1044,7 @@ export class SystemDevicesController extends BaseAuthController {
     if (error instanceof ForbiddenError) throw new ForbiddenException(error.message);
     if (error instanceof UserNotFoundError) throw new NotFoundException(error.message);
     if (error instanceof DeviceSuspensionRefusedError || error instanceof SystemDeviceWriteRefusedError) {
+      if (error.httpStatus === 403) throw new ForbiddenException(error.message);
       if (error.httpStatus === 404) throw new NotFoundException(error.message);
       if (error.httpStatus === 400) throw new BadRequestException(error.message);
       if (error.httpStatus === 409) throw new ConflictException(error.message);

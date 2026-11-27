@@ -1,5 +1,6 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppConfigService } from "@shared/config";
 import { createCorsOptions } from "@shared/http";
 import { JsonLogger } from "@shared/logger";
@@ -108,10 +109,14 @@ import {
   ServiceCategoryListResponse,
 } from "./dto/fleet.schema";
 
+// Platform stock import can post 20000 rows (~2MB), past the 100kb default.
+const JSON_BODY_LIMIT = "8mb";
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: new JsonLogger("fleet-service"),
   });
+  app.useBodyParser("json", { limit: JSON_BODY_LIMIT });
   app.enableShutdownHooks();
 
   // Fail closed: abort boot if any controller lacks @TenantScoped()/@Public().

@@ -681,6 +681,8 @@ import {
 } from './suspend-system-device.use-cases';
 import {
   AssignSystemDevicesUseCase,
+  ImportSystemDeviceStockUseCase,
+  SendTestTelemetryUseCase,
   UpdateSystemDeviceUseCase,
 } from './update-system-device.use-cases';
 import {
@@ -1971,6 +1973,8 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     DecommissionSystemDeviceUseCase,
     UpdateSystemDeviceUseCase,
     AssignSystemDevicesUseCase,
+    ImportSystemDeviceStockUseCase,
+    SendTestTelemetryUseCase,
     GetSystemDeviceSetupSummaryUseCase,
     SuperAdminBootstrapService,
     // Onboarding repositories

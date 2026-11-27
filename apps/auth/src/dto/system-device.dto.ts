@@ -4,14 +4,19 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsIn,
+  IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import {
   DEVICE_LIFECYCLE_STATUSES,
   DEVICE_PROTOCOLS,
   DEVICE_STATUSES,
+  TEST_TELEMETRY_IMEI,
 } from '@shared/devices';
 
 export class UpdateSystemDeviceDto {
@@ -67,4 +72,25 @@ export class AssignSystemDevicesDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+}
+
+export class SendTestTelemetryDto {
+  @ApiProperty({ example: '359779090012345' })
+  @IsString()
+  @Matches(TEST_TELEMETRY_IMEI, { message: 'imei must be 15 digits' })
+  imei!: string;
+
+  @ApiPropertyOptional({ minimum: -90, maximum: 90 })
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ minimum: -180, maximum: 180 })
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
 }

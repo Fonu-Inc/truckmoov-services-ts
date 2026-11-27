@@ -60,3 +60,10 @@ export {
   type SetupRequestChargeLine,
   type SetupRequestChargesInput,
 } from "./device-setup-request-charges";
+
+export {
+  TEST_TELEMETRY_DISABLED_MESSAGE,
+  TEST_TELEMETRY_IMEI,
+  testTelemetryEnabled,
+  testTelemetryNote,
+} from "./test-telemetry";

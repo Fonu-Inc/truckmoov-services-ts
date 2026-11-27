@@ -28,6 +28,14 @@ export interface DeviceRepository {
    * concurrent claim, suspension or hold is never overwritten.
    */
   claimStockDevice(before: Device, moved: Device): Promise<boolean>;
+  /** Which of these IMEIs any device already holds, whatever tenant or lifecycle state. */
+  findExistingImeis(imeis: string[]): Promise<Set<string>>;
+  /**
+   * Inserts new devices in one statement, falling back to one by one when a
+   * concurrent insert collides on (tenant, IMEI). Returns how many were stored;
+   * a collision is skipped, never an error.
+   */
+  insertMany(devices: Device[]): Promise<number>;
   /** Saves only while the stored device is still waiting, so one pod wins each verification outcome. */
   saveIfWaitingForVerification(device: Device): Promise<boolean>;
   findAll(filters: DeviceFilters): Promise<Device[]>;

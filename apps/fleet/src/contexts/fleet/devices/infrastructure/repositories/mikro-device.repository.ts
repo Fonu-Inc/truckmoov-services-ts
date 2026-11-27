@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { UniqueConstraintViolationException } from "@mikro-orm/core";
 import { AppConfigService } from "@shared/config";
 import {
   Device,
@@ -29,6 +30,35 @@ export class MikroDeviceRepository implements DeviceRepository {
       changes,
     );
     return updated > 0;
+  }
+
+  async findExistingImeis(imeis: string[]): Promise<Set<string>> {
+    if (imeis.length === 0) return new Set();
+    const orm = await getFleetOrm(this.config.db);
+    const records = await orm.em.fork().find(DeviceRecord, { imei: { $in: imeis } }, { fields: ["imei"] });
+    return new Set(records.map((record) => record.imei));
+  }
+
+  async insertMany(devices: Device[]): Promise<number> {
+    if (devices.length === 0) return 0;
+    const orm = await getFleetOrm(this.config.db);
+    const rows = devices.map((device) => toRecord(device));
+    try {
+      await orm.em.fork().insertMany(DeviceRecord, rows);
+      return rows.length;
+    } catch (error) {
+      if (!(error instanceof UniqueConstraintViolationException)) throw error;
+    }
+    let stored = 0;
+    for (const row of rows) {
+      try {
+        await orm.em.fork().insert(DeviceRecord, row);
+        stored += 1;
+      } catch (error) {
+        if (!(error instanceof UniqueConstraintViolationException)) throw error;
+      }
+    }
+    return stored;
   }
 
   async saveIfWaitingForVerification(device: Device): Promise<boolean> {

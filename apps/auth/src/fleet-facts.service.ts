@@ -46,7 +46,7 @@ function isSafePathId(value: string): boolean {
 
 export type TenantExportTable = { columns: string[]; rows: Array<Array<string | number | boolean | null>> };
 
-export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission' | 'update' | 'assign';
+export type PlatformDeviceAction = 'suspend' | 'reinstate' | 'decommission' | 'update' | 'assign' | 'stock_import' | 'test_telemetry';
 export type TenantHoldCounts = { devices: number; vehicles: number; shareLinks: number };
 export type TenantHoldResult = ({ ok: true } & TenantHoldCounts) | { ok: false; message: string };
 
@@ -246,6 +246,84 @@ export class FleetFactsService {
       this.logger.warn(
         `fleet_device_allocate_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
       );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
+  /** Registers devices the platform holds itself. A row's `line` in a rejection is its 1-based position in `rows`. */
+  async importStockDevices(
+    rows: Array<{ imei: string; manufacturer: string; model: string; name?: string }>,
+  ): Promise<
+    | {
+        ok: true;
+        created: number;
+        skippedExisting: number;
+        rejected: Array<{ line: number; imei: string; reason: string }>;
+        rejectedTotal: number;
+      }
+    | { ok: false; status: number; message: string }
+  > {
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.post<{
+        data?: {
+          created?: number;
+          skippedExisting?: number;
+          rejected?: Array<{ line: number; imei: string; reason: string }>;
+          rejectedTotal?: number;
+        };
+        message?: string;
+      }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/stock/import`,
+        { rows },
+        { headers, timeout: 120000, maxBodyLength: Infinity, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal('stock', 'stock_import', response.status, response.data?.message);
+      }
+      const data = response.data?.data;
+      return {
+        ok: true,
+        created: data?.created ?? 0,
+        skippedExisting: data?.skippedExisting ?? 0,
+        rejected: data?.rejected ?? [],
+        rejectedTotal: data?.rejectedTotal ?? 0,
+      };
+    } catch (error) {
+      this.logger.warn(`fleet_stock_import_failed:${error instanceof Error ? error.message : 'unknown'}`);
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
+  /** Asks fleet to publish a test fix for a device, so the real telemetry listener runs on it. */
+  async sendTestTelemetry(body: {
+    imei: string;
+    latitude?: number;
+    longitude?: number;
+  }): Promise<{ ok: true; result: Record<string, unknown> } | { ok: false; status: number; message: string }> {
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.post<{ data?: Record<string, unknown>; message?: string }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/test-telemetry`,
+        body,
+        { headers, timeout: 10000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal('test-telemetry', 'test_telemetry', response.status, response.data?.message);
+      }
+      return { ok: true, result: response.data?.data ?? {} };
+    } catch (error) {
+      this.logger.warn(`fleet_test_telemetry_failed:${error instanceof Error ? error.message : 'unknown'}`);
       return { ok: false, status: 503, message: 'The device service could not be reached' };
     }
   }

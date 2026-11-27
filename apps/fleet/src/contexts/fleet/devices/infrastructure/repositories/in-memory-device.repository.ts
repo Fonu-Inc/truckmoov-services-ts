@@ -25,6 +25,24 @@ export class InMemoryDeviceRepository implements DeviceRepository {
     return true;
   }
 
+  async findExistingImeis(imeis: string[]): Promise<Set<string>> {
+    const wanted = new Set(imeis);
+    return new Set(Array.from(this.data.values()).filter((device) => wanted.has(device.imei)).map((device) => device.imei));
+  }
+
+  async insertMany(devices: Device[]): Promise<number> {
+    let stored = 0;
+    for (const device of devices) {
+      const taken = Array.from(this.data.values()).some(
+        (held) => held.tenantId === device.tenantId && held.imei === device.imei,
+      );
+      if (taken) continue;
+      this.data.set(device.id, device);
+      stored += 1;
+    }
+    return stored;
+  }
+
   async saveIfWaitingForVerification(device: Device): Promise<boolean> {
     const stored = this.data.get(device.id);
     if (stored?.tenantId !== device.tenantId || stored.verificationStatus !== "waiting") return false;

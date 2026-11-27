@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
@@ -12,8 +13,10 @@ import {
   Post,
   Query,
   Req,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { OWNER_OPERATOR_ORGANISATION_TYPE, Roles, Role, RolesGuard, SkipTenantScope } from "@shared/rbac";
 import { BaseFleetController, FleetRequestContext } from "./base.controller";
@@ -35,6 +38,7 @@ import {
   ReinstateDeviceUseCase,
   DecommissionDeviceUseCase,
   DeviceIdentityDirectory,
+  ImportPlatformStockUseCase,
   SuspendDeviceUseCase,
   deviceHeartbeat,
   heartbeatWindow,
@@ -49,6 +53,7 @@ import type {
 import {
   PlatformAssignDevicesDto,
   PlatformAllocateStockDto,
+  PlatformStockImportDto,
   PlatformUpdateDeviceDto,
 } from "./dto/platform-device.dto";
 import {
@@ -62,7 +67,13 @@ import { BeginJobVerificationDto, InstalledUnitDto } from "./dto/device-installa
 import { InstallationHandoverUseCases } from "./contexts/fleet/devices/application/use-cases/installation-handover.use-cases";
 import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
 import { AccessClient, Portals, OnResource } from "@shared/access";
-import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
+import {
+  DEVICE_LIFECYCLE_LABELS,
+  TEST_TELEMETRY_DISABLED_MESSAGE,
+  testTelemetryEnabled,
+  testTelemetryNote,
+} from "@shared/devices";
+import { TestTelemetryDto } from "./dto/test-telemetry.dto";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
 import { devicesStillNeeded, orderPlatformStock } from "./contexts/fleet/devices/domain/platform-stock";
 import { AppConfigService } from "@shared/config";
@@ -123,6 +134,7 @@ export class InternalFleetController extends BaseFleetController {
     @Inject(AppConfigService) private readonly config: AppConfigService,
     @Inject(DeviceIdentityDirectory) private readonly identities: DeviceIdentityDirectory,
     @Optional() @Inject(AccessClient) private readonly access?: AccessClient,
+    @Optional() @Inject(ImportPlatformStockUseCase) private readonly importPlatformStock?: ImportPlatformStockUseCase,
   ) {
     super(auditLog, bus);
   }
@@ -342,6 +354,78 @@ export class InternalFleetController extends BaseFleetController {
         deviceIds,
         held: held + deviceIds.length,
         shortfall: needed - deviceIds.length,
+      },
+    };
+  }
+
+  /**
+   * Registers devices the platform holds itself, ready for allocate-from-stock.
+   *
+   * An IMEI already on any account is counted and left untouched, so a repeat
+   * call creates nothing. `line` in a rejection is the row's 1-based position
+   * in this request.
+   */
+  @Post("devices/stock/import")
+  @UseGuards(PlatformActorGuard)
+  async importStock(@Body() payload: PlatformStockImportDto) {
+    if (!this.importPlatformStock) throw new ServiceUnavailableException("Stock import is not available");
+    const data = await this.importPlatformStock.execute(payload.rows);
+    return { status: true, message: "Stock imported", data };
+  }
+
+  /**
+   * Dev-only: publishes the fix the gateway would, so the real telemetry
+   * listener verifies the device. Nothing here touches device state.
+   */
+  @Post("devices/test-telemetry")
+  @UseGuards(PlatformActorGuard)
+  async sendTestTelemetry(@Body() payload: TestTelemetryDto) {
+    if (!testTelemetryEnabled()) throw new ForbiddenException(TEST_TELEMETRY_DISABLED_MESSAGE);
+
+    const device = await this.devices.findLiveByImei(payload.imei);
+    if (!device) throw new NotFoundException("No device with that IMEI");
+
+    const before = device.verificationStatus;
+    const now = new Date().toISOString();
+    await this.bus.publish(`tm.${device.tenantId}.vehicle.location.updated`, {
+      id: randomUUID(),
+      type: "vehicle.location.updated",
+      version: 1,
+      occurred_at: now,
+      tenant_id: device.tenantId,
+      data: {
+        vehicle_id: device.vehicleId ?? "",
+        device_id: device.id,
+        imei: device.imei,
+        lat: payload.latitude ?? 6.5244,
+        lng: payload.longitude ?? 3.3792,
+        speed_kph: 0,
+        heading: null,
+        accuracy_m: null,
+        fix_time: now,
+        protocol: device.reportedProtocol ?? "",
+        source: "test-telemetry",
+      },
+    });
+
+    let after = device;
+    if (before === "waiting") {
+      for (let attempt = 0; attempt < 12 && after.verificationStatus === before; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        after = (await this.devices.findById(device.id, device.tenantId)) ?? after;
+      }
+    }
+
+    return {
+      status: true,
+      message: "Test telemetry published",
+      data: {
+        published: true,
+        imei: device.imei,
+        verificationStatusBefore: before,
+        verificationStatusAfter: after.verificationStatus,
+        lifecycleStatusAfter: after.lifecycleStatus,
+        note: testTelemetryNote(before, after.verificationStatus, after.lifecycleStatus),
       },
     };
   }

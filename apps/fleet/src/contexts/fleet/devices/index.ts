@@ -63,6 +63,7 @@ export { deviceHeartbeat, heartbeatWindow, type DeviceHeartbeat } from "./domain
 export { GetDeviceUseCase } from "./application/use-cases/get-device.use-case";
 export { UpdateDeviceUseCase } from "./application/use-cases/update-device.use-case";
 export { DeleteDeviceUseCase } from "./application/use-cases/delete-device.use-case";
+export { ImportPlatformStockUseCase } from "./application/use-cases/import-platform-stock.use-case";
 export { BulkImportDevicesUseCase } from "./application/use-cases/bulk-import-devices.use-case";
 export { AssignDeviceToVehicleUseCase } from "./application/use-cases/assign-device-to-vehicle.use-case";
 export { UnassignDeviceFromVehicleUseCase } from "./application/use-cases/unassign-device-from-vehicle.use-case";
