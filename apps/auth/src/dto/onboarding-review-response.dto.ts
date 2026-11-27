@@ -173,6 +173,13 @@ export class ReviewPaymentSchema {
   @ApiProperty(NULLABLE_DATE_TIME) reviewedAt!: string | null;
 }
 
+export class ReviewDeviceAllocationSchema {
+  @ApiProperty() requested!: number;
+  @ApiProperty({ description: 'Devices the tenant holds now, whether allocated automatically or by hand.' })
+  allocated!: number;
+  @ApiProperty({ description: 'Devices still to allocate once platform stock allows.' }) owed!: number;
+}
+
 export class ReviewApplicationSchema extends ReviewApplicationSummarySchema {
   @ApiProperty({ type: [StageProgressSchema] }) progress!: StageProgressSchema[];
   @ApiProperty({
@@ -188,6 +195,8 @@ export class ReviewApplicationSchema extends ReviewApplicationSummarySchema {
   paymentReviews!: ReviewPaymentSchema[];
   @ApiProperty() vehicleCount!: number;
   @ApiProperty() deviceCount!: number;
+  @ApiProperty({ type: ReviewDeviceAllocationSchema, nullable: true })
+  deviceAllocation!: ReviewDeviceAllocationSchema | null;
   @ApiProperty({ type: [ReviewVehicleSchema] }) vehicles!: ReviewVehicleSchema[];
   @ApiProperty({ type: [ReviewDeviceRequestSchema] })
   deviceRequests!: ReviewDeviceRequestSchema[];

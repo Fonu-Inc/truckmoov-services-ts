@@ -1,9 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AppConfigService } from '@shared/config';
+import { SYSTEM_TENANT_ID } from '@shared/identity';
 import { getAuthOrm } from '@auth/session/infrastructure/persistence/auth-orm';
 
 type ExistsRow = { exists?: boolean | number | string };
 type CountRow = { count?: number | string };
+
+/** Mirrors fleet's isHealthyStock over the system tenant's devices: the one set the allocator draws from. */
+const PLATFORM_STOCK_PREDICATE =
+  "tenant_id = ? and vehicle_id is null and hold_cause is null and lifecycle_status not in ('faulty', 'suspended', 'decommissioned')";
 
 export type DeviceInventoryAvailability = {
   /** False locally before the shared fleet inventory exists. */
@@ -39,9 +44,29 @@ export class OnboardingDeviceInventoryService {
     }
 
     const [row] = await connection.execute<CountRow[]>(
-      "select count(*)::int as count from fleet_devices where lifecycle_status = 'assignable'",
+      `select count(*)::int as count from fleet_devices where ${PLATFORM_STOCK_PREDICATE}`,
+      [SYSTEM_TENANT_ID],
     );
     return { tracked: true, availableQuantity: Math.max(0, Number(row?.count ?? 0) || 0) };
+  }
+
+  /** Devices a tenant holds that are still in service. */
+  async heldBy(tenantId: string): Promise<number> {
+    if (this.config.persistence.backend === 'in-memory') return 0;
+
+    const orm = await getAuthOrm(this.config.db);
+    const connection = orm.em.getConnection();
+    const [exists] = await connection.execute<ExistsRow[]>(
+      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = ?) as exists",
+      ['fleet_devices'],
+    );
+    if (!this.toBoolean(exists?.exists)) return 0;
+
+    const [row] = await connection.execute<CountRow[]>(
+      "select count(*)::int as count from fleet_devices where tenant_id = ? and lifecycle_status <> 'decommissioned'",
+      [tenantId],
+    );
+    return Math.max(0, Number(row?.count ?? 0) || 0);
   }
 
   private toBoolean(value: unknown): boolean {

@@ -20,6 +20,17 @@ export class MikroDeviceRepository implements DeviceRepository {
     await orm.em.fork().upsert(DeviceRecord, toRecord(device));
   }
 
+  async claimStockDevice(before: Device, moved: Device): Promise<boolean> {
+    const orm = await getFleetOrm(this.config.db);
+    const { id, createdAt: _createdAt, ...changes } = toRecord(moved);
+    const updated = await orm.em.fork().nativeUpdate(
+      DeviceRecord,
+      { id, tenantId: before.tenantId, vehicleId: null, holdCause: null, lifecycleStatus: before.lifecycleStatus },
+      changes,
+    );
+    return updated > 0;
+  }
+
   async saveIfWaitingForVerification(device: Device): Promise<boolean> {
     const orm = await getFleetOrm(this.config.db);
     const { id, tenantId, createdAt: _createdAt, ...changes } = toRecord(device);

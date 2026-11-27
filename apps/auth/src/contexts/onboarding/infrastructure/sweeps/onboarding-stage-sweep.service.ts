@@ -117,8 +117,7 @@ export class OnboardingStageSweepService
   ): Promise<boolean> {
     try {
       if (!(await this.provisioning.stockCovers(application))) return false;
-      await this.provisioning.openPayment(application, now);
-      return true;
+      return (await this.provisioning.openPayment(application, now)) !== null;
     } catch (error) {
       this.logger.warn(
         `onboarding_stage_advance_failed:${application.reference}:${

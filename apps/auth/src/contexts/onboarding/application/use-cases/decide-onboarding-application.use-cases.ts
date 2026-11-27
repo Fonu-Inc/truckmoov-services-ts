@@ -55,6 +55,7 @@ import { requestedDeviceCount } from '@auth/onboarding/domain/onboarding-applica
 import { sendWithRotatedToken } from '../services/send-with-rotated-token';
 import { ApplicationPaymentNoticeService } from '../services/application-payment-notice.service';
 import { OnboardingDeviceInventoryService } from '../services/onboarding-device-inventory.service';
+import { ApplicationDeviceAllocationService } from '../services/application-device-allocation.service';
 import {
   SUBSCRIPTION_PLAN_REPOSITORY,
   type SubscriptionPlanRepository,
@@ -173,6 +174,8 @@ export class ApproveOnboardingApplicationUseCase {
     private readonly paymentNotices: ApplicationPaymentNoticeService,
     @Inject(ApplicationTelecomMasterUseCases)
     private readonly telecomMaster: ApplicationTelecomMasterUseCases,
+    @Inject(ApplicationDeviceAllocationService)
+    private readonly deviceAllocation: ApplicationDeviceAllocationService,
   ) {}
 
   async execute(input: { accessToken: string; applicationId: string }) {
@@ -244,6 +247,7 @@ export class ApproveOnboardingApplicationUseCase {
       },
     );
     await this.startTrial(approved.tenantId!, now);
+    await this.deviceAllocation.allocate(approved);
     if (approved.telecomMasterNumberType) {
       await this.telecomMaster.openForApplication({
         id: approved.id,

@@ -121,6 +121,9 @@ import { RenewalSweepService } from './renewal-sweep.service';
 import { BundleExpirySweepService } from './bundle-expiry-sweep.service';
 import { RenewalAudit } from './renewal-audit';
 import { RenewalInvoiceService } from '@auth/onboarding/application/services/renewal-invoice.service';
+import { ApplicationDeviceAllocationService } from '@auth/onboarding/application/services/application-device-allocation.service';
+import { ApplicationDeviceAllocationLedger } from '@auth/onboarding/application/services/application-device-allocation.ledger';
+import { DeviceAllocationSweepService } from '@auth/onboarding/infrastructure/sweeps/device-allocation-sweep.service';
 import { SettleRenewalPaymentUseCase } from '@auth/onboarding/application/settle-renewal-payment.use-case';
 import {
   GetTenantInvoiceUseCase,
@@ -2370,6 +2373,9 @@ import { ExportBundleRatesUseCase } from './export-bundle-rates.use-case';
     AbandonedApplicationSweepService,
     CompleteProvisioningUseCase,
     OnboardingProvisioningService,
+    ApplicationDeviceAllocationService,
+    ApplicationDeviceAllocationLedger,
+    DeviceAllocationSweepService,
     OnboardingStageSweepService,
     ReviewOnboardingPaymentMismatchUseCase,
     RefundOnboardingPaymentUseCase,

@@ -80,3 +80,23 @@ export class PlatformAssignDevicesDto {
   @MaxLength(1000)
   notes?: string;
 }
+
+/** Tops a tenant up to `target` devices from platform stock. */
+export class PlatformAllocateStockDto {
+  @ApiProperty({ maxLength: 64 })
+  @IsString()
+  @MaxLength(64)
+  tenantId!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 5000 })
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  target!: number;
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
+}

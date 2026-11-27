@@ -48,6 +48,7 @@ import type {
 } from "./contexts/fleet/devices/domain/entities/device.entity";
 import {
   PlatformAssignDevicesDto,
+  PlatformAllocateStockDto,
   PlatformUpdateDeviceDto,
 } from "./dto/platform-device.dto";
 import {
@@ -62,6 +63,8 @@ import { InstallationHandoverUseCases } from "./contexts/fleet/devices/applicati
 import { VehicleNotFoundError, VehicleQuotaExceededError } from "./contexts/fleet/vehicles";
 import { AccessClient, Portals, OnResource } from "@shared/access";
 import { DEVICE_LIFECYCLE_LABELS } from "@shared/devices";
+import { SYSTEM_TENANT_ID } from "@shared/identity";
+import { devicesStillNeeded, orderPlatformStock } from "./contexts/fleet/devices/domain/platform-stock";
 import { AppConfigService } from "@shared/config";
 import {
   deviceExport,
@@ -295,6 +298,51 @@ export class InternalFleetController extends BaseFleetController {
       status: true,
       message: "Devices assigned",
       data: { tenantId: payload.tenantId, updated: updated.length },
+    };
+  }
+
+  /**
+   * Tops a tenant up to `target` devices from platform stock, oldest first.
+   *
+   * Platform stock is what the system tenant holds. The target is a total, so
+   * a repeat call moves nothing the tenant already has. A device taken by a
+   * concurrent caller is skipped, and a short stock moves what exists.
+   */
+  @Post("devices/allocate-from-stock")
+  @UseGuards(PlatformActorGuard)
+  async allocateFromStock(@Body() payload: PlatformAllocateStockDto) {
+    const held = (await this.devices.findAll({ tenantId: payload.tenantId })).filter(
+      (device) => device.lifecycleStatus !== "decommissioned",
+    ).length;
+    const needed = devicesStillNeeded(payload.target, held);
+    const deviceIds: string[] = [];
+
+    if (needed > 0) {
+      const stock = orderPlatformStock(await this.devices.findAll({ tenantId: SYSTEM_TENANT_ID }));
+      const now = new Date().toISOString();
+      for (const device of stock) {
+        if (deviceIds.length >= needed) break;
+        const moved = device.update({
+          tenantId: payload.tenantId,
+          lifecycleStatus: "assignable",
+          status: "assigned",
+          assignedAt: now,
+          vehicleId: null,
+          holdCause: null,
+        });
+        if (await this.devices.claimStockDevice(device, moved)) deviceIds.push(device.id);
+      }
+    }
+
+    return {
+      status: true,
+      message: "Devices allocated",
+      data: {
+        tenantId: payload.tenantId,
+        deviceIds,
+        held: held + deviceIds.length,
+        shortfall: needed - deviceIds.length,
+      },
     };
   }
 

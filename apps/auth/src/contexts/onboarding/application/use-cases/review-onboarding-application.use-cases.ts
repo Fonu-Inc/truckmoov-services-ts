@@ -30,6 +30,7 @@ import {
   type OnboardingPaymentRepository,
 } from '@auth/onboarding/domain/onboarding-payment.repository';
 import { toPaymentReviewViews } from './review-onboarding-payment.use-case';
+import { ApplicationDeviceAllocationService } from '../services/application-device-allocation.service';
 import {
   VERIFICATION_RESULT_REPOSITORY,
   type VerificationResultRepository,
@@ -180,6 +181,8 @@ export class GetOnboardingApplicationForReviewUseCase {
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(ONBOARDING_PAYMENT_REPOSITORY)
     private readonly payments: OnboardingPaymentRepository,
+    @Inject(ApplicationDeviceAllocationService)
+    private readonly deviceAllocation: ApplicationDeviceAllocationService,
   ) {}
 
   async execute(accessToken: string, applicationId: string) {
@@ -209,6 +212,7 @@ export class GetOnboardingApplicationForReviewUseCase {
         paymentReviews,
         vehicleCount: vehicles.length,
         deviceCount: requestedDeviceCount(deviceRequests),
+        deviceAllocation: await this.deviceAllocation.summary(application).catch(() => null),
         vehicles: vehicles.map((vehicle) => ({
           id: vehicle.id,
           registrationNumber: vehicle.registrationNumber,

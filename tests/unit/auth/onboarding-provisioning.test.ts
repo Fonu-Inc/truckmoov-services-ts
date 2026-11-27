@@ -129,6 +129,7 @@ describe("Onboarding provisioning and payment review", () => {
     raised = [];
     const inventory = {
       availability: async () => ({ tracked: true, availableQuantity }),
+      heldBy: async () => 0,
     } as unknown as OnboardingDeviceInventoryService;
     notifier = {
       sendPaymentOpen: vi.fn(async () => ({ delivered: true })),

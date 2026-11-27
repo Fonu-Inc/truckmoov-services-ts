@@ -22,6 +22,12 @@ export type DeviceFilters = {
 
 export interface DeviceRepository {
   save(device: Device): Promise<void>;
+  /**
+   * Moves a stock device only while it is still as `before` read it: held by the
+   * same tenant, unfitted, unheld and in the same lifecycle state, so a
+   * concurrent claim, suspension or hold is never overwritten.
+   */
+  claimStockDevice(before: Device, moved: Device): Promise<boolean>;
   /** Saves only while the stored device is still waiting, so one pod wins each verification outcome. */
   saveIfWaitingForVerification(device: Device): Promise<boolean>;
   findAll(filters: DeviceFilters): Promise<Device[]>;

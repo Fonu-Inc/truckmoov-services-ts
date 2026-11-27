@@ -204,6 +204,52 @@ export class FleetFactsService {
     }
   }
 
+  /** Tops a tenant up to `target` devices from platform stock. Moves nothing the tenant already holds. */
+  async allocateDevicesFromStock(
+    tenantId: string,
+    target: number,
+    notes?: string,
+  ): Promise<
+    | { ok: true; deviceIds: string[]; held: number; shortfall: number }
+    | { ok: false; status: number; message: string }
+  > {
+    if (!isSafePathId(tenantId) || !Number.isInteger(target) || target < 1) {
+      return { ok: false, status: 400, message: 'The tenant or device count is not valid' };
+    }
+
+    const headers = this.caller.headers('fleet', { legacyRole: 'PLATFORM_ADMIN' });
+    if (!headers) {
+      return { ok: false, status: 503, message: 'Device service is not configured' };
+    }
+
+    try {
+      const response = await axios.post<{
+        data?: { deviceIds?: string[]; held?: number; shortfall?: number };
+        message?: string;
+      }>(
+        `${this.config.auth.fleetServiceUrl}/fleet/internal/devices/allocate-from-stock`,
+        { tenantId, target, notes },
+        { headers, timeout: 30000, validateStatus: () => true },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        return this.deviceActionRefusal(tenantId, 'assign', response.status, response.data?.message);
+      }
+      const data = response.data?.data;
+      return {
+        ok: true,
+        deviceIds: data?.deviceIds ?? [],
+        held: data?.held ?? 0,
+        shortfall: data?.shortfall ?? 0,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `fleet_device_allocate_failed:${tenantId}:${error instanceof Error ? error.message : 'unknown'}`,
+      );
+      return { ok: false, status: 503, message: 'The device service could not be reached' };
+    }
+  }
+
   /**
    * A 404 naming no device is fleet missing the route, or refusing the caller
    * as one: the device service is at fault, not the device.
