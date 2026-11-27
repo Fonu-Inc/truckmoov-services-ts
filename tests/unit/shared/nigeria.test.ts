@@ -14,11 +14,9 @@ import {
   requireCoordinates,
   requireState,
 } from "@shared/nigeria";
-import { NIGERIAN_STATES as ONBOARDING_STATES } from "@auth/onboarding/domain/onboarding-application.validation";
 
 describe("the state list", () => {
-  it("is the same list onboarding validates against", () => {
-    expect([...NIGERIAN_STATES]).toEqual([...ONBOARDING_STATES]);
+  it("holds the 36 states and FCT", () => {
     expect(NIGERIAN_STATES).toHaveLength(37);
   });
 

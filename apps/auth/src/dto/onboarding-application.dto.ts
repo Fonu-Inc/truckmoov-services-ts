@@ -43,15 +43,18 @@ export class OnboardingApplicationDto {
   contactRole?: string;
 
   @Allow()
-  @ApiProperty({ example: 'Mazi Fedelis Street', maxLength: 200 })
+  @ApiProperty({ example: 'Mazi Fedelis Street', maxLength: 200, description: 'Must contain letters. 3 to 200 characters.' })
   streetAddress!: string;
 
   @Allow()
-  @ApiProperty({ example: 'Abuja', maxLength: 80 })
+  @ApiProperty({ example: 'Abuja Municipal Area Council', maxLength: 80, description: 'A local government area of the chosen state.' })
   city!: string;
 
   @Allow()
-  @ApiProperty({ example: 'FCT', description: 'A Nigerian state or FCT.' })
+  @ApiProperty({
+    example: 'FCT',
+    description: 'A Nigerian state or FCT. "Lagos State" and "Abuja" are accepted and saved as "Lagos" and "FCT".',
+  })
   state!: string;
 
   @Allow()

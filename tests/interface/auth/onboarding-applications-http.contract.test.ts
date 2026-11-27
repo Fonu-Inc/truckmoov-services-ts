@@ -45,7 +45,7 @@ function applicationPayload(overrides: Record<string, string> = {}) {
     contactRole: 'Fleet Manager',
     m2mPlanCode: 'm2m_standard',
     streetAddress: 'Mazi Fedelis Street',
-    city: 'Abuja',
+    city: 'Abuja Municipal Area Council',
     state: 'FCT',
     ...overrides,
   };
@@ -402,6 +402,37 @@ describe('Onboarding applications HTTP contract', () => {
     expect(res.body.field).toBe('state');
   });
 
+  it('rejects a city that is not a local government area of the state', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/auth/onboarding/applications')
+      .send(applicationPayload({ businessEmail: 'city@arne.com', city: 'Abuja' }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.field).toBe('city');
+  });
+
+  it('rejects a street address with no letters', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/auth/onboarding/applications')
+      .send(applicationPayload({ businessEmail: 'street@arne.com', streetAddress: '1234' }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.field).toBe('streetAddress');
+  });
+
+  it('saves an alias state and a lower-case city under their canonical names', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/auth/onboarding/applications')
+      .send(applicationPayload({ businessEmail: 'alias@arne.com', state: 'lagos state', city: 'ikeja' }));
+    expect(created.status).toBe(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/auth/onboarding/applications/${created.body.data.id}`)
+      .set('x-application-token', created.body.data.applicationToken);
+
+    expect(res.body.data.organization).toMatchObject({ state: 'Lagos', city: 'Ikeja' });
+  });
+
   it('refuses a second live application for the same email', async () => {
     await startApplication('duplicate@arne.com');
 
@@ -672,7 +703,7 @@ describe('Onboarding applications HTTP contract', () => {
     const res = await request(app.getHttpServer())
       .patch(`/auth/onboarding/applications/${id}`)
       .set('x-application-token', token)
-      .send(applicationPayload({ businessEmail: 'locked@arne.com', city: 'Lagos' }));
+      .send(applicationPayload({ businessEmail: 'locked@arne.com', city: 'Kuje' }));
 
     expect(res.status).toBe(409);
   });

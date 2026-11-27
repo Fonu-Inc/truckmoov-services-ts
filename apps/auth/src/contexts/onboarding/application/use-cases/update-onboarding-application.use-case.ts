@@ -54,7 +54,7 @@ export class UpdateOnboardingApplicationUseCase {
     );
     assertApplicationEditable(application);
 
-    const details = validateApplicationDetails(command);
+    const details = validateApplicationDetails(command, application);
     const m2mPlanCode = await resolveM2mPlanCode(this.plans, command.m2mPlanCode);
     if (details.businessEmail !== application.businessEmail) {
       await this.assertEmailIsFree(details.businessEmail, application.id);

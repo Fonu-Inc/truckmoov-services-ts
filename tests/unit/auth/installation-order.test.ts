@@ -188,6 +188,33 @@ describe("Choosing an installer", () => {
     expect(chooseInstaller([chinedu, ada], booking(), new Map())?.fullName).toBe("Ada Obi");
   });
 
+  it("prefers an installer based in the order's city over the alphabetical one", () => {
+    const fisayomi = { ...installer("Fisayomi Installer", "Lagos"), city: "Ikeja" };
+    const victor = { ...installer("Victor Akaaha", "Lagos"), city: "Lagos Island" };
+
+    expect(chooseInstaller([fisayomi, victor], booking("Lagos", { city: " lagos island " }), none)?.fullName).toBe("Victor Akaaha");
+  });
+
+  it("treats the city as a preference, not a filter", () => {
+    const fisayomi = { ...installer("Fisayomi Installer", "Lagos"), city: "Ikeja" };
+
+    expect(chooseInstaller([fisayomi], booking("Lagos", { city: "Lagos Island" }), none)?.fullName).toBe("Fisayomi Installer");
+  });
+
+  it("ranks a city match ahead of a lighter load", () => {
+    const fisayomi = installer("Fisayomi Installer", "Lagos");
+    const victor = { ...installer("Victor Akaaha", "Lagos"), city: "Lagos Island" };
+    const load = new Map([[victor.id, 2]]);
+
+    expect(chooseInstaller([fisayomi, victor], booking("Lagos", { city: "Lagos Island" }), load)?.fullName).toBe("Victor Akaaha");
+  });
+
+  it("matches a legacy state spelling on the installer's service areas", () => {
+    const legacy = { ...installer("Chinedu Okafor", "Lagos State") };
+
+    expect(chooseInstaller([legacy], booking("Lagos"), none)?.fullName).toBe("Chinedu Okafor");
+  });
+
   it("answers null rather than picking somebody who cannot do it", () => {
     expect(chooseInstaller([], booking(), none)).toBeNull();
   });

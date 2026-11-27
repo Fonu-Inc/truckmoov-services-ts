@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { NIGERIAN_STATES } from '../contexts/onboarding/domain/onboarding-application.validation';
+import { NIGERIAN_STATES } from '@shared/nigeria';
 import {
   INSTALLER_CAPABILITIES,
   MAX_ACTIVE_JOBS_LIMIT,

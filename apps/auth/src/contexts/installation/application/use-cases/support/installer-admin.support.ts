@@ -1,10 +1,9 @@
 import {
   OnboardingValidationError,
   validateBusinessEmail,
-  validateCity,
   validateNigerianPhone,
 } from '@auth/onboarding/domain/onboarding-application.validation';
-import { requireState } from '@shared/nigeria';
+import { requireCity, requireState } from '@shared/nigeria';
 import {
   DEFAULT_MAX_ACTIVE_JOBS,
   MAX_ACTIVE_JOBS_LIMIT,
@@ -97,7 +96,7 @@ export function newInstallerDetails(input: InstallerDetailsInput): InstallerDeta
     // When supplied they are strictly validated; older calls derive the home
     // state from the (also validated) first service area.
     state: input.state === undefined ? areas[0] : requireState(input.state),
-    city: input.city === undefined ? null : validateCity(input.city),
+    city: input.city === undefined ? null : requireCity(input.city, null, false),
     serviceAreas: areas,
     capabilities: capabilities(input.capabilities),
     maxActiveJobs: input.maxActiveJobs === undefined ? DEFAULT_MAX_ACTIVE_JOBS : maxActiveJobs(input.maxActiveJobs),
@@ -116,7 +115,7 @@ export function editedInstaller(installer: StoredInstaller, input: InstallerDeta
     phoneNumber:
       input.phoneNumber === undefined ? installer.phoneNumber : validateNigerianPhone(input.phoneNumber, 'phoneNumber'),
     state: input.state === undefined ? installer.state : requireState(input.state),
-    city: input.city === undefined ? installer.city : validateCity(input.city),
+    city: input.city === undefined ? installer.city : requireCity(input.city, null, false),
     serviceAreas: input.serviceAreas === undefined ? installer.serviceAreas : serviceAreas(input.serviceAreas),
     capabilities: input.capabilities === undefined ? installer.capabilities : capabilities(input.capabilities),
     maxActiveJobs: input.maxActiveJobs === undefined ? installer.maxActiveJobs : maxActiveJobs(input.maxActiveJobs),

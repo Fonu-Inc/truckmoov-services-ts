@@ -27,16 +27,14 @@ import {
 import {
   validateApplicantType,
   validateBusinessEmail,
-  validateCity,
   validateContactFullName,
   validateContactRole,
   validateIdentificationNumber,
   validateIdentificationType,
+  validateLocation,
   validateNigerianPhone,
   validateOrganizationName,
   validateRcNumber,
-  validateState,
-  validateStreetAddress,
   validateTaxIdentificationNumber,
   OnboardingValidationError,
 } from '@auth/onboarding/domain/onboarding-application.validation';
@@ -145,6 +143,7 @@ export class CreateOnboardingApplicationUseCase {
 
 export function validateApplicationDetails(
   command: CreateOnboardingApplicationCommand,
+  stored?: StoredOnboardingApplication,
 ) {
   return {
     applicantType: validateApplicantType(command.applicantType),
@@ -156,9 +155,7 @@ export function validateApplicationDetails(
     ),
     contactFullName: validateContactFullName(command.contactFullName),
     contactRole: validateContactRole(command.contactRole),
-    streetAddress: validateStreetAddress(command.streetAddress),
-    city: validateCity(command.city),
-    state: validateState(command.state),
+    ...validateLocation(command, stored),
     rcNumber: validateRcNumber(command.rcNumber),
     taxIdentificationNumber: validateTaxIdentificationNumber(
       command.taxIdentificationNumber,

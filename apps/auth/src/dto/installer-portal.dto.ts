@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
-import { NIGERIAN_STATES } from '../contexts/onboarding/domain/onboarding-application.validation';
+import { NIGERIAN_STATES } from '@shared/nigeria';
 import {
   INSTALLATION_TIME_SLOTS,
   MAX_INSTALLER_NOTES_LENGTH,

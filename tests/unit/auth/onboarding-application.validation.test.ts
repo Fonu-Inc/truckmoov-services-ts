@@ -3,15 +3,14 @@ import {
   OnboardingValidationError,
   validateApplicantType,
   validateBusinessEmail,
-  validateCity,
   validateContactFullName,
   validateContactRole,
+  validateLocation,
   validateNigerianPhone,
   validateOrganizationName,
-  validateState,
-  validateStreetAddress,
   validateVerificationCode,
 } from "@auth/onboarding/domain/onboarding-application.validation";
+import { NigerianAddressError } from "@shared/nigeria";
 
 describe("Nigerian phone validation", () => {
   it("normalises every accepted local and international shape to E.164", () => {
@@ -140,30 +139,58 @@ describe("Contact person", () => {
 });
 
 describe("Address", () => {
-  it("accepts a street address with a house number", () => {
-    expect(validateStreetAddress(" 12  Mazi Fedelis Street ")).toBe("12 Mazi Fedelis Street");
+  const place = (overrides: Partial<{ streetAddress: string; city: string; state: string }> = {}) => ({
+    streetAddress: "12 Mazi Fedelis Street",
+    city: "Ikeja",
+    state: "Lagos",
+    ...overrides,
+  });
+  const fieldOf = (run: () => unknown) => {
+    try {
+      run();
+    } catch (error) {
+      return error instanceof NigerianAddressError ? error.field : "not an address error";
+    }
+    return "no error";
+  };
+
+  it("accepts a street address with a house number and tidies the spacing", () => {
+    expect(validateLocation(place({ streetAddress: " 12  Mazi Fedelis Street " })).streetAddress).toBe("12 Mazi Fedelis Street");
   });
 
-  it("rejects a street address that is too short or too long", () => {
-    expect(() => validateStreetAddress("12")).toThrow(OnboardingValidationError);
-    expect(() => validateStreetAddress("x".repeat(201))).toThrow(OnboardingValidationError);
+  it("rejects a street address that is too short, too long or has no letters", () => {
+    for (const streetAddress of ["12", "x".repeat(201), "1234"]) {
+      expect(fieldOf(() => validateLocation(place({ streetAddress })))).toBe("streetAddress");
+    }
   });
 
-  it("rejects a city containing digits", () => {
-    expect(validateCity(" Abuja ")).toBe("Abuja");
-    expect(() => validateCity("Abuja 2")).toThrow(OnboardingValidationError);
-  });
-
-  it("matches a state case-insensitively and returns the canonical spelling", () => {
-    expect(validateState("fct")).toBe("FCT");
-    expect(validateState(" lagos ")).toBe("Lagos");
-    expect(validateState("cross river")).toBe("Cross River");
+  it("canonicalises the state and accepts the common spellings", () => {
+    expect(validateLocation(place({ state: "fct", city: "Kuje" })).state).toBe("FCT");
+    expect(validateLocation(place({ state: "Lagos State" })).state).toBe("Lagos");
+    expect(validateLocation(place({ state: "Abuja", city: "Kuje" })).state).toBe("FCT");
   });
 
   it("rejects a state that is not Nigerian", () => {
-    for (const input of ["Texas", "Lagoss", ""]) {
-      expect(() => validateState(input)).toThrow(OnboardingValidationError);
+    for (const state of ["Texas", ""]) {
+      expect(fieldOf(() => validateLocation(place({ state })))).toBe("state");
     }
+  });
+
+  it("requires the city to be a local government area of the state, in its canonical spelling", () => {
+    expect(validateLocation(place({ city: "ikeja" })).city).toBe("Ikeja");
+    expect(validateLocation(place({ state: "FCT", city: "abuja municipal area council" })).city).toBe("Abuja Municipal Area Council");
+    for (const [state, city] of [["FCT", "Abuja"], ["Lagos", "Mumbai"], ["FCT", "Ikeja"]]) {
+      expect(fieldOf(() => validateLocation(place({ state, city })))).toBe("city");
+    }
+  });
+
+  it("keeps a stored legacy address sent back unchanged, but validates anything changed", () => {
+    const stored = { streetAddress: "1234", city: "Lekki", state: "Lagos" };
+
+    expect(validateLocation(stored, stored)).toEqual(stored);
+    expect(fieldOf(() => validateLocation({ ...stored, state: "Ogun" }, stored))).toBe("city");
+    expect(fieldOf(() => validateLocation({ ...stored, city: "Victoria Island" }, stored))).toBe("city");
+    expect(fieldOf(() => validateLocation({ ...stored, streetAddress: "5678" }, stored))).toBe("streetAddress");
   });
 });
 

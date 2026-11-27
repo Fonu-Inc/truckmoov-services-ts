@@ -1,3 +1,4 @@
+import { requireAddressLine, requireCity, requireState, squash } from '@shared/nigeria';
 import {
   ONBOARDING_APPLICANT_TYPES,
   ONBOARDING_IDENTIFICATION_TYPES,
@@ -20,14 +21,6 @@ export class OnboardingValidationError extends Error {
     this.name = 'OnboardingValidationError';
   }
 }
-
-export const NIGERIAN_STATES = [
-  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue',
-  'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT',
-  'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi',
-  'Kwara', 'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo',
-  'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara',
-] as const;
 
 const NAME_PATTERN = /^[\p{L}][\p{L}\s'’.-]*$/u;
 const ORG_NAME_PATTERN = /^[\p{L}\p{N}\s&'’.,()\/-]+$/u;
@@ -322,36 +315,18 @@ export function validateDeviceNotes(value: unknown): string | null {
   return notes;
 }
 
-export function validateStreetAddress(value: unknown, field = 'streetAddress'): string {
-  const address = collapseSpaces(String(value ?? ''));
-  assertLength(field, 'Street address', address, 3, 200);
-  return address;
-}
+type Location = { streetAddress: string; city: string; state: string };
 
-export function validateCity(value: unknown): string {
-  const city = collapseSpaces(String(value ?? ''));
-  assertLength('city', 'City', city, 2, 80);
-  if (!NAME_PATTERN.test(city)) {
-    throw new OnboardingValidationError(
-      'city',
-      'City must not contain digits or symbols',
-    );
-  }
-  return city;
-}
-
-export function validateState(value: unknown): string {
-  const candidate = collapseSpaces(String(value ?? ''));
-  const match = NIGERIAN_STATES.find(
-    (state) => state.toLowerCase() === candidate.toLowerCase(),
-  );
-  if (!match) {
-    throw new OnboardingValidationError(
-      'state',
-      'State must be a Nigerian state or FCT',
-    );
-  }
-  return match;
+/** A stored street or city sent back unchanged is kept, so a legacy value never blocks saving other details. */
+export function validateLocation(
+  input: { streetAddress: unknown; city: unknown; state: unknown },
+  stored?: Location,
+): Location {
+  const kept = (value: unknown, current?: string) => (current !== undefined && squash(value) === current ? current : null);
+  const streetAddress = kept(input.streetAddress, stored?.streetAddress) ?? requireAddressLine(input.streetAddress, 'streetAddress');
+  const state = requireState(input.state);
+  const city = (state === stored?.state && kept(input.city, stored?.city)) || requireCity(input.city, state, true);
+  return { streetAddress, city, state };
 }
 
 export function validateVerificationCode(value: unknown): string {
