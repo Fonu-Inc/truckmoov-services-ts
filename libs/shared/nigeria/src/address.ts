@@ -2,6 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import {
   canonicalLga,
   isInsideNigeria,
+  mentionsForeignPlace,
+  mentionsNigerianPlace,
   normalizeCountry,
   normalizeNigerianState,
 } from './nigeria';
@@ -59,6 +61,16 @@ export function optionalAddressLine(raw: unknown, field = 'address', stored?: st
   if (line === '') return null;
   if (stored && line === squash(stored)) return stored;
   return requireAddressLine(line, field);
+}
+
+/** A whole address in one line: a Nigerian place passes, a clearly foreign one is refused, and an unknown local area (Lekki, Wuse) passes. The stored value echoed back is kept. */
+export function optionalFullAddressLine(raw: unknown, field = 'address', stored?: string | null): string | null {
+  const line = optionalAddressLine(raw, field, stored);
+  if (line === null || (stored && line === stored)) return line;
+  if (!mentionsNigerianPlace(line) && mentionsForeignPlace(line)) {
+    throw new NigerianAddressError(field, 'Address must be in Nigeria, for example "12 Marina Road, Lagos Island, Lagos"');
+  }
+  return line;
 }
 
 /** A flat, unit or landmark line, so "2B" or "12" is fine. */

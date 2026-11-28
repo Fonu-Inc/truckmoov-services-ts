@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { optionalAddressLine } from "@shared/nigeria";
+import { optionalFullAddressLine } from "@shared/nigeria";
 import { Role } from "@shared/rbac";
 import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import {
@@ -77,7 +77,7 @@ export class UpdateOrganizationSettingsUseCase {
         address:
           command.branding?.address === undefined
             ? current.branding.address
-            : optionalAddressLine(command.branding.address, "address", current.branding.address),
+            : optionalFullAddressLine(command.branding.address, "address", current.branding.address),
         logoUrl:
           command.branding?.logoUrl === undefined
             ? current.branding.logoUrl

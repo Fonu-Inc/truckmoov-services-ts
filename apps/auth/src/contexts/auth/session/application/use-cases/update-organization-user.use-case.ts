@@ -17,7 +17,7 @@ import { ForbiddenError } from "../../domain/errors/forbidden.error";
 import { UserNotFoundError } from "../../domain/errors/user-not-found.error";
 import { resolveActorUser } from "./support/resolve-actor-user";
 import { SYSTEM_TENANT_ID } from "@shared/identity";
-import { optionalAddressLine } from "@shared/nigeria";
+import { optionalFullAddressLine } from "@shared/nigeria";
 
 
 export type UpdateOrganizationUserCommand = {
@@ -78,7 +78,7 @@ export class UpdateOrganizationUserUseCase {
       address:
         command.address === undefined
           ? target.profile!.address
-          : optionalAddressLine(command.address, "address", target.profile!.address),
+          : optionalFullAddressLine(command.address, "address", target.profile!.address),
       profilePictureUrl:
         command.profilePictureUrl === undefined
           ? target.profile!.profilePictureUrl

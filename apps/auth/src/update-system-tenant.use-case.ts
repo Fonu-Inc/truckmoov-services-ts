@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { optionalAddressLine } from '@shared/nigeria';
+import { optionalFullAddressLine } from '@shared/nigeria';
 import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
@@ -127,7 +127,7 @@ export class UpdateSystemTenantUseCase {
     const currentTenant = detail.data.tenant;
     const existingOnboarding =
       await this.tenantOnboardingRepository.findByTenantId(command.tenantId);
-    const suppliedAddress = optionalAddressLine(
+    const suppliedAddress = optionalFullAddressLine(
       command.company?.businessAddress,
       'businessAddress',
       existingOnboarding?.company.businessAddress || currentTenant.address,

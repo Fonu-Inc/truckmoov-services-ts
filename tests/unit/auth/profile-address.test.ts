@@ -55,7 +55,8 @@ describe("organisation settings address", () => {
   it("saves a trimmed address and refuses one without a letter", async () => {
     const { useCase, repo } = settings();
 
-    await expect(useCase.execute({ accessToken: "t", branding: { address: " 5  Marina " } })).resolves.toMatchObject({ branding: { address: "5 Marina" } });
+    await expect(useCase.execute({ accessToken: "t", branding: { address: " 5  Marina, Lagos " } })).resolves.toMatchObject({ branding: { address: "5 Marina, Lagos" } });
+    await expect(useCase.execute({ accessToken: "t", branding: { address: "12 Main Street, Houston, Texas" } })).rejects.toBeInstanceOf(NigerianAddressError);
     await expect(useCase.execute({ accessToken: "t", branding: { address: "5555" } })).rejects.toBeInstanceOf(NigerianAddressError);
     expect(repo.save).toHaveBeenCalledTimes(1);
   });
@@ -75,7 +76,8 @@ describe("organisation user address", () => {
   it("saves a trimmed address and refuses one without a letter", async () => {
     const { useCase, users } = member();
 
-    await expect(useCase.execute({ accessToken: "t", targetUserId: "u2", address: " 3  Bode Thomas " })).resolves.toMatchObject({ user: { profile: { address: "3 Bode Thomas" } } });
+    await expect(useCase.execute({ accessToken: "t", targetUserId: "u2", address: " 3  Bode Thomas, Lagos " })).resolves.toMatchObject({ user: { profile: { address: "3 Bode Thomas, Lagos" } } });
+    await expect(useCase.execute({ accessToken: "t", targetUserId: "u2", address: "3 Baker Street, London" })).rejects.toBeInstanceOf(NigerianAddressError);
     await expect(useCase.execute({ accessToken: "t", targetUserId: "u2", address: "123456" })).rejects.toBeInstanceOf(NigerianAddressError);
     expect(users.updateProfile).toHaveBeenCalledTimes(1);
   });
@@ -95,8 +97,8 @@ describe("system contact address", () => {
     const kept = await useCase.execute({ accessToken: "t", profile: { contactAddress: null as never } });
     expect(kept.data.profile.contactAddress).toBe("9 Old Street");
 
-    const saved = await useCase.execute({ accessToken: "t", profile: { contactAddress: " 1  New Road " } });
-    expect(saved.data.profile.contactAddress).toBe("1 New Road");
+    const saved = await useCase.execute({ accessToken: "t", profile: { contactAddress: " 1  New Road, Kano " } });
+    expect(saved.data.profile.contactAddress).toBe("1 New Road, Kano");
     await expect(useCase.execute({ accessToken: "t", profile: { contactAddress: "1234" } })).rejects.toBeInstanceOf(NigerianAddressError);
   });
 });

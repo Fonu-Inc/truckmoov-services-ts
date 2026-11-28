@@ -905,3 +905,49 @@ export function normalizeCountry(raw: unknown): 'Nigeria' | null {
   const key = fold(raw);
   return key === 'nigeria' || key === 'ng' || key === 'nga' ? 'Nigeria' : null;
 }
+
+const PLACE_NAMES = [
+  ...NIGERIAN_STATES,
+  'Nigeria',
+  'Federal Capital Territory',
+  'Abuja',
+  ...Object.values(LGAS_BY_STATE).flat(),
+];
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PLACE_PATTERN = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${[...new Set(PLACE_NAMES.map((name) => name.toLowerCase()))]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegex)
+    .join('|')})(?![\\p{L}\\p{N}])`,
+  'u',
+);
+
+/** True when a free-text address names a Nigerian state, LGA, Abuja or Nigeria itself. */
+export function mentionsNigerianPlace(raw: unknown): boolean {
+  return PLACE_PATTERN.test(String(raw ?? '').toLowerCase());
+}
+
+// Names that are rarely Nigerian street names; a denylist cannot be complete, so it only catches the clear cases.
+const FOREIGN_PLACES = [
+  'United States', 'USA', 'U.S.A.', 'United Kingdom', 'UK', 'England', 'Scotland', 'Wales', 'Canada', 'Ghana', 'Cameroon',
+  'Togo', 'Mali', 'India', 'China', 'Pakistan', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Ireland',
+  'Australia', 'Brazil', 'Mexico', 'South Africa', 'Kenya', 'Egypt', 'Morocco', 'Algeria', 'Ethiopia', 'Uganda',
+  'Tanzania', 'Saudi Arabia', 'UAE', 'United Arab Emirates', 'Qatar', 'Turkey', 'Russia', 'Japan', 'Singapore',
+  'Malaysia', 'Indonesia', 'Philippines', 'Bangladesh', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Portugal',
+  'Switzerland', 'Belgium', 'Austria', 'Greece', 'Israel', 'London', 'Houston', 'Dubai', 'Toronto', 'Paris', 'Berlin',
+  'Accra', 'Nairobi', 'Johannesburg', 'Cape Town', 'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
+  'Connecticut', 'Florida', 'Hawaii', 'Idaho', 'Illinois', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine',
+  'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada',
+  'New Hampshire', 'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma',
+  'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+  'Virginia', 'West Virginia', 'Wisconsin', 'Wyoming',
+];
+const FOREIGN_PATTERN = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${FOREIGN_PLACES.map((name) => escapeRegex(name.toLowerCase())).join('|')})(?![\\p{L}\\p{N}])|\\b[a-z]{2}\\s+\\d{5}(?:-\\d{4})?\\b`,
+  'u',
+);
+
+/** True when a free-text address names a foreign country, US state, big foreign city or carries a US ZIP code. */
+export function mentionsForeignPlace(raw: unknown): boolean {
+  return FOREIGN_PATTERN.test(String(raw ?? '').toLowerCase());
+}

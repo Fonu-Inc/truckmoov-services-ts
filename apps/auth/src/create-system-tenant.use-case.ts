@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { optionalAddressLine } from '@shared/nigeria';
+import { optionalFullAddressLine } from '@shared/nigeria';
 import { Role } from '@shared/rbac';
 import {
   AUTH_NOTIFIER,
@@ -139,7 +139,7 @@ export class CreateSystemTenantUseCase {
       throw new TenantContactNameRequiredError();
     }
 
-    const businessAddress = optionalAddressLine(command.company.businessAddress, 'businessAddress');
+    const businessAddress = optionalFullAddressLine(command.company.businessAddress, 'businessAddress');
 
     const planCode = command.subscription.planCode.trim();
     const plan = await this.planRepository.findByCode(planCode);

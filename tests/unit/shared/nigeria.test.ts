@@ -6,6 +6,8 @@ import {
   isInsideNigeria,
   lgasOf,
   normalizeCountry,
+  mentionsForeignPlace,
+  mentionsNigerianPlace,
   normalizeNigerianState,
   optionalAddressLine,
   optionalAddressLine2,
@@ -165,4 +167,26 @@ describe("address validators", () => {
     expect(field(() => requireCoordinates(51.5, -0.1))).toBe("addressLatitude");
     expect(field(() => requireCoordinates(Number.NaN, 3.4))).toBe("addressLatitude");
   });
+});
+
+describe("mentionsNigerianPlace", () => {
+  it.each(["12 Marina Road, Lagos Island", "Plot 5, Wuse 2, Abuja", "3 Bode Thomas, Surulere, Lagos State", "Km 4 Port Harcourt Road, Rivers", "Nigeria"])(
+    "accepts %s",
+    (line) => expect(mentionsNigerianPlace(line)).toBe(true),
+  );
+  it.each(["12 Main Street, Houston, Texas", "10 Downing Street, London", "5 Nigerian Avenue", "Plot 5", ""])(
+    "does not count %s as a Nigerian place",
+    (line) => expect(mentionsNigerianPlace(line)).toBe(false),
+  );
+});
+
+describe("mentionsForeignPlace", () => {
+  it.each(["12 Main Street, Houston, Texas", "10 Downing Street, London", "1 Elm St, Austin, TX 78701", "4 Rue de Rivoli, Paris, France"])(
+    "flags %s",
+    (line) => expect(mentionsForeignPlace(line)).toBe(true),
+  );
+  it.each(["14 Admiralty Way, Lekki", "Plot 5, Wuse 2", "22 Warehouse Road, Apapa", "7 Benin Road, Warri", "5 Georgia Street, Ikeja", "Km 4 Ibadan Road, Oyo 200001"])(
+    "lets %s through",
+    (line) => expect(mentionsForeignPlace(line)).toBe(false),
+  );
 });
